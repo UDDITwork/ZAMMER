@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
+import { getCurrentLocation } from '../utils/locationUtils';
 
 // Create context
 export const AuthContext = createContext();
@@ -83,7 +84,20 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Login user
-  const loginUser = (data) => {
+  const loginUser = async (data) => {
+    // Try to get user's location
+    try {
+      const location = await getCurrentLocation();
+      if (location && data) {
+        data.location = {
+          ...data.location,
+          coordinates: location.coordinates
+        };
+      }
+    } catch (error) {
+      console.log('Location access denied or error:', error);
+    }
+    
     localStorage.setItem('userToken', data.token);
     localStorage.setItem('userData', JSON.stringify(data));
     

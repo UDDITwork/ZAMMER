@@ -1,27 +1,111 @@
-import React, { useEffect, useState, useContext } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState, useContext, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import UserLayout from '../../components/layouts/UserLayout';
 import { AuthContext } from '../../contexts/AuthContext';
 import { getMarketplaceProducts } from '../../services/productService';
 import { getNearbyShops } from '../../services/userService';
+import { updateLocation } from '../../utils/locationUtils';
 
 const Dashboard = () => {
-  const { userAuth } = useContext(AuthContext);
+  const { userAuth, logoutUser } = useContext(AuthContext);
   const [products, setProducts] = useState([]);
   const [trendingProducts, setTrendingProducts] = useState([]);
   const [shops, setShops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingShops, setLoadingShops] = useState(true);
   const [activeTab, setActiveTab] = useState('All');
+  const [locationUpdated, setLocationUpdated] = useState(false);
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchProducts();
-    fetchTrendingProducts();
-    fetchNearbyShops();
+  const fetchNearbyShops = useCallback(async () => {
+    setLoadingShops(true);
+    try {
+      const response = await getNearbyShops();
+      if (response.success) {
+        setShops(response.data);
+      } else {
+        toast.error(response.message || 'Failed to fetch nearby shops');
+      }
+    } catch (error) {
+      console.error('Error fetching shops:', error);
+    } finally {
+      setLoadingShops(false);
+    }
   }, []);
 
-  const fetchProducts = async () => {
+  const requestLocationUpdate = useCallback(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            // Try to get address using Google Maps API
+            let address = "Your current location";
+            const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+            
+            if (apiKey) {
+              try {
+                const response = await fetch(
+                  `https://maps.googleapis.com/maps/api/geocode/json?latlng=${position.coords.latitude},${position.coords.longitude}&key=${apiKey}`
+                );
+                
+                const data = await response.json();
+                
+                if (data.status === 'OK' && data.results.length > 0) {
+                  address = data.results[0].formatted_address;
+                }
+              } catch (err) {
+                console.error('Error getting address:', err);
+              }
+            }
+            
+            // Create updated user object with location
+            const updatedUserData = {
+              ...userAuth.user,
+              location: {
+                coordinates: [position.coords.longitude, position.coords.latitude],
+                address: address
+              }
+            };
+            
+            // Update in localStorage
+            const userData = localStorage.getItem('userData');
+            if (userData) {
+              const parsedData = JSON.parse(userData);
+              parsedData.location = updatedUserData.location;
+              localStorage.setItem('userData', JSON.stringify(parsedData));
+            }
+            
+            // Update state to force re-render
+            setLocationUpdated(prev => !prev);
+            
+            // Refetch nearby shops with new location
+            fetchNearbyShops();
+            
+            toast.success('Location updated successfully');
+            
+          } catch (error) {
+            console.error('Error updating location:', error);
+            toast.error('Could not update your location');
+          }
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+          toast.error(`Location error: ${error.message}`);
+        }
+      );
+    } else {
+      toast.error('Geolocation is not supported by this browser');
+    }
+  }, [userAuth, fetchNearbyShops]);
+
+  const handleLogout = () => {
+    logoutUser();
+    navigate('/user/login');
+    toast.success('Logged out successfully');
+  };
+
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
       const response = await getMarketplaceProducts({
@@ -38,9 +122,9 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchTrendingProducts = async () => {
+  const fetchTrendingProducts = useCallback(async () => {
     try {
       const response = await getMarketplaceProducts({
         page: 1,
@@ -53,23 +137,18 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error fetching trending products:', error);
     }
-  };
+  }, []);
 
-  const fetchNearbyShops = async () => {
-    setLoadingShops(true);
-    try {
-      const response = await getNearbyShops();
-      if (response.success) {
-        setShops(response.data);
-      } else {
-        toast.error(response.message || 'Failed to fetch nearby shops');
-      }
-    } catch (error) {
-      console.error('Error fetching shops:', error);
-    } finally {
-      setLoadingShops(false);
+  useEffect(() => {
+    fetchProducts();
+    fetchTrendingProducts();
+    fetchNearbyShops();
+    
+    // Only request location if we don't already have it
+    if (!userAuth.user?.location?.coordinates) {
+      requestLocationUpdate();
     }
-  };
+  }, [fetchProducts, fetchTrendingProducts, fetchNearbyShops, requestLocationUpdate, userAuth.user?.location?.coordinates]);
 
   // Function to truncate text
   const truncateText = (text, maxLength) => {
@@ -85,9 +164,17 @@ const Dashboard = () => {
           <div className="container mx-auto">
             <div className="flex items-center justify-between">
               <h1 className="text-2xl font-bold">Zammer Marketplace</h1>
-              <Link to="/user/profile" className="text-white">
-                Welcome, {userAuth.user?.name}
-              </Link>
+              <div className="flex items-center">
+                <Link to="/user/profile" className="text-white mr-4">
+                  Welcome, {userAuth.user?.name}
+                </Link>
+                <button 
+                  onClick={handleLogout}
+                  className="bg-white text-orange-500 px-3 py-1 rounded-full text-sm font-medium hover:bg-orange-100"
+                >
+                  Logout
+                </button>
+              </div>
             </div>
             
             {userAuth.user?.location?.address && (
@@ -101,6 +188,31 @@ const Dashboard = () => {
             )}
           </div>
         </div>
+
+        {/* Location Indicator - Make it clickable */}
+        {userAuth.user?.location?.address ? (
+          <div 
+            className="bg-gray-100 p-2 flex items-center text-sm text-gray-700 border-b cursor-pointer hover:bg-gray-200"
+            onClick={requestLocationUpdate}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-orange-500 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span>Your location: {userAuth.user.location.address} <span className="text-xs text-orange-500">(tap to refresh)</span></span>
+          </div>
+        ) : (
+          <div 
+            className="bg-gray-100 p-2 flex items-center text-sm text-gray-700 border-b cursor-pointer hover:bg-gray-200"
+            onClick={requestLocationUpdate}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-orange-500 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span>Click to detect your location</span>
+          </div>
+        )}
 
         {/* Main Content */}
         <div className="container mx-auto px-4 py-6">

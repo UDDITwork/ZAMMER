@@ -1,22 +1,24 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getNearbyShops } from '../../services/userService';
 import { AuthContext } from '../../contexts/AuthContext';
 import StarRating from '../../components/common/StarRating';
+import UserLayout from '../../components/layouts/UserLayout';
+import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
 
 const ShopPage = () => {
   const { userAuth } = useContext(AuthContext);
   const [shops, setShops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mapCenter, setMapCenter] = useState(null);
+  const [selectedShop, setSelectedShop] = useState(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchNearbyShops();
-  }, []);
+  const googleMapsApiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
-  const fetchNearbyShops = async () => {
+  const fetchNearbyShops = useCallback(async () => {
     setLoading(true);
     try {
       const response = await getNearbyShops();
@@ -51,15 +53,27 @@ const ShopPage = () => {
         }
         
         setShops(shopsWithDistance);
+        // Set map center to user's location if available
+        if (userAuth?.user?.location?.coordinates) {
+          setMapCenter({
+            lat: userAuth.user.location.coordinates[1],
+            lng: userAuth.user.location.coordinates[0]
+          });
+        }
       } else {
         toast.error(response.message || 'Failed to fetch nearby shops');
       }
     } catch (error) {
       console.error('Error fetching shops:', error);
+      toast.error('Failed to fetch nearby shops');
     } finally {
       setLoading(false);
     }
-  };
+  }, [userAuth]);
+
+  useEffect(() => {
+    fetchNearbyShops();
+  }, [fetchNearbyShops]);
 
   // Calculate distance between two points using Haversine formula
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -85,145 +99,126 @@ const ShopPage = () => {
     shop.shop.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  return (
-    <div className="shop-page pb-16">
-      {/* Header */}
-      <div className="bg-white p-4 border-b flex items-center">
-        <button onClick={() => navigate(-1)} className="mr-4">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <h1 className="text-base font-medium">Nearby Shops</h1>
-      </div>
+  const mapContainerStyle = {
+    width: '100%',
+    height: '300px'
+  };
 
-      {/* Search Bar */}
-      <div className="p-4 bg-white border-b">
-        <div className="relative">
+  const defaultCenter = {
+    lat: 20.5937, // Default to India's center
+    lng: 78.9629
+  };
+
+  return (
+    <UserLayout>
+      <div className="container mx-auto px-4 py-6">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">Nearby Shops</h1>
+          <p className="text-gray-600">Discover local shops in your area</p>
+        </div>
+
+        {/* Search Bar */}
+        <div className="mb-6">
           <input
             type="text"
-            placeholder="Search shops..."
-            className="w-full bg-gray-100 rounded-full pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+            placeholder="Search shops by name or category..."
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-          <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
         </div>
-      </div>
 
-      {/* Shops List */}
-      <div className="p-4">
+        {/* Map View */}
+        <div className="mb-6 rounded-lg overflow-hidden shadow-md">
+          <LoadScript googleMapsApiKey={googleMapsApiKey}>
+            <GoogleMap
+              mapContainerStyle={mapContainerStyle}
+              center={mapCenter || defaultCenter}
+              zoom={12}
+            >
+              {shops.map(shop => (
+                <Marker
+                  key={shop._id}
+                  position={{
+                    lat: shop.shop.location.coordinates[1],
+                    lng: shop.shop.location.coordinates[0]
+                  }}
+                  onClick={() => setSelectedShop(shop)}
+                />
+              ))}
+            </GoogleMap>
+          </LoadScript>
+        </div>
+
+        {/* Shop List */}
         {loading ? (
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
           </div>
         ) : filteredShops.length > 0 ? (
-          <div className="space-y-4">
-            {filteredShops.map((shop) => (
-              <Link 
-                key={shop._id} 
-                to={`/user/shop/${shop._id}`}
-                className="block border rounded-lg overflow-hidden bg-white"
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredShops.map(shop => (
+              <div
+                key={shop._id}
+                className={`bg-white rounded-lg shadow-md overflow-hidden border-2 ${
+                  selectedShop?._id === shop._id ? 'border-orange-500' : 'border-transparent'
+                }`}
+                onClick={() => setSelectedShop(shop)}
               >
-                <div className="flex">
-                  <div className="w-1/3 h-24 bg-gray-200 relative">
-                    {shop.shop.images && shop.shop.images[0] ? (
-                      <img 
-                        src={shop.shop.images[0]} 
-                        alt={shop.shop.name} 
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center bg-gray-300">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                  <div className="w-2/3 p-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium text-gray-800">{shop.shop.name}</h3>
-                      <div className="flex items-center text-xs">
-                        <span className="text-yellow-400 mr-1">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                        </span>
-                        <span>{shop.averageRating || 4.9}</span>
-                        <span className="text-gray-500 ml-1">({shop.numReviews || Math.floor(Math.random() * 100) + 10})</span>
-                      </div>
+                <div className="h-48 bg-gray-200 relative">
+                  {shop.shop.images && shop.shop.images.length > 0 ? (
+                    <img
+                      src={shop.shop.images[0]}
+                      alt={shop.shop.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">{shop.shop.category} Fashion</p>
-                    <div className="flex items-center text-xs text-gray-500 mt-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  )}
+                  <div className="absolute top-2 right-2 bg-white rounded-full px-2 py-1 flex items-center space-x-1 text-xs shadow-sm">
+                    <StarRating rating={shop.shop.rating || 0} />
+                    <span>({shop.shop.reviews?.length || 0})</span>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <h3 className="font-semibold text-lg text-gray-800">{shop.shop.name}</h3>
+                  <p className="text-sm text-gray-600 mt-1">{shop.shop.category}</p>
+                  {userAuth?.user?.location?.coordinates && (
+                    <p className="text-sm text-gray-500 mt-2 flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                      {typeof shop.distance === 'number' 
-                        ? `${shop.distance} km from you` 
-                        : shop.shop.address || 'Distance not available'}
-                    </div>
-                    <div className="mt-2 text-xs">
-                      <span className="text-gray-800 font-medium">Price start of </span>
-                      <span className="text-orange-600 font-medium">INR 230/-</span>
-                    </div>
-                  </div>
+                      {calculateDistance(
+                        userAuth.user.location.coordinates[1],
+                        userAuth.user.location.coordinates[0],
+                        shop.shop.location.coordinates[1],
+                        shop.shop.location.coordinates[0]
+                      )} km away
+                    </p>
+                  )}
+                  <Link
+                    to={`/user/shop/${shop._id}`}
+                    className="mt-4 block text-center bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-medium transition-colors"
+                  >
+                    View Shop
+                  </Link>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         ) : (
           <div className="text-center py-8 bg-gray-50 rounded-lg">
-            <p className="text-gray-600">{searchQuery ? 'No shops match your search' : 'No nearby shops found.'}</p>
+            <p className="text-gray-600">No shops found matching your search.</p>
           </div>
         )}
       </div>
-
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-10">
-        <div className="flex justify-between items-center">
-          <Link to="/user/dashboard" className="flex flex-col items-center justify-center py-2 flex-1 text-gray-500">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-            <span className="text-xs">Home</span>
-          </Link>
-          
-          <Link to="/user/shop" className="flex flex-col items-center justify-center py-2 flex-1 text-orange-500">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-            </svg>
-            <span className="text-xs">Shop</span>
-          </Link>
-          
-          <Link to="/user/cart" className="flex flex-col items-center justify-center py-2 flex-1 text-gray-500">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            <span className="text-xs">Cart</span>
-          </Link>
-          
-          <Link to="/user/trending" className="flex flex-col items-center justify-center py-2 flex-1 text-gray-500">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-            </svg>
-            <span className="text-xs">Trending</span>
-          </Link>
-          
-          <Link to="/user/limited-edition" className="flex flex-col items-center justify-center py-2 flex-1 text-gray-500">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-            </svg>
-            <span className="text-xs">Limited Edition</span>
-          </Link>
-        </div>
-      </div>
-    </div>
+    </UserLayout>
   );
 };
 
