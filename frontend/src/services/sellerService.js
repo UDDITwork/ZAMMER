@@ -43,7 +43,27 @@ export const updateSellerProfile = async (profileData) => {
 // Request password reset
 export const requestPasswordReset = async (data) => {
   try {
-    const response = await api.post('/api/sellers/forgot-password', data);
+    const response = await api.post('/sellers/forgot-password', data);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+// Check if email exists
+export const checkEmailExists = async (email) => {
+  try {
+    const response = await api.post('/sellers/check-email', { email });
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+// Direct password reset (no token required)
+export const resetPasswordDirect = async (data) => {
+  try {
+    const response = await api.post('/sellers/reset-password-direct', data);
     return response.data;
   } catch (error) {
     throw error.response?.data || error;

@@ -359,3 +359,64 @@ exports.resetPassword = async (req, res) => {
     });
   }
 };
+
+// Direct Password Reset (no token required)
+exports.resetPasswordDirect = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    // Find seller by email
+    const seller = await Seller.findOne({ email });
+    
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: 'Seller with this email does not exist'
+      });
+    }
+    
+    // Update password
+    seller.password = password;
+    
+    await seller.save();
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Password has been reset successfully'
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error resetting password'
+    });
+  }
+};
+
+// Check if email exists
+exports.checkEmailExists = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    // Find seller by email
+    const seller = await Seller.findOne({ email });
+    
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: 'Seller with this email does not exist'
+      });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Email exists'
+    });
+  } catch (error) {
+    console.error('Check email error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error checking email'
+    });
+  }
+};

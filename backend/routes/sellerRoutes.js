@@ -8,9 +8,12 @@ const {
   updateSellerProfile,
   forgotPassword,
   verifyResetToken,
-  resetPassword
+  resetPassword,
+  resetPasswordDirect,
+  checkEmailExists
 } = require('../controllers/sellerController');
 const { protectSeller } = require('../middleware/authMiddleware');
+const Seller = require('../models/Seller');
 
 // Register a seller
 router.post(
@@ -47,5 +50,16 @@ router.put('/profile', protectSeller, updateSellerProfile);
 router.post('/forgot-password', forgotPassword);
 router.get('/reset-password/:token', verifyResetToken);
 router.post('/reset-password', resetPassword);
+
+// Check if email exists
+router.post('/check-email', [
+  body('email').isEmail().withMessage('Please enter a valid email')
+], checkEmailExists);
+
+// Direct password reset (no token)
+router.post('/reset-password-direct', [
+  body('email').isEmail().withMessage('Please enter a valid email'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+], resetPasswordDirect);
 
 module.exports = router;

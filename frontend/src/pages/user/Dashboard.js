@@ -147,7 +147,7 @@ const Dashboard = () => {
     // Only request location if we don't already have it
     if (!userAuth.user?.location?.coordinates) {
       requestLocationUpdate();
-    }
+      }
   }, [fetchProducts, fetchTrendingProducts, fetchNearbyShops, requestLocationUpdate, userAuth.user?.location?.coordinates]);
 
   // Function to truncate text
@@ -166,8 +166,8 @@ const Dashboard = () => {
               <h1 className="text-2xl font-bold">Zammer Marketplace</h1>
               <div className="flex items-center">
                 <Link to="/user/profile" className="text-white mr-4">
-                  Welcome, {userAuth.user?.name}
-                </Link>
+                Welcome, {userAuth.user?.name}
+              </Link>
                 <button 
                   onClick={handleLogout}
                   className="bg-white text-orange-500 px-3 py-1 rounded-full text-sm font-medium hover:bg-orange-100"
