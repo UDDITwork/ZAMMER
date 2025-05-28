@@ -18,11 +18,29 @@ const Dashboard = () => {
   const [locationUpdated, setLocationUpdated] = useState(false);
   const navigate = useNavigate();
 
+  // 🎯 NEW: Helper function to get shop image
+  const getShopImage = (shop) => {
+    if (shop?.shop?.mainImage) {
+      return shop.shop.mainImage;
+    }
+    if (shop?.shop?.images && shop.shop.images.length > 0) {
+      return shop.shop.images[0];
+    }
+    return null;
+  };
+
   const fetchNearbyShops = useCallback(async () => {
     setLoadingShops(true);
     try {
       const response = await getNearbyShops();
       if (response.success) {
+        console.log('📍 Fetched shops with images:', response.data.map(shop => ({
+          id: shop._id,
+          name: shop.shop?.name,
+          hasMainImage: !!shop.shop?.mainImage,
+          hasImages: shop.shop?.images?.length > 0,
+          imageCount: shop.shop?.images?.length || 0
+        })));
         setShops(response.data);
       } else {
         toast.error(response.message || 'Failed to fetch nearby shops');
@@ -337,13 +355,32 @@ const Dashboard = () => {
               <div className="overflow-x-auto -mx-4 px-4">
                 <div className="flex space-x-4">
               {shops.map(shop => (
-                    <div key={shop._id} className="flex-shrink-0 w-60 rounded-lg overflow-hidden shadow-sm border border-gray-200">
+                    <div key={shop._id} className="flex-shrink-0 w-60 rounded-lg overflow-hidden shadow-sm border border-gray-200 bg-white">
                       <div className="h-32 bg-gray-200 relative">
-                        {/* We'll use a placeholder image since we don't have shop images yet */}
-                        <div className="h-full w-full flex items-center justify-center bg-gray-300">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                          </svg>
+                        {/* 🎯 UPDATED: Display actual shop images */}
+                        {getShopImage(shop) ? (
+                          <img 
+                            src={getShopImage(shop)} 
+                            alt={shop.shop?.name || 'Shop'} 
+                            className="h-full w-full object-cover"
+                            onError={(e) => {
+                              console.log('❌ Shop image failed to load:', getShopImage(shop));
+                              e.target.style.display = 'none';
+                              e.target.nextSibling.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        
+                        {/* Fallback placeholder */}
+                        <div 
+                          className={`h-full w-full flex items-center justify-center bg-gradient-to-br from-orange-100 to-orange-200 ${getShopImage(shop) ? 'hidden' : 'flex'}`}
+                        >
+                          <div className="text-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-orange-400 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                            </svg>
+                            <span className="text-xs text-orange-600 font-medium">{shop.shop?.name}</span>
+                          </div>
                         </div>
                         
                         {/* Rating Chip */}
@@ -354,17 +391,31 @@ const Dashboard = () => {
                           <span>4.9</span>
                           <span className="text-gray-500">({Math.floor(Math.random() * 100) + 10})</span>
                         </div>
+                        
+                        {/* 🎯 NEW: Image indicator */}
+                        {shop.shop?.images?.length > 1 && (
+                          <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-xs">
+                            +{shop.shop.images.length - 1} more
+                          </div>
+                        )}
                       </div>
                       
                       <div className="p-3">
-                        <h3 className="font-medium text-gray-800">{shop.shop.name}</h3>
-                        <p className="text-xs text-gray-500 mt-1">{shop.shop.category} Fashion</p>
+                        <h3 className="font-medium text-gray-800 truncate">{shop.shop?.name || 'Shop Name'}</h3>
+                        <p className="text-xs text-gray-500 mt-1">{shop.shop?.category || 'Fashion'} Fashion</p>
+                        
+                        {/* 🎯 NEW: Shop description if available */}
+                        {shop.shop?.description && (
+                          <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                            {truncateText(shop.shop.description, 60)}
+                          </p>
+                        )}
+                        
                         <p className="text-xs text-gray-500 mt-1 flex items-center">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
-                          {/* Since we don't have distance info yet, we'll use a placeholder */}
                           <span>1.5 km from you</span>
                         </p>
                         <div className="mt-3 text-xs">
@@ -373,7 +424,7 @@ const Dashboard = () => {
                         </div>
                   <Link
                     to={`/user/shop/${shop._id}`}
-                          className="mt-2 block text-center bg-orange-500 hover:bg-orange-600 text-white py-1 rounded text-xs font-medium"
+                          className="mt-2 block text-center bg-orange-500 hover:bg-orange-600 text-white py-1 rounded text-xs font-medium transition-colors"
                   >
                     View Shop
                   </Link>

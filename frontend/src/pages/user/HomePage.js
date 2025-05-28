@@ -17,6 +17,17 @@ const HomePage = () => {
   const [loadingShops, setLoadingShops] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // 🎯 NEW: Helper function to get shop image
+  const getShopImage = (shop) => {
+    if (shop?.shop?.mainImage) {
+      return shop.shop.mainImage;
+    }
+    if (shop?.shop?.images && shop.shop.images.length > 0) {
+      return shop.shop.images[0];
+    }
+    return null;
+  };
+
   useEffect(() => {
     fetchOfferProducts();
     fetchProducts();
@@ -64,6 +75,13 @@ const HomePage = () => {
     try {
       const response = await getNearbyShops();
       if (response.success) {
+        console.log('🏪 Fetched shops for HomePage:', response.data.map(shop => ({
+          id: shop._id,
+          name: shop.shop?.name,
+          hasMainImage: !!shop.shop?.mainImage,
+          hasImages: shop.shop?.images?.length > 0,
+          imageCount: shop.shop?.images?.length || 0
+        })));
         setShops(response.data);
         // Set recommended shops as a subset or different sorting
         setRecommendedShops(response.data.slice().sort(() => 0.5 - Math.random()).slice(0, 4));
@@ -253,19 +271,38 @@ const HomePage = () => {
           ) : shops.length > 0 ? (
             <div className="grid grid-cols-2 gap-3">
               {shops.slice(0, 4).map((shop, index) => (
-                <Link key={shop._id || index} to={`/user/shop/${shop._id}`} className="border rounded-lg overflow-hidden bg-white">
+                <Link key={shop._id || index} to={`/user/shop/${shop._id}`} className="border rounded-lg overflow-hidden bg-white hover:shadow-md transition-shadow">
                   <div className="h-28 bg-gray-200 relative">
-                    {shop.shop.images && shop.shop.images[0] ? (
+                    {/* 🎯 UPDATED: Display actual shop images */}
+                    {getShopImage(shop) ? (
                       <img 
-                        src={shop.shop.images[0]} 
-                        alt={shop.shop.name} 
+                        src={getShopImage(shop)} 
+                        alt={shop.shop?.name || 'Shop'} 
                         className="h-full w-full object-cover"
+                        onError={(e) => {
+                          console.log('❌ Shop image failed to load:', getShopImage(shop));
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
                       />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center bg-gray-300">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    ) : null}
+                    
+                    {/* Fallback placeholder */}
+                    <div 
+                      className={`h-full w-full flex items-center justify-center bg-gradient-to-br from-orange-100 to-orange-200 ${getShopImage(shop) ? 'hidden' : 'flex'}`}
+                    >
+                      <div className="text-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-orange-400 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                         </svg>
+                        <span className="text-xs text-orange-600 font-medium">{shop.shop?.name}</span>
+                      </div>
+                    </div>
+                    
+                    {/* 🎯 NEW: Multiple images indicator */}
+                    {shop.shop?.images?.length > 1 && (
+                      <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-xs">
+                        +{shop.shop.images.length - 1} more
                       </div>
                     )}
                   </div>
@@ -275,7 +312,15 @@ const HomePage = () => {
                       <StarRating rating={shop.averageRating || 4.9} className="text-xs" />
                       <span className="text-xs text-gray-500 ml-1">({shop.numReviews || Math.floor(Math.random() * 90) + 10})</span>
                     </div>
-                    <p className="text-xs font-medium mb-1">ID - {shop._id.toString().substring(shop._id.toString().length - 8)}</p>
+                    <p className="text-xs font-medium mb-1 truncate">{shop.shop?.name || 'Shop Name'}</p>
+                    
+                    {/* 🎯 NEW: Shop description preview */}
+                    {shop.shop?.description && (
+                      <p className="text-xs text-gray-600 mb-1 line-clamp-1">
+                        {shop.shop.description.length > 30 ? shop.shop.description.substring(0, 30) + '...' : shop.shop.description}
+                      </p>
+                    )}
+                    
                     <p className="text-xs text-gray-500 flex items-center">
                       Price start of <span className="text-orange-500 font-medium ml-1">INR 230/-</span>
                     </p>
@@ -308,19 +353,43 @@ const HomePage = () => {
           ) : recommendedShops.length > 0 ? (
             <div className="grid grid-cols-2 gap-3">
               {recommendedShops.slice(0, 4).map((shop, index) => (
-                <Link key={shop._id || `rec-${index}`} to={`/user/shop/${shop._id}`} className="border rounded-lg overflow-hidden bg-white">
+                <Link key={shop._id || `rec-${index}`} to={`/user/shop/${shop._id}`} className="border rounded-lg overflow-hidden bg-white hover:shadow-md transition-shadow">
                   <div className="h-28 bg-gray-200 relative">
-                    {shop.shop.images && shop.shop.images[0] ? (
+                    {/* 🎯 UPDATED: Display actual shop images */}
+                    {getShopImage(shop) ? (
                       <img 
-                        src={shop.shop.images[0]} 
-                        alt={shop.shop.name} 
+                        src={getShopImage(shop)} 
+                        alt={shop.shop?.name || 'Shop'} 
                         className="h-full w-full object-cover"
+                        onError={(e) => {
+                          console.log('❌ Recommended shop image failed to load:', getShopImage(shop));
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
                       />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center bg-gray-300">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    ) : null}
+                    
+                    {/* Fallback placeholder */}
+                    <div 
+                      className={`h-full w-full flex items-center justify-center bg-gradient-to-br from-purple-100 to-purple-200 ${getShopImage(shop) ? 'hidden' : 'flex'}`}
+                    >
+                      <div className="text-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-purple-400 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                         </svg>
+                        <span className="text-xs text-purple-600 font-medium">{shop.shop?.name}</span>
+                      </div>
+                    </div>
+                    
+                    {/* 🎯 NEW: Recommended badge */}
+                    <div className="absolute top-2 left-2 bg-purple-500 text-white px-2 py-1 rounded text-xs font-medium">
+                      Recommended
+                    </div>
+                    
+                    {/* Multiple images indicator */}
+                    {shop.shop?.images?.length > 1 && (
+                      <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-xs">
+                        +{shop.shop.images.length - 1} more
                       </div>
                     )}
                   </div>
@@ -330,7 +399,15 @@ const HomePage = () => {
                       <StarRating rating={shop.averageRating || 4.9} className="text-xs" />
                       <span className="text-xs text-gray-500 ml-1">({shop.numReviews || Math.floor(Math.random() * 90) + 10})</span>
                     </div>
-                    <p className="text-xs font-medium mb-1">ID - {shop._id.toString().substring(shop._id.toString().length - 8)}</p>
+                    <p className="text-xs font-medium mb-1 truncate">{shop.shop?.name || 'Shop Name'}</p>
+                    
+                    {/* Shop description preview */}
+                    {shop.shop?.description && (
+                      <p className="text-xs text-gray-600 mb-1 line-clamp-1">
+                        {shop.shop.description.length > 30 ? shop.shop.description.substring(0, 30) + '...' : shop.shop.description}
+                      </p>
+                    )}
+                    
                     <p className="text-xs text-gray-500 flex items-center">
                       Price start of <span className="text-orange-500 font-medium ml-1">INR 230/-</span>
                     </p>

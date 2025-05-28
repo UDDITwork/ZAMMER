@@ -10,7 +10,7 @@ const SellerForgotPassword = () => {
   const [emailVerified, setEmailVerified] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [resetComplete, setResetComplete] = useState(false);
-  
+
   // Check if email exists
   const checkEmail = async () => {
     if (!email) {
@@ -58,7 +58,7 @@ const SellerForgotPassword = () => {
         email,
         password 
       });
-      
+
       if (response.data.success) {
         setResetComplete(true);
         toast.success('Password reset successful!');
@@ -80,7 +80,7 @@ const SellerForgotPassword = () => {
           <p className="text-gray-600">Your password has been reset successfully.</p>
           <Link to="/seller/login" className="inline-block mt-4 px-6 py-2 bg-orange-600 text-white rounded-md">
             Sign In
-          </Link>
+            </Link>
         </div>
       </div>
     );
@@ -97,14 +97,14 @@ const SellerForgotPassword = () => {
               : 'Enter your email to reset your password'}
           </p>
         </div>
-
+        
         <div className="mt-8 space-y-6">
           {!emailVerified ? (
             // Email verification section
-            <div>
+              <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
+                  Email address
+                </label>
               <div className="mt-1">
                 <input
                   id="email"
@@ -145,7 +145,7 @@ const SellerForgotPassword = () => {
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
                   Confirm New Password
@@ -176,13 +176,13 @@ const SellerForgotPassword = () => {
           )}
 
           <div className="text-center mt-4">
-            <p className="text-sm text-gray-600">
-              Remember your password?{' '}
+                <p className="text-sm text-gray-600">
+                  Remember your password?{' '}
               <Link to="/seller/login" className="font-medium text-orange-600 hover:text-orange-500">
-                Sign in
-              </Link>
-            </p>
-          </div>
+                    Sign in
+                  </Link>
+                </p>
+              </div>
         </div>
       </div>
     </div>

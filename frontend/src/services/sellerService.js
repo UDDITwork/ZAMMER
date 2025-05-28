@@ -33,10 +33,50 @@ export const getSellerProfile = async () => {
 // Update seller profile
 export const updateSellerProfile = async (profileData) => {
   try {
+    console.log('🔄 Sending profile update request:', {
+      hasShopData: !!profileData.shop,
+      hasImages: !!profileData.shop?.images,
+      imagesCount: profileData.shop?.images?.length || 0,
+      hasMainImage: !!profileData.shop?.mainImage
+    });
+
     const response = await api.put('/sellers/profile', profileData);
+    
+    console.log('✅ Profile update response:', {
+      success: response.data.success,
+      hasShopData: !!response.data.data?.shop,
+      hasImages: !!response.data.data?.shop?.images,
+      imagesCount: response.data.data?.shop?.images?.length || 0,
+      hasMainImage: !!response.data.data?.shop?.mainImage
+    });
+
     return response.data;
   } catch (error) {
-    throw error.response.data;
+    console.error('❌ Profile update error:', error.response?.data || error);
+    throw error.response?.data || error;
+  }
+};
+
+// 🎯 NEW: Upload shop images
+export const uploadShopImages = async (images) => {
+  try {
+    console.log('📸 Uploading shop images:', {
+      imagesCount: images.length,
+      firstImagePreview: images[0]?.substring(0, 50) + '...' || 'none'
+    });
+
+    const response = await api.post('/sellers/upload-shop-images', { images });
+    
+    console.log('✅ Shop images upload response:', {
+      success: response.data.success,
+      imagesCount: response.data.data?.images?.length || 0,
+      hasMainImage: !!response.data.data?.mainImage
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('❌ Shop images upload error:', error.response?.data || error);
+    throw error.response?.data || error;
   }
 };
 

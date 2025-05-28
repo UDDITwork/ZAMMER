@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import SellerLayout from '../../components/layouts/SellerLayout';
-import { getSellerProducts, deleteProduct } from '../../services/productService';
+import { getSellerProducts, deleteProduct, updateProduct } from '../../services/productService';
 
 const ViewProducts = () => {
   const [products, setProducts] = useState([]);
@@ -10,6 +10,7 @@ const ViewProducts = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [toggleLoading, setToggleLoading] = useState({}); // Track loading state for individual toggles
 
   useEffect(() => {
     fetchProducts();
@@ -44,6 +45,72 @@ const ViewProducts = () => {
       toast.error(error.message || 'Something went wrong');
     } finally {
       setConfirmDelete(null);
+    }
+  };
+
+  // 🎯 NEW: Handle Limited Edition Toggle
+  const handleLimitedEditionToggle = async (productId, currentStatus) => {
+    setToggleLoading(prev => ({ ...prev, [`limited_${productId}`]: true }));
+    
+    try {
+      const product = products.find(p => p._id === productId);
+      const updatedData = {
+        ...product,
+        isLimitedEdition: !currentStatus
+      };
+
+      const response = await updateProduct(productId, updatedData);
+      
+      if (response.success) {
+        // Update the local state
+        setProducts(prev => prev.map(p => 
+          p._id === productId 
+            ? { ...p, isLimitedEdition: !currentStatus }
+            : p
+        ));
+        
+        toast.success(`Product ${!currentStatus ? 'marked as' : 'removed from'} Limited Edition`);
+      } else {
+        toast.error(response.message || 'Failed to update product');
+      }
+    } catch (error) {
+      console.error('Error toggling Limited Edition:', error);
+      toast.error('Something went wrong while updating the product');
+    } finally {
+      setToggleLoading(prev => ({ ...prev, [`limited_${productId}`]: false }));
+    }
+  };
+
+  // 🎯 NEW: Handle Trending Toggle
+  const handleTrendingToggle = async (productId, currentStatus) => {
+    setToggleLoading(prev => ({ ...prev, [`trending_${productId}`]: true }));
+    
+    try {
+      const product = products.find(p => p._id === productId);
+      const updatedData = {
+        ...product,
+        isTrending: !currentStatus
+      };
+
+      const response = await updateProduct(productId, updatedData);
+      
+      if (response.success) {
+        // Update the local state
+        setProducts(prev => prev.map(p => 
+          p._id === productId 
+            ? { ...p, isTrending: !currentStatus }
+            : p
+        ));
+        
+        toast.success(`Product ${!currentStatus ? 'marked as' : 'removed from'} Trending`);
+      } else {
+        toast.error(response.message || 'Failed to update product');
+      }
+    } catch (error) {
+      console.error('Error toggling Trending:', error);
+      toast.error('Something went wrong while updating the product');
+    } finally {
+      setToggleLoading(prev => ({ ...prev, [`trending_${productId}`]: false }));
     }
   };
 
@@ -124,8 +191,37 @@ const ViewProducts = () => {
           </div>
         </div>
 
+        {/* 🎯 NEW: Stats Summary */}
+        {products.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white p-4 rounded-lg shadow-sm border">
+              <div className="text-2xl font-bold text-gray-800">{products.length}</div>
+              <div className="text-sm text-gray-600">Total Products</div>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-sm border">
+              <div className="text-2xl font-bold text-purple-600">
+                {products.filter(p => p.isLimitedEdition).length}
+              </div>
+              <div className="text-sm text-gray-600">Limited Edition</div>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-sm border">
+              <div className="text-2xl font-bold text-pink-600">
+                {products.filter(p => p.isTrending).length}
+              </div>
+              <div className="text-sm text-gray-600">Trending</div>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-sm border">
+              <div className="text-2xl font-bold text-green-600">
+                {products.filter(p => p.status === 'active').length}
+              </div>
+              <div className="text-sm text-gray-600">Active</div>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-10">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading products...</p>
           </div>
         ) : filteredProducts.length > 0 ? (
@@ -143,6 +239,9 @@ const ViewProducts = () => {
                     Price
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Inventory
                   </th>
                   <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -152,7 +251,7 @@ const ViewProducts = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredProducts.map((product) => (
-                  <tr key={product._id}>
+                  <tr key={product._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-12 w-12 flex-shrink-0 mr-4">
@@ -184,24 +283,97 @@ const ViewProducts = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">₹{product.zammerPrice}</div>
                       <div className="text-sm text-gray-500">MRP: ₹{product.mrp}</div>
+                      {product.mrp > product.zammerPrice && (
+                        <div className="text-xs text-green-600">
+                          {Math.round(((product.mrp - product.zammerPrice) / product.mrp) * 100)}% off
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex flex-col space-y-1">
+                        {/* 🎯 NEW: Status Badges */}
+                        <div className="flex flex-wrap gap-1">
+                          {product.isLimitedEdition && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                              ⭐ Limited Edition
+                            </span>
+                          )}
+                          {product.isTrending && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-pink-100 text-pink-800">
+                              🔥 Trending
+                            </span>
+                          )}
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            product.status === 'active' 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {product.status === 'active' ? '✓ Active' : '○ Inactive'}
+                          </span>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {product.variants?.reduce((total, variant) => total + (variant.inventory || 0), 0) || 0} units
+                      {product.variants?.reduce((total, variant) => total + (variant.quantity || 0), 0) || 0} units
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
-                      <div className="flex justify-center space-x-3">
-                        <Link
-                          to={`/seller/edit-product/${product._id}`}
-                          className="text-indigo-600 hover:text-indigo-900"
-                        >
-                          Edit
-                        </Link>
-                        <button
-                          onClick={() => setConfirmDelete(product._id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Delete
-                        </button>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex flex-col space-y-2">
+                        {/* 🎯 ENHANCED: Main Actions */}
+                        <div className="flex justify-center space-x-2">
+                          <Link
+                            to={`/seller/edit-product/${product._id}`}
+                            className="text-indigo-600 hover:text-indigo-900 px-2 py-1 rounded border border-indigo-200 hover:bg-indigo-50 text-xs"
+                          >
+                            Edit
+                          </Link>
+                          <button
+                            onClick={() => setConfirmDelete(product._id)}
+                            className="text-red-600 hover:text-red-900 px-2 py-1 rounded border border-red-200 hover:bg-red-50 text-xs"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                        
+                        {/* 🎯 NEW: Toggle Actions */}
+                        <div className="flex justify-center space-x-1">
+                          <button
+                            onClick={() => handleLimitedEditionToggle(product._id, product.isLimitedEdition)}
+                            disabled={toggleLoading[`limited_${product._id}`]}
+                            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                              product.isLimitedEdition
+                                ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            } ${toggleLoading[`limited_${product._id}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            {toggleLoading[`limited_${product._id}`] ? (
+                              <div className="flex items-center">
+                                <div className="animate-spin rounded-full h-3 w-3 border-b border-current mr-1"></div>
+                                ...
+                              </div>
+                            ) : (
+                              <>⭐ {product.isLimitedEdition ? 'Limited' : 'Make Limited'}</>
+                            )}
+                          </button>
+                          
+                          <button
+                            onClick={() => handleTrendingToggle(product._id, product.isTrending)}
+                            disabled={toggleLoading[`trending_${product._id}`]}
+                            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                              product.isTrending
+                                ? 'bg-pink-100 text-pink-700 hover:bg-pink-200'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            } ${toggleLoading[`trending_${product._id}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            {toggleLoading[`trending_${product._id}`] ? (
+                              <div className="flex items-center">
+                                <div className="animate-spin rounded-full h-3 w-3 border-b border-current mr-1"></div>
+                                ...
+                              </div>
+                            ) : (
+                              <>🔥 {product.isTrending ? 'Trending' : 'Make Trending'}</>
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </td>
                   </tr>

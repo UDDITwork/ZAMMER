@@ -8,6 +8,7 @@ import { AuthProvider } from './contexts/AuthContext';
 
 // Error Boundary Component
 import ErrorBoundary from './components/ErrorBoundary';
+import SimplePlacesTest from './components/SimplePlacesTest';
 
 // Seller Auth Pages
 import SellerLogin from './pages/auth/SellerLogin';
@@ -62,7 +63,7 @@ function App() {
     <Router>
       <AuthProvider>
         <ErrorBoundary onError={logRouteError}>
-          <div className="App">
+        <div className="App">
             <ToastContainer 
               position="top-center"
               autoClose={3000}
@@ -74,18 +75,18 @@ function App() {
               draggable
               pauseOnHover
             />
-            <Routes>
-              {/* Root redirect */}
-              <Route path="/" element={<Navigate replace to="/user/dashboard" />} />
-              
-              {/* Seller Auth Routes */}
-              <Route path="/seller/login" element={<SellerLogin />} />
-              <Route path="/seller/register" element={<SellerRegister />} />
-              <Route path="/seller/forgot-password" element={<SellerForgotPassword />} />
-              <Route path="/seller/reset-password/:token" element={<SellerResetPassword />} />
-              
-              {/* Seller Dashboard Routes */}
-              <Route path="/seller/dashboard" element={<SellerDashboard />} />
+          <Routes>
+            {/* Root redirect */}
+            <Route path="/" element={<Navigate replace to="/user/dashboard" />} />
+            
+            {/* Seller Auth Routes */}
+            <Route path="/seller/login" element={<SellerLogin />} />
+            <Route path="/seller/register" element={<SellerRegister />} />
+            <Route path="/seller/forgot-password" element={<SellerForgotPassword />} />
+            <Route path="/seller/reset-password/:token" element={<SellerResetPassword />} />
+            
+            {/* Seller Dashboard Routes */}
+            <Route path="/seller/dashboard" element={<SellerDashboard />} />
               <Route path="/seller/add-product" element={<AddProduct />} />
               <Route path="/seller/edit-product/:id" element={<EditProduct />} />
               <Route path="/seller/view-products" element={<ViewProducts />} />
@@ -96,30 +97,33 @@ function App() {
               <Route path="/seller/products/edit/:id" element={<Navigate replace to="/seller/edit-product/:id" />} />
               <Route path="/seller/products" element={<Navigate replace to="/seller/view-products" />} />
               <Route path="/seller/profile" element={<Navigate replace to="/seller/edit-profile" />} />
+            
+            {/* User Auth Routes */}
+            <Route path="/user/login" element={<UserLogin />} />
+            <Route path="/user/register" element={<UserRegister />} />
+            <Route path="/user/forgot-password" element={<UserForgotPassword />} />
+            <Route path="/user/reset-password/:token" element={<UserResetPassword />} />
+            
+            {/* User Pages */}
+            <Route path="/user/dashboard" element={<UserDashboard />} />
+            <Route path="/user/home" element={<HomePage />} />
+            <Route path="/user/offers" element={<ShopOffersPage />} />
+            <Route path="/user/categories/:category" element={<CategoryPage />} />
+            <Route path="/user/products" element={<ProductListPage />} />
+            <Route path="/user/product/:productId" element={<ProductDetailPage />} />
+            <Route path="/user/shop/:shopId" element={<ShopDetailPage />} />
+            <Route path="/user/shop" element={<ShopPage />} />
+            <Route path="/user/nearby-shops" element={<NearbyShopsPage />} />
+            <Route path="/user/cart" element={<CartPage />} />
+            <Route path="/user/checkout" element={<CheckoutPage />} />
+            <Route path="/user/payment" element={<PaymentPage />} />
+            <Route path="/user/wishlist" element={<WishlistPage />} />
+            <Route path="/user/trending" element={<TrendingPage />} />
+            <Route path="/user/limited-edition" element={<LimitedEditionPage />} />
+            <Route path="/user/order-confirmation" element={<OrderConfirmationPage />} />
               
-              {/* User Auth Routes */}
-              <Route path="/user/login" element={<UserLogin />} />
-              <Route path="/user/register" element={<UserRegister />} />
-              <Route path="/user/forgot-password" element={<UserForgotPassword />} />
-              <Route path="/user/reset-password/:token" element={<UserResetPassword />} />
-              
-              {/* User Pages */}
-              <Route path="/user/dashboard" element={<UserDashboard />} />
-              <Route path="/user/home" element={<HomePage />} />
-              <Route path="/user/offers" element={<ShopOffersPage />} />
-              <Route path="/user/categories/:category" element={<CategoryPage />} />
-              <Route path="/user/products" element={<ProductListPage />} />
-              <Route path="/user/product/:productId" element={<ProductDetailPage />} />
-              <Route path="/user/shop/:shopId" element={<ShopDetailPage />} />
-              <Route path="/user/shop" element={<ShopPage />} />
-              <Route path="/user/nearby-shops" element={<NearbyShopsPage />} />
-              <Route path="/user/cart" element={<CartPage />} />
-              <Route path="/user/checkout" element={<CheckoutPage />} />
-              <Route path="/user/payment" element={<PaymentPage />} />
-              <Route path="/user/wishlist" element={<WishlistPage />} />
-              <Route path="/user/trending" element={<TrendingPage />} />
-              <Route path="/user/limited-edition" element={<LimitedEditionPage />} />
-              <Route path="/user/order-confirmation" element={<OrderConfirmationPage />} />
+              {/* Add this route for testing */}
+              <Route path="/test-places" element={<SimplePlacesTest />} />
               
               {/* 404 Catch-all route */}
               <Route path="*" element={
@@ -131,8 +135,8 @@ function App() {
                   </div>
                 </div>
               } />
-            </Routes>
-          </div>
+          </Routes>
+        </div>
         </ErrorBoundary>
       </AuthProvider>
     </Router>

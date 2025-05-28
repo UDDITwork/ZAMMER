@@ -26,13 +26,86 @@ const Dashboard = () => {
     fetchProducts();
   }, []);
 
+  // 🎯 NEW: Get shop main image
+  const getShopMainImage = () => {
+    const shop = sellerAuth.seller?.shop;
+    if (shop?.mainImage) {
+      return shop.mainImage;
+    }
+    if (shop?.images && shop.images.length > 0) {
+      return shop.images[0];
+    }
+    return null;
+  };
+
   return (
     <SellerLayout>
       <div className="dashboard-container">
+        {/* 🎯 NEW: Shop Banner Section with Image */}
+        <div className="shop-banner-section mb-8 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg overflow-hidden shadow-lg">
+          <div className="relative h-48 md:h-64">
+            {getShopMainImage() ? (
+              <div className="absolute inset-0">
+                <img 
+                  src={getShopMainImage()} 
+                  alt={sellerAuth.seller?.shop?.name || 'Shop'} 
+                  className="w-full h-full object-cover opacity-80"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-orange-500/60 to-orange-600/60"></div>
+              </div>
+            ) : (
+              <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-orange-600"></div>
+            )}
+            
+            {/* Shop Info Overlay */}
+            <div className="relative z-10 p-6 h-full flex flex-col justify-between text-white">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold mb-2">
+                  {sellerAuth.seller?.shop?.name || 'Your Shop'}
+                </h1>
+                <p className="text-orange-100 mb-1">
+                  {sellerAuth.seller?.shop?.category || 'Fashion'} Store
+                </p>
+                {sellerAuth.seller?.shop?.description && (
+                  <p className="text-orange-100 text-sm max-w-md">
+                    {sellerAuth.seller.shop.description}
+                  </p>
+                )}
+              </div>
+              
+              <div className="flex items-center space-x-4">
+                <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
+                  <p className="text-sm text-orange-100">Total Products</p>
+                  <p className="text-2xl font-bold">
+                    {loading ? '...' : products.length}
+                  </p>
+                </div>
+                
+                <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
+                  <p className="text-sm text-orange-100">Shop Status</p>
+                  <p className="text-lg font-semibold text-green-200">Active</p>
+                </div>
+                
+                {!getShopMainImage() && (
+                  <Link
+                    to="/seller/edit-profile"
+                    className="bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-50 transition-colors flex items-center"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Add Shop Image
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="welcome-section mb-8">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">
             Welcome, {sellerAuth.seller?.firstName || 'Seller'}!
-          </h1>
+          </h2>
           <p className="text-gray-600">
             Manage your shop and products from your dashboard.
           </p>
@@ -95,12 +168,14 @@ const Dashboard = () => {
           </div>
           
           {loading ? (
-            <p>Loading products...</p>
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+            </div>
           ) : products.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {products.slice(0, 3).map(product => (
-                <div key={product._id} className="product-card border rounded-lg overflow-hidden shadow-sm">
-                  <div className="h-40 bg-gray-200 flex items-center justify-center">
+                <div key={product._id} className="product-card border rounded-lg overflow-hidden shadow-sm bg-white hover:shadow-md transition-shadow">
+                  <div className="h-40 bg-gray-200 flex items-center justify-center relative">
                     {product.images && product.images.length > 0 ? (
                       <img 
                         src={product.images[0]} 
@@ -108,15 +183,51 @@ const Dashboard = () => {
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <div className="text-gray-400">No image</div>
+                      <div className="text-gray-400 text-center">
+                        <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="text-sm">No image</span>
+                      </div>
                     )}
+                    
+                    {/* Product badges */}
+                    <div className="absolute top-2 left-2 space-y-1">
+                      {product.isTrending && (
+                        <span className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                          Trending
+                        </span>
+                      )}
+                      {product.isLimitedEdition && (
+                        <span className="bg-purple-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                          Limited
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="p-4">
-                    <h3 className="font-semibold text-lg text-gray-800">{product.name}</h3>
-                    <div className="flex justify-between items-center mt-2">
-                      <span className="text-gray-600">₹{product.zammerPrice}</span>
-                      <span className="text-sm text-gray-500">
-                        {product.variants?.reduce((total, variant) => total + (variant.inventory || 0), 0) || 0} in stock
+                    <h3 className="font-semibold text-lg text-gray-800 mb-2 truncate">{product.name}</h3>
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-orange-600 font-bold text-lg">₹{product.zammerPrice}</span>
+                        {product.mrp > product.zammerPrice && (
+                          <span className="text-gray-500 text-sm line-through">₹{product.mrp}</span>
+                        )}
+                      </div>
+                      {product.mrp > product.zammerPrice && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+                          {Math.round(((product.mrp - product.zammerPrice) / product.mrp) * 100)}% OFF
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex justify-between items-center text-sm text-gray-600">
+                      <span>Stock: {product.variants?.reduce((total, variant) => total + (variant.quantity || 0), 0) || 0}</span>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        product.status === 'active' ? 'bg-green-100 text-green-800' : 
+                        product.status === 'paused' ? 'bg-yellow-100 text-yellow-800' : 
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {product.status}
                       </span>
                     </div>
                   </div>
@@ -124,12 +235,21 @@ const Dashboard = () => {
               ))}
             </div>
           ) : (
-            <div className="text-center py-6 bg-gray-50 rounded-lg">
-              <p className="text-gray-600 mb-4">You haven't added any products yet.</p>
+            <div className="text-center py-12 bg-gray-50 rounded-lg">
+              <div className="mb-4">
+                <svg className="w-16 h-16 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+              </div>
+              <p className="text-gray-600 text-lg mb-4">You haven't added any products yet.</p>
+              <p className="text-gray-500 text-sm mb-6">Start building your inventory by adding your first product.</p>
               <Link 
                 to="/seller/add-product" 
-                className="bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-md text-sm"
+                className="bg-orange-500 hover:bg-orange-600 text-white py-3 px-6 rounded-md text-sm font-medium inline-flex items-center"
               >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
                 Add Your First Product
               </Link>
             </div>
@@ -137,37 +257,87 @@ const Dashboard = () => {
         </div>
 
         <div className="shop-info bg-gray-50 p-6 rounded-lg shadow-sm">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">
-            Your Shop Information
-          </h2>
+          <div className="flex justify-between items-start mb-4">
+            <h2 className="text-xl font-bold text-gray-800">
+              Your Shop Information
+            </h2>
+            {getShopMainImage() && (
+              <Link
+                to="/seller/edit-profile"
+                className="text-orange-600 hover:text-orange-700 text-sm font-medium flex items-center"
+              >
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Update Shop Image
+              </Link>
+            )}
+          </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-gray-500">Shop Name</p>
-              <p className="font-medium">{sellerAuth.seller?.shop?.name || 'N/A'}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-500">Shop Name</p>
+                <p className="font-medium text-gray-800">{sellerAuth.seller?.shop?.name || 'N/A'}</p>
+              </div>
+              
+              <div>
+                <p className="text-sm text-gray-500">Category</p>
+                <p className="font-medium text-gray-800">{sellerAuth.seller?.shop?.category || 'N/A'}</p>
+              </div>
+              
+              <div>
+                <p className="text-sm text-gray-500">Address</p>
+                <p className="font-medium text-gray-800">{sellerAuth.seller?.shop?.address || 'N/A'}</p>
+              </div>
+              
+              <div>
+                <p className="text-sm text-gray-500">Contact Number</p>
+                <p className="font-medium text-gray-800">{sellerAuth.seller?.shop?.phoneNumber?.main || 'N/A'}</p>
+              </div>
             </div>
             
-            <div>
-              <p className="text-sm text-gray-500">Category</p>
-              <p className="font-medium">{sellerAuth.seller?.shop?.category || 'N/A'}</p>
-            </div>
-            
-            <div>
-              <p className="text-sm text-gray-500">Address</p>
-              <p className="font-medium">{sellerAuth.seller?.shop?.address || 'N/A'}</p>
-            </div>
-            
-            <div>
-              <p className="text-sm text-gray-500">Contact Number</p>
-              <p className="font-medium">{sellerAuth.seller?.shop?.phoneNumber?.main || 'N/A'}</p>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-500">Working Hours</p>
+                <p className="font-medium text-gray-800">
+                  {sellerAuth.seller?.shop?.openTime && sellerAuth.seller?.shop?.closeTime 
+                    ? `${sellerAuth.seller.shop.openTime} - ${sellerAuth.seller.shop.closeTime}`
+                    : 'Not set'
+                  }
+                </p>
+              </div>
+              
+              <div>
+                <p className="text-sm text-gray-500">Working Days</p>
+                <p className="font-medium text-gray-800">{sellerAuth.seller?.shop?.workingDays || 'Not set'}</p>
+              </div>
+              
+              {sellerAuth.seller?.shop?.description && (
+                <div>
+                  <p className="text-sm text-gray-500">Description</p>
+                  <p className="font-medium text-gray-800">{sellerAuth.seller.shop.description}</p>
+                </div>
+              )}
+              
+              {/* 🎯 NEW: Shop Images Count */}
+              <div>
+                <p className="text-sm text-gray-500">Shop Images</p>
+                <p className="font-medium text-gray-800">
+                  {sellerAuth.seller?.shop?.images?.length || 0} image(s) uploaded
+                </p>
+              </div>
             </div>
           </div>
           
-          <div className="mt-4">
+          <div className="mt-6 pt-4 border-t border-gray-200">
             <Link 
               to="/seller/edit-profile" 
-              className="text-orange-600 hover:text-orange-700 text-sm font-medium"
+              className="text-orange-600 hover:text-orange-700 text-sm font-medium inline-flex items-center"
             >
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
               Edit Shop Information
             </Link>
           </div>

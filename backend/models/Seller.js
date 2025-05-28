@@ -73,6 +73,19 @@ const sellerSchema = new mongoose.Schema({
         type: [Number],
         default: [0, 0]
       }
+    },
+    images: {
+      type: [String],
+      default: []
+    },
+    mainImage: {
+      type: String,
+      default: ''
+    },
+    description: {
+      type: String,
+      default: '',
+      maxlength: [500, 'Shop description cannot be more than 500 characters']
     }
   },
   bankDetails: {
@@ -133,6 +146,35 @@ sellerSchema.pre('save', async function(next) {
 sellerSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
+
+// Method to get main shop image or default
+sellerSchema.methods.getMainShopImage = function() {
+  if (this.shop.mainImage) {
+    return this.shop.mainImage;
+  }
+  if (this.shop.images && this.shop.images.length > 0) {
+    return this.shop.images[0];
+  }
+  return null;
+};
+
+// Virtual for shop image URL
+sellerSchema.virtual('shop.mainImageUrl').get(function() {
+  const mainImage = this.getMainShopImage();
+  if (mainImage) {
+    // If it's already a full URL (starts with http), return as is
+    if (mainImage.startsWith('http')) {
+      return mainImage;
+    }
+    // Otherwise, construct the URL (for uploaded files)
+    return `/uploads/${mainImage}`;
+  }
+  return null;
+});
+
+// Ensure virtual fields are included in JSON output
+sellerSchema.set('toJSON', { virtuals: true });
+sellerSchema.set('toObject', { virtuals: true });
 
 const Seller = mongoose.model('Seller', sellerSchema);
 

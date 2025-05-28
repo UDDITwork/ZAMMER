@@ -7,8 +7,10 @@ User clicks link and is taken to reset password page
 User enters new password and confirms it
 Backend verifies token and updates password
 User is redirected to login page
+-------------------------------------------------
 Note: In a production environment, you would want to:
 Implement actual email sending functionality
 Remove the devToken from the response
 Add rate limiting to prevent abuse
 Add additional security measures like IP tracking
+--------------------------------------------------
