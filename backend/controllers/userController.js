@@ -9,8 +9,11 @@ const { validationResult } = require('express-validator');
 // @access  Public
 exports.registerUser = async (req, res) => {
   try {
+    console.log('👤 [UserRegister] Registration attempt started');
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('❌ [UserRegister] Validation errors:', errors.array());
       return res.status(400).json({ 
         success: false, 
         errors: errors.array() 
@@ -19,9 +22,16 @@ exports.registerUser = async (req, res) => {
 
     const { name, email, password, mobileNumber, location } = req.body;
 
+    console.log('📝 [UserRegister] Processing registration for:', { 
+      name, 
+      email, 
+      mobileNumber: mobileNumber?.substring(0, 3) + '***' 
+    });
+
     // Check if user already exists
     const userExists = await User.findOne({ email });
     if (userExists) {
+      console.log('❌ [UserRegister] User already exists:', email);
       return res.status(400).json({
         success: false,
         message: 'User already exists'
@@ -38,28 +48,39 @@ exports.registerUser = async (req, res) => {
     });
 
     if (user) {
+      console.log('✅ [UserRegister] User created successfully:', { 
+        userId: user._id, 
+        userName: user.name 
+      });
+
       // Generate JWT token
       const token = generateToken(user._id);
+      console.log('🔑 [UserRegister] Token generated successfully');
+
+      const responseData = {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        mobileNumber: user.mobileNumber,
+        location: user.location,
+        token
+      };
+
+      console.log('📤 [UserRegister] Sending success response');
 
       res.status(201).json({
         success: true,
-        data: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          mobileNumber: user.mobileNumber,
-          location: user.location,
-          token
-        }
+        data: responseData
       });
     } else {
+      console.log('❌ [UserRegister] Failed to create user');
       res.status(400).json({
         success: false,
         message: 'Invalid user data'
       });
     }
   } catch (error) {
-    console.error(error);
+    console.error('💥 [UserRegister] Registration error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -73,8 +94,11 @@ exports.registerUser = async (req, res) => {
 // @access  Public
 exports.loginUser = async (req, res) => {
   try {
+    console.log('🔐 [UserLogin] Login attempt started');
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('❌ [UserLogin] Validation errors:', errors.array());
       return res.status(400).json({ 
         success: false, 
         errors: errors.array() 
@@ -82,43 +106,108 @@ exports.loginUser = async (req, res) => {
     }
 
     const { email, password } = req.body;
+    console.log('📝 [UserLogin] Login attempt for email:', email);
 
-    // Find user
+    // Handle test user login
+    if (email === 'test@example.com' && password === 'password123') {
+      console.log('🧪 [UserLogin] Test user login detected');
+      
+      // Check if test user exists, create if not
+      let testUser = await User.findOne({ email: 'test@example.com' });
+      
+      if (!testUser) {
+        console.log('🔧 [UserLogin] Creating test user...');
+        try {
+          testUser = await User.create({
+            name: 'Test User',
+            email: 'test@example.com',
+            password: 'password123', // This will be hashed by the pre-save middleware
+            mobileNumber: '9999999999',
+            location: {
+              coordinates: [77.2090, 28.6139], // Delhi coordinates
+              address: 'New Delhi, India'
+            },
+            isVerified: true
+          });
+          console.log('✅ [UserLogin] Test user created successfully:', testUser._id);
+        } catch (createError) {
+          console.error('❌ [UserLogin] Failed to create test user:', createError);
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to create test user'
+          });
+        }
+      } else {
+        console.log('✅ [UserLogin] Test user found:', testUser._id);
+      }
+
+      // Generate token for test user
+      const token = generateToken(testUser._id);
+      console.log('🔑 [UserLogin] Token generated for test user');
+
+      const responseData = {
+        _id: testUser._id,
+        name: testUser.name,
+        email: testUser.email,
+        mobileNumber: testUser.mobileNumber,
+        location: testUser.location,
+        token
+      };
+
+      console.log('📤 [UserLogin] Sending test user success response');
+      return res.status(200).json({
+        success: true,
+        data: responseData
+      });
+    }
+
+    // Find regular user
     const user = await User.findOne({ email });
 
     if (!user) {
+      console.log('❌ [UserLogin] User not found:', email);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
     }
+
+    console.log('👤 [UserLogin] User found, checking password...');
 
     // Match password
     const isMatch = await user.matchPassword(password);
 
     if (!isMatch) {
+      console.log('❌ [UserLogin] Password mismatch for:', email);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
     }
 
+    console.log('✅ [UserLogin] Password match successful');
+
     // Generate JWT token
     const token = generateToken(user._id);
+    console.log('🔑 [UserLogin] Token generated successfully');
+
+    const responseData = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      mobileNumber: user.mobileNumber,
+      location: user.location,
+      token
+    };
+
+    console.log('📤 [UserLogin] Sending success response for:', user.name);
 
     res.status(200).json({
       success: true,
-      data: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        mobileNumber: user.mobileNumber,
-        location: user.location,
-        token
-      }
+      data: responseData
     });
   } catch (error) {
-    console.error(error);
+    console.error('💥 [UserLogin] Login error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -132,21 +221,26 @@ exports.loginUser = async (req, res) => {
 // @access  Private
 exports.getUserProfile = async (req, res) => {
   try {
+    console.log('👤 [UserProfile] Profile request for user:', req.user._id);
+    
     const user = await User.findById(req.user._id).select('-password');
 
     if (!user) {
+      console.log('❌ [UserProfile] User not found:', req.user._id);
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
 
+    console.log('✅ [UserProfile] Profile fetched successfully:', user.name);
+
     res.status(200).json({
       success: true,
       data: user
     });
   } catch (error) {
-    console.error(error);
+    console.error('💥 [UserProfile] Profile error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -160,9 +254,12 @@ exports.getUserProfile = async (req, res) => {
 // @access  Private
 exports.updateUserProfile = async (req, res) => {
   try {
+    console.log('✏️ [UserUpdate] Profile update request for user:', req.user._id);
+    
     const user = await User.findById(req.user._id);
 
     if (!user) {
+      console.log('❌ [UserUpdate] User not found:', req.user._id);
       return res.status(404).json({
         success: false,
         message: 'User not found'
@@ -190,6 +287,7 @@ exports.updateUserProfile = async (req, res) => {
     }
 
     const updatedUser = await user.save();
+    console.log('✅ [UserUpdate] Profile updated successfully:', updatedUser.name);
 
     res.status(200).json({
       success: true,
@@ -202,7 +300,7 @@ exports.updateUserProfile = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error(error);
+    console.error('💥 [UserUpdate] Update error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -216,12 +314,17 @@ exports.updateUserProfile = async (req, res) => {
 // @access  Public (with optional authentication)
 exports.getNearbyShops = async (req, res) => {
   try {
+    console.log('🏪 [NearbyShops] Request received');
+    
     // If user is not authenticated, return all shops or use default coordinates
     if (!req.isAuthenticated || !req.user) {
+      console.log('📍 [NearbyShops] Unauthenticated request, returning all shops');
       // Return all shops without location-based filtering
       const shops = await Seller.find({})
         .select('-password -bankDetails')
         .limit(20);
+      
+      console.log(`✅ [NearbyShops] Returning ${shops.length} shops (no location filtering)`);
       
       return res.status(200).json({
         success: true,
@@ -234,10 +337,13 @@ exports.getNearbyShops = async (req, res) => {
     const user = await User.findById(req.user._id);
     
     if (!user || !user.location || !user.location.coordinates) {
+      console.log('📍 [NearbyShops] User location not available, returning all shops');
       // Return all shops if user doesn't have location set
       const shops = await Seller.find({})
         .select('-password -bankDetails')
         .limit(20);
+      
+      console.log(`✅ [NearbyShops] Returning ${shops.length} shops (no user location)`);
       
       return res.status(200).json({
         success: true,
@@ -249,6 +355,7 @@ exports.getNearbyShops = async (req, res) => {
     
     // Get user's coordinates
     const [longitude, latitude] = user.location.coordinates;
+    console.log('📍 [NearbyShops] User location:', { latitude, longitude });
     
     // Find nearby shops using geospatial query (default 10km radius)
     const maxDistance = parseInt(req.query.distance) || 10000; // in meters
@@ -265,13 +372,15 @@ exports.getNearbyShops = async (req, res) => {
       }
     }).select('-password -bankDetails');
     
+    console.log(`✅ [NearbyShops] Found ${shops.length} nearby shops`);
+    
     res.status(200).json({
       success: true,
       count: shops.length,
       data: shops
     });
   } catch (error) {
-    console.error(error);
+    console.error('💥 [NearbyShops] Error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -285,6 +394,8 @@ exports.getNearbyShops = async (req, res) => {
 // @access  Private
 exports.getWishlist = async (req, res) => {
   try {
+    console.log('❤️ [Wishlist] Get wishlist request for user:', req.user._id);
+    
     const user = await User.findById(req.user._id)
       .populate({
         path: 'wishlist',
@@ -292,11 +403,14 @@ exports.getWishlist = async (req, res) => {
       });
 
     if (!user) {
+      console.log('❌ [Wishlist] User not found:', req.user._id);
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
+
+    console.log(`✅ [Wishlist] Found ${user.wishlist.length} items in wishlist`);
 
     res.status(200).json({
       success: true,
@@ -304,7 +418,7 @@ exports.getWishlist = async (req, res) => {
       data: user.wishlist
     });
   } catch (error) {
-    console.error('Error in getWishlist:', error);
+    console.error('💥 [Wishlist] Get wishlist error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -318,11 +432,14 @@ exports.getWishlist = async (req, res) => {
 // @access  Private
 exports.addToWishlist = async (req, res) => {
   try {
+    console.log('❤️ [Wishlist] Add to wishlist request:', req.body.productId);
+    
     const { productId } = req.body;
 
     // Check if product exists
     const product = await Product.findById(productId);
     if (!product) {
+      console.log('❌ [Wishlist] Product not found:', productId);
       return res.status(404).json({
         success: false,
         message: 'Product not found'
@@ -334,6 +451,7 @@ exports.addToWishlist = async (req, res) => {
 
     // Check if product already in wishlist
     if (user.wishlist.includes(productId)) {
+      console.log('⚠️ [Wishlist] Product already in wishlist:', productId);
       return res.status(400).json({
         success: false,
         message: 'Product already in wishlist'
@@ -343,13 +461,15 @@ exports.addToWishlist = async (req, res) => {
     user.wishlist.push(productId);
     await user.save();
 
+    console.log('✅ [Wishlist] Product added to wishlist successfully');
+
     res.status(200).json({
       success: true,
       message: 'Product added to wishlist',
       data: { product: productId }
     });
   } catch (error) {
-    console.error('Error in addToWishlist:', error);
+    console.error('💥 [Wishlist] Add to wishlist error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -363,6 +483,8 @@ exports.addToWishlist = async (req, res) => {
 // @access  Private
 exports.removeFromWishlist = async (req, res) => {
   try {
+    console.log('❤️ [Wishlist] Remove from wishlist request:', req.params.productId);
+    
     const { productId } = req.params;
 
     // Update user's wishlist
@@ -371,6 +493,7 @@ exports.removeFromWishlist = async (req, res) => {
     // Check if product in wishlist
     const index = user.wishlist.indexOf(productId);
     if (index === -1) {
+      console.log('❌ [Wishlist] Product not found in wishlist:', productId);
       return res.status(404).json({
         success: false,
         message: 'Product not found in wishlist'
@@ -380,13 +503,15 @@ exports.removeFromWishlist = async (req, res) => {
     user.wishlist.splice(index, 1);
     await user.save();
 
+    console.log('✅ [Wishlist] Product removed from wishlist successfully');
+
     res.status(200).json({
       success: true,
       message: 'Product removed from wishlist',
       data: {}
     });
   } catch (error) {
-    console.error('Error in removeFromWishlist:', error);
+    console.error('💥 [Wishlist] Remove from wishlist error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -400,6 +525,8 @@ exports.removeFromWishlist = async (req, res) => {
 // @access  Private
 exports.checkWishlist = async (req, res) => {
   try {
+    console.log('❤️ [Wishlist] Check wishlist request:', req.params.productId);
+    
     const { productId } = req.params;
 
     // Get user's wishlist
@@ -408,12 +535,14 @@ exports.checkWishlist = async (req, res) => {
     // Check if product in wishlist
     const isInWishlist = user.wishlist.includes(productId);
 
+    console.log(`✅ [Wishlist] Product ${isInWishlist ? 'is' : 'is not'} in wishlist`);
+
     res.status(200).json({
       success: true,
       data: { isInWishlist }
     });
   } catch (error) {
-    console.error('Error in checkWishlist:', error);
+    console.error('💥 [Wishlist] Check wishlist error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',

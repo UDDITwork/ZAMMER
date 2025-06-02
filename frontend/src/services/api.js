@@ -16,51 +16,34 @@ const getBaseUrl = () => {
   return 'http://localhost:5000/api';
 };
 
-// Production-ready JWT validation for localStorage tokens only
-const isValidStoredJWT = (token) => {
-  if (!token || typeof token !== 'string') return false;
-  
-  try {
-    // JWT should have 3 parts separated by dots
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
+// Enhanced debugging with colors
+const debugLog = (message, data = null, type = 'info') => {
+  if (process.env.NODE_ENV === 'development') {
+    const colors = {
+      info: '#2196F3',
+      success: '#4CAF50', 
+      warning: '#FF9800',
+      error: '#F44336',
+      request: '#9C27B0',
+      response: '#607D8B'
+    };
     
-    // Try to decode the header to verify it's a valid JWT
-    let header = parts[0];
-    while (header.length % 4) {
-      header += '=';
-    }
-    header = header.replace(/-/g, '+').replace(/_/g, '/');
-    
-    const decodedHeader = JSON.parse(atob(header));
-    
-    // Check if it has the typical JWT header structure
-    if (!decodedHeader.typ || !decodedHeader.alg) {
-      return false;
-    }
-    
-    return true;
-  } catch (error) {
-    return false;
+    console.log(
+      `%c[API] ${message}`,
+      `color: ${colors[type]}; font-weight: bold;`,
+      data
+    );
   }
 };
 
-// Safe token cleanup - only remove clearly malformed tokens
-const safeTokenCleanup = (tokenKey, dataKey) => {
+// Simple JWT structure validation
+const isValidJWTStructure = (token) => {
+  if (!token || typeof token !== 'string') return false;
+  
   try {
-    const token = localStorage.getItem(tokenKey);
-    if (!token) return false;
-    
-    // Only remove if clearly malformed
-    if (!isValidStoredJWT(token)) {
-      console.warn(`🧹 Removing malformed ${tokenKey}`);
-      localStorage.removeItem(tokenKey);
-      localStorage.removeItem(dataKey);
-      return true;
-    }
-    return false;
+    const parts = token.split('.');
+    return parts.length === 3 && parts.every(part => part.length > 0);
   } catch (error) {
-    console.error(`Error checking ${tokenKey}:`, error);
     return false;
   }
 };
@@ -71,42 +54,86 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
-  timeout: 30000, // 30 seconds timeout for production
+  timeout: 30000, // 30 seconds timeout
   withCredentials: true
 });
 
 // Add a request interceptor to add auth token to every request
 api.interceptors.request.use(
   config => {
-    // Log the request being made (only in development)
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`API Request: ${config.method.toUpperCase()} ${config.baseURL}${config.url}`);
-    }
+    // Enhanced request logging
+    debugLog(`🚀 REQUEST: ${config.method.toUpperCase()} ${config.url}`, {
+      baseURL: config.baseURL,
+      fullURL: `${config.baseURL}${config.url}`
+    }, 'request');
     
-    // Only cleanup tokens that are clearly malformed, don't be aggressive
-    try {
-      safeTokenCleanup('userToken', 'userData');
-      safeTokenCleanup('sellerToken', 'sellerData');
-    } catch (error) {
-      console.error('Error during token cleanup:', error);
-    }
-    
-    // Get tokens and use them if they exist
-    // Don't validate them here - trust localStorage content
+    // Get tokens from localStorage
     const sellerToken = localStorage.getItem('sellerToken');
     const userToken = localStorage.getItem('userToken');
+    const userData = localStorage.getItem('userData');
     
-    // Prefer seller token if both exist
-    const token = sellerToken || userToken;
+    debugLog('🔑 TOKEN CHECK', {
+      hasSellerToken: !!sellerToken,
+      hasUserToken: !!userToken,
+      hasUserData: !!userData,
+      sellerTokenValid: sellerToken ? isValidJWTStructure(sellerToken) : false,
+      userTokenValid: userToken ? isValidJWTStructure(userToken) : false
+    }, 'info');
     
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
+    // Only cleanup tokens that are clearly malformed (have wrong structure)
+    let cleanupNeeded = false;
+    
+    if (userToken && !isValidJWTStructure(userToken)) {
+      debugLog('🧹 Removing malformed user token', { tokenLength: userToken.length }, 'warning');
+      localStorage.removeItem('userToken');
+      localStorage.removeItem('userData');
+      cleanupNeeded = true;
+    }
+    
+    if (sellerToken && !isValidJWTStructure(sellerToken)) {
+      debugLog('🧹 Removing malformed seller token', { tokenLength: sellerToken.length }, 'warning');
+      localStorage.removeItem('sellerToken');
+      localStorage.removeItem('sellerData');
+      cleanupNeeded = true;
+    }
+    
+    if (cleanupNeeded) {
+      debugLog('🧹 Token cleanup completed', null, 'warning');
+      // Re-read tokens after cleanup
+      const cleanedSellerToken = localStorage.getItem('sellerToken');
+      const cleanedUserToken = localStorage.getItem('userToken');
+      
+      // Use the cleaned tokens
+      const token = cleanedSellerToken || cleanedUserToken;
+      
+      if (token) {
+        config.headers['Authorization'] = `Bearer ${token}`;
+        debugLog('✅ CLEANED TOKEN ADDED', {
+          tokenType: cleanedSellerToken ? 'seller' : 'user',
+          tokenPreview: `${token.substring(0, 20)}...`
+        }, 'success');
+      } else {
+        debugLog('❌ NO VALID TOKEN FOUND AFTER CLEANUP', null, 'warning');
+      }
+    } else {
+      // Use existing valid tokens
+      const token = sellerToken || userToken;
+      
+      if (token) {
+        config.headers['Authorization'] = `Bearer ${token}`;
+        debugLog('✅ TOKEN ADDED', {
+          tokenType: sellerToken ? 'seller' : 'user',
+          tokenPreview: `${token.substring(0, 20)}...`
+        }, 'success');
+      } else {
+        debugLog('❌ NO TOKEN FOUND', null, 'warning');
+      }
     }
     
     return config;
   },
   error => {
-    console.error('API Request Error:', error);
+    debugLog('❌ REQUEST ERROR:', error, 'error');
     return Promise.reject(error);
   }
 );
@@ -114,16 +141,34 @@ api.interceptors.request.use(
 // Add response interceptor to handle auth errors and connection issues
 api.interceptors.response.use(
   response => {
-    // Log the response (only in development)
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`API Response: ${response.status} from ${response.config.url}`);
-    }
+    // Enhanced response logging
+    debugLog(`✅ RESPONSE: ${response.status} from ${response.config.url}`, {
+      status: response.status,
+      statusText: response.statusText,
+      success: response.data?.success
+    }, 'response');
+    
     return response;
   },
   error => {
+    // Enhanced error logging
+    debugLog(`❌ RESPONSE ERROR:`, {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      message: error.response?.data?.message || error.message,
+      code: error.response?.data?.code,
+      url: error.config?.url,
+      method: error.config?.method,
+      isNetworkError: !error.response
+    }, 'error');
+    
     // Handle network errors
     if (!error.response) {
-      console.error('Network Error:', error.message);
+      debugLog('🌐 NETWORK ERROR - No response received', {
+        message: error.message,
+        code: error.code
+      }, 'error');
+      
       return Promise.reject({
         ...error,
         response: {
@@ -136,31 +181,37 @@ api.interceptors.response.use(
       });
     }
     
-    // Handle authentication errors with more precision
+    // Handle authentication errors with precision
     if (error.response && error.response.status === 401) {
       const errorData = error.response.data;
-      console.error('API Authentication Error:', errorData);
+      debugLog('🚫 401 UNAUTHORIZED ERROR', {
+        url: error.config?.url,
+        method: error.config?.method,
+        errorMessage: errorData?.message,
+        errorCode: errorData?.code
+      }, 'error');
       
-      // Only cleanup tokens if the error is clearly JWT-related
-      if (errorData?.message) {
-        const message = errorData.message.toLowerCase();
-        const isJWTError = message.includes('jwt malformed') || 
-                          message.includes('invalid token') ||
-                          message.includes('token expired') ||
-                          message.includes('invalid signature');
+      // Only cleanup tokens if the error explicitly indicates token issues
+      if (errorData?.code && (
+        errorData.code === 'INVALID_TOKEN' ||
+        errorData.code === 'TOKEN_EXPIRED' ||
+        errorData.code === 'MALFORMED_TOKEN' ||
+        errorData.code === 'NO_TOKEN'
+      )) {
+        debugLog('🔑 TOKEN ERROR DETECTED - Cleaning up tokens', {
+          errorCode: errorData.code,
+          errorMessage: errorData.message
+        }, 'warning');
         
-        if (isJWTError) {
-          console.log('🔑 JWT error detected - cleaning up tokens');
-          
-          // Remove both tokens as they might both be compromised
-          localStorage.removeItem('userToken');
-          localStorage.removeItem('userData');
-          localStorage.removeItem('sellerToken');
-          localStorage.removeItem('sellerData');
-          
-          // Note: Don't auto-redirect here - let components handle it
-          console.log('🧹 Tokens cleaned - components will handle navigation');
-        }
+        // Remove tokens
+        localStorage.removeItem('userToken');
+        localStorage.removeItem('userData');
+        localStorage.removeItem('sellerToken');
+        localStorage.removeItem('sellerData');
+        
+        debugLog('🧹 ALL TOKENS CLEANED DUE TO AUTH ERROR', {
+          code: errorData.code
+        }, 'warning');
       }
     }
     
@@ -168,5 +219,77 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Global debug function for testing
+if (process.env.NODE_ENV === 'development') {
+  window.debugAPI = {
+    checkTokens: () => {
+      const userToken = localStorage.getItem('userToken');
+      const userData = localStorage.getItem('userData');
+      const sellerToken = localStorage.getItem('sellerToken');
+      
+      const result = {
+        userToken: userToken ? {
+          exists: true,
+          length: userToken.length,
+          preview: `${userToken.substring(0, 30)}...`,
+          isValidStructure: isValidJWTStructure(userToken)
+        } : { exists: false },
+        userData: userData ? { exists: true, length: userData.length } : { exists: false },
+        sellerToken: sellerToken ? {
+          exists: true,
+          length: sellerToken.length,
+          preview: `${sellerToken.substring(0, 30)}...`,
+          isValidStructure: isValidJWTStructure(sellerToken)
+        } : { exists: false },
+        allKeys: Object.keys(localStorage)
+      };
+      
+      console.log('🔍 TOKEN DEBUG REPORT:', result);
+      return result;
+    },
+    
+    testRequest: async (endpoint = '/cart') => {
+      try {
+        const response = await api.get(endpoint);
+        console.log('✅ TEST REQUEST SUCCESS:', response.data);
+        return response.data;
+      } catch (error) {
+        console.log('❌ TEST REQUEST FAILED:', error);
+        return error;
+      }
+    },
+    
+    clearAllTokens: () => {
+      localStorage.removeItem('userToken');
+      localStorage.removeItem('userData');
+      localStorage.removeItem('sellerToken');
+      localStorage.removeItem('sellerData');
+      console.log('🧹 ALL TOKENS CLEARED');
+    },
+    
+    setTestToken: () => {
+      const testUserData = {
+        _id: 'test-user-id',
+        name: 'Test User',
+        email: 'test@example.com',
+        token: 'test-token-123'
+      };
+      
+      localStorage.setItem('userToken', testUserData.token);
+      localStorage.setItem('userData', JSON.stringify(testUserData));
+      console.log('🧪 TEST TOKEN SET');
+    }
+  };
+  
+  debugLog('🔧 DEBUG MODE ENABLED', {
+    availableFunctions: [
+      'window.debugAPI.checkTokens() - Check current token status',
+      'window.debugAPI.testRequest() - Test API request',
+      'window.debugAPI.clearAllTokens() - Clear all tokens',
+      'window.debugAPI.setTestToken() - Set test token'
+    ]
+  }, 'info');
+}
 
 export default api;

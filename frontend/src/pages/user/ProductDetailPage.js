@@ -20,6 +20,25 @@ const ProductDetailPage = () => {
   const [inWishlist, setInWishlist] = useState(false);
   const [wishlistLoading, setWishlistLoading] = useState(false);
   const [showShareOptions, setShowShareOptions] = useState(false);
+  const [cartLoading, setCartLoading] = useState(false);
+
+  // Enhanced debugging
+  const debugLog = (message, data = null, type = 'info') => {
+    if (process.env.NODE_ENV === 'development') {
+      const colors = {
+        info: '#2196F3',
+        success: '#4CAF50', 
+        warning: '#FF9800',
+        error: '#F44336'
+      };
+      
+      console.log(
+        `%c[ProductDetail] ${message}`,
+        `color: ${colors[type]}; font-weight: bold;`,
+        data
+      );
+    }
+  };
 
   useEffect(() => {
     fetchProductDetails();
@@ -27,34 +46,73 @@ const ProductDetailPage = () => {
     if (userAuth.isAuthenticated && userAuth.token) {
       checkProductWishlist();
     }
+    
+    debugLog('Component mounted', {
+      productId,
+      userAuthenticated: userAuth.isAuthenticated,
+      userName: userAuth.user?.name
+    });
   }, [productId, userAuth.isAuthenticated]);
 
   const checkAuth = () => {
+    debugLog('🔍 Checking authentication...', {
+      isAuthenticated: userAuth.isAuthenticated,
+      hasToken: !!userAuth.token,
+      hasUser: !!userAuth.user,
+      userName: userAuth.user?.name
+    });
+
     if (!userAuth.isAuthenticated || !userAuth.token) {
+      debugLog('❌ Authentication failed - redirecting to login', {
+        reason: !userAuth.isAuthenticated ? 'Not authenticated' : 'No token',
+        redirectFrom: `/user/product/${productId}`
+      }, 'warning');
+      
       toast.warning('Please login to continue');
       navigate('/user/login', { state: { from: `/user/product/${productId}` } });
       return false;
     }
+    
+    debugLog('✅ Authentication successful', {
+      user: userAuth.user?.name,
+      userId: userAuth.user?._id
+    }, 'success');
     return true;
   };
 
   const fetchProductDetails = async () => {
     setLoading(true);
     try {
+      debugLog('📦 Fetching product details...', { productId });
+      
       const response = await getProductById(productId);
       if (response.success) {
         setProduct(response.data);
+        
+        debugLog('✅ Product details fetched', {
+          productName: response.data.name,
+          hasVariants: response.data.variants?.length > 0,
+          variantCount: response.data.variants?.length || 0
+        }, 'success');
+        
         // Set default selected size and color if available
         if (response.data.variants && response.data.variants.length > 0) {
           const firstVariant = response.data.variants[0];
           setSelectedSize(firstVariant.size || '');
           setSelectedColor(firstVariant.color || '');
+          
+          debugLog('🎨 Default variants set', {
+            selectedSize: firstVariant.size || 'none',
+            selectedColor: firstVariant.color || 'none'
+          });
         }
       } else {
+        debugLog('❌ Failed to fetch product', { response }, 'error');
         toast.error(response.message || 'Failed to fetch product details');
         navigate('/user/dashboard');
       }
     } catch (error) {
+      debugLog('💥 Product fetch error', { error }, 'error');
       console.error('Error fetching product details:', error);
       toast.error('Something went wrong while loading product');
       navigate('/user/dashboard');
@@ -76,13 +134,11 @@ const ProductDetailPage = () => {
       if (response.success) {
         setInWishlist(response.data.isInWishlist);
       } else {
-        // If wishlist check fails, just set to false - don't show error
         console.log('Wishlist check failed:', response.message);
         setInWishlist(false);
       }
     } catch (error) {
       console.error('Error checking wishlist status:', error);
-      // Silently handle wishlist check failure
       setInWishlist(false);
     } finally {
       setWishlistLoading(false);
@@ -90,6 +146,17 @@ const ProductDetailPage = () => {
   };
 
   const handleAddToCart = async () => {
+    debugLog('🛒 ADD TO CART - Starting...', {
+      productId,
+      selectedSize,
+      selectedColor,
+      userAuth: {
+        isAuthenticated: userAuth.isAuthenticated,
+        hasToken: !!userAuth.token,
+        userName: userAuth.user?.name
+      }
+    });
+
     if (!checkAuth()) return;
     
     // Validate selections for products with variants
@@ -97,39 +164,89 @@ const ProductDetailPage = () => {
       const hasSize = product.variants.some(v => v.size);
       const hasColor = product.variants.some(v => v.color);
       
+      debugLog('🎨 Validating variant selections...', {
+        hasSize,
+        hasColor,
+        selectedSize,
+        selectedColor,
+        variants: product.variants
+      });
+      
       if (hasSize && !selectedSize) {
         toast.warning('Please select a size');
+        debugLog('❌ Size validation failed', null, 'warning');
         return;
       }
       
       if (hasColor && !selectedColor) {
         toast.warning('Please select a color');
+        debugLog('❌ Color validation failed', null, 'warning');
         return;
       }
     }
 
+    setCartLoading(true);
+    
     try {
+      debugLog('🚀 Calling cartService.addToCart...', {
+        productId,
+        quantity: 1,
+        options: {
+          size: selectedSize,
+          color: selectedColor
+        }
+      });
+      
       const response = await cartService.addToCart(productId, 1, {
         size: selectedSize,
         color: selectedColor
       });
       
+      debugLog('📊 Cart service response:', response);
+      
       if (response.success) {
+        debugLog('✅ ADD TO CART SUCCESS', {
+          message: response.message,
+          cartData: response.data
+        }, 'success');
+        
         toast.success('Product added to cart');
       } else {
+        debugLog('❌ ADD TO CART FAILED', {
+          message: response.message,
+          requiresAuth: response.requiresAuth,
+          details: response.details
+        }, 'error');
+        
         if (response.requiresAuth) {
+          debugLog('🔑 Re-authentication required', null, 'warning');
           checkAuth(); // This will redirect to login
         } else {
           toast.error(response.message || 'Failed to add to cart');
         }
       }
     } catch (error) {
+      debugLog('💥 ADD TO CART ERROR', {
+        error: error,
+        message: error.message,
+        stack: error.stack
+      }, 'error');
+      
       console.error('Error adding to cart:', error);
       toast.error('Something went wrong while adding to cart');
+    } finally {
+      setCartLoading(false);
+      debugLog('🏁 ADD TO CART COMPLETED', null, 'info');
     }
   };
 
   const handleBuyNow = async () => {
+    debugLog('💰 BUY NOW - Starting...', {
+      productId,
+      selectedSize,
+      selectedColor
+    });
+
     if (!checkAuth()) return;
     
     // Validate selections for products with variants
@@ -148,15 +265,22 @@ const ProductDetailPage = () => {
       }
     }
 
+    setCartLoading(true);
+
     try {
+      debugLog('🚀 Adding to cart for buy now...');
+      
       const response = await cartService.addToCart(productId, 1, {
         size: selectedSize,
         color: selectedColor
       });
       
       if (response.success) {
+        debugLog('✅ BUY NOW - Product added, navigating to cart', null, 'success');
         navigate('/user/cart');
       } else {
+        debugLog('❌ BUY NOW FAILED', response, 'error');
+        
         if (response.requiresAuth) {
           checkAuth(); // This will redirect to login
         } else {
@@ -164,8 +288,11 @@ const ProductDetailPage = () => {
         }
       }
     } catch (error) {
+      debugLog('💥 BUY NOW ERROR', error, 'error');
       console.error('Error with buy now:', error);
       toast.error('Something went wrong');
+    } finally {
+      setCartLoading(false);
     }
   };
 
@@ -239,6 +366,22 @@ const ProductDetailPage = () => {
     setShowShareOptions(false);
   };
 
+  // Debug function for testing
+  const debugCartState = () => {
+    debugLog('🔧 MANUAL CART DEBUG', {
+      userAuth,
+      localStorage: {
+        userToken: localStorage.getItem('userToken') ? 'present' : 'missing',
+        userData: localStorage.getItem('userData') ? 'present' : 'missing'
+      }
+    });
+    
+    // Run cart debug function if available
+    if (window.debugCartAuth) {
+      window.debugCartAuth();
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -269,6 +412,22 @@ const ProductDetailPage = () => {
 
   return (
     <div className="product-detail-page pb-20">
+      {/* Debug Panel - Development Only */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed top-4 right-4 z-50 bg-yellow-100 p-2 rounded text-xs max-w-xs">
+          <button
+            onClick={debugCartState}
+            className="block w-full bg-yellow-200 px-2 py-1 rounded mb-1 hover:bg-yellow-300"
+          >
+            🔧 Debug Cart
+          </button>
+          <div className="text-yellow-800">
+            Auth: {userAuth.isAuthenticated ? '✅' : '❌'} |
+            Token: {userAuth.token ? '✅' : '❌'}
+          </div>
+        </div>
+      )}
+
       {/* Product Images Carousel */}
       <div className="relative">
         <div className="h-96 bg-gray-100">
@@ -312,7 +471,7 @@ const ProductDetailPage = () => {
             </svg>
           </button>
           
-          {/* Wishlist button - Show for all users but require auth on click */}
+          {/* Wishlist button */}
           <button 
             onClick={toggleWishlist} 
             disabled={wishlistLoading}
@@ -348,7 +507,7 @@ const ProductDetailPage = () => {
                   alt={`${product.name} - ${index + 1}`} 
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    e.target.src = '/placeholder-product.jpg'; // Fallback image
+                    e.target.src = '/placeholder-product.jpg';
                   }}
                 />
               </button>
@@ -460,15 +619,32 @@ const ProductDetailPage = () => {
         <div className="mt-6 grid grid-cols-2 gap-3">
           <button
             onClick={handleAddToCart}
-            className="bg-white border border-orange-500 text-orange-500 py-2 rounded-md text-sm font-medium hover:bg-orange-50 transition-colors"
+            disabled={cartLoading}
+            className={`bg-white border border-orange-500 text-orange-500 py-2 rounded-md text-sm font-medium transition-colors ${
+              cartLoading 
+                ? 'opacity-50 cursor-not-allowed' 
+                : 'hover:bg-orange-50'
+            }`}
           >
-            Add To Cart
+            {cartLoading ? (
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500 mr-2"></div>
+                Adding...
+              </div>
+            ) : (
+              'Add To Cart'
+            )}
           </button>
           <button
             onClick={handleBuyNow}
-            className="bg-orange-500 text-white py-2 rounded-md text-sm font-medium hover:bg-orange-600 transition-colors"
+            disabled={cartLoading}
+            className={`bg-orange-500 text-white py-2 rounded-md text-sm font-medium transition-colors ${
+              cartLoading 
+                ? 'opacity-50 cursor-not-allowed' 
+                : 'hover:bg-orange-600'
+            }`}
           >
-            Buy Now
+            {cartLoading ? 'Processing...' : 'Buy Now'}
           </button>
         </div>
       </div>

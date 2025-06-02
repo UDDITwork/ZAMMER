@@ -1,282 +1,373 @@
-import axios from 'axios';
+import api from './api';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-
-// Create axios instance with default config
-const api = axios.create({
-  baseURL: `${API_BASE_URL}/api`,
-});
-
-// Add auth token to requests
-api.interceptors.request.use(
-  (config) => {
-    const userToken = localStorage.getItem('userToken');
-    const sellerToken = localStorage.getItem('sellerToken');
-    
-    if (userToken) {
-      config.headers.Authorization = `Bearer ${userToken}`;
-    } else if (sellerToken) {
-      config.headers.Authorization = `Bearer ${sellerToken}`;
-    }
-    
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Add response interceptor for consistent error handling
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('userToken');
-      localStorage.removeItem('userData');
-      localStorage.removeItem('sellerToken');
-      localStorage.removeItem('sellerData');
-      // Redirect will be handled by the calling component
-    }
-    return Promise.reject(error);
-  }
-);
-
-export const orderService = {
-  // Create new order
-  createOrder: async (orderData) => {
-    try {
-      const response = await api.post('/orders', orderData);
-      return {
-        success: true,
-        data: response.data.data,
-        message: 'Order created successfully'
-      };
-    } catch (error) {
-      console.error('Create order error:', error);
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to create order'
-      };
-    }
-  },
-
-  // Get order by ID
-  getOrderById: async (orderId) => {
-    try {
-      const response = await api.get(`/orders/${orderId}`);
-      return {
-        success: true,
-        data: response.data.data
-      };
-    } catch (error) {
-      console.error('Get order error:', error);
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to fetch order'
-      };
-    }
-  },
-
-  // Get user's orders
-  getUserOrders: async (page = 1, limit = 10) => {
-    try {
-      const response = await api.get(`/orders/myorders?page=${page}&limit=${limit}`);
-      return {
-        success: true,
-        data: response.data.data,
-        totalPages: response.data.totalPages,
-        currentPage: response.data.currentPage,
-        count: response.data.count
-      };
-    } catch (error) {
-      console.error('Get user orders error:', error);
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to fetch orders'
-      };
-    }
-  },
-
-  // Get seller's orders
-  getSellerOrders: async (page = 1, limit = 10, status = '') => {
-    try {
-      let url = `/orders/seller?page=${page}&limit=${limit}`;
-      if (status) {
-        url += `&status=${status}`;
-      }
-      
-      const response = await api.get(url);
-      return {
-        success: true,
-        data: response.data.data,
-        totalPages: response.data.totalPages,
-        currentPage: response.data.currentPage,
-        count: response.data.count
-      };
-    } catch (error) {
-      console.error('Get seller orders error:', error);
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to fetch orders'
-      };
-    }
-  },
-
-  // Update order status (seller only)
-  updateOrderStatus: async (orderId, status) => {
-    try {
-      const response = await api.put(`/orders/${orderId}/status`, {
-        status
-      });
-      return {
-        success: true,
-        data: response.data.data,
-        message: 'Order status updated successfully'
-      };
-    } catch (error) {
-      console.error('Update order status error:', error);
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to update order status'
-      };
-    }
-  },
-
-  // Get seller order statistics
-  getSellerOrderStats: async () => {
-    try {
-      const response = await api.get('/orders/seller/stats');
-      return {
-        success: true,
-        data: response.data.data
-      };
-    } catch (error) {
-      console.error('Get seller stats error:', error);
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to fetch order statistics'
-      };
-    }
-  },
-
-  // Process payment (mock implementation)
-  processPayment: async (paymentData) => {
-    try {
-      // Mock payment processing - always success for development
-      const { amount, method, cardDetails } = paymentData;
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Mock payment response
-      const mockResponse = {
-        success: true,
-        transactionId: `TXN${Date.now()}${Math.floor(Math.random() * 1000)}`,
-        amount: amount,
-        method: method,
-        status: 'completed',
-        timestamp: new Date().toISOString()
-      };
-      
-      return mockResponse;
-    } catch (error) {
-      console.error('Payment processing error:', error);
-      return {
-        success: false,
-        message: 'Payment processing failed'
-      };
-    }
-  },
-
-  // Verify payment (mock implementation)
-  verifyPayment: async (transactionId) => {
-    try {
-      // Mock payment verification - always success for development
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      return {
-        success: true,
-        verified: true,
-        transactionId: transactionId,
-        status: 'verified'
-      };
-    } catch (error) {
-      console.error('Payment verification error:', error);
-      return {
-        success: false,
-        message: 'Payment verification failed'
-      };
-    }
-  },
-
-  // Calculate order totals
-  calculateOrderTotals: (cartItems, shippingAddress = null) => {
-    if (!cartItems || cartItems.length === 0) {
-      return {
-        subtotal: 0,
-        taxPrice: 0,
-        shippingPrice: 0,
-        totalPrice: 0
-      };
-    }
-
-    const subtotal = cartItems.reduce((total, item) => {
-      return total + (item.price * item.quantity);
-    }, 0);
-
-    // Calculate tax (18% GST)
-    const taxPrice = Math.round(subtotal * 0.18);
-
-    // Calculate shipping (free for orders above ₹500)
-    const shippingPrice = subtotal >= 500 ? 0 : 50;
-
-    const totalPrice = subtotal + taxPrice + shippingPrice;
-
-    return {
-      subtotal: Math.round(subtotal),
-      taxPrice,
-      shippingPrice,
-      totalPrice: Math.round(totalPrice)
+// Enhanced debugging
+const debugLog = (message, data = null, type = 'info') => {
+  if (process.env.NODE_ENV === 'development') {
+    const colors = {
+      info: '#2196F3',
+      success: '#4CAF50', 
+      warning: '#FF9800',
+      error: '#F44336'
     };
-  },
-
-  // Format order for API
-  formatOrderForAPI: (cartItems, shippingAddress, paymentMethod, paymentResult = null) => {
-    const totals = orderService.calculateOrderTotals(cartItems, shippingAddress);
     
-    // Group items by seller
-    const sellerItems = {};
-    cartItems.forEach(item => {
-      const sellerId = item.product.seller._id || item.product.seller;
-      if (!sellerItems[sellerId]) {
-        sellerItems[sellerId] = [];
-      }
-      sellerItems[sellerId].push({
-        product: item.product._id,
-        name: item.product.name,
-        quantity: item.quantity,
-        price: item.price,
-        image: item.product.images?.[0] || '',
-        size: item.selectedSize || 'M',
-        color: item.selectedColor || 'Default'
-      });
-    });
+    console.log(
+      `%c[OrderService] ${message}`,
+      `color: ${colors[type]}; font-weight: bold;`,
+      data
+    );
+  }
+};
 
-    // For now, create one order (assuming all items from same seller)
-    const sellerId = Object.keys(sellerItems)[0];
-    const orderItems = sellerItems[sellerId];
+// Simple JWT structure validation
+const isValidJWTStructure = (token) => {
+  if (!token || typeof token !== 'string') return false;
+  try {
+    const parts = token.split('.');
+    return parts.length === 3 && parts.every(part => part.length > 0);
+  } catch (error) {
+    return false;
+  }
+};
 
+// Check authentication before order operations
+const checkAuthentication = () => {
+  const userToken = localStorage.getItem('userToken');
+  const userData = localStorage.getItem('userData');
+  
+  if (!userToken || !isValidJWTStructure(userToken) || !userData) {
     return {
-      orderItems,
-      shippingAddress,
-      paymentMethod,
-      paymentResult,
-      taxPrice: totals.taxPrice,
-      shippingPrice: totals.shippingPrice,
-      totalPrice: totals.totalPrice,
-      sellerId
+      isAuthenticated: false,
+      error: 'Please login to place orders'
+    };
+  }
+  
+  try {
+    const parsedUserData = JSON.parse(userData);
+    return {
+      isAuthenticated: true,
+      user: parsedUserData
+    };
+  } catch (error) {
+    // Clean up corrupted data
+    localStorage.removeItem('userToken');
+    localStorage.removeItem('userData');
+    return {
+      isAuthenticated: false,
+      error: 'Session data corrupted. Please login again.'
     };
   }
 };
 
-export default orderService; 
+// Format order data for API
+export const formatOrderForAPI = (cartItems, shippingAddress, paymentMethod) => {
+  debugLog('📦 Formatting order data for API', {
+    itemCount: cartItems.length,
+    paymentMethod,
+    hasShippingAddress: !!shippingAddress
+  }, 'info');
+
+  // Format order items
+  const orderItems = cartItems.map(item => ({
+    product: item.product._id,
+    name: item.product.name,
+    quantity: item.quantity,
+    price: item.price,
+    image: item.product.images?.[0] || '',
+    size: item.selectedSize || '',
+    color: item.selectedColor || ''
+  }));
+
+  // Calculate totals
+  const subtotal = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+  const taxPrice = Math.round(subtotal * 0.18); // 18% GST
+  const shippingPrice = subtotal >= 500 ? 0 : 50; // Free shipping above ₹500
+  const totalPrice = subtotal + taxPrice + shippingPrice;
+
+  // Get seller ID from first item (assuming all items are from same seller)
+  const sellerId = cartItems[0]?.product?.seller?._id || cartItems[0]?.product?.seller;
+
+  const orderData = {
+    orderItems,
+    shippingAddress: {
+      address: shippingAddress.address,
+      city: shippingAddress.city,
+      postalCode: shippingAddress.postalCode,
+      country: shippingAddress.country || 'India',
+      phone: shippingAddress.phone
+    },
+    paymentMethod,
+    taxPrice,
+    shippingPrice,
+    totalPrice,
+    sellerId
+  };
+
+  debugLog('✅ Order data formatted successfully', {
+    orderItems: orderItems.length,
+    subtotal,
+    taxPrice,
+    shippingPrice,
+    totalPrice,
+    sellerId
+  }, 'success');
+
+  return orderData;
+};
+
+// Create a new order
+export const createOrder = async (orderData) => {
+  try {
+    debugLog('📝 Creating new order', {
+      itemCount: orderData.orderItems?.length,
+      totalPrice: orderData.totalPrice,
+      paymentMethod: orderData.paymentMethod
+    }, 'info');
+
+    // Check authentication first
+    const authCheck = checkAuthentication();
+    if (!authCheck.isAuthenticated) {
+      debugLog('🚫 Order creation - Auth failed', authCheck, 'warning');
+      return {
+        success: false,
+        message: authCheck.error,
+        requiresAuth: true
+      };
+    }
+
+    const response = await api.post('/orders', orderData);
+    
+    debugLog('✅ Order created successfully', {
+      orderId: response.data.data?._id,
+      orderNumber: response.data.data?.orderNumber,
+      success: response.data.success
+    }, 'success');
+
+    return {
+      success: true,
+      data: response.data.data,
+      message: response.data.message || 'Order created successfully'
+    };
+  } catch (error) {
+    debugLog('❌ Order creation failed', {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      code: error.response?.data?.code
+    }, 'error');
+
+    // Handle authentication errors
+    if (error.response?.status === 401) {
+      const isTokenError = error.response?.data?.code && [
+        'INVALID_TOKEN', 'TOKEN_EXPIRED', 'MALFORMED_TOKEN', 'NO_TOKEN'
+      ].includes(error.response.data.code);
+      
+      if (isTokenError) {
+        debugLog('🔑 Token error in order creation, clearing auth data', {
+          code: error.response.data.code
+        }, 'warning');
+        localStorage.removeItem('userToken');
+        localStorage.removeItem('userData');
+      }
+      
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Session expired. Please login again.',
+        requiresAuth: true
+      };
+    }
+
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to create order'
+    };
+  }
+};
+
+// Get order by ID
+export const getOrderById = async (orderId) => {
+  try {
+    debugLog('🔍 Fetching order by ID', { orderId }, 'info');
+
+    const response = await api.get(`/orders/${orderId}`);
+    
+    debugLog('✅ Order fetched successfully', {
+      orderId,
+      orderNumber: response.data.data?.orderNumber,
+      status: response.data.data?.status
+    }, 'success');
+
+    return {
+      success: true,
+      data: response.data.data
+    };
+  } catch (error) {
+    debugLog('❌ Order fetch failed', {
+      orderId,
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message
+    }, 'error');
+
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to fetch order'
+    };
+  }
+};
+
+// Get user's orders
+export const getUserOrders = async (page = 1, limit = 10) => {
+  try {
+    debugLog('📋 Fetching user orders', { page, limit }, 'info');
+
+    // Check authentication first
+    const authCheck = checkAuthentication();
+    if (!authCheck.isAuthenticated) {
+      debugLog('🚫 Get user orders - Auth failed', authCheck, 'warning');
+      return {
+        success: false,
+        message: authCheck.error,
+        requiresAuth: true
+      };
+    }
+
+    const response = await api.get('/orders/myorders', {
+      params: { page, limit }
+    });
+    
+    debugLog('✅ User orders fetched successfully', {
+      count: response.data.count,
+      totalPages: response.data.totalPages,
+      currentPage: response.data.currentPage
+    }, 'success');
+
+    return {
+      success: true,
+      data: response.data.data,
+      pagination: {
+        count: response.data.count,
+        totalPages: response.data.totalPages,
+        currentPage: response.data.currentPage
+      }
+    };
+  } catch (error) {
+    debugLog('❌ User orders fetch failed', {
+      page,
+      limit,
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      code: error.response?.data?.code
+    }, 'error');
+
+    // Handle authentication errors
+    if (error.response?.status === 401) {
+      const isTokenError = error.response?.data?.code && [
+        'INVALID_TOKEN', 'TOKEN_EXPIRED', 'MALFORMED_TOKEN', 'NO_TOKEN'
+      ].includes(error.response.data.code);
+      
+      if (isTokenError) {
+        debugLog('🔑 Token error in get user orders, clearing auth data', {
+          code: error.response.data.code
+        }, 'warning');
+        localStorage.removeItem('userToken');
+        localStorage.removeItem('userData');
+      }
+      
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Session expired. Please login again.',
+        requiresAuth: true
+      };
+    }
+
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to fetch orders'
+    };
+  }
+};
+
+// Calculate order totals
+export const calculateOrderTotals = (cartItems) => {
+  debugLog('🧮 Calculating order totals', {
+    itemCount: cartItems.length
+  }, 'info');
+
+  const subtotal = cartItems.reduce((total, item) => {
+    return total + (item.price * item.quantity);
+  }, 0);
+
+  const taxPrice = Math.round(subtotal * 0.18); // 18% GST
+  const shippingPrice = subtotal >= 500 ? 0 : 50; // Free shipping above ₹500
+  const totalPrice = subtotal + taxPrice + shippingPrice;
+
+  const totals = {
+    subtotal: Math.round(subtotal),
+    taxPrice,
+    shippingPrice,
+    totalPrice: Math.round(totalPrice)
+  };
+
+  debugLog('✅ Order totals calculated', totals, 'success');
+
+  return totals;
+};
+
+// Validate order data before submission
+export const validateOrderData = (orderData) => {
+  debugLog('🔍 Validating order data', {
+    hasOrderItems: !!orderData.orderItems,
+    hasShippingAddress: !!orderData.shippingAddress,
+    hasPaymentMethod: !!orderData.paymentMethod
+  }, 'info');
+
+  const errors = [];
+
+  // Validate order items
+  if (!orderData.orderItems || !Array.isArray(orderData.orderItems) || orderData.orderItems.length === 0) {
+    errors.push('Order must contain at least one item');
+  }
+
+  // Validate shipping address
+  if (!orderData.shippingAddress) {
+    errors.push('Shipping address is required');
+  } else {
+    const { address, city, postalCode, phone } = orderData.shippingAddress;
+    if (!address || !address.trim()) errors.push('Street address is required');
+    if (!city || !city.trim()) errors.push('City is required');
+    if (!postalCode || !postalCode.trim()) errors.push('Postal code is required');
+    if (!phone || !phone.trim()) errors.push('Phone number is required');
+  }
+
+  // Validate payment method
+  if (!orderData.paymentMethod || !orderData.paymentMethod.trim()) {
+    errors.push('Payment method is required');
+  }
+
+  // Validate prices
+  if (!orderData.totalPrice || orderData.totalPrice <= 0) {
+    errors.push('Invalid total price');
+  }
+
+  const isValid = errors.length === 0;
+
+  debugLog(isValid ? '✅ Order data is valid' : '❌ Order data validation failed', {
+    isValid,
+    errors
+  }, isValid ? 'success' : 'error');
+
+  return {
+    isValid,
+    errors
+  };
+};
+
+// Default export
+const orderService = {
+  formatOrderForAPI,
+  createOrder,
+  getOrderById,
+  getUserOrders,
+  calculateOrderTotals,
+  validateOrderData
+};
+
+export default orderService;

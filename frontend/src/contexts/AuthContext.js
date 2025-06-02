@@ -1,8 +1,27 @@
 import React, { createContext, useState, useEffect } from 'react';
 import { getCurrentLocation } from '../utils/locationUtils';
 
-// Robust JWT validation for localStorage tokens only
-const isValidStoredJWT = (token) => {
+// Enhanced debugging with colors
+const debugLog = (message, data = null, type = 'info') => {
+  if (process.env.NODE_ENV === 'development') {
+    const colors = {
+      info: '#2196F3',
+      success: '#4CAF50', 
+      warning: '#FF9800',
+      error: '#F44336',
+      storage: '#9C27B0'
+    };
+    
+    console.log(
+      `%c[AuthContext] ${message}`,
+      `color: ${colors[type]}; font-weight: bold;`,
+      data
+    );
+  }
+};
+
+// Simple JWT validation - only check basic structure
+const isValidJWTStructure = (token) => {
   if (!token || typeof token !== 'string') return false;
   
   try {
@@ -10,27 +29,13 @@ const isValidStoredJWT = (token) => {
     const parts = token.split('.');
     if (parts.length !== 3) return false;
     
-    // Try to decode each part to verify it's valid base64
-    // This is more robust than regex pattern matching
-    for (let i = 0; i < 3; i++) {
-      let part = parts[i];
-      
-      // Add padding if needed for base64 decoding
-      while (part.length % 4) {
-        part += '=';
-      }
-      
-      // Replace URL-safe characters
-      part = part.replace(/-/g, '+').replace(/_/g, '/');
-      
-      // Try to decode - will throw if invalid
-      atob(part);
+    // Each part should be base64-like (basic check)
+    for (let part of parts) {
+      if (!part || part.length === 0) return false;
     }
     
-    // If we get here, the token format is valid
     return true;
   } catch (error) {
-    // Any error means the token is malformed
     return false;
   }
 };
@@ -54,62 +59,59 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState(null);
 
-  // Debug logging for development
-  const debugLog = (message, data = null) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[AuthContext] ${message}`, data);
+  // Safe localStorage operations
+  const safeSetItem = (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+      debugLog(`💾 STORED: ${key}`, { success: true, length: value?.length }, 'storage');
+      return true;
+    } catch (error) {
+      debugLog(`❌ STORAGE ERROR: ${key}`, { error: error.message }, 'error');
+      return false;
     }
   };
 
-  // Clean up malformed tokens from localStorage only
-  const cleanupMalformedTokens = () => {
-    let cleaned = false;
-    
-    // Check user token from localStorage
-    const userToken = localStorage.getItem('userToken');
-    if (userToken && !isValidStoredJWT(userToken)) {
-      debugLog('Cleaning up malformed user token from localStorage');
-      localStorage.removeItem('userToken');
-      localStorage.removeItem('userData');
-      cleaned = true;
+  const safeGetItem = (key) => {
+    try {
+      const value = localStorage.getItem(key);
+      debugLog(`📖 RETRIEVED: ${key}`, { 
+        hasValue: !!value,
+        length: value?.length || 0 
+      }, 'storage');
+      return value;
+    } catch (error) {
+      debugLog(`❌ RETRIEVAL ERROR: ${key}`, { error: error.message }, 'error');
+      return null;
     }
-    
-    // Check seller token from localStorage
-    const sellerToken = localStorage.getItem('sellerToken');
-    if (sellerToken && !isValidStoredJWT(sellerToken)) {
-      debugLog('Cleaning up malformed seller token from localStorage');
-      localStorage.removeItem('sellerToken');
-      localStorage.removeItem('sellerData');
-      cleaned = true;
+  };
+
+  const safeRemoveItem = (key) => {
+    try {
+      localStorage.removeItem(key);
+      debugLog(`🗑️ REMOVED: ${key}`, { success: true }, 'storage');
+      return true;
+    } catch (error) {
+      debugLog(`❌ REMOVAL ERROR: ${key}`, { error: error.message }, 'error');
+      return false;
     }
-    
-    if (cleaned) {
-      debugLog('Token cleanup completed');
-    }
-    
-    return cleaned;
   };
 
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        debugLog('Initializing authentication state...');
-        
-        // Clean up any malformed tokens first
-        cleanupMalformedTokens();
+        debugLog('🚀 INITIALIZING AUTH STATE...', null, 'info');
         
         // Check if seller is logged in
-        const sellerToken = localStorage.getItem('sellerToken');
-        const sellerData = localStorage.getItem('sellerData');
+        const sellerToken = safeGetItem('sellerToken');
+        const sellerData = safeGetItem('sellerData');
 
-        if (sellerToken && sellerData && isValidStoredJWT(sellerToken)) {
+        if (sellerToken && sellerData && isValidJWTStructure(sellerToken)) {
           try {
             const parsedSellerData = JSON.parse(sellerData);
-            debugLog('Found valid seller authentication data', {
-              hasToken: !!sellerToken,
+            debugLog('✅ FOUND VALID SELLER AUTH', {
               sellerName: parsedSellerData?.firstName,
               sellerId: parsedSellerData?._id
-            });
+            }, 'success');
             
             setSellerAuth({
               isAuthenticated: true,
@@ -117,31 +119,30 @@ export const AuthProvider = ({ children }) => {
               token: sellerToken,
             });
           } catch (error) {
-            console.error('Error parsing seller data:', error);
-            // Clean up corrupted data
-            localStorage.removeItem('sellerToken');
-            localStorage.removeItem('sellerData');
-            debugLog('Removed corrupted seller data');
+            debugLog('❌ CORRUPTED SELLER DATA', { error: error.message }, 'error');
+            safeRemoveItem('sellerToken');
+            safeRemoveItem('sellerData');
           }
-        } else if (sellerToken) {
-          // Token exists but is invalid
-          debugLog('Found invalid seller token, cleaning up');
-          localStorage.removeItem('sellerToken');
-          localStorage.removeItem('sellerData');
         }
 
         // Check if user is logged in
-        const userToken = localStorage.getItem('userToken');
-        const userData = localStorage.getItem('userData');
+        const userToken = safeGetItem('userToken');
+        const userData = safeGetItem('userData');
 
-        if (userToken && userData && isValidStoredJWT(userToken)) {
+        debugLog('🔍 USER AUTH CHECK', {
+          hasUserToken: !!userToken,
+          hasUserData: !!userData,
+          tokenValid: userToken ? isValidJWTStructure(userToken) : false
+        }, 'info');
+
+        if (userToken && userData && isValidJWTStructure(userToken)) {
           try {
             const parsedUserData = JSON.parse(userData);
-            debugLog('Found valid user authentication data', {
-              hasToken: !!userToken,
+            debugLog('✅ FOUND VALID USER AUTH', {
               userName: parsedUserData?.name,
-              userId: parsedUserData?._id
-            });
+              userId: parsedUserData?._id,
+              userEmail: parsedUserData?.email
+            }, 'success');
             
             setUserAuth({
               isAuthenticated: true,
@@ -149,22 +150,27 @@ export const AuthProvider = ({ children }) => {
               token: userToken,
             });
           } catch (error) {
-            console.error('Error parsing user data:', error);
-            // Clean up corrupted data
-            localStorage.removeItem('userToken');
-            localStorage.removeItem('userData');
-            debugLog('Removed corrupted user data');
+            debugLog('❌ CORRUPTED USER DATA', { error: error.message }, 'error');
+            safeRemoveItem('userToken');
+            safeRemoveItem('userData');
           }
-        } else if (userToken) {
-          // Token exists but is invalid
-          debugLog('Found invalid user token, cleaning up');
-          localStorage.removeItem('userToken');
-          localStorage.removeItem('userData');
+        } else if (userToken || userData) {
+          debugLog('🧹 Cleaning incomplete user auth data', {
+            hasToken: !!userToken,
+            hasData: !!userData,
+            tokenValid: userToken ? isValidJWTStructure(userToken) : false
+          }, 'warning');
+          safeRemoveItem('userToken');
+          safeRemoveItem('userData');
         }
 
-        debugLog('Authentication initialization completed');
+        debugLog('🏁 AUTH INITIALIZATION COMPLETED', {
+          userAuthenticated: !!userToken && !!userData,
+          sellerAuthenticated: !!sellerToken && !!sellerData
+        }, 'success');
+        
       } catch (error) {
-        console.error('Critical error during auth initialization:', error);
+        debugLog('💥 CRITICAL AUTH INIT ERROR', { error: error.message }, 'error');
         setInitError(error.message);
       } finally {
         setLoading(false);
@@ -174,21 +180,118 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
-  // Login seller - NO TOKEN VALIDATION (trust server)
+  // Enhanced login user function
+  const loginUser = async (data) => {
+    try {
+      debugLog('🔑 USER LOGIN STARTED', {
+        hasData: !!data,
+        userName: data?.name,
+        userEmail: data?.email,
+        hasToken: !!data?.token
+      }, 'info');
+
+      if (!data) {
+        throw new Error('No login data provided');
+      }
+
+      if (!data.token) {
+        debugLog('❌ LOGIN DATA MISSING TOKEN', {
+          providedKeys: Object.keys(data)
+        }, 'error');
+        throw new Error('Invalid user login data - missing token');
+      }
+
+      // Validate token structure
+      if (!isValidJWTStructure(data.token)) {
+        debugLog('❌ INVALID TOKEN STRUCTURE', {
+          tokenLength: data.token.length,
+          tokenPreview: data.token.substring(0, 30) + '...'
+        }, 'error');
+        throw new Error('Invalid token format received from server');
+      }
+
+      // Try to get user's location
+      try {
+        debugLog('📍 ATTEMPTING TO GET USER LOCATION...', null, 'info');
+        const location = await getCurrentLocation();
+        if (location && data) {
+          data.location = {
+            ...data.location,
+            coordinates: location.coordinates
+          };
+          debugLog('✅ USER LOCATION OBTAINED', {
+            coordinates: location.coordinates
+          }, 'success');
+        }
+      } catch (error) {
+        debugLog('⚠️ LOCATION ACCESS DENIED', { error: error.message }, 'warning');
+        // Continue without location - not critical for login
+      }
+      
+      // Store the token and user data
+      debugLog('💾 STORING USER CREDENTIALS...', {
+        tokenLength: data.token.length,
+        userName: data.name,
+        userEmail: data.email
+      }, 'info');
+      
+      const tokenStored = safeSetItem('userToken', data.token);
+      const dataStored = safeSetItem('userData', JSON.stringify(data));
+      
+      if (!tokenStored || !dataStored) {
+        throw new Error('Failed to store authentication data');
+      }
+      
+      // Update auth state
+      setUserAuth({
+        isAuthenticated: true,
+        user: data,
+        token: data.token,
+      });
+
+      debugLog('✅ USER LOGIN COMPLETED SUCCESSFULLY', {
+        userName: data.name,
+        userId: data._id,
+        isAuthenticated: true
+      }, 'success');
+      
+    } catch (error) {
+      debugLog('💥 USER LOGIN FAILED', {
+        error: error.message,
+        providedData: data ? Object.keys(data) : 'none'
+      }, 'error');
+      
+      // Clean up any partial storage
+      safeRemoveItem('userToken');
+      safeRemoveItem('userData');
+      
+      throw error;
+    }
+  };
+
+  // Login seller
   const loginSeller = (data) => {
     try {
-      debugLog('Logging in seller', {
+      debugLog('🏪 SELLER LOGIN STARTED', {
+        hasData: !!data,
         sellerName: data?.firstName,
         hasToken: !!data?.token
-      });
+      }, 'info');
 
       if (!data || !data.token) {
         throw new Error('Invalid seller login data - missing token');
       }
 
-      // Store the token directly - trust the server
-      localStorage.setItem('sellerToken', data.token);
-      localStorage.setItem('sellerData', JSON.stringify(data));
+      if (!isValidJWTStructure(data.token)) {
+        throw new Error('Invalid token format received from server');
+      }
+
+      const tokenStored = safeSetItem('sellerToken', data.token);
+      const dataStored = safeSetItem('sellerData', JSON.stringify(data));
+      
+      if (!tokenStored || !dataStored) {
+        throw new Error('Failed to store seller authentication data');
+      }
       
       setSellerAuth({
         isAuthenticated: true,
@@ -196,77 +299,9 @@ export const AuthProvider = ({ children }) => {
         token: data.token,
       });
 
-      debugLog('Seller login successful');
+      debugLog('✅ SELLER LOGIN COMPLETED', null, 'success');
     } catch (error) {
-      console.error('Seller login error:', error);
-      throw error;
-    }
-  };
-
-  // Logout seller
-  const logoutSeller = () => {
-    try {
-      debugLog('Logging out seller');
-      
-      localStorage.removeItem('sellerToken');
-      localStorage.removeItem('sellerData');
-      
-      setSellerAuth({
-        isAuthenticated: false,
-        seller: null,
-        token: null,
-      });
-
-      debugLog('Seller logout successful');
-    } catch (error) {
-      console.error('Seller logout error:', error);
-    }
-  };
-
-  // Login user - NO TOKEN VALIDATION (trust server)
-  const loginUser = async (data) => {
-    try {
-      debugLog('Logging in user', {
-        userName: data?.name,
-        hasToken: !!data?.token
-      });
-
-      if (!data || !data.token) {
-        throw new Error('Invalid user login data - missing token');
-      }
-
-      // Try to get user's location
-      try {
-        debugLog('Attempting to get user location...');
-        const location = await getCurrentLocation();
-        if (location && data) {
-          data.location = {
-            ...data.location,
-            coordinates: location.coordinates
-          };
-          debugLog('User location obtained', {
-            coordinates: location.coordinates,
-            address: location.address
-          });
-        }
-      } catch (error) {
-        debugLog('Location access denied or error', error.message);
-        // Continue without location - not critical for login
-      }
-      
-      // Store the token directly - trust the server
-      localStorage.setItem('userToken', data.token);
-      localStorage.setItem('userData', JSON.stringify(data));
-      
-      setUserAuth({
-        isAuthenticated: true,
-        user: data,
-        token: data.token,
-      });
-
-      debugLog('User login successful');
-    } catch (error) {
-      console.error('User login error:', error);
+      debugLog('❌ SELLER LOGIN FAILED', { error: error.message }, 'error');
       throw error;
     }
   };
@@ -274,10 +309,10 @@ export const AuthProvider = ({ children }) => {
   // Logout user
   const logoutUser = () => {
     try {
-      debugLog('Logging out user');
+      debugLog('🚪 USER LOGOUT STARTED', null, 'info');
       
-      localStorage.removeItem('userToken');
-      localStorage.removeItem('userData');
+      safeRemoveItem('userToken');
+      safeRemoveItem('userData');
       
       setUserAuth({
         isAuthenticated: false,
@@ -285,13 +320,33 @@ export const AuthProvider = ({ children }) => {
         token: null,
       });
 
-      debugLog('User logout successful');
+      debugLog('✅ USER LOGOUT COMPLETED', null, 'success');
     } catch (error) {
-      console.error('User logout error:', error);
+      debugLog('❌ USER LOGOUT ERROR', { error: error.message }, 'error');
     }
   };
 
-  // Handle authentication errors (production-ready)
+  // Logout seller
+  const logoutSeller = () => {
+    try {
+      debugLog('🚪 SELLER LOGOUT STARTED', null, 'info');
+      
+      safeRemoveItem('sellerToken');
+      safeRemoveItem('sellerData');
+      
+      setSellerAuth({
+        isAuthenticated: false,
+        seller: null,
+        token: null,
+      });
+
+      debugLog('✅ SELLER LOGOUT COMPLETED', null, 'success');
+    } catch (error) {
+      debugLog('❌ SELLER LOGOUT ERROR', { error: error.message }, 'error');
+    }
+  };
+
+  // Handle authentication errors
   const handleAuthError = (error) => {
     try {
       if (!error?.response) {
@@ -301,28 +356,27 @@ export const AuthProvider = ({ children }) => {
       
       const { status, data } = error.response;
       
-      debugLog('Handling auth error', {
+      debugLog('🚫 HANDLING AUTH ERROR', {
         status,
         errorMessage: data?.message,
-        errorData: data
-      });
+        code: data?.code
+      }, 'error');
       
-      // Only handle 401 errors that are clearly JWT-related
-      if (status === 401 && data?.message) {
-        const message = data.message.toLowerCase();
-        const isJWTError = message.includes('jwt') || 
-                          message.includes('token') || 
-                          message.includes('unauthorized') ||
-                          message.includes('invalid signature') ||
-                          message.includes('malformed');
+      if (status === 401) {
+        const isJWTError = data?.code === 'INVALID_TOKEN' || 
+                          data?.code === 'TOKEN_EXPIRED' || 
+                          data?.code === 'MALFORMED_TOKEN' ||
+                          data?.message?.toLowerCase().includes('token');
         
         if (isJWTError) {
-          debugLog('JWT-related authentication error detected');
+          debugLog('🔑 JWT ERROR DETECTED - CLEANING AUTH', null, 'warning');
           
-          // Clean up stored tokens
-          cleanupMalformedTokens();
+          // Clear both user and seller auth
+          safeRemoveItem('userToken');
+          safeRemoveItem('userData');
+          safeRemoveItem('sellerToken');
+          safeRemoveItem('sellerData');
           
-          // Reset auth state
           setUserAuth({
             isAuthenticated: false,
             user: null,
@@ -340,73 +394,38 @@ export const AuthProvider = ({ children }) => {
       
       return false;
     } catch (handleError) {
-      console.error('Error in handleAuthError:', handleError);
+      debugLog('❌ ERROR IN AUTH ERROR HANDLER', { error: handleError.message }, 'error');
       return false;
     }
   };
 
-  // Refresh authentication data
-  const refreshAuth = () => {
-    debugLog('Refreshing authentication state...');
-    setLoading(true);
-    
-    // Clean up tokens and re-initialize
-    cleanupMalformedTokens();
-    
-    // Re-initialize auth state
-    setTimeout(() => {
-      setLoading(false);
-    }, 100);
-  };
-
-  // Get current auth state summary
-  const getAuthSummary = () => {
-    return {
-      sellerAuthenticated: sellerAuth.isAuthenticated,
-      userAuthenticated: userAuth.isAuthenticated,
-      sellerName: sellerAuth.seller?.firstName,
-      userName: userAuth.user?.name,
-      loading,
-      initError
+  // Debug function
+  const debugAuth = () => {
+    const currentState = {
+      userAuth: {
+        isAuthenticated: userAuth.isAuthenticated,
+        hasUser: !!userAuth.user,
+        hasToken: !!userAuth.token,
+        userName: userAuth.user?.name,
+        tokenLength: userAuth.token?.length || 0
+      },
+      sellerAuth: {
+        isAuthenticated: sellerAuth.isAuthenticated,
+        hasSeller: !!sellerAuth.seller,
+        hasToken: !!sellerAuth.token,
+        sellerName: sellerAuth.seller?.firstName,
+        tokenLength: sellerAuth.token?.length || 0
+      },
+      localStorage: {
+        userToken: safeGetItem('userToken') ? 'present' : 'missing',
+        userData: safeGetItem('userData') ? 'present' : 'missing',
+        sellerToken: safeGetItem('sellerToken') ? 'present' : 'missing',
+        sellerData: safeGetItem('sellerData') ? 'present' : 'missing'
+      }
     };
-  };
-
-  // Production-ready validation function
-  const validateAuthState = () => {
-    const issues = [];
     
-    if (sellerAuth.isAuthenticated && !sellerAuth.seller) {
-      issues.push('Seller authenticated but no seller data');
-    }
-    
-    if (userAuth.isAuthenticated && !userAuth.user) {
-      issues.push('User authenticated but no user data');
-    }
-    
-    if (sellerAuth.isAuthenticated && !sellerAuth.token) {
-      issues.push('Seller authenticated but no token');
-    }
-    
-    if (userAuth.isAuthenticated && !userAuth.token) {
-      issues.push('User authenticated but no token');
-    }
-    
-    // Only check stored tokens, not current session tokens
-    const storedUserToken = localStorage.getItem('userToken');
-    const storedSellerToken = localStorage.getItem('sellerToken');
-    
-    if (storedUserToken && !isValidStoredJWT(storedUserToken)) {
-      issues.push('User has invalid stored JWT token');
-    }
-    
-    if (storedSellerToken && !isValidStoredJWT(storedSellerToken)) {
-      issues.push('Seller has invalid stored JWT token');
-    }
-    
-    return {
-      isValid: issues.length === 0,
-      issues
-    };
+    debugLog('🔧 MANUAL AUTH DEBUG', currentState, 'info');
+    return currentState;
   };
 
   // Context value
@@ -425,10 +444,7 @@ export const AuthProvider = ({ children }) => {
     handleAuthError,
     
     // Utility functions
-    refreshAuth,
-    getAuthSummary,
-    validateAuthState,
-    cleanupMalformedTokens,
+    debugAuth,
     
     // Debug helpers (only in development)
     ...(process.env.NODE_ENV === 'development' && {
@@ -441,6 +457,15 @@ export const AuthProvider = ({ children }) => {
       }
     })
   };
+
+  // Make debug functions available globally in development
+  if (process.env.NODE_ENV === 'development') {
+    window.debugAuth = debugAuth;
+    
+    debugLog('🔧 AUTH DEBUG MODE ENABLED', {
+      availableFunctions: ['window.debugAuth() - Check complete auth state']
+    }, 'info');
+  }
 
   return (
     <AuthContext.Provider value={contextValue}>

@@ -26,18 +26,19 @@ const userSchema = new mongoose.Schema({
   },
   location: {
     type: {
-      coordinates: {
-        type: [Number],
-        index: '2dsphere'
-      },
-      address: {
-        type: String,
-        default: ''
-      }
+      type: String,
+      enum: ['Point'],
+      default: 'Point',
+      required: true
     },
-    default: {
-      coordinates: [0, 0],
-      address: ''
+    coordinates: {
+      type: [Number],
+      default: [0, 0],
+      required: true
+    },
+    address: {
+      type: String,
+      default: ''
     }
   },
   isVerified: {
