@@ -15,6 +15,15 @@ const CartItemSchema = new mongoose.Schema({
   price: {
     type: Number,
     required: true
+  },
+  // 🎯 ADDED: Support for product variants
+  selectedSize: {
+    type: String,
+    default: ''
+  },
+  selectedColor: {
+    type: String,
+    default: ''
   }
 });
 
@@ -42,4 +51,4 @@ CartSchema.pre('save', function(next) {
   next();
 });
 
-module.exports = mongoose.model('Cart', CartSchema); 
+module.exports = mongoose.model('Cart', CartSchema);
