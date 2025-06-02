@@ -216,7 +216,12 @@ const EditProduct = () => {
         }))
       };
 
-      console.log('Updating product data:', productData);
+      // Log the data being sent
+      console.log('📦 Submitting product data:', {
+        mrp: productData.mrp,
+        zammerPrice: productData.zammerPrice,
+        difference: Number(productData.mrp) - Number(productData.zammerPrice)
+      });
       
       const response = await updateProduct(id, productData);
       
@@ -227,10 +232,28 @@ const EditProduct = () => {
         toast.error(response.message || 'Failed to update product');
       }
     } catch (error) {
-      console.error('Product update error:', error);
+      console.error('Product update error:', {
+        message: error.message,
+        details: error.details,
+        validationErrors: error.validationErrors
+      });
       
       // Enhanced error message handling
-      if (error.message && error.message.includes('validation failed')) {
+      if (error.details) {
+        // Show specific validation error with details
+        toast.error(
+          `Validation Error: ${error.message}\n` +
+          `MRP: ${error.details.newMrp}\n` +
+          `Zammer Price: ${error.details.newZammerPrice}\n` +
+          `Difference: ${error.details.difference}`
+        );
+      } else if (error.validationErrors) {
+        // Show all validation errors
+        const errorMessages = error.validationErrors.map(err => 
+          `${err.field}: ${err.message}`
+        ).join('\n');
+        toast.error(`Validation Errors:\n${errorMessages}`);
+      } else if (error.message && error.message.includes('validation failed')) {
         const errorDetails = error.message.split(':').slice(1).join(':').trim();
         toast.error(`Validation Error: ${errorDetails}`);
       } else if (error.message && error.message.includes('enum')) {
@@ -274,7 +297,7 @@ const EditProduct = () => {
       </SellerLayout>
     );
   }
-
+  
   return (
     <SellerLayout>
       <div className="edit-product-container">
@@ -808,7 +831,7 @@ const EditProduct = () => {
             </Form>
           )}
         </Formik>
-      </div>
+    </div>
     </SellerLayout>
   );
 };

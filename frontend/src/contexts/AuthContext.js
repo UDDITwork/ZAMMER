@@ -1,6 +1,40 @@
 import React, { createContext, useState, useEffect } from 'react';
 import { getCurrentLocation } from '../utils/locationUtils';
 
+// Robust JWT validation for localStorage tokens only
+const isValidStoredJWT = (token) => {
+  if (!token || typeof token !== 'string') return false;
+  
+  try {
+    // JWT should have 3 parts separated by dots
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    
+    // Try to decode each part to verify it's valid base64
+    // This is more robust than regex pattern matching
+    for (let i = 0; i < 3; i++) {
+      let part = parts[i];
+      
+      // Add padding if needed for base64 decoding
+      while (part.length % 4) {
+        part += '=';
+      }
+      
+      // Replace URL-safe characters
+      part = part.replace(/-/g, '+').replace(/_/g, '/');
+      
+      // Try to decode - will throw if invalid
+      atob(part);
+    }
+    
+    // If we get here, the token format is valid
+    return true;
+  } catch (error) {
+    // Any error means the token is malformed
+    return false;
+  }
+};
+
 // Create context
 export const AuthContext = createContext();
 
@@ -27,19 +61,51 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Clean up malformed tokens from localStorage only
+  const cleanupMalformedTokens = () => {
+    let cleaned = false;
+    
+    // Check user token from localStorage
+    const userToken = localStorage.getItem('userToken');
+    if (userToken && !isValidStoredJWT(userToken)) {
+      debugLog('Cleaning up malformed user token from localStorage');
+      localStorage.removeItem('userToken');
+      localStorage.removeItem('userData');
+      cleaned = true;
+    }
+    
+    // Check seller token from localStorage
+    const sellerToken = localStorage.getItem('sellerToken');
+    if (sellerToken && !isValidStoredJWT(sellerToken)) {
+      debugLog('Cleaning up malformed seller token from localStorage');
+      localStorage.removeItem('sellerToken');
+      localStorage.removeItem('sellerData');
+      cleaned = true;
+    }
+    
+    if (cleaned) {
+      debugLog('Token cleanup completed');
+    }
+    
+    return cleaned;
+  };
+
   useEffect(() => {
     const initializeAuth = async () => {
       try {
         debugLog('Initializing authentication state...');
         
+        // Clean up any malformed tokens first
+        cleanupMalformedTokens();
+        
         // Check if seller is logged in
         const sellerToken = localStorage.getItem('sellerToken');
         const sellerData = localStorage.getItem('sellerData');
 
-        if (sellerToken && sellerData) {
+        if (sellerToken && sellerData && isValidStoredJWT(sellerToken)) {
           try {
             const parsedSellerData = JSON.parse(sellerData);
-            debugLog('Found seller authentication data', {
+            debugLog('Found valid seller authentication data', {
               hasToken: !!sellerToken,
               sellerName: parsedSellerData?.firstName,
               sellerId: parsedSellerData?._id
@@ -57,16 +123,21 @@ export const AuthProvider = ({ children }) => {
             localStorage.removeItem('sellerData');
             debugLog('Removed corrupted seller data');
           }
+        } else if (sellerToken) {
+          // Token exists but is invalid
+          debugLog('Found invalid seller token, cleaning up');
+          localStorage.removeItem('sellerToken');
+          localStorage.removeItem('sellerData');
         }
 
         // Check if user is logged in
         const userToken = localStorage.getItem('userToken');
         const userData = localStorage.getItem('userData');
 
-        if (userToken && userData) {
+        if (userToken && userData && isValidStoredJWT(userToken)) {
           try {
             const parsedUserData = JSON.parse(userData);
-            debugLog('Found user authentication data', {
+            debugLog('Found valid user authentication data', {
               hasToken: !!userToken,
               userName: parsedUserData?.name,
               userId: parsedUserData?._id
@@ -84,6 +155,11 @@ export const AuthProvider = ({ children }) => {
             localStorage.removeItem('userData');
             debugLog('Removed corrupted user data');
           }
+        } else if (userToken) {
+          // Token exists but is invalid
+          debugLog('Found invalid user token, cleaning up');
+          localStorage.removeItem('userToken');
+          localStorage.removeItem('userData');
         }
 
         debugLog('Authentication initialization completed');
@@ -98,7 +174,7 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
-  // Login seller
+  // Login seller - NO TOKEN VALIDATION (trust server)
   const loginSeller = (data) => {
     try {
       debugLog('Logging in seller', {
@@ -107,9 +183,10 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (!data || !data.token) {
-        throw new Error('Invalid seller login data');
+        throw new Error('Invalid seller login data - missing token');
       }
 
+      // Store the token directly - trust the server
       localStorage.setItem('sellerToken', data.token);
       localStorage.setItem('sellerData', JSON.stringify(data));
       
@@ -146,7 +223,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Login user
+  // Login user - NO TOKEN VALIDATION (trust server)
   const loginUser = async (data) => {
     try {
       debugLog('Logging in user', {
@@ -155,7 +232,7 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (!data || !data.token) {
-        throw new Error('Invalid user login data');
+        throw new Error('Invalid user login data - missing token');
       }
 
       // Try to get user's location
@@ -177,6 +254,7 @@ export const AuthProvider = ({ children }) => {
         // Continue without location - not critical for login
       }
       
+      // Store the token directly - trust the server
       localStorage.setItem('userToken', data.token);
       localStorage.setItem('userData', JSON.stringify(data));
       
@@ -213,7 +291,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Handle authentication errors
+  // Handle authentication errors (production-ready)
   const handleAuthError = (error) => {
     try {
       if (!error?.response) {
@@ -229,19 +307,33 @@ export const AuthProvider = ({ children }) => {
         errorData: data
       });
       
-      // Check if it's an authentication error
-      if (status === 401) {
-        debugLog('Authentication error detected', data);
+      // Only handle 401 errors that are clearly JWT-related
+      if (status === 401 && data?.message) {
+        const message = data.message.toLowerCase();
+        const isJWTError = message.includes('jwt') || 
+                          message.includes('token') || 
+                          message.includes('unauthorized') ||
+                          message.includes('invalid signature') ||
+                          message.includes('malformed');
         
-        // If it's due to an invalid token, logout the user
-        if (data.error && (
-          data.error.includes('jwt') || 
-          data.error.includes('token') || 
-          data.error.includes('signature')
-        )) {
-          debugLog('Invalid token detected, logging out all users');
-          logoutUser();
-          logoutSeller();
+        if (isJWTError) {
+          debugLog('JWT-related authentication error detected');
+          
+          // Clean up stored tokens
+          cleanupMalformedTokens();
+          
+          // Reset auth state
+          setUserAuth({
+            isAuthenticated: false,
+            user: null,
+            token: null,
+          });
+          setSellerAuth({
+            isAuthenticated: false,
+            seller: null,
+            token: null,
+          });
+          
           return true;
         }
       }
@@ -257,6 +349,9 @@ export const AuthProvider = ({ children }) => {
   const refreshAuth = () => {
     debugLog('Refreshing authentication state...');
     setLoading(true);
+    
+    // Clean up tokens and re-initialize
+    cleanupMalformedTokens();
     
     // Re-initialize auth state
     setTimeout(() => {
@@ -276,7 +371,7 @@ export const AuthProvider = ({ children }) => {
     };
   };
 
-  // Validation function for auth state
+  // Production-ready validation function
   const validateAuthState = () => {
     const issues = [];
     
@@ -294,6 +389,18 @@ export const AuthProvider = ({ children }) => {
     
     if (userAuth.isAuthenticated && !userAuth.token) {
       issues.push('User authenticated but no token');
+    }
+    
+    // Only check stored tokens, not current session tokens
+    const storedUserToken = localStorage.getItem('userToken');
+    const storedSellerToken = localStorage.getItem('sellerToken');
+    
+    if (storedUserToken && !isValidStoredJWT(storedUserToken)) {
+      issues.push('User has invalid stored JWT token');
+    }
+    
+    if (storedSellerToken && !isValidStoredJWT(storedSellerToken)) {
+      issues.push('Seller has invalid stored JWT token');
     }
     
     return {
@@ -321,6 +428,7 @@ export const AuthProvider = ({ children }) => {
     refreshAuth,
     getAuthSummary,
     validateAuthState,
+    cleanupMalformedTokens,
     
     // Debug helpers (only in development)
     ...(process.env.NODE_ENV === 'development' && {

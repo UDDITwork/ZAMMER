@@ -3,11 +3,16 @@ import { Link } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
 import SellerLayout from '../../components/layouts/SellerLayout';
 import { getSellerProducts } from '../../services/productService';
+import orderService from '../../services/orderService';
 
 const Dashboard = () => {
   const { sellerAuth } = useContext(AuthContext);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState([]);
+  const [orderStats, setOrderStats] = useState(null);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [activeOrderTab, setActiveOrderTab] = useState('recent');
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -24,7 +29,59 @@ const Dashboard = () => {
     };
 
     fetchProducts();
+    fetchSellerOrders();
   }, []);
+
+  const fetchSellerOrders = async () => {
+    setLoadingOrders(true);
+    try {
+      const ordersResponse = await orderService.getSellerOrders(1, 5);
+      if (ordersResponse.success) {
+        setOrders(ordersResponse.data);
+      }
+
+      const statsResponse = await orderService.getSellerOrderStats();
+      if (statsResponse.success) {
+        setOrderStats(statsResponse.data);
+      }
+    } catch (error) {
+      console.error('Error fetching seller orders:', error);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      const response = await orderService.updateOrderStatus(orderId, newStatus);
+      if (response.success) {
+        fetchSellerOrders();
+        alert(`Order status updated to ${newStatus}`);
+      } else {
+        alert('Failed to update order status');
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      alert('Error updating order status');
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'processing':
+        return 'bg-blue-100 text-blue-800';
+      case 'shipped':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'delivered':
+        return 'bg-green-100 text-green-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
 
   // 🎯 NEW: Get shop main image
   const getShopMainImage = () => {

@@ -1,3 +1,4 @@
+console.log('✅ productRoutes loaded');
 const express = require('express');
 const { body } = require('express-validator');
 const router = express.Router();
@@ -8,12 +9,24 @@ const {
   updateProduct,
   deleteProduct,
   getMarketplaceProducts,
-  getShopProducts
+  getShopProducts,
+  // 🎯 NEW: Add toggle functions
+  toggleLimitedEdition,
+  toggleTrending,
+  updateProductStatus,
+  // 🎯 NEW: Add marketplace filtering functions
+  getLimitedEditionProducts,
+  getTrendingProducts
 } = require('../controllers/productController');
 const { protectSeller, optionalUserAuth } = require('../middleware/authMiddleware');
 
 // Public routes - use optionalUserAuth instead of requiring auth
 router.get('/marketplace', optionalUserAuth, getMarketplaceProducts);
+router.get('/marketplace/limited-edition', optionalUserAuth, (req, res, next) => {
+  console.log('✅ /marketplace/limited-edition route hit');
+  next();
+}, getLimitedEditionProducts);
+router.get('/marketplace/trending', optionalUserAuth, getTrendingProducts);
 router.get('/shop/:shopId', optionalUserAuth, getShopProducts);
 
 // Private routes - require seller authentication
@@ -33,6 +46,11 @@ router.route('/')
     createProduct
   )
   .get(protectSeller, getSellerProducts);
+
+// 🎯 IMPORTANT: Toggle routes MUST come before the /:id routes to avoid conflicts
+router.patch('/:id/toggle-limited-edition', protectSeller, toggleLimitedEdition);
+router.patch('/:id/toggle-trending', protectSeller, toggleTrending);
+router.patch('/:id/status', protectSeller, updateProductStatus);
 
 // Make product details accessible with optional auth
 router.route('/:id')

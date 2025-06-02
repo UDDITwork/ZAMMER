@@ -16,13 +16,62 @@ const getBaseUrl = () => {
   return 'http://localhost:5000/api';
 };
 
-// Create an instance of axios with better timeout handling
+// Production-ready JWT validation for localStorage tokens only
+const isValidStoredJWT = (token) => {
+  if (!token || typeof token !== 'string') return false;
+  
+  try {
+    // JWT should have 3 parts separated by dots
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    
+    // Try to decode the header to verify it's a valid JWT
+    let header = parts[0];
+    while (header.length % 4) {
+      header += '=';
+    }
+    header = header.replace(/-/g, '+').replace(/_/g, '/');
+    
+    const decodedHeader = JSON.parse(atob(header));
+    
+    // Check if it has the typical JWT header structure
+    if (!decodedHeader.typ || !decodedHeader.alg) {
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
+// Safe token cleanup - only remove clearly malformed tokens
+const safeTokenCleanup = (tokenKey, dataKey) => {
+  try {
+    const token = localStorage.getItem(tokenKey);
+    if (!token) return false;
+    
+    // Only remove if clearly malformed
+    if (!isValidStoredJWT(token)) {
+      console.warn(`🧹 Removing malformed ${tokenKey}`);
+      localStorage.removeItem(tokenKey);
+      localStorage.removeItem(dataKey);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error(`Error checking ${tokenKey}:`, error);
+    return false;
+  }
+};
+
+// Create an instance of axios with production-ready configuration
 const api = axios.create({
   baseURL: getBaseUrl(),
   headers: {
     'Content-Type': 'application/json'
   },
-  timeout: 15000, // 15 seconds timeout
+  timeout: 30000, // 30 seconds timeout for production
   withCredentials: true
 });
 
@@ -34,9 +83,20 @@ api.interceptors.request.use(
       console.log(`API Request: ${config.method.toUpperCase()} ${config.baseURL}${config.url}`);
     }
     
-    // Check for seller token first, then user token
+    // Only cleanup tokens that are clearly malformed, don't be aggressive
+    try {
+      safeTokenCleanup('userToken', 'userData');
+      safeTokenCleanup('sellerToken', 'sellerData');
+    } catch (error) {
+      console.error('Error during token cleanup:', error);
+    }
+    
+    // Get tokens and use them if they exist
+    // Don't validate them here - trust localStorage content
     const sellerToken = localStorage.getItem('sellerToken');
     const userToken = localStorage.getItem('userToken');
+    
+    // Prefer seller token if both exist
     const token = sellerToken || userToken;
     
     if (token) {
@@ -76,21 +136,35 @@ api.interceptors.response.use(
       });
     }
     
-    // Handle authentication errors
+    // Handle authentication errors with more precision
     if (error.response && error.response.status === 401) {
-      console.error('API Authentication Error:', error.response.data);
+      const errorData = error.response.data;
+      console.error('API Authentication Error:', errorData);
       
-      // Check if error is related to JWT
-      if (error.response.data.error && (
-        error.response.data.error.includes('jwt') ||
-        error.response.data.error.includes('token') ||
-        error.response.data.error.includes('signature')
-      )) {
-        console.log('Token validation failed - this might require logout');
-        // We're not automatically logging out here since that's handled by the AuthContext
+      // Only cleanup tokens if the error is clearly JWT-related
+      if (errorData?.message) {
+        const message = errorData.message.toLowerCase();
+        const isJWTError = message.includes('jwt malformed') || 
+                          message.includes('invalid token') ||
+                          message.includes('token expired') ||
+                          message.includes('invalid signature');
+        
+        if (isJWTError) {
+          console.log('🔑 JWT error detected - cleaning up tokens');
+          
+          // Remove both tokens as they might both be compromised
+          localStorage.removeItem('userToken');
+          localStorage.removeItem('userData');
+          localStorage.removeItem('sellerToken');
+          localStorage.removeItem('sellerData');
+          
+          // Note: Don't auto-redirect here - let components handle it
+          console.log('🧹 Tokens cleaned - components will handle navigation');
+        }
       }
     }
     
+    // Always return the error for components to handle
     return Promise.reject(error);
   }
 );

@@ -2,7 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import SellerLayout from '../../components/layouts/SellerLayout';
-import { getSellerProducts, deleteProduct, updateProduct } from '../../services/productService';
+import { 
+  getSellerProducts, 
+  deleteProduct, 
+  toggleLimitedEdition, 
+  toggleTrending,
+  updateProductStatus 
+} from '../../services/productService';
 
 const ViewProducts = () => {
   const [products, setProducts] = useState([]);
@@ -48,69 +54,88 @@ const ViewProducts = () => {
     }
   };
 
-  // 🎯 NEW: Handle Limited Edition Toggle
+  // 🎯 FIXED: Efficient Limited Edition Toggle using specific API
   const handleLimitedEditionToggle = async (productId, currentStatus) => {
     setToggleLoading(prev => ({ ...prev, [`limited_${productId}`]: true }));
     
     try {
-      const product = products.find(p => p._id === productId);
-      const updatedData = {
-        ...product,
-        isLimitedEdition: !currentStatus
-      };
-
-      const response = await updateProduct(productId, updatedData);
+      console.log('🎯 Calling toggleLimitedEdition for product:', productId);
+      const response = await toggleLimitedEdition(productId);
       
       if (response.success) {
         // Update the local state
         setProducts(prev => prev.map(p => 
           p._id === productId 
-            ? { ...p, isLimitedEdition: !currentStatus }
+            ? { ...p, isLimitedEdition: response.data.isLimitedEdition }
             : p
         ));
         
-        toast.success(`Product ${!currentStatus ? 'marked as' : 'removed from'} Limited Edition`);
+        toast.success(`Product ${response.data.isLimitedEdition ? 'marked as' : 'removed from'} Limited Edition`);
       } else {
         toast.error(response.message || 'Failed to update product');
       }
     } catch (error) {
       console.error('Error toggling Limited Edition:', error);
-      toast.error('Something went wrong while updating the product');
+      toast.error(error.message || 'Something went wrong while updating the product');
     } finally {
       setToggleLoading(prev => ({ ...prev, [`limited_${productId}`]: false }));
     }
   };
 
-  // 🎯 NEW: Handle Trending Toggle
+  // 🎯 FIXED: Efficient Trending Toggle using specific API
   const handleTrendingToggle = async (productId, currentStatus) => {
     setToggleLoading(prev => ({ ...prev, [`trending_${productId}`]: true }));
     
     try {
-      const product = products.find(p => p._id === productId);
-      const updatedData = {
-        ...product,
-        isTrending: !currentStatus
-      };
-
-      const response = await updateProduct(productId, updatedData);
+      console.log('🔥 Calling toggleTrending for product:', productId);
+      const response = await toggleTrending(productId);
       
       if (response.success) {
         // Update the local state
         setProducts(prev => prev.map(p => 
           p._id === productId 
-            ? { ...p, isTrending: !currentStatus }
+            ? { ...p, isTrending: response.data.isTrending }
             : p
         ));
         
-        toast.success(`Product ${!currentStatus ? 'marked as' : 'removed from'} Trending`);
+        toast.success(`Product ${response.data.isTrending ? 'marked as' : 'removed from'} Trending`);
       } else {
         toast.error(response.message || 'Failed to update product');
       }
     } catch (error) {
       console.error('Error toggling Trending:', error);
-      toast.error('Something went wrong while updating the product');
+      toast.error(error.message || 'Something went wrong while updating the product');
     } finally {
       setToggleLoading(prev => ({ ...prev, [`trending_${productId}`]: false }));
+    }
+  };
+
+  // 🎯 NEW: Handle Status Toggle (Active/Inactive)
+  const handleStatusToggle = async (productId, currentStatus) => {
+    setToggleLoading(prev => ({ ...prev, [`status_${productId}`]: true }));
+    
+    try {
+      const newStatus = currentStatus === 'active' ? 'paused' : 'active';
+      console.log('📊 Calling updateProductStatus for product:', productId, 'to status:', newStatus);
+      const response = await updateProductStatus(productId, newStatus);
+      
+      if (response.success) {
+        // Update the local state
+        setProducts(prev => prev.map(p => 
+          p._id === productId 
+            ? { ...p, status: response.data.status }
+            : p
+        ));
+        
+        toast.success(`Product ${response.data.status === 'active' ? 'activated' : 'paused'} successfully`);
+      } else {
+        toast.error(response.message || 'Failed to update product status');
+      }
+    } catch (error) {
+      console.error('Error toggling status:', error);
+      toast.error(error.message || 'Something went wrong while updating the product status');
+    } finally {
+      setToggleLoading(prev => ({ ...prev, [`status_${productId}`]: false }));
     }
   };
 
@@ -191,7 +216,7 @@ const ViewProducts = () => {
           </div>
         </div>
 
-        {/* 🎯 NEW: Stats Summary */}
+        {/* Stats Summary */}
         {products.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white p-4 rounded-lg shadow-sm border">
@@ -291,7 +316,7 @@ const ViewProducts = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col space-y-1">
-                        {/* 🎯 NEW: Status Badges */}
+                        {/* Status Badges */}
                         <div className="flex flex-wrap gap-1">
                           {product.isLimitedEdition && (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
@@ -303,13 +328,22 @@ const ViewProducts = () => {
                               🔥 Trending
                             </span>
                           )}
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            product.status === 'active' 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {product.status === 'active' ? '✓ Active' : '○ Inactive'}
-                          </span>
+                          <button
+                            onClick={() => handleStatusToggle(product._id, product.status)}
+                            disabled={toggleLoading[`status_${product._id}`]}
+                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium transition-colors ${
+                              product.status === 'active' 
+                                ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                                : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                            } ${toggleLoading[`status_${product._id}`] ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                          >
+                            {toggleLoading[`status_${product._id}`] ? (
+                              <div className="animate-spin rounded-full h-3 w-3 border-b border-current mr-1"></div>
+                            ) : (
+                              product.status === 'active' ? '✓' : '○'
+                            )}
+                            {product.status === 'active' ? ' Active' : ' Paused'}
+                          </button>
                         </div>
                       </div>
                     </td>
@@ -318,7 +352,7 @@ const ViewProducts = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex flex-col space-y-2">
-                        {/* 🎯 ENHANCED: Main Actions */}
+                        {/* Main Actions */}
                         <div className="flex justify-center space-x-2">
                           <Link
                             to={`/seller/edit-product/${product._id}`}
@@ -334,7 +368,7 @@ const ViewProducts = () => {
                           </button>
                         </div>
                         
-                        {/* 🎯 NEW: Toggle Actions */}
+                        {/* Toggle Actions */}
                         <div className="flex justify-center space-x-1">
                           <button
                             onClick={() => handleLimitedEditionToggle(product._id, product.isLimitedEdition)}

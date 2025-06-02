@@ -7,6 +7,7 @@ const fs = require('fs');
 const { errorHandler } = require('./middleware/errorMiddleware');
 
 // Routes imports
+const orderRoutes=require('./routes/orderRoutes');
 const productRoutes = require('./routes/productRoutes');
 const sellerRoutes = require('./routes/sellerRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -170,12 +171,13 @@ app.get('/api/uploads/status', (req, res) => {
 
 // API Routes
 app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
 app.use('/api/sellers', sellerRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/cart', cartRoutes);
-
+// npm install express-async-handler
 // 🎯 IMPROVED: Better 404 handler with detailed logging
 app.use((req, res, next) => {
   console.log(`⚠️ Route not found: ${req.method} ${req.originalUrl}`);
