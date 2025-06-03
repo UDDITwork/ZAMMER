@@ -3,138 +3,146 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getMarketplaceProducts } from '../../services/productService';
 
+// 🎯 Using categories exactly matching backend Product.js schema
+const productCategories = {
+  Men: {
+    title: 'Men',
+    description: 'Find trendy, comfortable men fashion...',
+    subCategories: [
+      { id: 'T-shirts', name: 'T-shirts', image: '/placeholders/men-tshirts.jpg' },
+      { id: 'Shirts', name: 'Shirts', image: '/placeholders/men-shirts.jpg' },
+      { id: 'Jeans', name: 'Jeans', image: '/placeholders/men-jeans.jpg' },
+      { id: 'Ethnic Wear', name: 'Ethnic Wear', image: '/placeholders/men-ethnic.jpg' },
+      { id: 'Jackets', name: 'Jackets', image: '/placeholders/men-jackets.jpg' },
+      { id: 'Tops', name: 'Tops', image: '/placeholders/men-tops.jpg' },
+      { id: 'Tees', name: 'Tees', image: '/placeholders/men-tees.jpg' },
+      { id: 'Sleepwear', name: 'Sleepwear', image: '/placeholders/men-sleepwear.jpg' },
+      { id: 'Top Wear', name: 'Top Wear', image: '/placeholders/men-topwear.jpg' },
+    ]
+  },
+  Women: {
+    title: 'Women',
+    description: 'Find stylish, trendy fashion...',
+    subCategories: [
+      { id: 'Kurties', name: 'Kurties', image: '/placeholders/women-kurties.jpg' },
+      { id: 'Tops', name: 'Tops', image: '/placeholders/women-tops.jpg' },
+      { id: 'Tees', name: 'Tees', image: '/placeholders/women-tees.jpg' },
+      { id: 'Dresses', name: 'Dresses', image: '/placeholders/women-dresses.jpg' },
+      { id: 'Jeans', name: 'Jeans', image: '/placeholders/women-jeans.jpg' },
+      { id: 'Nightwear', name: 'Nightwear', image: '/placeholders/women-nightwear.jpg' },
+      { id: 'Sleepwear', name: 'Sleepwear', image: '/placeholders/women-sleepwear.jpg' },
+      { id: 'Lehengass', name: 'Lehengass', image: '/placeholders/women-lehenga.jpg' },
+      { id: 'Rayon', name: 'Rayon', image: '/placeholders/women-rayon.jpg' },
+      { id: 'Shrugs', name: 'Shrugs', image: '/placeholders/women-shrugs.jpg' }
+    ]
+  },
+  Kids: {
+    title: 'Kids',
+    description: 'Find cute, comfortable kids styles...',
+    subCategories: [
+      { id: 'T-shirts', name: 'T-shirts', image: '/placeholders/kids-tshirts.jpg' },
+      { id: 'Shirts', name: 'Shirts', image: '/placeholders/kids-shirts.jpg' },
+      { id: 'Boys Sets', name: 'Boys Sets', image: '/placeholders/kids-boys.jpg' },
+      { id: 'Top Wear', name: 'Top Wear', image: '/placeholders/kids-topwear.jpg' },
+      { id: 'Nightwear', name: 'Nightwear', image: '/placeholders/kids-nightwear.jpg' },
+      { id: 'Sleepwear', name: 'Sleepwear', image: '/placeholders/kids-sleepwear.jpg' }
+    ]
+  }
+};
+
+// 🎯 Using product categories exactly matching backend enum
+const productCategoryOptions = [
+  { value: 'Traditional Indian', label: 'Traditional Indian' },
+  { value: 'Winter Fashion', label: 'Winter Fashion' },
+  { value: 'Party Wear', label: 'Party Wear' },
+  { value: 'Sports Destination', label: 'Sports Destination' },
+  { value: 'Office Wear', label: 'Office Wear' }
+];
+
 const CategoryPage = () => {
   const { category } = useParams();
   const [subcategories, setSubcategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Define subcategories based on the main category
-  const categoryMappings = {
-    women: {
-      title: 'Women',
-      description: 'Find stylish, trendy fashion...',
-      subcategories: [
-        { id: 'kurties', name: 'Kurties', image: '/placeholders/women-kurties.jpg' },
-        { id: 'suits', name: 'Suits', image: '/placeholders/women-suits.jpg' },
-        { id: 'tops', name: 'Tops', image: '/placeholders/women-tops.jpg' },
-        { id: 'dresses', name: 'Dresses', image: '/placeholders/women-dresses.jpg' },
-        { id: 'ethnic', name: 'Ethnic Wear', image: '/placeholders/women-ethnic.jpg' },
-        { id: 'lehengass', name: 'Lehengass', image: '/placeholders/women-lehenga.jpg' },
-        { id: 'rayon', name: 'Rayon', image: '/placeholders/women-rayon.jpg' },
-        { id: 'shrugs', name: 'Shrugs', image: '/placeholders/women-shrugs.jpg' }
-      ]
-    },
-    men: {
-      title: 'Men',
-      description: 'Find trendy, comfortable men fashion...',
-      subcategories: [
-        { id: 't-shirts', name: 'T-shirts', image: '/placeholders/men-tshirts.jpg' },
-        { id: 'shirts', name: 'Shirts', image: '/placeholders/men-shirts.jpg' },
-        { id: 'kurties', name: 'Kurties', image: '/placeholders/men-kurties.jpg' },
-        { id: 'jackets', name: 'Ethnic Jackets', image: '/placeholders/men-jackets.jpg' },
-        { id: 'jeans', name: 'Jeans', image: '/placeholders/men-jeans.jpg' }
-      ]
-    },
-    kids: {
-      title: 'Kids',
-      description: 'Find cute, comfortable kids styles...',
-      subcategories: [
-        { id: 'ethnic', name: 'Ethnic Wear', image: '/placeholders/kids-ethnic.jpg' },
-        { id: 'tshirts', name: 'T-shirts', image: '/placeholders/kids-tshirts.jpg' },
-        { id: 'nightwear', name: 'Nightwear', image: '/placeholders/kids-nightwear.jpg' },
-        { id: 'sleepwear', name: 'Sleepwear', image: '/placeholders/kids-sleepwear.jpg' },
-        { id: 'boys', name: 'Boys Sets', image: '/placeholders/kids-boys.jpg' }
-      ]
-    },
-    traditional: {
-      title: 'Traditional Indian',
-      description: 'Ethnic styles, festival fashion, more...',
-      subcategories: []
-    },
-    winter: {
-      title: 'Winter Fashion',
-      description: 'Coats, jackets, sweaters, more...',
-      subcategories: []
-    },
-    party: {
-      title: 'Party Wear',
-      description: 'Look your best at every party...',
-      subcategories: []
-    },
-    sports: {
-      title: 'Sports Destination',
-      description: 'Active wear, sports shoes, accessories...',
-      subcategories: []
-    },
-    office: {
-      title: 'Office Wear',
-      description: 'Professional, business casual styles...',
-      subcategories: []
-    }
-  };
-
   useEffect(() => {
-    // Get the category info or default to women if not found
-    const categoryInfo = categoryMappings[category?.toLowerCase()] || categoryMappings['women'];
-    setSubcategories(categoryInfo.subcategories);
+    setLoading(true);
+    // Get the category info or default to Men if not found
+    const categoryInfo = productCategories[category] || productCategories['Men'];
+    setSubcategories(categoryInfo.subCategories);
     setLoading(false);
   }, [category]);
 
   // Helper to get proper category display name
   const getCategoryTitle = () => {
-    const categoryInfo = categoryMappings[category?.toLowerCase()];
+    const categoryInfo = productCategories[category];
     if (!categoryInfo) return 'Categories';
     return categoryInfo.title;
   };
 
   return (
-    <div className="category-page pb-16">
-      {/* Header */}
-      <div className="bg-white p-4 border-b flex items-center">
-        <button onClick={() => navigate(-1)} className="mr-4">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <h1 className="text-base font-medium">{getCategoryTitle()}</h1>
+    <div className="category-page pb-16 bg-gradient-to-br from-gray-50 via-orange-25 to-pink-25 min-h-screen">
+      {/* Enhanced Header */}
+      <div className="bg-gradient-to-r from-orange-500 via-orange-600 to-pink-500 text-white p-6 shadow-xl relative overflow-hidden">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 bg-white/10 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.1),transparent_50%)]"></div>
+        <div className="container mx-auto relative z-10 flex items-center">
+          <button onClick={() => navigate(-1)} className="mr-4 p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold tracking-wide mb-1">{getCategoryTitle()}</h1>
+            <p className="text-orange-100 text-sm">{productCategories[category]?.description || 'Explore products by category...'}</p>
+          </div>
+        </div>
       </div>
 
       {/* Subcategories Grid */}
-      <div className="p-4">
+      <div className="container mx-auto px-4 py-8">
         {loading ? (
-          <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+          <div className="flex justify-center py-12 bg-white rounded-2xl shadow-lg">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-orange-200 border-t-orange-500 mx-auto mb-4"></div>
+              <span className="text-gray-600 font-medium">Loading categories...</span>
+            </div>
           </div>
         ) : subcategories.length > 0 ? (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
             {subcategories.map((subcat) => (
-              <Link 
-                key={subcat.id} 
+              <Link
+                key={subcat.id}
                 to={`/user/products?category=${category}&subcategory=${subcat.id}`}
-                className="relative rounded-lg overflow-hidden"
+                className="relative rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 group transform hover:scale-105"
               >
-                <div className="h-40 bg-gray-200">
-                  <img 
-                    src={subcat.image || '/placeholders/default-category.jpg'} 
-                    alt={subcat.name} 
-                    className="h-full w-full object-cover"
+                <div className="h-40 bg-gray-200 relative overflow-hidden">
+                  <img
+                    src={subcat.image || '/placeholders/default-category.jpg'}
+                    alt={subcat.name}
+                    className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300"
                   />
+                   {/* Discount Tag (Example - can be dynamic if data available) */}
+                  {/* <div className="absolute top-3 left-3 bg-orange-500 text-white text-xs px-2 py-1 rounded-full font-semibold">-50% OFF</div> */}
                 </div>
-                <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
-                  <div className="text-white text-center">
-                    <h3 className="font-medium text-lg">{subcat.name}</h3>
-                    <div className="mt-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full inline-block">
-                      -50% OFF
-                    </div>
+                <div className="absolute inset-0 bg-black bg-opacity-40 flex items-end justify-center p-4">
+                  <div className="text-white text-center w-full">
+                    <h3 className="font-bold text-lg mb-1 truncate">{subcat.name}</h3>
+                    {/* Example for product count or other info */}
+                    {/* <p className="text-xs text-gray-200">120 Products</p> */}
                   </div>
                 </div>
               </Link>
             ))}
           </div>
         ) : (
-          <div className="text-center py-8 bg-gray-50 rounded-lg">
-            <p className="text-gray-600">No subcategories found.</p>
+          <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-gray-300 shadow-lg">
+            <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+            <p className="text-gray-600 font-medium">No subcategories found for this category.</p>
           </div>
         )}
       </div>

@@ -7,7 +7,8 @@ const {
   getUserOrders,
   getSellerOrders,
   updateOrderStatus,
-  getSellerOrderStats
+  getSellerOrderStats,
+  getOrderInvoice
 } = require('../controllers/orderController');
 const { protectUser, protectSeller } = require('../middleware/authMiddleware');
 
@@ -39,5 +40,8 @@ router.get('/:id', getOrderById);
 
 // Update order status (seller only)
 router.put('/:id/status', protectSeller, updateOrderStatus);
+
+// 🎯 NEW: Get order invoice
+router.get('/:id/invoice', protectUser, getOrderInvoice);
 
 module.exports = router;

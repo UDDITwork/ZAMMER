@@ -10,7 +10,9 @@ const {
   getWishlist,
   addToWishlist,
   removeFromWishlist,
-  checkWishlist
+  checkWishlist,
+  verifyEmail,
+  resetPassword
 } = require('../controllers/userController');
 const { protectUser, optionalUserAuth } = require('../middleware/authMiddleware');
 
@@ -50,5 +52,9 @@ router.post('/wishlist', [
 ], addToWishlist);
 router.delete('/wishlist/:productId', protectUser, removeFromWishlist);
 router.get('/wishlist/check/:productId', protectUser, checkWishlist);
+
+// Password reset routes
+router.post('/verify-email', verifyEmail);
+router.post('/reset-password', resetPassword);
 
 module.exports = router;

@@ -1,17 +1,37 @@
 import api from './api';
 
+// Optimized logging - only log errors and important events
+const isProduction = process.env.NODE_ENV === 'production';
+const debugLog = (message, data = null, type = 'info') => {
+  // Only log in development or for errors
+  if (!isProduction || type === 'error') {
+    const colors = {
+      info: '#2196F3',
+      success: '#4CAF50', 
+      warning: '#FF9800',
+      error: '#F44336'
+    };
+    
+    console.log(
+      `%c[Service] ${message}`,
+      `color: ${colors[type]}; font-weight: bold;`,
+      data
+    );
+  }
+};
+
 // Create a product
 export const createProduct = async (productData) => {
   try {
-    console.log('📦 Creating product:', { name: productData.name });
+    debugLog('📦 Creating product', { name: productData.name });
     const response = await api.post('/products', productData);
-    console.log('✅ Product created successfully:', { id: response.data.data._id });
+    debugLog('✅ Product created successfully', { id: response.data.data._id }, 'success');
     return response.data;
   } catch (error) {
-    console.error('❌ Create Product Error:', {
+    debugLog('❌ Create Product Error', {
       message: error.response?.data?.message || error.message,
       data: productData
-    });
+    }, 'error');
     throw error.response?.data || error;
   }
 };
@@ -19,14 +39,14 @@ export const createProduct = async (productData) => {
 // Get all products for a seller
 export const getSellerProducts = async () => {
   try {
-    console.log('🔍 Fetching seller products');
+    debugLog('🔍 Fetching seller products');
     const response = await api.get('/products');
-    console.log('✅ Seller products fetched successfully:', { count: response.data.data.length });
+    debugLog('✅ Seller products fetched successfully', { count: response.data.data.length }, 'success');
     return response.data;
   } catch (error) {
-    console.error('❌ Get Seller Products Error:', {
+    debugLog('❌ Get Seller Products Error', {
       message: error.response?.data?.message || error.message
-    });
+    }, 'error');
     throw error.response?.data || error;
   }
 };
@@ -34,15 +54,15 @@ export const getSellerProducts = async () => {
 // Get a single product
 export const getProductById = async (id) => {
   try {
-    console.log('🔍 Fetching product:', { id });
+    debugLog('🔍 Fetching product', { id });
     const response = await api.get(`/products/${id}`);
-    console.log('✅ Product fetched successfully:', { id });
+    debugLog('✅ Product fetched successfully', { id }, 'success');
     return response.data;
   } catch (error) {
-    console.error('❌ Get Product Error:', {
+    debugLog('❌ Get Product Error', {
       id,
       message: error.response?.data?.message || error.message
-    });
+    }, 'error');
     throw error.response?.data || error;
   }
 };
@@ -50,8 +70,8 @@ export const getProductById = async (id) => {
 // Update a product
 export const updateProduct = async (id, productData) => {
   try {
-    console.log('📝 Updating product:', { 
-      id, 
+    debugLog('📝 Updating product', {
+      id,
       updates: Object.keys(productData),
       values: {
         mrp: productData.mrp,
@@ -66,19 +86,19 @@ export const updateProduct = async (id, productData) => {
       zammerPrice: Number(productData.zammerPrice)
     };
 
-    console.log('🔢 Sanitized data:', {
+    debugLog('🔢 Sanitized data', {
       mrp: sanitizedData.mrp,
       zammerPrice: sanitizedData.zammerPrice
-    });
+    }, 'info');
 
     const response = await api.put(`/products/${id}`, sanitizedData);
-    console.log('✅ Product updated successfully:', { 
+    debugLog('✅ Product updated successfully', {
       id,
       response: response.data
-    });
+    }, 'success');
     return response.data;
   } catch (error) {
-    console.error('❌ Update Product Error:', {
+    debugLog('❌ Update Product Error', {
       id,
       message: error.response?.data?.message || error.message,
       details: error.response?.data?.error?.details,
@@ -88,7 +108,7 @@ export const updateProduct = async (id, productData) => {
         mrp: productData.mrp,
         zammerPrice: productData.zammerPrice
       }
-    });
+    }, 'error');
 
     // Enhanced error object
     const enhancedError = {
@@ -105,15 +125,15 @@ export const updateProduct = async (id, productData) => {
 // Delete a product
 export const deleteProduct = async (id) => {
   try {
-    console.log('🗑️ Deleting product:', { id });
+    debugLog('🗑️ Deleting product', { id });
     const response = await api.delete(`/products/${id}`);
-    console.log('✅ Product deleted successfully:', { id });
+    debugLog('✅ Product deleted successfully', { id }, 'success');
     return response.data;
   } catch (error) {
-    console.error('❌ Delete Product Error:', {
+    debugLog('❌ Delete Product Error', {
       id,
       message: error.response?.data?.message || error.message
-    });
+    }, 'error');
     throw error.response?.data || error;
   }
 };
@@ -121,18 +141,21 @@ export const deleteProduct = async (id) => {
 // Get marketplace products
 export const getMarketplaceProducts = async (queryParams) => {
   try {
-    console.log('🔍 Fetching marketplace products:', { filters: queryParams });
+    debugLog('🔍 Fetching marketplace products', { filters: queryParams });
+    
     const response = await api.get('/products/marketplace', { params: queryParams });
-    console.log('✅ Marketplace products fetched successfully:', { 
+    
+    debugLog('✅ Marketplace products fetched', {
       count: response.data.data.length,
-      filters: queryParams 
-    });
+      filters: queryParams
+    }, response.data.data.length === 0 ? 'warning' : 'success');
+    
     return response.data;
   } catch (error) {
-    console.error('❌ Get Marketplace Products Error:', {
+    debugLog('❌ Get Marketplace Products Error', {
       message: error.response?.data?.message || error.message,
       filters: queryParams
-    });
+    }, 'error');
     throw error.response?.data || error;
   }
 };
@@ -140,18 +163,18 @@ export const getMarketplaceProducts = async (queryParams) => {
 // Toggle Limited Edition status
 export const toggleLimitedEdition = async (id) => {
   try {
-    console.log('🔄 Toggling Limited Edition status:', { id });
+    debugLog('🔄 Toggling Limited Edition status', { id });
     const response = await api.patch(`/products/${id}/toggle-limited-edition`);
-    console.log('✅ Limited Edition status toggled successfully:', { 
+    debugLog('✅ Limited Edition status toggled successfully', {
       id,
-      newStatus: response.data.data.isLimitedEdition 
-    });
+      newStatus: response.data.data.isLimitedEdition
+    }, 'success');
     return response.data;
   } catch (error) {
-    console.error('❌ Toggle Limited Edition Error:', {
+    debugLog('❌ Toggle Limited Edition Error', {
       id,
       message: error.response?.data?.message || error.message
-    });
+    }, 'error');
     throw error.response?.data || error;
   }
 };
@@ -159,18 +182,18 @@ export const toggleLimitedEdition = async (id) => {
 // Toggle Trending status
 export const toggleTrending = async (id) => {
   try {
-    console.log('🔄 Toggling Trending status:', { id });
+    debugLog('🔄 Toggling Trending status', { id });
     const response = await api.patch(`/products/${id}/toggle-trending`);
-    console.log('✅ Trending status toggled successfully:', { 
+    debugLog('✅ Trending status toggled successfully', {
       id,
-      newStatus: response.data.data.isTrending 
-    });
+      newStatus: response.data.data.isTrending
+    }, 'success');
     return response.data;
   } catch (error) {
-    console.error('❌ Toggle Trending Error:', {
+    debugLog('❌ Toggle Trending Error', {
       id,
       message: error.response?.data?.message || error.message
-    });
+    }, 'error');
     throw error.response?.data || error;
   }
 };
@@ -178,19 +201,19 @@ export const toggleTrending = async (id) => {
 // Update product status
 export const updateProductStatus = async (id, status) => {
   try {
-    console.log('🔄 Updating product status:', { id, status });
+    debugLog('🔄 Updating product status', { id, status });
     const response = await api.patch(`/products/${id}/status`, { status });
-    console.log('✅ Product status updated successfully:', { 
+    debugLog('✅ Product status updated successfully', {
       id,
-      newStatus: response.data.data.status 
-    });
+      newStatus: response.data.data.status
+    }, 'success');
     return response.data;
   } catch (error) {
-    console.error('❌ Update Product Status Error:', {
+    debugLog('❌ Update Product Status Error', {
       id,
       status,
       message: error.response?.data?.message || error.message
-    });
+    }, 'error');
     throw error.response?.data || error;
   }
 };
@@ -198,19 +221,19 @@ export const updateProductStatus = async (id, status) => {
 // Get products by category
 export const getProductsByCategory = async (category, queryParams = {}) => {
   try {
-    console.log('🔍 Fetching products by category:', { category, filters: queryParams });
+    debugLog('🔍 Fetching products by category', { category, filters: queryParams });
     const response = await api.get(`/products/marketplace/category/${category}`, { params: queryParams });
-    console.log('✅ Category products fetched successfully:', { 
+    debugLog('✅ Category products fetched successfully', {
       category,
-      count: response.data.data.length 
-    });
+      count: response.data.data.length
+    }, response.data.data.length === 0 ? 'warning' : 'success');
     return response.data;
   } catch (error) {
-    console.error('❌ Get Category Products Error:', {
+    debugLog('❌ Get Category Products Error', {
       category,
       message: error.response?.data?.message || error.message,
       filters: queryParams
-    });
+    }, 'error');
     throw error.response?.data || error;
   }
 };
@@ -218,17 +241,15 @@ export const getProductsByCategory = async (category, queryParams = {}) => {
 // Get limited edition products
 export const getLimitedEditionProducts = async (queryParams = {}) => {
   try {
-    console.log('🔍 Fetching limited edition products:', { filters: queryParams });
+    debugLog('🔍 Fetching limited edition products', { filters: queryParams });
     const response = await api.get('/products/marketplace/limited-edition', { params: queryParams });
-    console.log('✅ Limited edition products fetched successfully:', { 
-      count: response.data.data.length 
-    });
+    debugLog('✅ Limited edition products fetched successfully', { count: response.data.data.length }, response.data.data.length === 0 ? 'warning' : 'success');
     return response.data;
   } catch (error) {
-    console.error('❌ Get Limited Edition Products Error:', {
+    debugLog('❌ Get Limited Edition Products Error', {
       message: error.response?.data?.message || error.message,
       filters: queryParams
-    });
+    }, 'error');
     throw error.response?.data || error;
   }
 };
@@ -236,17 +257,15 @@ export const getLimitedEditionProducts = async (queryParams = {}) => {
 // Get trending products
 export const getTrendingProducts = async (queryParams = {}) => {
   try {
-    console.log('🔍 Fetching trending products:', { filters: queryParams });
+    debugLog('🔍 Fetching trending products', { filters: queryParams });
     const response = await api.get('/products/marketplace/trending', { params: queryParams });
-    console.log('✅ Trending products fetched successfully:', { 
-      count: response.data.data.length 
-    });
+    debugLog('✅ Trending products fetched successfully', { count: response.data.data.length }, response.data.data.length === 0 ? 'warning' : 'success');
     return response.data;
   } catch (error) {
-    console.error('❌ Get Trending Products Error:', {
+    debugLog('❌ Get Trending Products Error', {
       message: error.response?.data?.message || error.message,
       filters: queryParams
-    });
+    }, 'error');
     throw error.response?.data || error;
   }
 };
@@ -254,24 +273,24 @@ export const getTrendingProducts = async (queryParams = {}) => {
 // Search products
 export const searchProducts = async (searchQuery, queryParams = {}) => {
   try {
-    console.log('🔍 Searching products:', { query: searchQuery, filters: queryParams });
-    const response = await api.get('/products/marketplace/search', { 
-      params: { 
+    debugLog('🔍 Searching products', { query: searchQuery, filters: queryParams });
+    const response = await api.get('/products/marketplace/search', {
+      params: {
         q: searchQuery,
-        ...queryParams 
-      } 
+        ...queryParams
+      }
     });
-    console.log('✅ Products search completed successfully:', { 
+    debugLog('✅ Products search completed successfully', {
       query: searchQuery,
-      count: response.data.data.length 
-    });
+      count: response.data.data.length
+    }, response.data.data.length === 0 ? 'warning' : 'success');
     return response.data;
   } catch (error) {
-    console.error('❌ Search Products Error:', {
+    debugLog('❌ Search Products Error', {
       query: searchQuery,
       message: error.response?.data?.message || error.message,
       filters: queryParams
-    });
+    }, 'error');
     throw error.response?.data || error;
   }
 };
@@ -279,7 +298,7 @@ export const searchProducts = async (searchQuery, queryParams = {}) => {
 // Bulk update products
 export const bulkUpdateProducts = async (productIds, updateData) => {
   try {
-    console.log('📝 Bulk updating products:', { 
+    debugLog('📝 Bulk updating products', {
       count: productIds.length,
       updates: Object.keys(updateData)
     });
@@ -287,17 +306,37 @@ export const bulkUpdateProducts = async (productIds, updateData) => {
       productIds,
       updateData
     });
-    console.log('✅ Bulk update completed successfully:', { 
+    debugLog('✅ Bulk update completed successfully', {
       count: productIds.length,
       updates: Object.keys(updateData)
-    });
+    }, 'success');
     return response.data;
   } catch (error) {
-    console.error('❌ Bulk Update Products Error:', {
+    debugLog('❌ Bulk Update Products Error', {
       count: productIds.length,
       message: error.response?.data?.message || error.message,
       updates: Object.keys(updateData)
-    });
+    }, 'error');
     throw error.response?.data || error;
   }
 };
+
+// Default export
+const productService = {
+  createProduct,
+  getSellerProducts,
+  getProductById,
+  updateProduct,
+  deleteProduct,
+  getMarketplaceProducts,
+  toggleLimitedEdition,
+  toggleTrending,
+  updateProductStatus,
+  getProductsByCategory,
+  getLimitedEditionProducts,
+  getTrendingProducts,
+  searchProducts,
+  bulkUpdateProducts,
+};
+
+export default productService;

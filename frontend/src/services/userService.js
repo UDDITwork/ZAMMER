@@ -1,8 +1,11 @@
 import api from './api';
+import axios from 'axios';
 
-// Enhanced debugging
+// Optimized logging - only log errors and important events
+const isProduction = process.env.NODE_ENV === 'production';
 const debugLog = (message, data = null, type = 'info') => {
-  if (process.env.NODE_ENV === 'development') {
+  // Only log in development or for errors
+  if (!isProduction || type === 'error') {
     const colors = {
       info: '#2196F3',
       success: '#4CAF50', 
@@ -11,7 +14,7 @@ const debugLog = (message, data = null, type = 'info') => {
     };
     
     console.log(
-      `%c[UserService] ${message}`,
+      `%c[Service] ${message}`,
       `color: ${colors[type]}; font-weight: bold;`,
       data
     );
@@ -133,7 +136,7 @@ export const updateUserLocation = async (locationData) => {
       hasAddress: !!locationData.address
     }, 'info');
 
-    const response = await api.put('/users/location', locationData);
+    const response = await api.put('/users/profile', { location: locationData });
     
     debugLog('✅ User location updated', {
       success: response.data.success
@@ -160,7 +163,7 @@ export const getNearbyShops = async () => {
     debugLog('✅ Nearby shops fetched', {
       success: response.data.success,
       count: response.data.count
-    }, 'success');
+    }, response.data.count === 0 ? 'warning' : 'success');
 
     return response.data;
   } catch (error) {
@@ -196,27 +199,21 @@ export const requestPasswordReset = async (email) => {
 };
 
 // Reset password
-export const resetPassword = async (data) => {
+export const resetPassword = async (email, newPassword) => {
   try {
-    debugLog('🔄 Password reset', {
-      hasToken: !!data.token,
-      hasPassword: !!data.password
-    }, 'info');
-
-    const response = await api.post('/users/reset-password', data);
-    
-    debugLog('✅ Password reset successful', {
-      success: response.data.success
-    }, 'success');
-
+    debugLog('🔑 Resetting password', { email }, 'info');
+    const response = await api.post('/users/reset-password', {
+      email,
+      newPassword
+    });
+    debugLog('✅ Password reset successful', { email }, 'success');
     return response.data;
   } catch (error) {
     debugLog('❌ Password reset failed', {
       status: error.response?.status,
       message: error.response?.data?.message || error.message
     }, 'error');
-
-    throw error.response?.data || { success: false, message: 'Network error' };
+    throw error.response?.data?.message || 'Failed to reset password';
   }
 };
 
@@ -242,5 +239,20 @@ export const verifyResetToken = async (token) => {
     }, 'error');
 
     throw error.response?.data || { success: false, message: 'Network error' };
+  }
+};
+
+export const verifyEmail = async (email) => {
+  try {
+    debugLog('📧 Verifying email', { email }, 'info');
+    const response = await axios.post('/api/users/verify-email', { email });
+    debugLog('✅ Email verified successfully', { email }, 'success');
+    return response.data;
+  } catch (error) {
+    debugLog('❌ Email verification failed', {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message
+    }, 'error');
+    throw error.response?.data?.message || 'Failed to verify email';
   }
 };

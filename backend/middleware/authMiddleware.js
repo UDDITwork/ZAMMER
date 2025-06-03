@@ -157,15 +157,18 @@ exports.protectUser = async (req, res, next) => {
     
     if (!user) {
       console.log('❌ [UserAuth] User not found:', { userId: decoded.id });
+      
+      // 🎯 SIMPLE FIX: Just return auth error to force re-login
       return res.status(401).json({
         success: false,
-        message: 'User account not found. Please contact support.',
+        message: 'User session invalid. Please login again.',
         code: 'USER_NOT_FOUND',
-        requiresAuth: true
+        requiresAuth: true,
+        forceLogout: true // This will trigger frontend to clear tokens
       });
     }
 
-    console.log('✅ [UserAuth] Authentication successful:', { 
+    console.log('✅ [UserAuth] Authentication successful:', {
       userId: user._id,
       userName: user.name,
       userEmail: user.email

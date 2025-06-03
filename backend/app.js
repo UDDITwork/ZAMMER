@@ -1,5 +1,7 @@
 require('dotenv').config();
 const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
 const connectDB = require('./config/db');
 const cors = require('cors');
 const path = require('path');
@@ -17,6 +19,180 @@ const cartRoutes = require('./routes/cartRoutes');
 
 // Initialize app
 const app = express();
+
+// 🎯 Create HTTP server for Socket.io
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'https://zammer-frontend.vercel.app'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    credentials: true
+  }
+});
+
+// 🎯 ENHANCED: Socket.io setup for real-time notifications (Sellers + Buyers)
+const connectedSellers = new Map(); // Store seller socket connections
+const connectedBuyers = new Map();  // 🎯 NEW: Store buyer socket connections
+
+io.on('connection', (socket) => {
+  console.log(`🔌 Socket connected: ${socket.id}`);
+
+  // 🎯 SELLER FUNCTIONALITY
+  // Seller joins their room for notifications
+  socket.on('seller-join', (sellerId) => {
+    console.log(`👨‍💼 Seller ${sellerId} joined room`);
+    socket.join(`seller-${sellerId}`);
+    connectedSellers.set(sellerId, socket.id);
+    
+    // Send confirmation to seller
+    socket.emit('seller-joined', {
+      success: true,
+      message: 'Connected to order notifications',
+      sellerId,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // 🎯 NEW: BUYER FUNCTIONALITY
+  // Buyer joins their room for order status notifications
+  socket.on('buyer-join', (userId) => {
+    console.log(`👤 Buyer ${userId} joined room`);
+    socket.join(`buyer-${userId}`);
+    connectedBuyers.set(userId, socket.id);
+    
+    // Send confirmation to buyer
+    socket.emit('buyer-joined', {
+      success: true,
+      message: 'Connected to order status updates',
+      userId,
+      timestamp: new Date().toISOString()
+    });
+    
+    console.log(`
+🎉 ===============================
+   BUYER CONNECTED TO REAL-TIME!
+===============================
+👤 Buyer ID: ${userId}
+📡 Socket ID: ${socket.id}
+🔔 Room: buyer-${userId}
+📅 Time: ${new Date().toLocaleString()}
+===============================`);
+  });
+
+  // 🎯 TESTING ENDPOINTS
+  socket.on('test-new-order', (data) => {
+    console.log('📦 Test order received:', data);
+    socket.emit('new-order', data);
+  });
+
+  socket.on('test-order-update', (data) => {
+    console.log('🔄 Test order update received:', data);
+    socket.emit('order-status-update', data);
+  });
+
+  // Handle disconnect
+  socket.on('disconnect', () => {
+    console.log(`🔌 Socket disconnected: ${socket.id}`);
+    
+    // Remove seller from connected sellers map
+    for (const [sellerId, socketId] of connectedSellers.entries()) {
+      if (socketId === socket.id) {
+        connectedSellers.delete(sellerId);
+        console.log(`👨‍💼 Seller ${sellerId} disconnected`);
+        break;
+      }
+    }
+    
+    // 🎯 NEW: Remove buyer from connected buyers map
+    for (const [userId, socketId] of connectedBuyers.entries()) {
+      if (socketId === socket.id) {
+        connectedBuyers.delete(userId);
+        console.log(`👤 Buyer ${userId} disconnected`);
+        break;
+      }
+    }
+  });
+
+  // Handle ping for connection testing
+  socket.on('ping', () => {
+    socket.emit('pong', { timestamp: new Date().toISOString() });
+  });
+});
+
+// 🎯 ENHANCED: Global notification functions
+global.io = io;
+
+// Function to emit notification to seller
+global.emitToSeller = (sellerId, event, data) => {
+  try {
+    console.log(`📡 Emitting ${event} to seller: ${sellerId}`);
+    
+    if (io) {
+      io.to(`seller-${sellerId}`).emit(event, {
+        success: true,
+        message: event === 'new-order' ? 'You have a new order!' : 'Order status updated',
+        data: data,
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log(`✅ Notification sent to seller-${sellerId}`);
+    } else {
+      console.warn('⚠️ Socket.io not available for seller notifications');
+    }
+  } catch (error) {
+    console.error('❌ Error emitting to seller:', error);
+  }
+};
+
+// 🎯 NEW: Function to emit notification to buyer
+global.emitToBuyer = (userId, event, data) => {
+  try {
+    console.log(`📡 Emitting ${event} to buyer: ${userId}`);
+    
+    if (io) {
+      io.to(`buyer-${userId}`).emit(event, {
+        success: true,
+        message: getNotificationMessage(event, data),
+        data: data,
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log(`✅ Notification sent to buyer-${userId}`);
+      
+      // Enhanced success logging for buyer notifications
+      console.log(`
+🔔 ===============================
+   BUYER NOTIFICATION SENT!
+===============================
+👤 Buyer ID: ${userId}
+📋 Event: ${event}
+📦 Order: ${data.orderNumber || data._id}
+📅 Time: ${new Date().toLocaleString()}
+📡 Room: buyer-${userId}
+===============================`);
+    } else {
+      console.warn('⚠️ Socket.io not available for buyer notifications');
+    }
+  } catch (error) {
+    console.error('❌ Error emitting to buyer:', error);
+  }
+};
+
+// Helper function to get appropriate notification message
+const getNotificationMessage = (event, data) => {
+  switch (event) {
+    case 'order-status-update':
+      return `Your order ${data.orderNumber} is now ${data.status}`;
+    case 'order-shipped':
+      return `Your order ${data.orderNumber} has been shipped!`;
+    case 'order-delivered':
+      return `Your order ${data.orderNumber} has been delivered!`;
+    case 'invoice-ready':
+      return `Invoice ready for order ${data.orderNumber}`;
+    default:
+      return 'Order update received';
+  }
+};
 
 // 🎯 FIXED: Create uploads directory if it doesn't exist
 const publicDir = path.join(__dirname, 'public');
@@ -89,7 +265,12 @@ app.get('/api/health', (req, res) => {
     status: 'ok', 
     message: 'Server is running',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    socketConnections: {
+      sellers: connectedSellers.size,
+      buyers: connectedBuyers.size,
+      total: connectedSellers.size + connectedBuyers.size
+    }
   });
 });
 
@@ -220,12 +401,18 @@ app.use((err, req, res, next) => {
 // 🎯 ADDED: Graceful shutdown handling
 process.on('SIGINT', () => {
   console.log('\n📴 Received SIGINT. Graceful shutdown...');
-  process.exit(0);
+  server.close(() => {
+    console.log('✅ HTTP server closed');
+    process.exit(0);
+  });
 });
 
 process.on('SIGTERM', () => {
   console.log('\n📴 Received SIGTERM. Graceful shutdown...');
-  process.exit(0);
+  server.close(() => {
+    console.log('✅ HTTP server closed');
+    process.exit(0);
+  });
 });
 
 // 🎯 ADDED: Unhandled rejection handling
@@ -238,4 +425,5 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-module.exports = app;
+// 🎯 NEW: Export both app and server for socket.io usage
+module.exports = { app, server, io };

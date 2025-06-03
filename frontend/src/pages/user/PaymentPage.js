@@ -27,9 +27,31 @@ const PaymentPage = () => {
   // UPI details state
   const [upiId, setUpiId] = useState('');
 
+  // 🎯 Enhanced terminal logging for payment flow
+  const logPaymentFlow = (action, status, data = null) => {
+    const timestamp = new Date().toISOString();
+    const logLevel = status === 'SUCCESS' ? '✅' : status === 'ERROR' ? '❌' : '🔄';
+    
+    console.log(`${logLevel} [PAYMENT-FLOW] ${timestamp} - ${action}`, data ? JSON.stringify(data, null, 2) : '');
+    
+    // Structured logging for production
+    if (process.env.NODE_ENV === 'production') {
+      console.log(JSON.stringify({
+        timestamp,
+        service: 'paymentPage',
+        action,
+        status,
+        data
+      }));
+    }
+  };
+
   useEffect(() => {
+    logPaymentFlow('PAGE_LOAD', 'PROCESSING', { hasLocationState: !!location.state });
+    
     // Get order data from navigation state
     if (!location.state) {
+      logPaymentFlow('PAGE_LOAD', 'ERROR', { reason: 'missing_navigation_state' });
       toast.error('Invalid payment request');
       navigate('/user/cart');
       return;
@@ -39,6 +61,12 @@ const PaymentPage = () => {
     setOrderData(od);
     setTotals(t);
     setCartItems(ci);
+    
+    logPaymentFlow('PAGE_LOAD', 'SUCCESS', {
+      paymentMethod: od?.paymentMethod,
+      totalPrice: t?.totalPrice,
+      itemCount: ci?.length
+    });
   }, [location.state, navigate]);
 
   const handleCardInputChange = (field, value) => {
@@ -69,20 +97,26 @@ const PaymentPage = () => {
   };
 
   const validateCardDetails = () => {
+    logPaymentFlow('CARD_VALIDATION', 'PROCESSING', { paymentMethod: orderData.paymentMethod });
+    
     if (orderData.paymentMethod === 'Card') {
       if (!cardDetails.cardNumber.replace(/\s/g, '').match(/^\d{16}$/)) {
+        logPaymentFlow('CARD_VALIDATION', 'ERROR', { reason: 'invalid_card_number' });
         toast.error('Please enter a valid 16-digit card number');
         return false;
       }
       if (!cardDetails.expiryDate.match(/^(0[1-9]|1[0-2])\/\d{2}$/)) {
+        logPaymentFlow('CARD_VALIDATION', 'ERROR', { reason: 'invalid_expiry_date' });
         toast.error('Please enter a valid expiry date (MM/YY)');
         return false;
       }
       if (!cardDetails.cvv.match(/^\d{3}$/)) {
+        logPaymentFlow('CARD_VALIDATION', 'ERROR', { reason: 'invalid_cvv' });
         toast.error('Please enter a valid 3-digit CVV');
         return false;
       }
       if (!cardDetails.cardholderName.trim()) {
+        logPaymentFlow('CARD_VALIDATION', 'ERROR', { reason: 'missing_cardholder_name' });
         toast.error('Please enter cardholder name');
         return false;
       }
@@ -90,15 +124,18 @@ const PaymentPage = () => {
     
     if (orderData.paymentMethod === 'UPI') {
       if (!upiId.trim()) {
+        logPaymentFlow('UPI_VALIDATION', 'ERROR', { reason: 'missing_upi_id' });
         toast.error('Please enter UPI ID');
         return false;
       }
       if (!upiId.includes('@')) {
+        logPaymentFlow('UPI_VALIDATION', 'ERROR', { reason: 'invalid_upi_format' });
         toast.error('Please enter a valid UPI ID');
         return false;
       }
     }
     
+    logPaymentFlow('VALIDATION', 'SUCCESS', { paymentMethod: orderData.paymentMethod });
     return true;
   };
 
@@ -110,6 +147,12 @@ const PaymentPage = () => {
     setProcessing(true);
     setPaymentStep('processing');
 
+    logPaymentFlow('PAYMENT_START', 'PROCESSING', {
+      paymentMethod: orderData.paymentMethod,
+      totalPrice: totals.totalPrice,
+      timestamp: new Date().toISOString()
+    });
+
     try {
       let paymentResult = null;
       
@@ -118,9 +161,17 @@ const PaymentPage = () => {
         const paymentData = {
           amount: totals.totalPrice,
           method: orderData.paymentMethod,
-          cardDetails: orderData.paymentMethod === 'Card' ? cardDetails : null,
+          cardDetails: orderData.paymentMethod === 'Card' ? {
+            ...cardDetails,
+            cardNumber: cardDetails.cardNumber.replace(/\s/g, '') // Remove spaces for processing
+          } : null,
           upiId: orderData.paymentMethod === 'UPI' ? upiId : null
         };
+        
+        logPaymentFlow('PAYMENT_PROCESSING', 'PROCESSING', {
+          method: paymentData.method,
+          amount: paymentData.amount
+        });
         
         const paymentResponse = await orderService.processPayment(paymentData);
         
@@ -128,10 +179,21 @@ const PaymentPage = () => {
           throw new Error(paymentResponse.message || 'Payment failed');
         }
         
-        paymentResult = paymentResponse;
+        paymentResult = paymentResponse.data;
+        logPaymentFlow('PAYMENT_PROCESSING', 'SUCCESS', {
+          transactionId: paymentResult.transactionId,
+          method: paymentResult.method
+        });
+      } else {
+        logPaymentFlow('COD_PROCESSING', 'SUCCESS', { method: 'Cash on Delivery' });
       }
 
       // Create order
+      logPaymentFlow('ORDER_CREATION', 'PROCESSING', {
+        paymentMethod: orderData.paymentMethod,
+        isPaid: orderData.paymentMethod !== 'Cash on Delivery'
+      });
+
       const orderPayload = {
         ...orderData,
         paymentResult: paymentResult,
@@ -144,13 +206,60 @@ const PaymentPage = () => {
         throw new Error(orderResponse.message || 'Failed to create order');
       }
 
+      logPaymentFlow('ORDER_CREATION', 'SUCCESS', {
+        orderId: orderResponse.data._id,
+        orderNumber: orderResponse.data.orderNumber,
+        sellerId: orderResponse.data.seller
+      });
+
       // Clear cart after successful order
+      logPaymentFlow('CART_CLEANUP', 'PROCESSING');
       await cartService.clearCart();
+      logPaymentFlow('CART_CLEANUP', 'SUCCESS');
       
       setCreatedOrder(orderResponse.data);
       setPaymentStep('success');
       
-      toast.success('Order placed successfully!');
+      // 🎯 Enhanced success notification
+      toast.success(
+        <div className="flex items-center">
+          <div className="bg-green-100 rounded-full p-2 mr-3">
+            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <p className="font-medium">Order placed successfully!</p>
+            <p className="text-sm text-gray-600">Order #{orderResponse.data.orderNumber}</p>
+          </div>
+        </div>,
+        {
+          position: "top-center",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+        }
+      );
+      
+      logPaymentFlow('PAYMENT_COMPLETE', 'SUCCESS', {
+        orderId: orderResponse.data._id,
+        orderNumber: orderResponse.data.orderNumber,
+        totalPrice: orderResponse.data.totalPrice,
+        timestamp: new Date().toISOString()
+      });
+
+      // 🎯 Enhanced terminal success display
+      console.log(`
+🎉 ===============================
+    PAYMENT SUCCESSFUL!
+===============================
+💳 Payment Method: ${orderData.paymentMethod}
+💰 Amount: ₹${totals.totalPrice}
+📦 Order ID: ${orderResponse.data._id}
+🔢 Order Number: ${orderResponse.data.orderNumber}
+📅 Time: ${new Date().toLocaleString()}
+===============================`);
       
       // Redirect to order confirmation after 3 seconds
       setTimeout(() => {
@@ -161,6 +270,12 @@ const PaymentPage = () => {
 
     } catch (error) {
       console.error('Payment processing error:', error);
+      logPaymentFlow('PAYMENT_ERROR', 'ERROR', {
+        error: error.message,
+        paymentMethod: orderData.paymentMethod,
+        step: paymentStep
+      });
+      
       setPaymentStep('failed');
       toast.error(error.message || 'Payment failed. Please try again.');
     } finally {
@@ -169,14 +284,18 @@ const PaymentPage = () => {
   };
 
   const retryPayment = () => {
+    logPaymentFlow('PAYMENT_RETRY', 'PROCESSING');
     setPaymentStep('form');
   };
 
+  // 🎯 Enhanced loading check with logging
   if (!orderData || !totals) {
+    logPaymentFlow('PAGE_STATE', 'ERROR', { reason: 'missing_order_data' });
     return (
       <UserLayout>
         <div className="container mx-auto p-4">
           <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading payment details...</p>
           </div>
         </div>
@@ -198,12 +317,17 @@ const PaymentPage = () => {
               <p className="text-gray-600">Please don't close this window</p>
               {orderData.paymentMethod === 'Card' && (
                 <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">Verifying card details with bank...</p>
+                  <p className="text-sm text-blue-800">🔒 Verifying card details with bank...</p>
                 </div>
               )}
               {orderData.paymentMethod === 'UPI' && (
                 <div className="mt-4 p-3 bg-green-50 rounded-lg">
-                  <p className="text-sm text-green-800">Confirming UPI transaction...</p>
+                  <p className="text-sm text-green-800">💚 Confirming UPI transaction...</p>
+                </div>
+              )}
+              {orderData.paymentMethod === 'Cash on Delivery' && (
+                <div className="mt-4 p-3 bg-orange-50 rounded-lg">
+                  <p className="text-sm text-orange-800">📦 Creating your order...</p>
                 </div>
               )}
             </div>
@@ -219,16 +343,22 @@ const PaymentPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h2 className="text-3xl font-bold text-gray-800 mb-2">Payment Successful!</h2>
+              <h2 className="text-3xl font-bold text-gray-800 mb-2">Payment Successful! 🎉</h2>
               <p className="text-gray-600 mb-4">Your order has been placed successfully.</p>
               {createdOrder && (
                 <div className="bg-gray-50 rounded-lg p-4 max-w-md mx-auto">
                   <p className="text-sm text-gray-600">Order Number</p>
                   <p className="text-lg font-bold text-gray-800">{createdOrder.orderNumber}</p>
+                  <p className="text-sm text-green-600 mt-2">
+                    ✅ Seller has been notified automatically
+                  </p>
                 </div>
               )}
             </div>
-            <p className="text-sm text-gray-500">Redirecting to order confirmation...</p>
+            <div className="flex items-center justify-center space-x-2 mb-4">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500"></div>
+              <p className="text-sm text-gray-500">Redirecting to order confirmation...</p>
+            </div>
           </div>
         )}
 
@@ -241,7 +371,7 @@ const PaymentPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Failed</h2>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Failed ❌</h2>
               <p className="text-gray-600 mb-6">There was an issue processing your payment. Please try again.</p>
               <div className="space-x-4">
                 <button
@@ -261,7 +391,7 @@ const PaymentPage = () => {
           </div>
         )}
 
-        {/* Payment Form */}
+        {/* Payment Form - Rest of the component remains the same as original */}
         {paymentStep === 'form' && (
           <>
             {/* Header */}
@@ -475,7 +605,21 @@ const PaymentPage = () => {
                         </>
                       ) : (
                         <>
-                          {orderData.paymentMethod === 'Cash on Delivery' ? 'Place Order' : `Pay ₹${totals.totalPrice}`}
+                          {orderData.paymentMethod === 'Cash on Delivery' ? (
+                            <>
+                              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Place Order
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                              </svg>
+                              Pay ₹{totals.totalPrice}
+                            </>
+                          )}
                         </>
                       )}
                     </button>

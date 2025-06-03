@@ -1,3 +1,4 @@
+// backend/models/Order.js - Enhanced version
 const mongoose = require('mongoose');
 
 const OrderItemSchema = new mongoose.Schema({
@@ -112,6 +113,59 @@ const OrderSchema = new mongoose.Schema({
   notes: {
     type: String,
     default: ''
+  },
+  // 🎯 NEW: Enhanced cancellation tracking
+  cancellationDetails: {
+    cancelledBy: {
+      type: String,
+      enum: ['buyer', 'seller', 'admin'],
+      default: null
+    },
+    cancelledAt: {
+      type: Date,
+      default: null
+    },
+    cancellationReason: {
+      type: String,
+      default: ''
+    },
+    cancelledByName: {
+      type: String,
+      default: ''
+    }
+  },
+  // 🎯 NEW: Status history tracking
+  statusHistory: [{
+    status: {
+      type: String,
+      required: true
+    },
+    changedBy: {
+      type: String,
+      enum: ['buyer', 'seller', 'admin', 'system'],
+      required: true
+    },
+    changedAt: {
+      type: Date,
+      default: Date.now
+    },
+    notes: {
+      type: String,
+      default: ''
+    }
+  }],
+  // 🎯 NEW: Invoice tracking
+  invoiceGenerated: {
+    type: Boolean,
+    default: false
+  },
+  invoiceUrl: {
+    type: String,
+    default: null
+  },
+  invoiceGeneratedAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
@@ -128,13 +182,71 @@ OrderSchema.pre('save', async function(next) {
     
     this.orderNumber = `ZAM${year}${month}${day}${random}`;
   }
+
+  // 🎯 NEW: Add status history entry when status changes
+  if (this.isModified('status') && !this.isNew) {
+    this.statusHistory.push({
+      status: this.status,
+      changedBy: this._statusChangedBy || 'system',
+      changedAt: new Date(),
+      notes: this._statusChangeNotes || ''
+    });
+  }
+
+  // 🎯 NEW: Add initial status history for new orders
+  if (this.isNew) {
+    this.statusHistory.push({
+      status: this.status,
+      changedBy: 'system',
+      changedAt: new Date(),
+      notes: 'Order created'
+    });
+  }
+
   next();
 });
+
+// 🎯 NEW: Method to update status with tracking
+OrderSchema.methods.updateStatus = function(newStatus, changedBy, notes = '') {
+  this.status = newStatus;
+  this._statusChangedBy = changedBy;
+  this._statusChangeNotes = notes;
+  
+  // Handle cancellation details
+  if (newStatus === 'Cancelled') {
+    this.cancellationDetails = {
+      cancelledBy: changedBy,
+      cancelledAt: new Date(),
+      cancellationReason: notes,
+      cancelledByName: this._cancelledByName || ''
+    };
+  }
+  
+  return this.save();
+};
+
+// 🎯 NEW: Method to get cancellation display text
+OrderSchema.methods.getCancellationText = function() {
+  if (this.status !== 'Cancelled' || !this.cancellationDetails.cancelledBy) {
+    return null;
+  }
+  
+  const cancelledBy = this.cancellationDetails.cancelledBy;
+  const cancelledAt = this.cancellationDetails.cancelledAt;
+  const displayName = this.cancellationDetails.cancelledByName || cancelledBy;
+  
+  return {
+    text: `Cancelled by ${displayName}`,
+    timestamp: cancelledAt,
+    reason: this.cancellationDetails.cancellationReason
+  };
+};
 
 // Index for better query performance
 OrderSchema.index({ user: 1, createdAt: -1 });
 OrderSchema.index({ seller: 1, createdAt: -1 });
 OrderSchema.index({ status: 1 });
 OrderSchema.index({ orderNumber: 1 });
+OrderSchema.index({ 'cancellationDetails.cancelledBy': 1 });
 
 module.exports = mongoose.model('Order', OrderSchema);

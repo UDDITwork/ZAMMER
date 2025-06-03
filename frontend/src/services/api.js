@@ -215,6 +215,22 @@ api.interceptors.response.use(
       }
     }
     
+    // 🎯 NEW: Handle forceLogout from backend
+    if (error.response?.status === 401 && error.response?.data?.forceLogout) {
+      console.log('🔄 Force logout detected - clearing auth data');
+      
+      // Clear all auth data
+      localStorage.removeItem('userToken');
+      localStorage.removeItem('userData');
+      localStorage.removeItem('sellerToken');
+      localStorage.removeItem('sellerData');
+      
+      // Redirect to login after short delay
+      setTimeout(() => {
+        window.location.href = '/user/login';
+      }, 1000);
+    }
+    
     // Always return the error for components to handle
     return Promise.reject(error);
   }

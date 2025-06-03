@@ -22,6 +22,7 @@ import AddProduct from './pages/seller/AddProduct';
 import EditProduct from './pages/seller/EditProduct';
 import ViewProducts from './pages/seller/ViewProducts';
 import EditProfile from './pages/seller/EditProfile';
+import Orders from './pages/seller/Orders';
 
 // User Auth Pages
 import UserLogin from './pages/auth/UserLogin';
@@ -91,6 +92,7 @@ function App() {
               <Route path="/seller/edit-product/:id" element={<EditProduct />} />
               <Route path="/seller/view-products" element={<ViewProducts />} />
               <Route path="/seller/edit-profile" element={<EditProfile />} />
+              <Route path="/seller/orders" element={<Orders />} />
               
               {/* Legacy route redirects for backward compatibility */}
               <Route path="/seller/products/add" element={<Navigate replace to="/seller/add-product" />} />

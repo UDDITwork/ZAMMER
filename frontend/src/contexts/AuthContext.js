@@ -101,10 +101,15 @@ export const AuthProvider = ({ children }) => {
       try {
         debugLog('🚀 INITIALIZING AUTH STATE...', null, 'info');
         
-        // Check if seller is logged in
-        const sellerToken = safeGetItem('sellerToken');
-        const sellerData = safeGetItem('sellerData');
+        // 🎯 FIX: Batch localStorage operations
+        const [sellerToken, sellerData, userToken, userData] = [
+          safeGetItem('sellerToken'),
+          safeGetItem('sellerData'),
+          safeGetItem('userToken'),
+          safeGetItem('userData')
+        ];
 
+        // Check seller auth
         if (sellerToken && sellerData && isValidJWTStructure(sellerToken)) {
           try {
             const parsedSellerData = JSON.parse(sellerData);
@@ -125,10 +130,7 @@ export const AuthProvider = ({ children }) => {
           }
         }
 
-        // Check if user is logged in
-        const userToken = safeGetItem('userToken');
-        const userData = safeGetItem('userData');
-
+        // Check user auth
         debugLog('🔍 USER AUTH CHECK', {
           hasUserToken: !!userToken,
           hasUserData: !!userData,
@@ -138,17 +140,28 @@ export const AuthProvider = ({ children }) => {
         if (userToken && userData && isValidJWTStructure(userToken)) {
           try {
             const parsedUserData = JSON.parse(userData);
-            debugLog('✅ FOUND VALID USER AUTH', {
-              userName: parsedUserData?.name,
-              userId: parsedUserData?._id,
-              userEmail: parsedUserData?.email
-            }, 'success');
             
-            setUserAuth({
-              isAuthenticated: true,
-              user: parsedUserData,
-              token: userToken,
-            });
+            // 🎯 FIX: Validate user data structure
+            if (parsedUserData && parsedUserData._id && parsedUserData.name) {
+              debugLog('✅ FOUND VALID USER AUTH', {
+                userName: parsedUserData?.name,
+                userId: parsedUserData?._id,
+                userEmail: parsedUserData?.email
+              }, 'success');
+              
+              setUserAuth({
+                isAuthenticated: true,
+                user: parsedUserData,
+                token: userToken,
+              });
+            } else {
+              debugLog('❌ INVALID USER DATA STRUCTURE', { 
+                hasId: !!parsedUserData?._id,
+                hasName: !!parsedUserData?.name 
+              }, 'error');
+              safeRemoveItem('userToken');
+              safeRemoveItem('userData');
+            }
           } catch (error) {
             debugLog('❌ CORRUPTED USER DATA', { error: error.message }, 'error');
             safeRemoveItem('userToken');
@@ -165,20 +178,39 @@ export const AuthProvider = ({ children }) => {
         }
 
         debugLog('🏁 AUTH INITIALIZATION COMPLETED', {
-          userAuthenticated: !!userToken && !!userData,
-          sellerAuthenticated: !!sellerToken && !!sellerData
+          userAuthenticated: !!(userToken && userData),
+          sellerAuthenticated: !!(sellerToken && sellerData)
         }, 'success');
         
       } catch (error) {
         debugLog('💥 CRITICAL AUTH INIT ERROR', { error: error.message }, 'error');
         setInitError(error.message);
+        
+        // 🎯 FIX: Clear all auth data on critical error
+        ['userToken', 'userData', 'sellerToken', 'sellerData'].forEach(key => {
+          safeRemoveItem(key);
+        });
       } finally {
+        // 🎯 FIX: Always set loading to false
         setLoading(false);
       }
     };
 
-    initializeAuth();
-  }, []);
+    // 🎯 FIX: Add timeout to prevent hanging
+    const initTimeout = setTimeout(() => {
+      debugLog('⏰ AUTH INIT TIMEOUT - Force completing', null, 'warning');
+      setLoading(false);
+    }, 5000); // 5 second timeout
+
+    initializeAuth().finally(() => {
+      clearTimeout(initTimeout);
+    });
+
+    // 🎯 FIX: Cleanup timeout on unmount
+    return () => {
+      clearTimeout(initTimeout);
+    };
+  }, []); // 🎯 IMPORTANT: Empty dependency array to run only once
 
   // Enhanced login user function
   const loginUser = async (data) => {
@@ -359,17 +391,23 @@ export const AuthProvider = ({ children }) => {
       debugLog('🚫 HANDLING AUTH ERROR', {
         status,
         errorMessage: data?.message,
-        code: data?.code
+        code: data?.code,
+        forceLogout: data?.forceLogout
       }, 'error');
       
       if (status === 401) {
         const isJWTError = data?.code === 'INVALID_TOKEN' || 
                           data?.code === 'TOKEN_EXPIRED' || 
                           data?.code === 'MALFORMED_TOKEN' ||
+                          data?.code === 'USER_NOT_FOUND' ||
+                          data?.forceLogout === true ||
                           data?.message?.toLowerCase().includes('token');
         
         if (isJWTError) {
-          debugLog('🔑 JWT ERROR DETECTED - CLEANING AUTH', null, 'warning');
+          debugLog('🔑 JWT/AUTH ERROR DETECTED - CLEANING AUTH', {
+            code: data?.code,
+            forceLogout: data?.forceLogout
+          }, 'warning');
           
           // Clear both user and seller auth
           safeRemoveItem('userToken');
@@ -387,6 +425,14 @@ export const AuthProvider = ({ children }) => {
             seller: null,
             token: null,
           });
+          
+          // 🎯 NEW: Force page refresh if forceLogout is true
+          if (data?.forceLogout) {
+            debugLog('🔄 FORCE LOGOUT - Refreshing page', null, 'warning');
+            setTimeout(() => {
+              window.location.href = '/user/login';
+            }, 1000);
+          }
           
           return true;
         }
@@ -428,6 +474,39 @@ export const AuthProvider = ({ children }) => {
     return currentState;
   };
 
+  // Update user data in context and localStorage
+  const updateUser = (userData) => {
+    try {
+      debugLog('🔄 Updating user data in context and storage...', { userData: userData ? { id: userData._id, name: userData.name, hasLocation: !!userData.location } : null }, 'info');
+      if (!userData || !userData._id) {
+        debugLog('❌ updateUser called with invalid data', { userData }, 'error');
+        return;
+      }
+
+      // Ensure updated user data retains the token if not explicitly provided (common for partial updates)
+      const currentToken = userAuth.token || safeGetItem('userToken');
+      const dataToStore = { ...userData, token: userData.token || currentToken };
+
+      const dataStored = safeSetItem('userData', JSON.stringify(dataToStore));
+      
+      if (dataStored) {
+        setUserAuth(prevAuth => ({
+          ...prevAuth,
+          user: dataToStore,
+          isAuthenticated: true, // Assume authenticated if we have user data
+          token: dataToStore.token || prevAuth.token // Use new token if provided, else keep old
+        }));
+        debugLog('✅ User data updated successfully', { userId: userData._id, userName: userData.name }, 'success');
+      } else {
+        debugLog('❌ Failed to store updated user data', null, 'error');
+        // Handle error - perhaps a toast or re-fetch mechanism
+      }
+
+    } catch (error) {
+      debugLog('💥 Error updating user data:', { error: error.message }, 'error');
+    }
+  };
+
   // Context value
   const contextValue = {
     // Auth states
@@ -455,7 +534,10 @@ export const AuthProvider = ({ children }) => {
         loading,
         initError
       }
-    })
+    }),
+
+    // New functions
+    updateUser
   };
 
   // Make debug functions available globally in development

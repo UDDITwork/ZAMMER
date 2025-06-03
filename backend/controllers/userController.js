@@ -3,6 +3,7 @@ const Seller = require('../models/Seller');
 const Product = require('../models/Product');
 const { generateToken } = require('../utils/jwtToken');
 const { validationResult } = require('express-validator');
+const bcrypt = require('bcrypt');
 
 // @desc    Register a new user
 // @route   POST /api/users/register
@@ -316,11 +317,15 @@ exports.getNearbyShops = async (req, res) => {
   try {
     console.log('🏪 [NearbyShops] Request received');
     
-    // If user is not authenticated, return all shops or use default coordinates
+    // 🎯 FIX: Better authentication check
     if (!req.isAuthenticated || !req.user) {
       console.log('📍 [NearbyShops] Unauthenticated request, returning all shops');
+      
       // Return all shops without location-based filtering
-      const shops = await Seller.find({})
+      const shops = await Seller.find({ 
+        'shop.isActive': { $ne: false },
+        isVerified: true 
+      })
         .select('-password -bankDetails')
         .limit(20);
       
@@ -334,12 +339,52 @@ exports.getNearbyShops = async (req, res) => {
       });
     }
 
-    const user = await User.findById(req.user._id);
+    // 🎯 FIX: Add error handling for user lookup
+    let user;
+    try {
+      user = await User.findById(req.user._id);
+      if (!user) {
+        console.log('⚠️ [NearbyShops] User not found in database:', req.user._id);
+        // Fall back to showing all shops instead of erroring
+        const shops = await Seller.find({ 
+          'shop.isActive': { $ne: false },
+          isVerified: true 
+        })
+          .select('-password -bankDetails')
+          .limit(20);
+        
+        return res.status(200).json({
+          success: true,
+          count: shops.length,
+          message: 'User profile incomplete, showing all shops',
+          data: shops
+        });
+      }
+    } catch (userError) {
+      console.error('❌ [NearbyShops] User lookup error:', userError);
+      // Return all shops as fallback
+      const shops = await Seller.find({ 
+        'shop.isActive': { $ne: false },
+        isVerified: true 
+      })
+        .select('-password -bankDetails')
+        .limit(20);
+      
+      return res.status(200).json({
+        success: true,
+        count: shops.length,
+        message: 'Location service unavailable, showing all shops',
+        data: shops
+      });
+    }
     
-    if (!user || !user.location || !user.location.coordinates) {
+    if (!user.location || !user.location.coordinates) {
       console.log('📍 [NearbyShops] User location not available, returning all shops');
-      // Return all shops if user doesn't have location set
-      const shops = await Seller.find({})
+      // Return all shops if user doesn\'t have location set
+      const shops = await Seller.find({ 
+        'shop.isActive': { $ne: false },
+        isVerified: true 
+      })
         .select('-password -bankDetails')
         .limit(20);
       
@@ -353,7 +398,7 @@ exports.getNearbyShops = async (req, res) => {
       });
     }
     
-    // Get user's coordinates
+    // Get user\'s coordinates
     const [longitude, latitude] = user.location.coordinates;
     console.log('📍 [NearbyShops] User location:', { latitude, longitude });
     
@@ -369,7 +414,9 @@ exports.getNearbyShops = async (req, res) => {
           },
           $maxDistance: maxDistance
         }
-      }
+      },
+      'shop.isActive': { $ne: false },
+      isVerified: true
     }).select('-password -bankDetails');
     
     console.log(`✅ [NearbyShops] Found ${shops.length} nearby shops`);
@@ -381,11 +428,30 @@ exports.getNearbyShops = async (req, res) => {
     });
   } catch (error) {
     console.error('💥 [NearbyShops] Error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server Error',
-      error: error.message
-    });
+    
+    // 🎯 FIX: Return shops even on error instead of failing
+    try {
+      const fallbackShops = await Seller.find({ 
+        'shop.isActive': { $ne: false },
+        isVerified: true 
+      })
+        .select('-password -bankDetails')
+        .limit(20);
+      
+      res.status(200).json({
+        success: true,
+        count: fallbackShops.length,
+        message: 'Location service error, showing all available shops',
+        data: fallbackShops
+      });
+    } catch (fallbackError) {
+      console.error('💥 [NearbyShops] Fallback error:', fallbackError);
+      res.status(500).json({
+        success: false,
+        message: 'Server Error',
+        error: error.message
+      });
+    }
   }
 };
 
@@ -546,6 +612,73 @@ exports.checkWishlist = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Verify email for password reset
+// @route   POST /api/users/verify-email
+// @access  Public
+exports.verifyEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Check if user exists
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No user found with this email address'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Email verified successfully'
+    });
+  } catch (error) {
+    console.error('Email verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error verifying email',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Reset password
+// @route   POST /api/users/reset-password
+// @access  Public
+exports.resetPassword = async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No user found with this email address'
+      });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+
+    // Save user with new password
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+  } catch (error) {
+    console.error('Password reset error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error resetting password',
       error: error.message
     });
   }

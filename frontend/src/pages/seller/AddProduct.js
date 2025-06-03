@@ -193,549 +193,629 @@ const AddProduct = () => {
 
   return (
     <SellerLayout>
-      <div className="add-product-container">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Add New Product</h1>
-          <p className="text-gray-600 text-sm">Create a new product for your shop</p>
-        </div>
-        
-        <Formik
-          initialValues={{
-            name: '',
-            description: '',
-            category: '',
-            subCategory: '',
-            productCategory: '',
-            zammerPrice: '',
-            mrp: '',
-            variants: [{ color: '', colorCode: '', size: '', quantity: 1 }],
-            images: [],
-            tags: [],
-            isLimitedEdition: false,
-            isTrending: false
-          }}
-          validationSchema={productSchema}
-          onSubmit={handleSubmit}
-        >
-          {({ values, setFieldValue, isSubmitting, errors, touched }) => (
-            <Form className="space-y-6">
-              {/* Basic Information Section */}
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                  <div className="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center mr-2">
-                    <span className="text-orange-600 text-sm font-bold">1</span>
-                  </div>
-                  Basic Information
-                </h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Product Name */}
-                  <div className="md:col-span-2">
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                      Product Name*
-                    </label>
-                    <Field
-                      id="name"
-                      name="name"
-                      type="text"
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                      placeholder="Enter product name (max 100 characters)"
-                    />
-                    <ErrorMessage
-                      name="name"
-                      component="div"
-                      className="text-red-500 text-sm mt-1"
-                    />
-                  </div>
-                  
-                  {/* Category */}
-                  <div>
-                    <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
-                      Category*
-                    </label>
-                    <Field
-                      as="select"
-                      id="category"
-                      name="category"
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                      onChange={(e) => {
-                        const category = e.target.value;
-                        setFieldValue('category', category);
-                        setFieldValue('subCategory', '');
-                      }}
-                    >
-                      <option value="">Select Category</option>
-                      {Object.keys(productCategories).map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </Field>
-                    <ErrorMessage
-                      name="category"
-                      component="div"
-                      className="text-red-500 text-sm mt-1"
-                    />
-                  </div>
-                  
-                  {/* Sub Category */}
-                  <div>
-                    <label htmlFor="subCategory" className="block text-sm font-medium text-gray-700 mb-1">
-                      Sub Category*
-                    </label>
-                    <Field
-                      as="select"
-                      id="subCategory"
-                      name="subCategory"
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                      disabled={!values.category}
-                    >
-                      <option value="">Select Sub Category</option>
-                      {values.category && 
-                        productCategories[values.category].subCategories.map((subCategory) => (
-                          <option key={subCategory} value={subCategory}>
-                            {subCategory}
-                          </option>
-                        ))
-                      }
-                    </Field>
-                    <ErrorMessage
-                      name="subCategory"
-                      component="div"
-                      className="text-red-500 text-sm mt-1"
-                    />
-                    {!values.category && (
-                      <p className="text-xs text-gray-500 mt-1">Please select a category first</p>
-                    )}
-                  </div>
-                  
-                  {/* Product Category */}
-                  <div className="md:col-span-2">
-                    <label htmlFor="productCategory" className="block text-sm font-medium text-gray-700 mb-1">
-                      Product Category*
-                    </label>
-                    <Field
-                      as="select"
-                      id="productCategory"
-                      name="productCategory"
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                    >
-                      {productCategoryOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </Field>
-                    <ErrorMessage
-                      name="productCategory"
-                      component="div"
-                      className="text-red-500 text-sm mt-1"
-                    />
-                  </div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-orange-50/30">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Premium Header */}
+          <div className="relative mb-12">
+            <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-orange-500 to-amber-500 rounded-3xl transform rotate-1 opacity-10"></div>
+            <div className="relative bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
+              <div className="flex items-center space-x-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
                 </div>
-                
-                {/* Description */}
-                <div className="mt-6">
-                  <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-                    Description*
-                  </label>
-                  <Field
-                    as="textarea"
-                    id="description"
-                    name="description"
-                    rows={4}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                    placeholder="Describe your product in detail (max 1000 characters)"
-                  />
-                  <ErrorMessage
-                    name="description"
-                    component="div"
-                    className="text-red-500 text-sm mt-1"
-                  />
-                  <div className="text-xs text-gray-500 mt-1">
-                    {values.description.length}/1000 characters
-                  </div>
+                <div>
+                  <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-orange-600 bg-clip-text text-transparent">
+                    Create New Product
+                  </h1>
+                  <p className="text-lg text-gray-600 mt-2">Build your next bestseller with our premium product creator</p>
                 </div>
               </div>
-
-              {/* Pricing Section */}
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                  <div className="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center mr-2">
-                    <span className="text-orange-600 text-sm font-bold">2</span>
-                  </div>
-                  Pricing
-                </h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label htmlFor="zammerPrice" className="block text-sm font-medium text-gray-700 mb-1">
-                      Zammer Price (₹)*
-                    </label>
-                    <Field
-                      id="zammerPrice"
-                      name="zammerPrice"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                      placeholder="Enter selling price"
-                    />
-                    <ErrorMessage
-                      name="zammerPrice"
-                      component="div"
-                      className="text-red-500 text-sm mt-1"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="mrp" className="block text-sm font-medium text-gray-700 mb-1">
-                      MRP (₹)*
-                    </label>
-                    <Field
-                      id="mrp"
-                      name="mrp"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                      placeholder="Enter maximum retail price"
-                    />
-                    <ErrorMessage
-                      name="mrp"
-                      component="div"
-                      className="text-red-500 text-sm mt-1"
-                    />
-                  </div>
-                </div>
-                
-                {/* Discount Calculation */}
-                {values.zammerPrice && values.mrp && Number(values.mrp) > Number(values.zammerPrice) && (
-                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
-                    <div className="flex items-center">
-                      <div className="text-green-600 text-sm font-medium">
-                        💰 Discount: {Math.round(((Number(values.mrp) - Number(values.zammerPrice)) / Number(values.mrp)) * 100)}%
+            </div>
+          </div>
+        
+          <Formik
+            initialValues={{
+              name: '',
+              description: '',
+              category: '',
+              subCategory: '',
+              productCategory: '',
+              zammerPrice: '',
+              mrp: '',
+              variants: [{ color: '', colorCode: '', size: '', quantity: 1 }],
+              images: [],
+              tags: [],
+              isLimitedEdition: false,
+              isTrending: false
+            }}
+            validationSchema={productSchema}
+            onSubmit={handleSubmit}
+          >
+            {({ values, setFieldValue, isSubmitting, errors, touched }) => (
+              <Form className="space-y-8">
+                {/* Basic Information Section */}
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-300"></div>
+                  <div className="relative bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-xl border border-white/50">
+                    <div className="flex items-center mb-6">
+                      <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-lg mr-4">
+                        <span className="text-white text-lg font-bold">1</span>
                       </div>
-                      <div className="ml-4 text-green-600 text-sm">
-                        Savings: ₹{(Number(values.mrp) - Number(values.zammerPrice)).toFixed(2)}
+                      <h2 className="text-2xl font-bold text-gray-800">Basic Information</h2>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      {/* Product Name */}
+                      <div className="lg:col-span-2">
+                        <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-3">
+                          Product Name*
+                        </label>
+                        <Field
+                          id="name"
+                          name="name"
+                          type="text"
+                          className="block w-full px-5 py-4 bg-white/70 border-2 border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-base backdrop-blur-sm"
+                          placeholder="Enter your amazing product name..."
+                        />
+                        <ErrorMessage
+                          name="name"
+                          component="div"
+                          className="text-red-500 text-sm mt-2 font-medium"
+                        />
+                      </div>
+                      
+                      {/* Category */}
+                      <div>
+                        <label htmlFor="category" className="block text-sm font-semibold text-gray-700 mb-3">
+                          Category*
+                        </label>
+                        <Field
+                          as="select"
+                          id="category"
+                          name="category"
+                          className="block w-full px-5 py-4 bg-white/70 border-2 border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-base backdrop-blur-sm"
+                          onChange={(e) => {
+                            const category = e.target.value;
+                            setFieldValue('category', category);
+                            setFieldValue('subCategory', '');
+                          }}
+                        >
+                          <option value="">Select Category</option>
+                          {Object.keys(productCategories).map((category) => (
+                            <option key={category} value={category}>
+                              {category}
+                            </option>
+                          ))}
+                        </Field>
+                        <ErrorMessage
+                          name="category"
+                          component="div"
+                          className="text-red-500 text-sm mt-2 font-medium"
+                        />
+                      </div>
+                      
+                      {/* Sub Category */}
+                      <div>
+                        <label htmlFor="subCategory" className="block text-sm font-semibold text-gray-700 mb-3">
+                          Sub Category*
+                        </label>
+                        <Field
+                          as="select"
+                          id="subCategory"
+                          name="subCategory"
+                          className="block w-full px-5 py-4 bg-white/70 border-2 border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-base backdrop-blur-sm disabled:opacity-50"
+                          disabled={!values.category}
+                        >
+                          <option value="">Select Sub Category</option>
+                          {values.category && 
+                            productCategories[values.category].subCategories.map((subCategory) => (
+                              <option key={subCategory} value={subCategory}>
+                                {subCategory}
+                              </option>
+                            ))
+                          }
+                        </Field>
+                        <ErrorMessage
+                          name="subCategory"
+                          component="div"
+                          className="text-red-500 text-sm mt-2 font-medium"
+                        />
+                        {!values.category && (
+                          <p className="text-sm text-gray-500 mt-2 italic">Please select a category first</p>
+                        )}
+                      </div>
+                      
+                      {/* Product Category */}
+                      <div className="lg:col-span-2">
+                        <label htmlFor="productCategory" className="block text-sm font-semibold text-gray-700 mb-3">
+                          Product Category*
+                        </label>
+                        <Field
+                          as="select"
+                          id="productCategory"
+                          name="productCategory"
+                          className="block w-full px-5 py-4 bg-white/70 border-2 border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-base backdrop-blur-sm"
+                        >
+                          {productCategoryOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </Field>
+                        <ErrorMessage
+                          name="productCategory"
+                          component="div"
+                          className="text-red-500 text-sm mt-2 font-medium"
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Description */}
+                    <div className="mt-8">
+                      <label htmlFor="description" className="block text-sm font-semibold text-gray-700 mb-3">
+                        Product Description*
+                      </label>
+                      <Field
+                        as="textarea"
+                        id="description"
+                        name="description"
+                        rows={5}
+                        className="block w-full px-5 py-4 bg-white/70 border-2 border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-base backdrop-blur-sm resize-none"
+                        placeholder="Describe your product in detail... What makes it special?"
+                      />
+                      <ErrorMessage
+                        name="description"
+                        component="div"
+                        className="text-red-500 text-sm mt-2 font-medium"
+                      />
+                      <div className="flex justify-between items-center mt-2">
+                        <div className={`text-sm ${values.description.length > 800 ? 'text-orange-600' : 'text-gray-500'}`}>
+                          {values.description.length}/1000 characters
+                        </div>
+                        <div className="w-32 bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full transition-all duration-300 ${
+                              values.description.length > 800 ? 'bg-orange-500' : 'bg-green-500'
+                            }`}
+                            style={{ width: `${(values.description.length / 1000) * 100}%` }}
+                          ></div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
 
-              {/* Variants Section */}
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                  <div className="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center mr-2">
-                    <span className="text-orange-600 text-sm font-bold">3</span>
-                  </div>
-                  Product Variants
-                </h2>
-                
-                <FieldArray name="variants">
-                  {({ remove, push }) => (
-                    <div>
-                      {values.variants.map((variant, index) => (
-                        <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                          <div className="md:col-span-5 mb-2">
-                            <h4 className="font-medium text-gray-700">Variant {index + 1}</h4>
+                {/* Pricing Section */}
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-300"></div>
+                  <div className="relative bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-xl border border-white/50">
+                    <div className="flex items-center mb-6">
+                      <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg mr-4">
+                        <span className="text-white text-lg font-bold">2</span>
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-800">Pricing Strategy</h2>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      <div>
+                        <label htmlFor="zammerPrice" className="block text-sm font-semibold text-gray-700 mb-3">
+                          Zammer Price (₹)*
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <span className="text-gray-500 text-lg">₹</span>
                           </div>
-                          
-                          {/* Color Selection */}
-                          <div>
-                            <label 
-                              htmlFor={`variants.${index}.color`}
-                              className="block text-sm font-medium text-gray-700 mb-1"
-                            >
-                              Color*
-                            </label>
-                            <Field
-                              as="select"
-                              id={`variants.${index}.color`}
-                              name={`variants.${index}.color`}
-                              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                              onChange={(e) => {
-                                const selectedColor = colorOptions.find(color => color.name === e.target.value);
-                                setFieldValue(`variants.${index}.color`, e.target.value);
-                                if (selectedColor) {
-                                  setFieldValue(`variants.${index}.colorCode`, selectedColor.code);
-                                }
-                              }}
-                            >
-                              <option value="">Select Color</option>
-                              {colorOptions.map((color) => (
-                                <option key={color.name} value={color.name}>
-                                  {color.name}
-                                </option>
-                              ))}
-                            </Field>
-                            <ErrorMessage
-                              name={`variants.${index}.color`}
-                              component="div"
-                              className="text-red-500 text-xs mt-1"
-                            />
+                          <Field
+                            id="zammerPrice"
+                            name="zammerPrice"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className="block w-full pl-10 pr-5 py-4 bg-white/70 border-2 border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 text-base backdrop-blur-sm"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <ErrorMessage
+                          name="zammerPrice"
+                          component="div"
+                          className="text-red-500 text-sm mt-2 font-medium"
+                        />
+                        <p className="text-sm text-gray-600 mt-2">Your selling price on Zammer</p>
+                      </div>
+                      
+                      <div>
+                        <label htmlFor="mrp" className="block text-sm font-semibold text-gray-700 mb-3">
+                          MRP (₹)*
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <span className="text-gray-500 text-lg">₹</span>
                           </div>
-
-                          {/* Color Code Preview */}
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Preview
-                            </label>
-                            <div className="flex items-center space-x-2">
-                              <div 
-                                className="w-8 h-8 border border-gray-300 rounded"
-                                style={{ backgroundColor: variant.colorCode || '#f0f0f0' }}
-                              ></div>
-                              <Field
-                                name={`variants.${index}.colorCode`}
-                                type="text"
-                                placeholder="#000000"
-                                className="block w-20 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-orange-500 focus:border-orange-500"
-                              />
+                          <Field
+                            id="mrp"
+                            name="mrp"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className="block w-full pl-10 pr-5 py-4 bg-white/70 border-2 border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 text-base backdrop-blur-sm"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <ErrorMessage
+                          name="mrp"
+                          component="div"
+                          className="text-red-500 text-sm mt-2 font-medium"
+                        />
+                        <p className="text-sm text-gray-600 mt-2">Maximum retail price</p>
+                      </div>
+                    </div>
+                    
+                    {/* Discount Calculation */}
+                    {values.zammerPrice && values.mrp && Number(values.mrp) > Number(values.zammerPrice) && (
+                      <div className="mt-6 p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-4">
+                            <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                              </svg>
                             </div>
-                            <ErrorMessage
-                              name={`variants.${index}.colorCode`}
-                              component="div"
-                              className="text-red-500 text-xs mt-1"
-                            />
+                            <div>
+                              <div className="text-green-700 text-lg font-bold">
+                                {Math.round(((Number(values.mrp) - Number(values.zammerPrice)) / Number(values.mrp)) * 100)}% Discount
+                              </div>
+                              <div className="text-green-600 text-sm">
+                                Customer saves ₹{(Number(values.mrp) - Number(values.zammerPrice)).toFixed(2)}
+                              </div>
+                            </div>
                           </div>
-                          
-                          {/* Size Selection */}
-                          <div>
-                            <label 
-                              htmlFor={`variants.${index}.size`}
-                              className="block text-sm font-medium text-gray-700 mb-1"
-                            >
-                              Size*
-                            </label>
-                            <Field
-                              as="select"
-                              id={`variants.${index}.size`}
-                              name={`variants.${index}.size`}
-                              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                            >
-                              <option value="">Select Size</option>
-                              {sizeOptions.map((size) => (
-                                <option key={size} value={size}>
-                                  {size}
-                                </option>
-                              ))}
-                            </Field>
-                            <ErrorMessage
-                              name={`variants.${index}.size`}
-                              component="div"
-                              className="text-red-500 text-xs mt-1"
-                            />
-                          </div>
-                          
-                          {/* Quantity */}
-                          <div>
-                            <label 
-                              htmlFor={`variants.${index}.quantity`}
-                              className="block text-sm font-medium text-gray-700 mb-1"
-                            >
-                              Quantity*
-                            </label>
-                            <Field
-                              id={`variants.${index}.quantity`}
-                              name={`variants.${index}.quantity`}
-                              type="number"
-                              min="0"
-                              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                            />
-                            <ErrorMessage
-                              name={`variants.${index}.quantity`}
-                              component="div"
-                              className="text-red-500 text-xs mt-1"
-                            />
-                          </div>
-                          
-                          {/* Remove Button */}
-                          <div className="flex items-end">
-                            {index > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => remove(index)}
-                                className="text-red-600 hover:text-red-800 font-medium text-sm px-3 py-2 border border-red-300 rounded hover:bg-red-50 transition-colors"
-                              >
-                                Remove
-                              </button>
-                            )}
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-green-700">₹{values.zammerPrice}</div>
+                            <div className="text-sm text-gray-500 line-through">₹{values.mrp}</div>
                           </div>
                         </div>
-                      ))}
-                      
-                      <button
-                        type="button"
-                        onClick={() => push({ color: '', colorCode: '', size: '', quantity: 1 })}
-                        className="mt-2 px-4 py-2 border border-orange-300 rounded-md shadow-sm text-sm font-medium text-orange-600 hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-                      >
-                        + Add Another Variant
-                      </button>
-                    </div>
-                  )}
-                </FieldArray>
-              </div>
-
-              {/* Images Section */}
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                  <div className="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center mr-2">
-                    <span className="text-orange-600 text-sm font-bold">4</span>
+                      </div>
+                    )}
                   </div>
-                  Product Images
-                </h2>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Upload Images*
-                  </label>
-                  
-                  {values.images.length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4">
-                      {values.images.map((image, index) => (
-                        <div key={index} className="relative h-24 bg-gray-100 rounded-md overflow-hidden">
-                          <img 
-                            src={image} 
-                            alt={`Product ${index + 1}`}
-                            className="h-full w-full object-cover"
-                          />
+                </div>
+
+                {/* Variants Section */}
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-300"></div>
+                  <div className="relative bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-xl border border-white/50">
+                    <div className="flex items-center mb-6">
+                      <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg mr-4">
+                        <span className="text-white text-lg font-bold">3</span>
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-800">Product Variants</h2>
+                    </div>
+                    
+                    <FieldArray name="variants">
+                      {({ remove, push }) => (
+                        <div className="space-y-6">
+                          {values.variants.map((variant, index) => (
+                            <div key={index} className="relative p-6 bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl shadow-sm">
+                              <div className="absolute -top-3 left-6 bg-purple-500 text-white px-4 py-1 rounded-full text-sm font-semibold">
+                                Variant {index + 1}
+                              </div>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-4">
+                                {/* Color Selection */}
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-3">Color*</label>
+                                  <Field
+                                    as="select"
+                                    name={`variants.${index}.color`}
+                                    className="block w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                                    onChange={(e) => {
+                                      const selectedColor = colorOptions.find(color => color.name === e.target.value);
+                                      setFieldValue(`variants.${index}.color`, e.target.value);
+                                      if (selectedColor) {
+                                        setFieldValue(`variants.${index}.colorCode`, selectedColor.code);
+                                      }
+                                    }}
+                                  >
+                                    <option value="">Select Color</option>
+                                    {colorOptions.map((color) => (
+                                      <option key={color.name} value={color.name}>
+                                        {color.name}
+                                      </option>
+                                    ))}
+                                  </Field>
+                                  <ErrorMessage
+                                    name={`variants.${index}.color`}
+                                    component="div"
+                                    className="text-red-500 text-xs mt-1 font-medium"
+                                  />
+                                </div>
+
+                                {/* Color Preview */}
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-3">Preview</label>
+                                  <div className="flex items-center space-x-3">
+                                    <div 
+                                      className="w-12 h-12 border-2 border-gray-300 rounded-xl shadow-sm"
+                                      style={{ backgroundColor: variant.colorCode || '#f0f0f0' }}
+                                    ></div>
+                                    <Field
+                                      name={`variants.${index}.colorCode`}
+                                      type="text"
+                                      placeholder="#000000"
+                                      className="flex-1 px-3 py-2 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    />
+                                  </div>
+                                  <ErrorMessage
+                                    name={`variants.${index}.colorCode`}
+                                    component="div"
+                                    className="text-red-500 text-xs mt-1 font-medium"
+                                  />
+                                </div>
+                                
+                                {/* Size Selection */}
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-3">Size*</label>
+                                  <Field
+                                    as="select"
+                                    name={`variants.${index}.size`}
+                                    className="block w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                                  >
+                                    <option value="">Select Size</option>
+                                    {sizeOptions.map((size) => (
+                                      <option key={size} value={size}>
+                                        {size}
+                                      </option>
+                                    ))}
+                                  </Field>
+                                  <ErrorMessage
+                                    name={`variants.${index}.size`}
+                                    component="div"
+                                    className="text-red-500 text-xs mt-1 font-medium"
+                                  />
+                                </div>
+                                
+                                {/* Quantity */}
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-3">Quantity*</label>
+                                  <Field
+                                    name={`variants.${index}.quantity`}
+                                    type="number"
+                                    min="0"
+                                    className="block w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                                  />
+                                  <ErrorMessage
+                                    name={`variants.${index}.quantity`}
+                                    component="div"
+                                    className="text-red-500 text-xs mt-1 font-medium"
+                                  />
+                                </div>
+                              </div>
+                              
+                              {/* Remove Button */}
+                              {index > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => remove(index)}
+                                  className="absolute -top-3 -right-3 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors shadow-lg"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          
                           <button
                             type="button"
-                            onClick={() => {
-                              const newImages = [...values.images];
-                              newImages.splice(index, 1);
-                              setFieldValue('images', newImages);
-                            }}
-                            className="absolute top-1 right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                            onClick={() => push({ color: '', colorCode: '', size: '', quantity: 1 })}
+                            className="w-full p-4 border-2 border-dashed border-purple-300 rounded-2xl text-purple-600 hover:text-purple-700 hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 font-semibold"
                           >
-                            ×
+                            <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            Add Another Variant
                           </button>
                         </div>
-                      ))}
+                      )}
+                    </FieldArray>
+                  </div>
+                </div>
+
+                {/* Images Section */}
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-300"></div>
+                  <div className="relative bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-xl border border-white/50">
+                    <div className="flex items-center mb-6">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg mr-4">
+                        <span className="text-white text-lg font-bold">4</span>
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-800">Product Gallery</h2>
                     </div>
-                  )}
-                  
-                  <div className="mt-2">
-                    <label className="block">
-                      <span className="sr-only">Choose product images</span>
-                      <input 
-                        type="file" 
-                        multiple
-                        accept="image/*"
-                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-600 hover:file:bg-orange-100"
-                        onChange={(e) => handleImageUpload(e, setFieldValue, values.images)}
-                        disabled={uploadingImages}
+                    
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-4">
+                        Upload Product Images*
+                      </label>
+                      
+                      {values.images.length > 0 && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
+                          {values.images.map((image, index) => (
+                            <div key={index} className="relative group">
+                              <div className="aspect-square bg-gray-100 rounded-2xl overflow-hidden shadow-lg">
+                                <img 
+                                  src={image} 
+                                  alt={`Product ${index + 1}`}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newImages = [...values.images];
+                                  newImages.splice(index, 1);
+                                  setFieldValue('images', newImages);
+                                }}
+                                className="absolute -top-3 -right-3 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors shadow-lg opacity-0 group-hover:opacity-100"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                              {index === 0 && (
+                                <div className="absolute bottom-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                                  Main
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      <div className="border-2 border-dashed border-blue-300 rounded-2xl p-8 hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-200">
+                        <label className="block cursor-pointer">
+                          <div className="text-center">
+                            <svg className="mx-auto h-16 w-16 text-blue-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <div className="text-lg font-semibold text-gray-700 mb-2">
+                              {uploadingImages ? 'Uploading...' : 'Upload Product Images'}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {uploadingImages ? (
+                                <div className="flex items-center justify-center">
+                                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500 mr-2"></div>
+                                  Processing your images...
+                                </div>
+                              ) : (
+                                'Drag and drop or click to browse'
+                              )}
+                            </div>
+                          </div>
+                          <input 
+                            type="file" 
+                            multiple
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleImageUpload(e, setFieldValue, values.images)}
+                            disabled={uploadingImages}
+                          />
+                        </label>
+                      </div>
+                      
+                      <ErrorMessage
+                        name="images"
+                        component="div"
+                        className="text-red-500 text-sm mt-3 font-medium"
                       />
-                    </label>
-                    {uploadingImages && (
-                      <div className="mt-2 text-sm text-gray-500 flex items-center">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500 mr-2"></div>
-                        Uploading images...
+                      <p className="text-sm text-gray-500 mt-3">
+                        💡 <strong>Tip:</strong> Upload high-quality images for better customer engagement. First image will be the main product image.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional Information */}
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-300"></div>
+                  <div className="relative bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-xl border border-white/50">
+                    <div className="flex items-center mb-6">
+                      <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center shadow-lg mr-4">
+                        <span className="text-white text-lg font-bold">5</span>
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-800">Product Features</h2>
+                    </div>
+                    
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="flex items-center p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200">
+                          <Field
+                            id="isLimitedEdition"
+                            name="isLimitedEdition"
+                            type="checkbox"
+                            className="h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 rounded mr-4"
+                          />
+                          <label htmlFor="isLimitedEdition" className="text-gray-700 font-medium">
+                            <span className="text-purple-600">⭐</span> Limited Edition Product
+                          </label>
+                        </div>
+                        
+                        <div className="flex items-center p-4 bg-gradient-to-r from-pink-50 to-red-50 rounded-xl border border-pink-200">
+                          <Field
+                            id="isTrending"
+                            name="isTrending"
+                            type="checkbox"
+                            className="h-5 w-5 text-pink-600 focus:ring-pink-500 border-gray-300 rounded mr-4"
+                          />
+                          <label htmlFor="isTrending" className="text-gray-700 font-medium">
+                            <span className="text-pink-600">🔥</span> Mark as Trending
+                          </label>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label htmlFor="tags" className="block text-sm font-semibold text-gray-700 mb-3">
+                          Product Tags
+                        </label>
+                        <input
+                          id="tags"
+                          type="text"
+                          className="block w-full px-5 py-4 bg-white/70 border-2 border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 text-base backdrop-blur-sm"
+                          placeholder="summer, casual, cotton, comfortable, trendy..."
+                          value={values.tags.join(', ')}
+                          onChange={(e) => {
+                            const tagsString = e.target.value;
+                            const tagsArray = tagsString
+                              .split(',')
+                              .map(tag => tag.trim())
+                              .filter(tag => tag);
+                            setFieldValue('tags', tagsArray);
+                          }}
+                        />
+                        <p className="text-sm text-gray-500 mt-2">
+                          Separate tags with commas. Tags help customers discover your product easily.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Submit Section */}
+                <div className="flex justify-end space-x-6 pt-8">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/seller/dashboard')}
+                    className="px-8 py-4 border-2 border-gray-300 rounded-xl text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || isLoading || uploadingImages}
+                    className={`px-8 py-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-all duration-200 font-semibold ${
+                      (isSubmitting || isLoading || uploadingImages) ? 'opacity-70 cursor-not-allowed' : 'hover:from-orange-600 hover:to-amber-600'
+                    }`}
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                        Creating Product...
+                      </div>
+                    ) : (
+                      <div className="flex items-center">
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Create Product
                       </div>
                     )}
-                    <ErrorMessage
-                      name="images"
-                      component="div"
-                      className="text-red-500 text-sm mt-1"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Supported formats: JPG, PNG, GIF. Max size: 5MB per image.
-                    </p>
-                  </div>
+                  </button>
                 </div>
-              </div>
-
-              {/* Additional Information */}
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                  <div className="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center mr-2">
-                    <span className="text-orange-600 text-sm font-bold">5</span>
-                  </div>
-                  Additional Information
-                </h2>
-                
-                <div className="space-y-4">
-                  <div className="flex items-center">
-                    <Field
-                      id="isLimitedEdition"
-                      name="isLimitedEdition"
-                      type="checkbox"
-                      className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="isLimitedEdition" className="ml-2 block text-sm text-gray-700">
-                      Limited Edition Product
-                    </label>
-                  </div>
-                  
-                  <div className="flex items-center">
-                    <Field
-                      id="isTrending"
-                      name="isTrending"
-                      type="checkbox"
-                      className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="isTrending" className="ml-2 block text-sm text-gray-700">
-                      Mark as Trending
-                    </label>
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="tags" className="block text-sm font-medium text-gray-700 mb-1">
-                      Tags (comma separated)
-                    </label>
-                    <input
-                      id="tags"
-                      type="text"
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                      placeholder="E.g., summer, casual, cotton, comfortable"
-                      value={values.tags.join(', ')}
-                      onChange={(e) => {
-                        const tagsString = e.target.value;
-                        const tagsArray = tagsString
-                          .split(',')
-                          .map(tag => tag.trim())
-                          .filter(tag => tag);
-                        setFieldValue('tags', tagsArray);
-                      }}
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Tags help customers find your product easily
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Submit Section */}
-              <div className="flex justify-end space-x-4 pt-4">
-                <button
-                  type="button"
-                  onClick={() => navigate('/seller/dashboard')}
-                  className="px-6 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting || isLoading || uploadingImages}
-                  className={`px-6 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 ${
-                    (isSubmitting || isLoading || uploadingImages) ? 'opacity-70 cursor-not-allowed' : ''
-                  }`}
-                >
-                  {isLoading ? (
-                    <div className="flex items-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Adding Product...
-                    </div>
-                  ) : (
-                    'Add Product'
-                  )}
-                </button>
-              </div>
-            </Form>
-          )}
-        </Formik>
+              </Form>
+            )}
+          </Formik>
+        </div>
       </div>
     </SellerLayout>
   );
