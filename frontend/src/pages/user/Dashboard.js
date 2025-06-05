@@ -89,38 +89,43 @@ const Dashboard = () => {
     
     setLoadingShops(true);
     try {
-      console.log('🏪 Fetching nearby shops...');
-      console.log('🏪 User location for shops:', userAuth.user?.location);
+      console.log('🏪 [Dashboard] Starting to fetch nearby shops...');
+      console.log('🏪 [Dashboard] User auth state:', {
+        isAuthenticated: userAuth.isAuthenticated,
+        userId: userAuth.user?._id,
+        userLocation: userAuth.user?.location
+      });
       
       const response = await getNearbyShops();
-      console.log('🏪 Nearby shops response:', response);
+      console.log('🏪 [Dashboard] Nearby shops API response:', {
+        success: response.success,
+        count: response.count,
+        message: response.message,
+        data: response.data
+      });
       
       if (response.success && isMountedRef.current) {
-        console.log('✅ Shops fetched successfully:', response.data?.length || 0);
-        console.log('🏪 Shops data:', response.data);
-        setShops(response.data || []); // Ensure shops state is an array even if data is null/undefined
-        // 🎯 ADDED: Debug log to see the structure of the first shop
-        if (response.data && response.data.length > 0) {
-          console.log('🏪 Raw shops data structure:', response.data[0]); // See first shop structure
-        }
+        console.log('✅ [Dashboard] Shops fetched successfully:', response.data?.length || 0);
+        console.log('🏪 [Dashboard] First shop data:', response.data?.[0]);
+        setShops(response.data || []);
         
         if (response.data.length === 0) {
-          console.log('⚠️ No shops returned from API');
+          console.log('⚠️ [Dashboard] No shops returned from API');
           toast.info('No nearby shops found. Please check your location.');
         }
       } else {
-        console.log('❌ Shops fetch failed:', response);
+        console.log('❌ [Dashboard] Shops fetch failed:', response);
         toast.error(response.message || 'Failed to fetch nearby shops');
       }
     } catch (error) {
-      console.error('❌ Error fetching shops:', error);
+      console.error('❌ [Dashboard] Error fetching shops:', error);
       toast.error('Failed to fetch nearby shops');
     } finally {
       if (isMountedRef.current) {
         setLoadingShops(false);
       }
     }
-  }, [userAuth.user?.location]); // Depend on user location
+  }, [userAuth.user?.location]);
 
   const fetchOrders = useCallback(async () => {
     if (!isMountedRef.current) return;

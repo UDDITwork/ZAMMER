@@ -323,8 +323,7 @@ exports.getNearbyShops = async (req, res) => {
       
       // Return all shops without location-based filtering
       const shops = await Seller.find({ 
-        'shop.isActive': { $ne: false },
-        isVerified: true 
+        'shop.isActive': { $ne: false }
       })
         .select('-password -bankDetails')
         .limit(20);
@@ -347,8 +346,7 @@ exports.getNearbyShops = async (req, res) => {
         console.log('⚠️ [NearbyShops] User not found in database:', req.user._id);
         // Fall back to showing all shops instead of erroring
         const shops = await Seller.find({ 
-          'shop.isActive': { $ne: false },
-          isVerified: true 
+          'shop.isActive': { $ne: false }
         })
           .select('-password -bankDetails')
           .limit(20);
@@ -364,8 +362,7 @@ exports.getNearbyShops = async (req, res) => {
       console.error('❌ [NearbyShops] User lookup error:', userError);
       // Return all shops as fallback
       const shops = await Seller.find({ 
-        'shop.isActive': { $ne: false },
-        isVerified: true 
+        'shop.isActive': { $ne: false }
       })
         .select('-password -bankDetails')
         .limit(20);
@@ -382,8 +379,7 @@ exports.getNearbyShops = async (req, res) => {
       console.log('📍 [NearbyShops] User location not available, returning all shops');
       // Return all shops if user doesn\'t have location set
       const shops = await Seller.find({ 
-        'shop.isActive': { $ne: false },
-        isVerified: true 
+        'shop.isActive': { $ne: false }
       })
         .select('-password -bankDetails')
         .limit(20);
@@ -415,8 +411,7 @@ exports.getNearbyShops = async (req, res) => {
           $maxDistance: maxDistance
         }
       },
-      'shop.isActive': { $ne: false },
-      isVerified: true
+      'shop.isActive': { $ne: false }
     }).select('-password -bankDetails');
     
     console.log(`✅ [NearbyShops] Found ${shops.length} nearby shops`);
@@ -432,8 +427,7 @@ exports.getNearbyShops = async (req, res) => {
     // 🎯 FIX: Return shops even on error instead of failing
     try {
       const fallbackShops = await Seller.find({ 
-        'shop.isActive': { $ne: false },
-        isVerified: true 
+        'shop.isActive': { $ne: false }
       })
         .select('-password -bankDetails')
         .limit(20);
