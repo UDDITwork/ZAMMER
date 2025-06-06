@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { AuthContext } from '../../contexts/AuthContext';
 import SellerLayout from '../../components/layouts/SellerLayout';
 import orderService from '../../services/orderService';
@@ -13,77 +13,92 @@ const Orders = () => {
   const [activeTab, setActiveTab] = useState('Pending');
   const [stats, setStats] = useState(null);
   const [socketConnected, setSocketConnected] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [processingOrder, setProcessingOrder] = useState(null);
 
-  // Order status mapping to match your requirements
   const statusTabs = [
     { key: 'Pending', label: 'Pending', icon: '⏳', color: 'yellow' },
     { key: 'Processing', label: 'Ready to Ship', icon: '📦', color: 'blue' },
     { key: 'Shipped', label: 'Shipped', icon: '🚚', color: 'purple' },
+    { key: 'Delivered', label: 'Delivered', icon: '✅', color: 'green' },
     { key: 'Cancelled', label: 'Cancelled', icon: '❌', color: 'red' }
   ];
 
-  // Setup Socket.io connection and listeners
-  useEffect(() => {
-    if (sellerAuth?.seller?._id) {
-      console.log('🔌 Setting up socket connection for seller:', sellerAuth.seller._id);
-      
-      // Connect to socket
-      const socket = socketService.connect();
-      
-      if (socket) {
-        // Join seller room
+  const setupSocketConnection = useCallback(() => {
+    if (!sellerAuth?.seller?._id) return;
+
+    console.log('🔌 Setting up socket connection for seller:', sellerAuth.seller._id);
+    
+    if (!socketService.getConnectionStatus().isConnected) {
+      socketService.connect().then(() => {
         socketService.joinSellerRoom(sellerAuth.seller._id);
-        
-        // Listen for new orders
-        socketService.onNewOrder((data) => {
-          console.log('📦 New order received via socket:', data);
-          toast.success(`New order received! Order #${data.data.orderNumber}`, {
-            position: "top-right",
-            autoClose: 5000,
-          });
-          
-          // Refresh orders
-          fetchOrders();
-          fetchStats();
-        });
-
-        // Listen for order status updates
-        socketService.onOrderStatusUpdate((data) => {
-          console.log('🔄 Order status updated via socket:', data);
-          toast.info(`Order #${data.data.orderNumber} status updated to ${data.data.status}`, {
-            position: "top-right",
-            autoClose: 3000,
-          });
-          
-          // Refresh orders
-          fetchOrders();
-        });
-
-        // Check connection status
-        const checkConnection = () => {
-          const status = socketService.getConnectionStatus();
-          setSocketConnected(status.isConnected);
-        };
-
-        // Check connection every 5 seconds
-        const connectionInterval = setInterval(checkConnection, 5000);
-        checkConnection(); // Initial check
-
-        // Cleanup on unmount
-        return () => {
-          clearInterval(connectionInterval);
-          socketService.removeListener('new-order');
-          socketService.removeListener('order-status-updated');
-        };
-      }
+        setSocketConnected(true);
+      }).catch(error => {
+        console.error('❌ Socket connection failed:', error);
+        setSocketConnected(false);
+      });
+    } else {
+      socketService.joinSellerRoom(sellerAuth.seller._id);
+      setSocketConnected(true);
     }
+    
+    socketService.onNewOrder((data) => {
+      console.log('📦 New order received via socket:', data);
+      toast.success(
+        <div className="flex items-center">
+          <span className="text-2xl mr-2">🎉</span>
+          <div>
+            <p className="font-bold">New Order!</p>
+            <p className="text-sm">Order #{data.data.orderNumber}</p>
+          </div>
+        </div>,
+        { autoClose: 8000 }
+      );
+      fetchOrders();
+      fetchStats();
+    });
+
+    socketService.onOrderStatusUpdate((data) => {
+      console.log('🔄 Order status updated via socket:', data);
+      toast.info(`Order #${data.data.orderNumber} status updated to ${data.data.status}`);
+      fetchOrders();
+    });
+
+    socketService.socket?.on('order-cancelled-by-buyer', (data) => {
+      console.log('❌ Order cancelled by buyer:', data);
+      toast.warning(
+        <div className="flex items-center">
+          <span className="text-2xl mr-2">⚠️</span>
+          <div>
+            <p className="font-bold">Order Cancelled</p>
+            <p className="text-sm">Order #{data.data.orderNumber} cancelled by customer</p>
+          </div>
+        </div>
+      );
+      fetchOrders();
+      fetchStats();
+    });
+
+    const checkConnection = () => {
+      const status = socketService.getConnectionStatus();
+      setSocketConnected(status.isConnected);
+    };
+
+    const connectionInterval = setInterval(checkConnection, 5000);
+    checkConnection();
+
+    return () => {
+      clearInterval(connectionInterval);
+      socketService.removeListener('new-order');
+      socketService.removeListener('order-status-updated');
+      socketService.socket?.off('order-cancelled-by-buyer');
+    };
   }, [sellerAuth?.seller?._id]);
 
-  // Fetch orders data
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await orderService.getSellerOrders(1, 100); // Get all orders
+      const response = await orderService.getSellerOrders(1, 100);
       
       if (response.success) {
         setOrders(response.data);
@@ -98,13 +113,11 @@ const Orders = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Fetch order statistics
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const response = await orderService.getSellerOrderStats();
-      
       if (response.success) {
         setStats(response.data);
         console.log('✅ Order stats fetched:', response.data);
@@ -112,51 +125,60 @@ const Orders = () => {
     } catch (error) {
       console.error('❌ Error fetching order stats:', error);
     }
-  };
+  }, []);
 
-  // Filter orders based on active tab
   useEffect(() => {
     if (orders.length > 0) {
-      const filtered = orders.filter(order => {
+      let filtered = orders.filter(order => {
         if (activeTab === 'Processing') {
-          // "Ready to Ship" corresponds to Processing status
           return order.status === 'Processing';
         }
         return order.status === activeTab;
       });
+      
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        filtered = filtered.filter(order => 
+          order.orderNumber.toLowerCase().includes(query) ||
+          order.user?.name?.toLowerCase().includes(query) ||
+          order.user?.email?.toLowerCase().includes(query)
+        );
+      }
+      
       setFilteredOrders(filtered);
       console.log(`📊 Filtered orders for ${activeTab}:`, filtered.length);
     } else {
       setFilteredOrders([]);
     }
-  }, [orders, activeTab]);
+  }, [orders, activeTab, searchQuery]);
 
-  // Initial data fetch
   useEffect(() => {
     fetchOrders();
     fetchStats();
-  }, []);
+    setupSocketConnection();
+  }, [fetchOrders, fetchStats, setupSocketConnection]);
 
-  // Handle status update
   const handleStatusUpdate = async (orderId, newStatus) => {
     try {
+      setProcessingOrder(orderId);
       console.log('🔄 Updating order status:', { orderId, newStatus });
       
       const response = await orderService.updateOrderStatus(orderId, newStatus);
       
       if (response.success) {
         toast.success(`Order status updated to ${newStatus}`);
-        fetchOrders(); // Refresh orders
+        fetchOrders();
       } else {
         toast.error(response.message || 'Failed to update order status');
       }
     } catch (error) {
       console.error('❌ Error updating order status:', error);
       toast.error('Error updating order status');
+    } finally {
+      setProcessingOrder(null);
     }
   };
 
-  // Get status color classes
   const getStatusColor = (status) => {
     const statusMap = {
       'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -168,22 +190,6 @@ const Orders = () => {
     return statusMap[status] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
-  // Get tab color classes
-  const getTabColor = (tabKey) => {
-    const tab = statusTabs.find(t => t.key === tabKey);
-    if (!tab) return 'border-gray-300 text-gray-600';
-    
-    const colorMap = {
-      'yellow': 'border-yellow-500 text-yellow-700 bg-yellow-50',
-      'blue': 'border-blue-500 text-blue-700 bg-blue-50',
-      'purple': 'border-purple-500 text-purple-700 bg-purple-50',
-      'red': 'border-red-500 text-red-700 bg-red-50'
-    };
-    
-    return colorMap[tab.color] || 'border-gray-300 text-gray-600';
-  };
-
-  // Format date
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-IN', {
@@ -198,7 +204,6 @@ const Orders = () => {
   return (
     <SellerLayout>
       <div className="orders-page">
-        {/* Header Section */}
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-800">Orders Management</h1>
@@ -214,6 +219,19 @@ const Orders = () => {
           </div>
           
           <div className="flex items-center space-x-4">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search orders..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <svg className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            
             {stats && (
               <div className="bg-white rounded-lg shadow-sm p-4 border">
                 <div className="text-sm text-gray-500">Today's Orders</div>
@@ -238,16 +256,15 @@ const Orders = () => {
           </div>
         </div>
 
-        {/* Statistics Cards */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
             {statusTabs.map((tab) => {
               const count = stats.statusCounts?.[tab.key] || 0;
               return (
                 <div
                   key={tab.key}
                   className={`bg-white rounded-lg shadow-sm p-4 border cursor-pointer transition-all hover:shadow-md ${
-                    activeTab === tab.key ? getTabColor(tab.key) : 'border-gray-200'
+                    activeTab === tab.key ? 'ring-2 ring-orange-500 border-orange-300' : 'border-gray-200'
                   }`}
                   onClick={() => setActiveTab(tab.key)}
                 >
@@ -264,7 +281,6 @@ const Orders = () => {
           </div>
         )}
 
-        {/* Tab Navigation */}
         <div className="border-b border-gray-200 mb-6">
           <nav className="-mb-px flex space-x-8">
             {statusTabs.map((tab) => {
@@ -298,7 +314,6 @@ const Orders = () => {
           </nav>
         </div>
 
-        {/* Orders List */}
         <div className="bg-white rounded-lg shadow-sm">
           {loading ? (
             <div className="flex justify-center items-center py-12">
@@ -330,7 +345,6 @@ const Orders = () => {
                     </div>
                   </div>
 
-                  {/* Customer Info */}
                   <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                     <h4 className="font-medium text-gray-900 mb-2">Customer Details</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -353,7 +367,6 @@ const Orders = () => {
                     </div>
                   </div>
 
-                  {/* Order Items */}
                   <div className="mb-4">
                     <h4 className="font-medium text-gray-900 mb-2">Order Items</h4>
                     <div className="space-y-2">
@@ -386,19 +399,23 @@ const Orders = () => {
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
                   <div className="flex space-x-2">
                     {order.status === 'Pending' && (
                       <>
                         <button
                           onClick={() => handleStatusUpdate(order._id, 'Processing')}
-                          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium"
+                          disabled={processingOrder === order._id}
+                          className="bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white px-4 py-2 rounded text-sm font-medium flex items-center"
                         >
+                          {processingOrder === order._id ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                          ) : null}
                           Mark Ready to Ship
                         </button>
                         <button
                           onClick={() => handleStatusUpdate(order._id, 'Cancelled')}
-                          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded text-sm font-medium"
+                          disabled={processingOrder === order._id}
+                          className="bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white px-4 py-2 rounded text-sm font-medium"
                         >
                           Cancel Order
                         </button>
@@ -408,8 +425,12 @@ const Orders = () => {
                     {order.status === 'Processing' && (
                       <button
                         onClick={() => handleStatusUpdate(order._id, 'Shipped')}
-                        className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded text-sm font-medium"
+                        disabled={processingOrder === order._id}
+                        className="bg-purple-500 hover:bg-purple-600 disabled:bg-purple-300 text-white px-4 py-2 rounded text-sm font-medium flex items-center"
                       >
+                        {processingOrder === order._id ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                        ) : null}
                         Mark as Shipped
                       </button>
                     )}
@@ -417,8 +438,12 @@ const Orders = () => {
                     {order.status === 'Shipped' && (
                       <button
                         onClick={() => handleStatusUpdate(order._id, 'Delivered')}
-                        className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm font-medium"
+                        disabled={processingOrder === order._id}
+                        className="bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white px-4 py-2 rounded text-sm font-medium flex items-center"
                       >
+                        {processingOrder === order._id ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                        ) : null}
                         Mark as Delivered
                       </button>
                     )}
@@ -435,10 +460,13 @@ const Orders = () => {
               </div>
               <p className="text-gray-600 text-lg mb-2">No {activeTab.toLowerCase()} orders found</p>
               <p className="text-gray-500 text-sm">
-                {activeTab === 'Pending' 
-                  ? 'New orders will appear here when customers make purchases.'
-                  : `No orders with ${activeTab.toLowerCase()} status at the moment.`
-                }
+                {searchQuery ? (
+                  `No orders found matching "${searchQuery}"`
+                ) : activeTab === 'Pending' ? (
+                  'New orders will appear here when customers make purchases.'
+                ) : (
+                  `No orders with ${activeTab.toLowerCase()} status at the moment.`
+                )}
               </p>
             </div>
           )}

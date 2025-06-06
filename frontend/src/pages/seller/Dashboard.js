@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
 import SellerLayout from '../../components/layouts/SellerLayout';
@@ -16,148 +16,296 @@ const Dashboard = () => {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [socketConnected, setSocketConnected] = useState(false);
   const [recentNotifications, setRecentNotifications] = useState([]);
+  const [todayOrders, setTodayOrders] = useState([]);
+  const [connectionRetrying, setConnectionRetrying] = useState(false);
 
-  // 🎯 NEW: Setup Socket.io connection and real-time notifications
-  useEffect(() => {
-    if (sellerAuth?.seller?._id) {
-      console.log('🔌 Dashboard: Setting up socket connection for seller:', sellerAuth.seller._id);
-      
-      // Connect to socket
-      const socket = socketService.connect();
-      
-      if (socket) {
-        // Join seller room
-        socketService.joinSellerRoom(sellerAuth.seller._id);
-        
-        // Listen for new orders
-        socketService.onNewOrder((data) => {
-          console.log('📦 Dashboard: New order received via socket:', data);
-          
-          // Show notification
-          toast.success(
-            <div className="flex items-center">
-              <div className="bg-green-100 rounded-full p-2 mr-3">
-                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <p className="font-medium">New Order Received!</p>
-                <p className="text-sm text-gray-600">Order #{data.data.orderNumber} - ₹{data.data.totalPrice}</p>
-              </div>
-            </div>,
-            {
-              position: "top-right",
-              autoClose: 8000,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-            }
-          );
-          
-          // Add to recent notifications
-          setRecentNotifications(prev => [{
-            id: data.data._id,
-            type: 'new-order',
-            message: `New order #${data.data.orderNumber}`,
-            amount: data.data.totalPrice,
-            timestamp: new Date().toISOString(),
-            data: data.data
-          }, ...prev.slice(0, 4)]); // Keep only last 5 notifications
-          
-          // Refresh data
-          fetchSellerOrders();
-          fetchOrderStats();
-        });
-
-        // Listen for order status updates
-        socketService.onOrderStatusUpdate((data) => {
-          console.log('🔄 Dashboard: Order status updated via socket:', data);
-          
-          toast.info(`Order #${data.data.orderNumber} status updated to ${data.data.status}`, {
-            position: "top-right",
-            autoClose: 5000,
-          });
-          
-          // Add to recent notifications
-          setRecentNotifications(prev => [{
-            id: data.data._id,
-            type: 'status-update',
-            message: `Order #${data.data.orderNumber} ${data.data.status}`,
-            timestamp: new Date().toISOString(),
-            data: data.data
-          }, ...prev.slice(0, 4)]);
-          
-          // Refresh data
-          fetchSellerOrders();
-        });
-
-        // Check connection status
-        const checkConnection = () => {
-          const status = socketService.getConnectionStatus();
-          setSocketConnected(status.isConnected);
-        };
-
-        // Check connection every 10 seconds
-        const connectionInterval = setInterval(checkConnection, 10000);
-        checkConnection(); // Initial check
-
-        // Cleanup on unmount
-        return () => {
-          clearInterval(connectionInterval);
-          socketService.removeListener('new-order');
-          socketService.removeListener('order-status-updated');
-        };
-      }
+  // 🎯 FIX: Enhanced Socket.io setup with better connection handling
+  const setupSocketConnection = useCallback(() => {
+    if (!sellerAuth?.seller?._id) {
+      console.log('⚠️ No seller ID available for socket connection');
+      return;
     }
-  }, [sellerAuth?.seller?._id]);
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const response = await getSellerProducts();
-        if (response.success) {
-          setProducts(response.data);
+    console.log('🔌 Dashboard: Setting up socket connection for seller:', sellerAuth.seller._id);
+    setConnectionRetrying(true);
+    
+    // Connect to socket if not already connected
+    if (!socketService.getConnectionStatus().isConnected) {
+      socketService.connect().then(() => {
+        console.log('✅ Socket connected successfully');
+        socketService.joinSellerRoom(sellerAuth.seller._id);
+        setSocketConnected(true);
+        setConnectionRetrying(false);
+      }).catch(error => {
+        console.error('❌ Socket connection failed:', error);
+        setSocketConnected(false);
+        setConnectionRetrying(false);
+        
+        // Retry connection after 5 seconds
+        setTimeout(() => setupSocketConnection(), 5000);
+      });
+    } else {
+      // Already connected, just join room
+      socketService.joinSellerRoom(sellerAuth.seller._id);
+      setSocketConnected(true);
+      setConnectionRetrying(false);
+    }
+    
+    // 🎯 FIX: Enhanced new order listener with detailed notifications
+    socketService.onNewOrder((data) => {
+      console.log('📦 Dashboard: New order received via socket:', data);
+      
+      const orderData = data.data;
+      
+      // Show enhanced notification
+      toast.success(
+        <div className="flex items-center">
+          <div className="bg-green-100 rounded-full p-2 mr-3">
+            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <p className="font-bold text-gray-800">🎉 New Order Received!</p>
+            <p className="text-sm text-gray-600">Order #{orderData.orderNumber}</p>
+            <p className="text-sm text-gray-600">Amount: ₹{orderData.totalPrice}</p>
+            <p className="text-xs text-gray-500">Customer: {orderData.user?.name}</p>
+          </div>
+        </div>,
+        {
+          position: "top-right",
+          autoClose: 10000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          className: "new-order-toast"
         }
-      } catch (error) {
-        console.error('Error fetching products:', error);
-      } finally {
-        setLoading(false);
+      );
+      
+      // 🎯 FIX: Add to recent notifications with timestamp
+      const notification = {
+        id: orderData._id,
+        type: 'new-order',
+        title: 'New Order Received',
+        message: `Order #${orderData.orderNumber} from ${orderData.user?.name}`,
+        amount: orderData.totalPrice,
+        timestamp: new Date().toISOString(),
+        data: orderData,
+        isRead: false
+      };
+      
+      setRecentNotifications(prev => [notification, ...prev.slice(0, 4)]);
+      
+      // Add to today's orders if it's from today
+      const orderDate = new Date(orderData.createdAt);
+      const today = new Date();
+      if (orderDate.toDateString() === today.toDateString()) {
+        setTodayOrders(prev => [orderData, ...prev]);
       }
+      
+      // Refresh data
+      fetchSellerOrders();
+      fetchOrderStats();
+    });
+
+    // 🎯 FIX: Enhanced order status update listener
+    socketService.onOrderStatusUpdate((data) => {
+      console.log('🔄 Dashboard: Order status updated via socket:', data);
+      
+      const orderData = data.data;
+      
+      toast.info(
+        <div className="flex items-center">
+          <div className="bg-blue-100 rounded-full p-2 mr-3">
+            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </div>
+          <div>
+            <p className="font-bold text-gray-800">Order Status Updated</p>
+            <p className="text-sm text-gray-600">Order #{orderData.orderNumber}</p>
+            <p className="text-sm text-gray-600">Status: {orderData.status}</p>
+          </div>
+        </div>,
+        {
+          position: "top-right",
+          autoClose: 5000,
+        }
+      );
+      
+      // Add to notifications
+      const notification = {
+        id: orderData._id + '-status',
+        type: 'status-update',
+        title: 'Order Status Updated',
+        message: `Order #${orderData.orderNumber} is now ${orderData.status}`,
+        timestamp: new Date().toISOString(),
+        data: orderData,
+        isRead: false
+      };
+      
+      setRecentNotifications(prev => [notification, ...prev.slice(0, 4)]);
+      
+      // Refresh data
+      fetchSellerOrders();
+    });
+
+    // 🎯 NEW: Listen for order cancellations by buyers
+    socketService.socket?.on('order-cancelled-by-buyer', (data) => {
+      console.log('❌ Dashboard: Order cancelled by buyer:', data);
+      
+      const orderData = data.data;
+      
+      toast.warning(
+        <div className="flex items-center">
+          <div className="bg-yellow-100 rounded-full p-2 mr-3">
+            <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.856-.833-2.598 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <div>
+            <p className="font-bold text-gray-800">Order Cancelled by Customer</p>
+            <p className="text-sm text-gray-600">Order #{orderData.orderNumber}</p>
+            <p className="text-sm text-gray-600">Customer: {orderData.user?.name}</p>
+            {orderData.reason && (
+              <p className="text-xs text-gray-500">Reason: {orderData.reason}</p>
+            )}
+          </div>
+        </div>,
+        {
+          position: "top-right",
+          autoClose: 8000,
+        }
+      );
+      
+      // Add to notifications
+      const notification = {
+        id: orderData._id + '-cancelled',
+        type: 'order-cancelled',
+        title: 'Order Cancelled by Customer',
+        message: `Order #${orderData.orderNumber} cancelled by ${orderData.user?.name}`,
+        timestamp: new Date().toISOString(),
+        data: orderData,
+        isRead: false
+      };
+      
+      setRecentNotifications(prev => [notification, ...prev.slice(0, 4)]);
+      
+      // Refresh data
+      fetchSellerOrders();
+      fetchOrderStats();
+    });
+
+    // Check connection status periodically
+    const checkConnection = () => {
+      const status = socketService.getConnectionStatus();
+      setSocketConnected(status.isConnected);
     };
 
-    fetchProducts();
-    fetchSellerOrders();
-    fetchOrderStats();
-  }, []);
+    const connectionInterval = setInterval(checkConnection, 10000);
+    checkConnection();
 
-  const fetchSellerOrders = async () => {
-    setLoadingOrders(true);
+    // Cleanup function
+    return () => {
+      clearInterval(connectionInterval);
+      socketService.removeListener('new-order');
+      socketService.removeListener('order-status-updated');
+      socketService.socket?.off('order-cancelled-by-buyer');
+    };
+  }, [sellerAuth?.seller?._id]);
+
+  // Fetch products
+  const fetchProducts = useCallback(async () => {
     try {
-      const ordersResponse = await orderService.getSellerOrders(1, 5);
-      if (ordersResponse.success) {
-        setOrders(ordersResponse.data);
+      setLoading(true);
+      const response = await getSellerProducts();
+      if (response.success) {
+        setProducts(response.data);
+        console.log('✅ Products fetched:', response.data.length);
       }
     } catch (error) {
-      console.error('Error fetching seller orders:', error);
+      console.error('❌ Error fetching products:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 🎯 FIX: Enhanced order fetching with better error handling
+  const fetchSellerOrders = useCallback(async () => {
+    setLoadingOrders(true);
+    try {
+      console.log('📦 Fetching seller orders...');
+      const ordersResponse = await orderService.getSellerOrders(1, 10);
+      
+      if (ordersResponse.success) {
+        setOrders(ordersResponse.data);
+        
+        // Filter today's orders
+        const today = new Date();
+        const todaysOrders = ordersResponse.data.filter(order => {
+          const orderDate = new Date(order.createdAt);
+          return orderDate.toDateString() === today.toDateString();
+        });
+        setTodayOrders(todaysOrders);
+        
+        console.log('✅ Orders fetched:', ordersResponse.data.length);
+        console.log('📅 Today\'s orders:', todaysOrders.length);
+      } else {
+        console.error('❌ Failed to fetch orders:', ordersResponse.message);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching seller orders:', error);
     } finally {
       setLoadingOrders(false);
     }
-  };
+  }, []);
 
-  const fetchOrderStats = async () => {
+  // Fetch order statistics
+  const fetchOrderStats = useCallback(async () => {
     try {
+      console.log('📊 Fetching order statistics...');
       const statsResponse = await orderService.getSellerOrderStats();
       if (statsResponse.success) {
         setOrderStats(statsResponse.data);
+        console.log('✅ Order stats fetched:', statsResponse.data);
       }
     } catch (error) {
-      console.error('Error fetching order stats:', error);
+      console.error('❌ Error fetching order stats:', error);
     }
-  };
+  }, []);
 
+  // 🎯 FIX: Enhanced initialization
+  useEffect(() => {
+    if (sellerAuth?.seller?._id) {
+      console.log('🚀 Dashboard: Initializing for seller:', sellerAuth.seller.firstName);
+      
+      // Fetch data
+      fetchProducts();
+      fetchSellerOrders();
+      fetchOrderStats();
+      
+      // Setup socket connection
+      setupSocketConnection();
+    }
+  }, [sellerAuth?.seller?._id, fetchProducts, fetchSellerOrders, fetchOrderStats, setupSocketConnection]);
+
+  // 🎯 NEW: Manual refresh function
+  const handleRefresh = useCallback(() => {
+    console.log('🔄 Manual refresh triggered');
+    fetchProducts();
+    fetchSellerOrders();
+    fetchOrderStats();
+    
+    // Reconnect socket if disconnected
+    if (!socketConnected) {
+      setupSocketConnection();
+    }
+  }, [fetchProducts, fetchSellerOrders, fetchOrderStats, socketConnected, setupSocketConnection]);
+
+  // Update order status
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
+      console.log('🔄 Updating order status:', { orderId, newStatus });
       const response = await orderService.updateOrderStatus(orderId, newStatus);
       if (response.success) {
         fetchSellerOrders();
@@ -166,7 +314,7 @@ const Dashboard = () => {
         toast.error('Failed to update order status');
       }
     } catch (error) {
-      console.error('Error updating order status:', error);
+      console.error('❌ Error updating order status:', error);
       toast.error('Error updating order status');
     }
   };
@@ -212,34 +360,89 @@ const Dashboard = () => {
     return date.toLocaleDateString();
   };
 
+  // 🎯 NEW: Mark notification as read
+  const markNotificationAsRead = (notificationId) => {
+    setRecentNotifications(prev => 
+      prev.map(notification => 
+        notification.id === notificationId 
+          ? { ...notification, isRead: true }
+          : notification
+      )
+    );
+  };
+
+  // 🎯 NEW: Clear all notifications
+  const clearAllNotifications = () => {
+    setRecentNotifications([]);
+  };
+
   return (
     <SellerLayout>
       <div className="dashboard-container">
-        {/* 🎯 NEW: Real-time Connection Status */}
+        {/* 🎯 FIX: Enhanced Real-time Connection Status */}
         <div className="mb-4">
-          <div className={`flex items-center justify-between p-3 rounded-lg ${
-            socketConnected ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
-          } border`}>
+          <div className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+            socketConnected 
+              ? 'bg-green-50 border-green-200' 
+              : connectionRetrying 
+                ? 'bg-yellow-50 border-yellow-200'
+                : 'bg-red-50 border-red-200'
+          }`}>
             <div className="flex items-center space-x-2">
               <div className={`w-3 h-3 rounded-full ${
-                socketConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'
+                socketConnected 
+                  ? 'bg-green-500 animate-pulse' 
+                  : connectionRetrying
+                    ? 'bg-yellow-500 animate-spin'
+                    : 'bg-red-500'
               }`}></div>
               <span className={`text-sm font-medium ${
-                socketConnected ? 'text-green-700' : 'text-yellow-700'
+                socketConnected 
+                  ? 'text-green-700' 
+                  : connectionRetrying
+                    ? 'text-yellow-700'
+                    : 'text-red-700'
               }`}>
-                {socketConnected ? 'Real-time notifications active' : 'Connecting to notifications...'}
+                {socketConnected 
+                  ? '✅ Real-time notifications active'
+                  : connectionRetrying
+                    ? '🔄 Connecting to notifications...'
+                    : '❌ Notifications disconnected'
+                }
               </span>
             </div>
             
-            {orderStats?.unreadOrdersCount > 0 && (
-              <Link
-                to="/seller/orders"
-                className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center"
+            <div className="flex items-center space-x-2">
+              {orderStats?.unreadOrdersCount > 0 && (
+                <Link
+                  to="/seller/orders"
+                  className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center transition-colors"
+                >
+                  <span className="mr-1">{orderStats.unreadOrdersCount}</span>
+                  New Orders
+                </Link>
+              )}
+              
+              {!socketConnected && (
+                <button
+                  onClick={setupSocketConnection}
+                  disabled={connectionRetrying}
+                  className="bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white px-3 py-1 rounded-full text-xs font-medium transition-colors"
+                >
+                  {connectionRetrying ? 'Connecting...' : 'Reconnect'}
+                </button>
+              )}
+              
+              <button
+                onClick={handleRefresh}
+                className="text-gray-500 hover:text-gray-700 p-1 rounded transition-colors"
+                title="Refresh data"
               >
-                <span className="mr-1">{orderStats.unreadOrdersCount}</span>
-                New Orders
-              </Link>
-            )}
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -282,17 +485,19 @@ const Dashboard = () => {
                   </p>
                 </div>
                 
-                {/* 🎯 NEW: Today's Orders */}
                 <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
                   <p className="text-sm text-orange-100">Today's Orders</p>
                   <p className="text-2xl font-bold">
-                    {orderStats?.todayOrdersCount || 0}
+                    {todayOrders.length}
                   </p>
                 </div>
                 
                 <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
                   <p className="text-sm text-orange-100">Shop Status</p>
-                  <p className="text-lg font-semibold text-green-200">Active</p>
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
+                    <p className="text-lg font-semibold text-green-200">Active</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -301,58 +506,63 @@ const Dashboard = () => {
 
         <div className="welcome-section mb-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            Welcome, {sellerAuth.seller?.firstName || 'Seller'}!
+            Welcome back, {sellerAuth.seller?.firstName || 'Seller'}! 👋
           </h2>
           <p className="text-gray-600">
-            Manage your shop and products from your dashboard.
+            Manage your shop and products from your dashboard. 
+            {socketConnected && <span className="text-green-600 font-medium"> Real-time updates are active.</span>}
           </p>
         </div>
 
-        {/* 🎯 NEW: Enhanced Stats Cards with Order Information */}
+        {/* 🎯 FIX: Enhanced Stats Cards with live data */}
         <div className="stats-cards grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="stat-card bg-blue-50 p-6 rounded-lg shadow-sm">
+          <div className="stat-card bg-blue-50 p-6 rounded-lg shadow-sm border border-blue-100">
             <h3 className="text-lg font-semibold text-blue-700">Total Products</h3>
             <p className="text-3xl font-bold text-blue-900 mt-2">
-              {loading ? '...' : products.length}
+              {loading ? (
+                <div className="animate-pulse bg-blue-200 h-8 w-16 rounded"></div>
+              ) : (
+                products.length
+              )}
             </p>
             <Link 
               to="/seller/view-products" 
-              className="text-blue-600 hover:underline text-sm inline-block mt-2"
+              className="text-blue-600 hover:underline text-sm inline-block mt-2 transition-colors"
             >
               View all products
             </Link>
           </div>
           
-          <div className="stat-card bg-green-50 p-6 rounded-lg shadow-sm">
+          <div className="stat-card bg-green-50 p-6 rounded-lg shadow-sm border border-green-100">
             <h3 className="text-lg font-semibold text-green-700">Total Orders</h3>
             <p className="text-3xl font-bold text-green-900 mt-2">
               {Object.values(orderStats?.statusCounts || {}).reduce((a, b) => a + b, 0)}
             </p>
             <Link 
               to="/seller/orders" 
-              className="text-green-600 hover:underline text-sm inline-block mt-2"
+              className="text-green-600 hover:underline text-sm inline-block mt-2 transition-colors"
             >
               View all orders
             </Link>
           </div>
           
-          <div className="stat-card bg-yellow-50 p-6 rounded-lg shadow-sm">
+          <div className="stat-card bg-yellow-50 p-6 rounded-lg shadow-sm border border-yellow-100">
             <h3 className="text-lg font-semibold text-yellow-700">Pending Orders</h3>
             <p className="text-3xl font-bold text-yellow-900 mt-2">
               {orderStats?.statusCounts?.Pending || 0}
             </p>
             <Link 
               to="/seller/orders" 
-              className="text-yellow-600 hover:underline text-sm inline-block mt-2"
+              className="text-yellow-600 hover:underline text-sm inline-block mt-2 transition-colors"
             >
               Manage orders
             </Link>
           </div>
           
-          <div className="stat-card bg-purple-50 p-6 rounded-lg shadow-sm">
+          <div className="stat-card bg-purple-50 p-6 rounded-lg shadow-sm border border-purple-100">
             <h3 className="text-lg font-semibold text-purple-700">Revenue</h3>
             <p className="text-3xl font-bold text-purple-900 mt-2">
-              ₹{orderStats?.totalRevenue || 0}
+              ₹{orderStats?.totalRevenue?.toLocaleString() || 0}
             </p>
             <p className="text-purple-600 text-sm mt-1">
               Total earnings
@@ -360,39 +570,103 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* 🎯 NEW: Recent Notifications Section */}
+        {/* 🎯 NEW: Enhanced Recent Notifications Section */}
         {recentNotifications.length > 0 && (
           <div className="recent-notifications mb-8">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-800">Recent Notifications</h2>
-              <Link 
-                to="/seller/orders" 
-                className="text-orange-600 hover:text-orange-700 text-sm font-medium"
-              >
-                View All Orders →
-              </Link>
+              <h2 className="text-xl font-bold text-gray-800 flex items-center">
+                <span className="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></span>
+                Recent Notifications
+              </h2>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={clearAllNotifications}
+                  className="text-gray-500 hover:text-gray-700 text-sm font-medium transition-colors"
+                >
+                  Clear All
+                </button>
+                <Link 
+                  to="/seller/orders" 
+                  className="text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors"
+                >
+                  View All Orders →
+                </Link>
+              </div>
             </div>
             
             <div className="bg-white rounded-lg shadow-sm border">
               {recentNotifications.map((notification, index) => (
-                <div key={notification.id || index} 
-                     className={`p-4 flex items-center justify-between ${
-                       index !== recentNotifications.length - 1 ? 'border-b border-gray-100' : ''
-                     }`}>
+                <div 
+                  key={notification.id} 
+                  className={`p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors ${
+                    index !== recentNotifications.length - 1 ? 'border-b border-gray-100' : ''
+                  } ${!notification.isRead ? 'bg-blue-50' : ''}`}
+                  onClick={() => markNotificationAsRead(notification.id)}
+                >
                   <div className="flex items-center space-x-3">
-                    <div className={`w-2 h-2 rounded-full ${
-                      notification.type === 'new-order' ? 'bg-green-500' : 'bg-blue-500'
-                    } animate-pulse`}></div>
+                    <div className={`w-3 h-3 rounded-full ${
+                      notification.type === 'new-order' ? 'bg-green-500' : 
+                      notification.type === 'status-update' ? 'bg-blue-500' : 'bg-yellow-500'
+                    } ${!notification.isRead ? 'animate-pulse' : ''}`}></div>
                     <div>
-                      <p className="font-medium text-gray-900">{notification.message}</p>
-                      <p className="text-sm text-gray-500">{formatNotificationTime(notification.timestamp)}</p>
+                      <p className={`font-medium ${!notification.isRead ? 'text-gray-900' : 'text-gray-700'}`}>
+                        {notification.title}
+                      </p>
+                      <p className="text-sm text-gray-600">{notification.message}</p>
+                      <p className="text-xs text-gray-500">{formatNotificationTime(notification.timestamp)}</p>
                     </div>
                   </div>
-                  {notification.amount && (
-                    <span className="text-lg font-bold text-green-600">₹{notification.amount}</span>
-                  )}
+                  <div className="flex items-center space-x-2">
+                    {notification.amount && (
+                      <span className="text-lg font-bold text-green-600">₹{notification.amount}</span>
+                    )}
+                    {!notification.isRead && (
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    )}
+                  </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* 🎯 NEW: Today's Orders Section */}
+        {todayOrders.length > 0 && (
+          <div className="todays-orders mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800">📅 Today's Orders</h2>
+              <Link 
+                to="/seller/orders" 
+                className="bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-md text-sm transition-colors"
+              >
+                View All Orders
+              </Link>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="divide-y divide-gray-200">
+                {todayOrders.slice(0, 3).map(order => (
+                  <div key={order._id} className="p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div>
+                          <p className="font-medium text-gray-900">Order #{order.orderNumber}</p>
+                          <p className="text-sm text-gray-600">{order.user?.name}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
+                          {order.status}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-gray-900">₹{order.totalPrice}</p>
+                        <p className="text-sm text-gray-600">
+                          {new Date(order.createdAt).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -403,7 +677,7 @@ const Dashboard = () => {
             <h2 className="text-xl font-bold text-gray-800">Recent Orders</h2>
             <Link 
               to="/seller/orders" 
-              className="bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-md text-sm"
+              className="bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-md text-sm transition-colors"
             >
               View All Orders
             </Link>
@@ -411,13 +685,16 @@ const Dashboard = () => {
           
           {loadingOrders ? (
             <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-2"></div>
+                <span className="text-gray-600">Loading orders...</span>
+              </div>
             </div>
           ) : orders.length > 0 ? (
             <div className="bg-white rounded-lg shadow-sm overflow-hidden">
               <div className="divide-y divide-gray-200">
                 {orders.slice(0, 5).map(order => (
-                  <div key={order._id} className="p-4">
+                  <div key={order._id} className="p-4 hover:bg-gray-50 transition-colors">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
                         <div>
@@ -448,6 +725,14 @@ const Dashboard = () => {
               </div>
               <p className="text-gray-600 text-lg mb-4">No orders yet.</p>
               <p className="text-gray-500 text-sm mb-6">Orders will appear here when customers make purchases.</p>
+              {!socketConnected && (
+                <button
+                  onClick={setupSocketConnection}
+                  className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                >
+                  Connect for Real-time Orders
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -458,7 +743,7 @@ const Dashboard = () => {
             <h2 className="text-xl font-bold text-gray-800">Recent Products</h2>
             <Link 
               to="/seller/add-product" 
-              className="bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-md text-sm"
+              className="bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-md text-sm transition-colors"
             >
               Add New Product
             </Link>
@@ -466,7 +751,10 @@ const Dashboard = () => {
           
           {loading ? (
             <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-2"></div>
+                <span className="text-gray-600">Loading products...</span>
+              </div>
             </div>
           ) : products.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -542,7 +830,7 @@ const Dashboard = () => {
               <p className="text-gray-500 text-sm mb-6">Start building your inventory by adding your first product.</p>
               <Link 
                 to="/seller/add-product" 
-                className="bg-orange-500 hover:bg-orange-600 text-white py-3 px-6 rounded-md text-sm font-medium inline-flex items-center"
+                className="bg-orange-500 hover:bg-orange-600 text-white py-3 px-6 rounded-md text-sm font-medium inline-flex items-center transition-colors"
               >
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -559,7 +847,7 @@ const Dashboard = () => {
             <h2 className="text-xl font-bold text-gray-800">Your Shop Information</h2>
             <Link
               to="/seller/edit-profile"
-              className="text-orange-600 hover:text-orange-700 text-sm font-medium flex items-center"
+              className="text-orange-600 hover:text-orange-700 text-sm font-medium flex items-center transition-colors"
             >
               <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
