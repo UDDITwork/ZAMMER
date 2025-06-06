@@ -7,6 +7,8 @@ import { toast } from 'react-toastify';
 const NearbyShopsPage = () => {
   const [shops, setShops] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState(null);
+  const [searchRadius, setSearchRadius] = useState('');
 
   // 🎯 NEW: Helper function to get shop image
   const getShopImage = (shop) => {
@@ -22,21 +24,34 @@ const NearbyShopsPage = () => {
   useEffect(() => {
     const fetchShops = async () => {
       try {
+        console.log('🏪 [NearbyShopsPage] Fetching nearby shops...');
         const response = await getNearbyShops();
+        
         if (response.success) {
-          console.log('🏪 Fetched shops for NearbyShopsPage:', response.data.map(shop => ({
-            id: shop._id,
-            name: shop.shop?.name,
-            hasMainImage: !!shop.shop?.mainImage,
-            hasImages: shop.shop?.images?.length > 0,
-            imageCount: shop.shop?.images?.length || 0
-          })));
+          console.log('✅ [NearbyShopsPage] Shops fetched successfully:', {
+            count: response.count,
+            hasUserLocation: !!response.userLocation,
+            searchRadius: response.searchRadius
+          });
+          
+          // Log distance information for debugging
+          if (response.data && response.data.length > 0) {
+            console.log('📊 [NearbyShopsPage] Shops with distances:');
+            response.data.slice(0, 5).forEach((shop, index) => {
+              console.log(`  ${index + 1}. ${shop.shop?.name} - ${shop.distanceText || 'No distance'}`);
+            });
+          }
+          
           setShops(response.data);
+          setUserLocation(response.userLocation);
+          setSearchRadius(response.searchRadius);
         } else {
+          console.log('⚠️ [NearbyShopsPage] API returned error:', response.message);
           toast.error(response.message || 'Failed to fetch nearby shops');
         }
       } catch (error) {
-        console.error('Error fetching shops:', error);
+        console.error('❌ [NearbyShopsPage] Error fetching shops:', error);
+        toast.error('Failed to load nearby shops');
       } finally {
         setLoading(false);
       }
@@ -51,6 +66,23 @@ const NearbyShopsPage = () => {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Nearby Shops</h1>
           <p className="text-gray-600">Discover local fashion stores near you</p>
+          
+          {/* 🎯 NEW: Location and search info */}
+          {userLocation && (
+            <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+              <div className="flex items-center text-sm text-blue-800">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <div>
+                  <span className="font-semibold">Searching from: </span>
+                  {userLocation.address || `${userLocation.latitude}, ${userLocation.longitude}`}
+                  {searchRadius && <span className="ml-2 text-blue-600">• Within {searchRadius}</span>}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         
         {loading ? (
@@ -60,7 +92,7 @@ const NearbyShopsPage = () => {
           </div>
         ) : shops.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {shops.map(shop => (
+            {shops.map((shop, index) => (
               <div key={shop._id} className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
                 <div className="h-48 bg-gray-200 relative">
                   {/* 🎯 UPDATED: Display actual shop images */}
@@ -89,6 +121,21 @@ const NearbyShopsPage = () => {
                     </div>
                   </div>
                   
+                  {/* 🎯 NEW: Distance badge - Priority position */}
+                  {shop.distanceText && (
+                    <div className="absolute top-3 left-3 bg-green-500 text-white px-3 py-1.5 rounded-full text-sm font-bold shadow-lg flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                      {shop.distanceText}
+                    </div>
+                  )}
+                  
+                  {/* 🎯 NEW: Ranking badge */}
+                  <div className="absolute top-3 right-3 bg-blue-500 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shadow-lg">
+                    #{index + 1}
+                  </div>
+                  
                   {/* 🎯 NEW: Image count indicator */}
                   {shop.shop?.images?.length > 1 && (
                     <div className="absolute bottom-3 left-3 bg-black/70 text-white px-2 py-1 rounded text-sm flex items-center">
@@ -100,7 +147,7 @@ const NearbyShopsPage = () => {
                   )}
                   
                   {/* 🎯 NEW: Shop category badge */}
-                  <div className="absolute top-3 right-3 bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-medium">
+                  <div className="absolute bottom-3 right-3 bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-medium">
                     {shop.shop?.category || 'Fashion'}
                   </div>
                 </div>
@@ -181,6 +228,12 @@ const NearbyShopsPage = () => {
                     <div className="text-sm">
                       <span className="text-gray-600">Starting from </span>
                       <span className="text-orange-600 font-bold text-lg">₹230</span>
+                      {/* 🎯 NEW: Distance info in price section */}
+                      {shop.distanceText && (
+                        <div className="text-green-600 text-xs font-semibold mt-1">
+                          📍 {shop.distanceText}
+                        </div>
+                      )}
                     </div>
                     <Link 
                       to={`/user/shop/${shop._id}`}
@@ -205,7 +258,12 @@ const NearbyShopsPage = () => {
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">No Nearby Shops Found</h3>
-            <p className="text-gray-600 mb-6">We couldn't find any shops in your area. Try updating your location or check back later.</p>
+            <p className="text-gray-600 mb-6">
+              {userLocation 
+                ? "We couldn't find any shops in your area. Try expanding the search radius or check back later." 
+                : "Please enable location access to find shops near you, or browse all available shops."
+              }
+            </p>
             <button 
               onClick={() => window.location.reload()}
               className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200"
@@ -219,4 +277,4 @@ const NearbyShopsPage = () => {
   );
 };
 
-export default NearbyShopsPage; 
+export default NearbyShopsPage;

@@ -5,6 +5,7 @@ import UserLayout from '../../components/layouts/UserLayout';
 import { AuthContext } from '../../contexts/AuthContext';
 import cartService from '../../services/cartService';
 import orderService from '../../services/orderService';
+import GooglePlacesAutocomplete from '../../components/GooglePlacesAutocomplete';
 
 const CheckoutPage = () => {
   const { userAuth } = useContext(AuthContext);
@@ -23,7 +24,9 @@ const CheckoutPage = () => {
   });
   
   const [paymentMethod, setPaymentMethod] = useState('Card');
-  const [useUserLocation, setUseUserLocation] = useState(false);
+  const [addressInputMode, setAddressInputMode] = useState('manual'); // 'manual', 'saved', 'current'
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState('');
 
   useEffect(() => {
     fetchCart();
@@ -56,26 +59,243 @@ const CheckoutPage = () => {
 
   const loadUserLocation = () => {
     if (userAuth.user?.location?.address) {
-      setShippingAddress(prev => ({
-        ...prev,
-        address: userAuth.user.location.address
-      }));
+      // Don't auto-load saved address, let user choose
+      console.log('💾 User has saved address available');
     }
   };
 
-  const handleUseUserLocation = () => {
-    if (useUserLocation && userAuth.user?.location?.address) {
+  // 🎯 NEW: High-accuracy geolocation function
+  const getCurrentLocation = async () => {
+    setLocationLoading(true);
+    setLocationError('');
+    
+    try {
+      console.log('📍 Starting high-accuracy location detection...');
+      
+      // Check if geolocation is supported
+      if (!navigator.geolocation) {
+        throw new Error('Geolocation is not supported by this browser');
+      }
+
+      // Request location with high accuracy settings
+      const position = await new Promise((resolve, reject) => {
+        const options = {
+          enableHighAccuracy: true, // Use GPS for high accuracy
+          timeout: 15000,           // 15 second timeout
+          maximumAge: 0            // Don't use cached location
+        };
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            console.log('✅ Location obtained:', {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy + ' meters'
+            });
+            resolve(position);
+          },
+          (error) => {
+            console.error('❌ Geolocation error:', error);
+            let errorMessage = 'Unable to get your location';
+            
+            switch (error.code) {
+              case error.PERMISSION_DENIED:
+                errorMessage = 'Location access denied. Please enable location permissions.';
+                break;
+              case error.POSITION_UNAVAILABLE:
+                errorMessage = 'Location information unavailable. Please try again.';
+                break;
+              case error.TIMEOUT:
+                errorMessage = 'Location request timed out. Please try again.';
+                break;
+              default:
+                errorMessage = 'Unable to get your location. Please try again.';
+            }
+            
+            reject(new Error(errorMessage));
+          },
+          options
+        );
+      });
+
+      const { latitude, longitude } = position.coords;
+      console.log('🔄 Converting coordinates to address...');
+
+      // Reverse geocode using Google Maps API
+      const address = await reverseGeocode(latitude, longitude);
+      
+      // Parse the address components
+      const parsedAddress = parseGoogleAddress(address);
+      
+      // Update shipping address with current location
+      setShippingAddress(prev => ({
+        ...prev,
+        address: parsedAddress.fullAddress,
+        city: parsedAddress.city,
+        postalCode: parsedAddress.postalCode
+      }));
+
+      console.log('✅ Address updated successfully:', parsedAddress);
+      toast.success('Current location detected successfully!');
+      
+    } catch (error) {
+      console.error('❌ Location error:', error);
+      setLocationError(error.message);
+      toast.error(error.message);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  // 🎯 NEW: Reverse geocoding function
+  const reverseGeocode = async (latitude, longitude) => {
+    const API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+    
+    if (!API_KEY) {
+      throw new Error('Google Maps API key not configured');
+    }
+
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${API_KEY}&region=IN&language=en`
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to get address from coordinates');
+      }
+
+      const data = await response.json();
+      
+      if (data.status !== 'OK' || !data.results || data.results.length === 0) {
+        throw new Error('No address found for current location');
+      }
+
+      // Get the most detailed address (usually the first result)
+      const bestResult = data.results[0];
+      console.log('🗺️ Geocoding result:', bestResult);
+      
+      return bestResult;
+      
+    } catch (error) {
+      console.error('❌ Reverse geocoding error:', error);
+      throw new Error('Failed to convert location to address');
+    }
+  };
+
+  // 🎯 NEW: Parse Google address components
+  const parseGoogleAddress = (googleResult) => {
+    const components = googleResult.address_components;
+    const fullAddress = googleResult.formatted_address;
+    
+    let streetNumber = '';
+    let route = '';
+    let locality = '';
+    let city = '';
+    let state = '';
+    let postalCode = '';
+    let country = '';
+
+    // Parse address components
+    components.forEach(component => {
+      const types = component.types;
+      
+      if (types.includes('street_number')) {
+        streetNumber = component.long_name;
+      }
+      if (types.includes('route')) {
+        route = component.long_name;
+      }
+      if (types.includes('locality')) {
+        locality = component.long_name;
+      }
+      if (types.includes('administrative_area_level_2')) {
+        city = component.long_name;
+      }
+      if (types.includes('administrative_area_level_1')) {
+        state = component.long_name;
+      }
+      if (types.includes('postal_code')) {
+        postalCode = component.long_name;
+      }
+      if (types.includes('country')) {
+        country = component.long_name;
+      }
+    });
+
+    // Build structured address
+    const streetAddress = [streetNumber, route].filter(Boolean).join(' ');
+    const finalCity = locality || city;
+    
+    return {
+      fullAddress: fullAddress,
+      streetAddress: streetAddress,
+      city: finalCity,
+      state: state,
+      postalCode: postalCode,
+      country: country
+    };
+  };
+
+  // 🎯 ENHANCED: Handle address input mode changes
+  const handleAddressInputModeChange = async (mode) => {
+    setAddressInputMode(mode);
+    setLocationError('');
+    
+    if (mode === 'saved' && userAuth.user?.location?.address) {
+      // Use saved address from user profile
       setShippingAddress(prev => ({
         ...prev,
         address: userAuth.user.location.address
       }));
-    } else {
+      toast.success('Saved address loaded');
+      
+    } else if (mode === 'current') {
+      // Get current location
+      await getCurrentLocation();
+      
+    } else if (mode === 'manual') {
+      // Clear address for manual entry
       setShippingAddress(prev => ({
         ...prev,
         address: ''
       }));
     }
-    setUseUserLocation(!useUserLocation);
+  };
+
+  // 🎯 NEW: Handle Google Places selection for manual mode
+  const handlePlaceSelected = (placeData) => {
+    console.log('🏠 Place selected:', placeData);
+    
+    setShippingAddress(prev => ({
+      ...prev,
+      address: placeData.address
+    }));
+    
+    // Try to extract city and postal code from the address
+    if (placeData.address) {
+      // Simple parsing for Indian addresses
+      const addressParts = placeData.address.split(',').map(part => part.trim());
+      
+      // Look for postal code (6 digits)
+      const postalCodeMatch = placeData.address.match(/\b\d{6}\b/);
+      if (postalCodeMatch) {
+        setShippingAddress(current => ({
+          ...current,
+          postalCode: postalCodeMatch[0]
+        }));
+      }
+      
+      // Try to extract city (usually after the first comma)
+      if (addressParts.length > 1) {
+        const potentialCity = addressParts[addressParts.length - 3] || addressParts[1];
+        if (potentialCity && potentialCity.length > 2) {
+          setShippingAddress(current => ({
+            ...current,
+            city: potentialCity
+          }));
+        }
+      }
+    }
   };
 
   const calculateTotals = () => {
@@ -186,18 +406,93 @@ const CheckoutPage = () => {
           <div className="lg:col-span-2 space-y-6">
             {/* Shipping Address */}
             <div className="bg-white rounded-lg shadow-sm border p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-800">Shipping Address</h2>
-                {userAuth.user?.location?.address && (
-                  <label className="flex items-center text-sm text-gray-600 cursor-pointer">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Shipping Address</h2>
+              
+              {/* 🎯 NEW: Address Input Mode Selection */}
+              <div className="mb-6">
+                <p className="text-sm font-medium text-gray-700 mb-3">Choose address option:</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Current Location Option */}
+                  <label className="flex items-center p-3 border-2 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors">
                     <input
-                      type="checkbox"
-                      checked={useUserLocation}
-                      onChange={handleUseUserLocation}
-                      className="mr-2"
+                      type="radio"
+                      name="addressMode"
+                      value="current"
+                      checked={addressInputMode === 'current'}
+                      onChange={(e) => handleAddressInputModeChange(e.target.value)}
+                      className="mr-3 text-blue-600"
+                      disabled={locationLoading}
                     />
-                    Use saved address
+                    <div className="flex items-center">
+                      {locationLoading ? (
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500 mr-2"></div>
+                      ) : (
+                        <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      )}
+                      <span className="text-sm font-medium">
+                        {locationLoading ? 'Detecting...' : 'Use Current Location'}
+                      </span>
+                    </div>
                   </label>
+
+                  {/* Saved Address Option */}
+                  {userAuth.user?.location?.address && (
+                    <label className="flex items-center p-3 border-2 rounded-lg cursor-pointer hover:bg-green-50 transition-colors">
+                      <input
+                        type="radio"
+                        name="addressMode"
+                        value="saved"
+                        checked={addressInputMode === 'saved'}
+                        onChange={(e) => handleAddressInputModeChange(e.target.value)}
+                        className="mr-3 text-green-600"
+                      />
+                      <div className="flex items-center">
+                        <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                        </svg>
+                        <span className="text-sm font-medium">Use Saved Address</span>
+                      </div>
+                    </label>
+                  )}
+
+                  {/* Manual Entry Option */}
+                  <label className="flex items-center p-3 border-2 rounded-lg cursor-pointer hover:bg-orange-50 transition-colors">
+                    <input
+                      type="radio"
+                      name="addressMode"
+                      value="manual"
+                      checked={addressInputMode === 'manual'}
+                      onChange={(e) => handleAddressInputModeChange(e.target.value)}
+                      className="mr-3 text-orange-600"
+                    />
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 text-orange-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                      <span className="text-sm font-medium">Type Address</span>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Location Error Display */}
+                {locationError && (
+                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-sm text-red-700">{locationError}</p>
+                    </div>
+                    <button
+                      onClick={() => handleAddressInputModeChange('current')}
+                      className="mt-2 text-xs text-red-600 hover:text-red-800 underline"
+                    >
+                      Try again
+                    </button>
+                  </div>
                 )}
               </div>
               
@@ -206,14 +501,31 @@ const CheckoutPage = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Street Address *
                   </label>
-                  <textarea
-                    value={shippingAddress.address}
-                    onChange={(e) => setShippingAddress({...shippingAddress, address: e.target.value})}
-                    placeholder="Enter your full address"
-                    rows="3"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    required
-                  />
+                  
+                  {/* 🎯 ENHANCED: Conditional Address Input */}
+                  {addressInputMode === 'manual' ? (
+                    <GooglePlacesAutocomplete
+                      value={shippingAddress.address}
+                      onChange={(address) => setShippingAddress({...shippingAddress, address})}
+                      onPlaceSelected={handlePlaceSelected}
+                      placeholder="Start typing your address..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  ) : (
+                    <textarea
+                      value={shippingAddress.address}
+                      onChange={(e) => setShippingAddress({...shippingAddress, address: e.target.value})}
+                      placeholder={
+                        addressInputMode === 'current' 
+                          ? 'Address will be detected automatically...' 
+                          : 'Your saved address will appear here...'
+                      }
+                      rows="3"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50"
+                      readOnly={addressInputMode !== 'manual'}
+                      required
+                    />
+                  )}
                 </div>
                 
                 <div>
@@ -408,7 +720,7 @@ const CheckoutPage = () => {
               <div className="p-4 border-t">
                 <button
                   onClick={handlePlaceOrder}
-                  disabled={processing}
+                  disabled={processing || locationLoading}
                   className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white py-3 rounded-lg font-medium transition-colors flex items-center justify-center"
                 >
                   {processing ? (

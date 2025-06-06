@@ -113,6 +113,14 @@ const Dashboard = () => {
           console.log('⚠️ [Dashboard] No shops returned from API');
           toast.info('No nearby shops found. Please check your location.');
         }
+
+        // 🎯 NEW: Log distance information
+        if (response.data && response.data.length > 0) {
+          console.log('📊 [Dashboard] Shops with distances:');
+          response.data.slice(0, 3).forEach((shop, index) => {
+            console.log(`  ${index + 1}. ${shop.shop?.name} - ${shop.distanceText || 'No distance'}`);
+          });
+        }
       } else {
         console.log('❌ [Dashboard] Shops fetch failed:', response);
         toast.error(response.message || 'Failed to fetch nearby shops');
@@ -791,6 +799,15 @@ const Dashboard = () => {
                       
                       <div className="p-4">
                         <h3 className="font-bold text-gray-800 truncate text-lg mb-1">{shop.shop?.name || 'Shop Name'}</h3>
+                        {/* 🎯 NEW: Distance display */}
+                        {shop.distanceText && (
+                          <div className="text-green-600 text-xs font-semibold mb-2 flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                            {shop.distanceText}
+                          </div>
+                        )}
                         <p className="text-sm text-orange-600 font-medium mb-2">{shop.shop?.category || 'Fashion'} Fashion</p>
                         
                         {/* Shop description if available */}

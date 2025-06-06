@@ -93,6 +93,14 @@ const HomePage = () => {
         setShops(response.data);
         // Set recommended shops as a subset or different sorting
         setRecommendedShops(response.data.slice().sort(() => 0.5 - Math.random()).slice(0, 4));
+
+        // 🎯 NEW: Log distance information
+        if (response.data && response.data.length > 0) {
+          console.log('📊 [HomePage] Shops with distances:');
+          response.data.slice(0, 3).forEach((shop, index) => {
+            console.log(`  ${index + 1}. ${shop.shop?.name} - ${shop.distanceText || 'No distance'}`);
+          });
+        }
       } else {
         toast.error(response.message || 'Failed to fetch nearby shops');
       }
@@ -401,9 +409,17 @@ const HomePage = () => {
                       </p>
                     )}
                     
-                    <p className="text-xs text-gray-500 flex items-center">
-                      Price starts from <span className="text-orange-500 font-bold ml-1 text-sm">₹230</span>
-                    </p>
+                    <p className="text-sm font-medium text-gray-900">₹{shop.zammerPrice?.toFixed(2) || 'N/A'}</p>
+                    
+                    {/* 🎯 NEW: Distance display */}
+                    {shop.distanceText && (
+                      <p className="text-xs text-green-600 font-semibold flex items-center mt-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                        {shop.distanceText}
+                      </p>
+                    )}
                   </div>
                 </Link>
               ))}
@@ -500,9 +516,17 @@ const HomePage = () => {
                       </p>
                     )}
                     
-                    <p className="text-xs text-gray-500 flex items-center">
-                      Price starts from <span className="text-orange-500 font-bold ml-1 text-sm">₹230</span>
-                    </p>
+                    <p className="text-sm font-medium text-gray-900">₹{shop.zammerPrice?.toFixed(2) || 'N/A'}</p>
+                    
+                    {/* 🎯 NEW: Distance display */}
+                    {shop.distanceText && (
+                      <p className="text-xs text-green-600 font-semibold flex items-center mt-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                        {shop.distanceText}
+                      </p>
+                    )}
                   </div>
                 </Link>
               ))}

@@ -23,6 +23,74 @@ const terminalLog = (action, status, data = null) => {
   }
 };
 
+// 🎯 FIXED: Generate unique order number with better error handling
+const generateOrderNumber = async () => {
+  try {
+    terminalLog('ORDER_NUMBER_GENERATION_START', 'PROCESSING');
+    console.log('🔢 Starting order number generation...');
+    
+    const today = new Date();
+    const dateString = today.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD format
+    console.log('📅 Date string:', dateString);
+    
+    // 🎯 FIX: Use UTC dates for consistent search
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setUTCHours(23, 59, 59, 999);
+    
+    console.log('🔍 UTC Search range:', { todayStart, todayEnd });
+    
+    // 🎯 FIX: Add retry logic for duplicate orderNumber
+    let orderSequence = 1;
+    let orderNumber;
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    while (attempts < maxAttempts) {
+      const lastOrderToday = await Order.findOne({
+        orderNumber: { $regex: `^ORD-${dateString}-` }
+      }).sort({ orderNumber: -1 });
+      
+      console.log('📊 Last order found:', lastOrderToday?.orderNumber || 'None');
+      
+      if (lastOrderToday && lastOrderToday.orderNumber) {
+        const lastSequence = parseInt(lastOrderToday.orderNumber.split('-')[2]);
+        if (!isNaN(lastSequence)) {
+          orderSequence = lastSequence + 1;
+        }
+      }
+      
+      const sequenceString = orderSequence.toString().padStart(3, '0');
+      orderNumber = `ORD-${dateString}-${sequenceString}`;
+      
+      // 🎯 Check if this orderNumber already exists
+      const existingOrder = await Order.findOne({ orderNumber });
+      if (!existingOrder) {
+        console.log('🎯 Generated unique order number:', orderNumber);
+        break;
+      }
+      
+      console.log(`⚠️ Order number ${orderNumber} exists, trying next...`);
+      orderSequence++;
+      attempts++;
+    }
+    
+    if (attempts >= maxAttempts) {
+      throw new Error('Failed to generate unique order number after maximum attempts');
+    }
+    
+    return orderNumber;
+    
+  } catch (error) {
+    console.error('❌ Order number generation error:', error);
+    // Fallback with timestamp
+    const fallbackNumber = `ORD-${Date.now()}`;
+    console.log(`⚠️ Using fallback: ${fallbackNumber}`);
+    return fallbackNumber;
+  }
+};
+
 // 🎯 Enhanced: Emit real-time notification to seller with comprehensive logging
 const emitOrderNotification = (sellerId, orderData, eventType = 'new-order') => {
   try {
@@ -259,7 +327,17 @@ exports.createOrder = async (req, res) => {
       paymentMethod: req.body.paymentMethod
     });
 
-    console.log('📝 Creating new order...');
+    console.log(`
+🎯 ===============================
+   STARTING ORDER CREATION
+===============================
+👤 User ID: ${req.user._id}
+📧 Email: ${req.user.email}
+📦 Items: ${req.body.orderItems?.length || 0}
+💰 Total: ₹${req.body.totalPrice || 0}
+💳 Payment: ${req.body.paymentMethod || 'N/A'}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
     
     const {
       orderItems,
@@ -271,18 +349,26 @@ exports.createOrder = async (req, res) => {
       sellerId
     } = req.body;
 
-    if (orderItems && orderItems.length === 0) {
+    // STEP 1: Validate order items
+    terminalLog('STEP_1_VALIDATION', 'PROCESSING', { step: 'Order Items Validation' });
+    console.log('🔍 STEP 1: Validating order items...');
+
+    if (!orderItems || orderItems.length === 0) {
       terminalLog('ORDER_CREATE_VALIDATION', 'ERROR', { reason: 'no_order_items' });
+      console.log('❌ VALIDATION FAILED: No order items provided');
       return res.status(400).json({
         success: false,
         message: 'No order items'
       });
     }
 
-    // Verify all products exist and belong to the same seller
-    terminalLog('PRODUCT_VERIFICATION', 'PROCESSING', {
+    console.log(`✅ STEP 1 COMPLETE: Found ${orderItems.length} order items`);
+
+    // STEP 2: Verify products and seller
+    terminalLog('STEP_2_PRODUCT_VERIFICATION', 'PROCESSING', {
       productIds: orderItems.map(item => item.product)
     });
+    console.log('🔍 STEP 2: Verifying products and seller...');
 
     const productIds = orderItems.map(item => item.product);
     const products = await Product.find({ _id: { $in: productIds } }).populate('seller');
@@ -293,6 +379,7 @@ exports.createOrder = async (req, res) => {
         expectedCount: orderItems.length,
         foundCount: products.length
       });
+      console.log(`❌ STEP 2 FAILED: Expected ${orderItems.length} products, found ${products.length}`);
       return res.status(400).json({
         success: false,
         message: 'Some products not found'
@@ -307,45 +394,113 @@ exports.createOrder = async (req, res) => {
         sellerCount: sellers.length,
         sellers
       });
+      console.log(`❌ STEP 2 FAILED: Multiple sellers detected (${sellers.length})`);
       return res.status(400).json({
         success: false,
         message: 'All products must be from the same seller'
       });
     }
 
+    const finalSellerId = sellerId || sellers[0];
+    console.log(`✅ STEP 2 COMPLETE: All products verified, Seller ID: ${finalSellerId}`);
+
     terminalLog('VALIDATION_SUCCESS', 'SUCCESS', {
       productCount: products.length,
-      sellerId: sellerId || sellers[0]
+      sellerId: finalSellerId
     });
 
-    const order = new Order({
+    // 🎯 CRITICAL FIX: Generate order number BEFORE creating order object
+    terminalLog('STEP_3_ORDER_NUMBER', 'PROCESSING', { step: 'Order Number Generation' });
+    console.log('🔍 STEP 3: Generating unique order number...');
+
+    const orderNumber = await generateOrderNumber();
+    
+    // 🎯 CRITICAL: Validate that orderNumber was generated successfully
+    if (!orderNumber) {
+      const errorMsg = 'Failed to generate order number';
+      terminalLog('ORDER_NUMBER_VALIDATION', 'ERROR', { reason: 'orderNumber_is_null_or_undefined' });
+      console.error('❌ CRITICAL ERROR:', errorMsg);
+      return res.status(500).json({
+        success: false,
+        message: errorMsg
+      });
+    }
+    
+    console.log(`✅ STEP 3 COMPLETE: Order number generated: ${orderNumber}`);
+
+    // STEP 4: Create order object with orderNumber
+    terminalLog('STEP_4_ORDER_CREATION', 'PROCESSING', { 
+      step: 'Order Object Creation',
+      orderNumber,
+      sellerId: finalSellerId
+    });
+    console.log('🔍 STEP 4: Creating order object...');
+
+    // 🎯 CRITICAL FIX: Ensure orderNumber is explicitly set
+    const orderData = {
+      orderNumber: orderNumber, // 🔥 EXPLICITLY set orderNumber first
       user: req.user._id,
-      seller: sellerId || sellers[0],
+      seller: finalSellerId,
       orderItems,
       shippingAddress,
       paymentMethod,
       taxPrice,
       shippingPrice,
       totalPrice
+    };
+
+    console.log('📋 Order data prepared:', {
+      orderNumber: orderData.orderNumber,
+      user: orderData.user,
+      seller: orderData.seller,
+      itemCount: orderData.orderItems.length,
+      totalPrice: orderData.totalPrice
     });
 
-    terminalLog('ORDER_SAVE_START', 'PROCESSING', {
-      sellerId: sellerId || sellers[0],
+    const order = new Order(orderData);
+    
+    console.log(`✅ STEP 4 COMPLETE: Order object created with number: ${order.orderNumber}`);
+
+    // 🎯 CRITICAL: Validate order object before saving
+    if (!order.orderNumber) {
+      const errorMsg = 'Order object missing orderNumber after creation';
+      terminalLog('ORDER_OBJECT_VALIDATION', 'ERROR', { 
+        reason: 'orderNumber_missing_in_order_object',
+        orderData: orderData,
+        orderObjectOrderNumber: order.orderNumber
+      });
+      console.error('❌ CRITICAL ERROR:', errorMsg);
+      return res.status(500).json({
+        success: false,
+        message: errorMsg
+      });
+    }
+
+    // STEP 5: Save order to database
+    terminalLog('STEP_5_ORDER_SAVE', 'PROCESSING', {
+      orderNumber: order.orderNumber,
+      sellerId: finalSellerId,
       totalPrice
     });
+    console.log('🔍 STEP 5: Saving order to database...');
+    console.log('💾 About to save order with orderNumber:', order.orderNumber);
 
     const createdOrder = await order.save();
+    console.log(`✅ STEP 5 COMPLETE: Order saved with ID: ${createdOrder._id}`);
 
-    // Populate the order with user and seller details
-    terminalLog('ORDER_POPULATE_START', 'PROCESSING', {
+    // STEP 6: Populate order details
+    terminalLog('STEP_6_ORDER_POPULATE', 'PROCESSING', {
       orderId: createdOrder._id,
       orderNumber: createdOrder.orderNumber
     });
+    console.log('🔍 STEP 6: Populating order with user and seller details...');
 
     const populatedOrder = await Order.findById(createdOrder._id)
       .populate('user', 'name email mobileNumber')
       .populate('seller', 'firstName shop')
       .populate('orderItems.product', 'name images');
+
+    console.log(`✅ STEP 6 COMPLETE: Order populated successfully`);
 
     terminalLog('ORDER_CREATE_SUCCESS', 'SUCCESS', {
       orderId: populatedOrder._id,
@@ -355,9 +510,7 @@ exports.createOrder = async (req, res) => {
       customerName: populatedOrder.user.name
     });
 
-    console.log('✅ Order created successfully:', populatedOrder.orderNumber);
-
-    // 🎯 Enhanced: Terminal success display
+    // 🎯 MAJOR SUCCESS DISPLAY
     console.log(`
 🎉 ===============================
    ORDER CREATED SUCCESSFULLY!
@@ -370,7 +523,11 @@ exports.createOrder = async (req, res) => {
 💳 Payment: ${populatedOrder.paymentMethod}
 📍 City: ${populatedOrder.shippingAddress.city}
 📅 Created: ${new Date().toLocaleString()}
+📋 Status: ${populatedOrder.status}
 ===============================`);
+
+    // STEP 7: Send notifications
+    console.log('🔍 STEP 7: Sending notifications...');
 
     // 🎯 Real-time notification to seller
     emitOrderNotification(populatedOrder.seller._id, {
@@ -383,7 +540,7 @@ exports.createOrder = async (req, res) => {
       createdAt: populatedOrder.createdAt
     }, 'new-order');
 
-    // 🎯 NEW: Real-time notification to buyer (order confirmation)
+    // 🎯 Real-time notification to buyer (order confirmation)
     emitBuyerNotification(populatedOrder.user._id, {
       _id: populatedOrder._id,
       orderNumber: populatedOrder.orderNumber,
@@ -394,8 +551,20 @@ exports.createOrder = async (req, res) => {
       createdAt: populatedOrder.createdAt
     }, 'order-created');
 
-    // 🎯 NEW: Send email notification to buyer
+    // 🎯 Send email notification to buyer
     sendEmailNotification(populatedOrder.user.email, populatedOrder, 'order-created');
+
+    console.log(`✅ STEP 7 COMPLETE: All notifications sent`);
+
+    console.log(`
+🚀 ===============================
+   ORDER CREATION COMPLETED!
+===============================
+📦 Order Number: ${populatedOrder.orderNumber}
+⏱️  Total Time: ${new Date().toLocaleString()}
+📡 Notifications: ✅ Sent
+🎯 Status: SUCCESS
+===============================`);
 
     res.status(201).json({
       success: true,
@@ -407,6 +576,16 @@ exports.createOrder = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
+    
+    console.log(`
+❌ ===============================
+   ORDER CREATION FAILED!
+===============================
+👤 User: ${req.user?._id}
+🚨 Error: ${error.message}
+⏱️  Time: ${new Date().toLocaleString()}
+===============================`);
+    
     console.error('❌ Create Order Error:', error);
     res.status(500).json({
       success: false,
@@ -427,6 +606,8 @@ exports.getOrderById = async (req, res) => {
       requesterType: req.user ? 'user' : 'seller'
     });
 
+    console.log(`🔍 Fetching order by ID: ${req.params.id}`);
+
     const order = await Order.findById(req.params.id)
       .populate('user', 'name email')
       .populate('seller', 'firstName shop')
@@ -437,6 +618,7 @@ exports.getOrderById = async (req, res) => {
         orderId: req.params.id,
         reason: 'order_not_found'
       });
+      console.log(`❌ Order not found: ${req.params.id}`);
       return res.status(404).json({
         success: false,
         message: 'Order not found'
@@ -450,6 +632,7 @@ exports.getOrderById = async (req, res) => {
         accessType: 'user_owner',
         userId: req.user._id
       });
+      console.log(`✅ Order fetched successfully for user: ${req.user._id}`);
       return res.status(200).json({
         success: true,
         data: order
@@ -462,6 +645,7 @@ exports.getOrderById = async (req, res) => {
         accessType: 'seller_owner',
         sellerId: req.seller._id
       });
+      console.log(`✅ Order fetched successfully for seller: ${req.seller._id}`);
       return res.status(200).json({
         success: true,
         data: order
@@ -473,6 +657,7 @@ exports.getOrderById = async (req, res) => {
       reason: 'unauthorized_access',
       requesterId: req.user?._id || req.seller?._id
     });
+    console.log(`❌ Unauthorized access to order: ${req.params.id}`);
 
     return res.status(403).json({
       success: false,
@@ -483,7 +668,7 @@ exports.getOrderById = async (req, res) => {
       orderId: req.params.id,
       error: error.message
     });
-    console.error('Get Order Error:', error);
+    console.error('❌ Get Order Error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -502,6 +687,8 @@ exports.getUserOrders = async (req, res) => {
       page: req.query.page || 1,
       limit: req.query.limit || 10
     });
+
+    console.log(`🔍 Fetching orders for user: ${req.user._id}`);
 
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
@@ -524,6 +711,8 @@ exports.getUserOrders = async (req, res) => {
       totalPages: Math.ceil(totalOrders / limit)
     });
 
+    console.log(`✅ Found ${orders.length} orders for user ${req.user._id}`);
+
     res.status(200).json({
       success: true,
       count: orders.length,
@@ -536,7 +725,7 @@ exports.getUserOrders = async (req, res) => {
       userId: req.user?._id,
       error: error.message
     });
-    console.error('Get User Orders Error:', error);
+    console.error('❌ Get User Orders Error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -557,7 +746,7 @@ exports.getSellerOrders = async (req, res) => {
       statusFilter: req.query.status
     });
 
-    console.log('📋 Get Seller Orders called for seller:', req.seller._id);
+    console.log(`🔍 Fetching orders for seller: ${req.seller._id}`);
     
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
@@ -568,6 +757,7 @@ exports.getSellerOrders = async (req, res) => {
     // Filter by status if provided
     if (req.query.status) {
       filter.status = req.query.status;
+      console.log(`🔍 Filtering by status: ${req.query.status}`);
     }
 
     const orders = await Order.find(filter)
@@ -595,6 +785,7 @@ exports.getSellerOrders = async (req, res) => {
         sellerId: req.seller._id,
         markedReadCount: unreadCount
       });
+      console.log(`✅ Marked ${unreadCount} orders as read`);
     }
 
     terminalLog('SELLER_ORDERS_FETCH', 'SUCCESS', {
@@ -605,7 +796,7 @@ exports.getSellerOrders = async (req, res) => {
       markedReadCount: unreadCount
     });
 
-    console.log(`✅ Found ${orders.length} orders for seller`);
+    console.log(`✅ Found ${orders.length} orders for seller ${req.seller._id}`);
 
     res.status(200).json({
       success: true,
@@ -639,7 +830,7 @@ exports.updateOrderStatus = async (req, res) => {
       newStatus: req.body.status
     });
 
-    console.log('🔄 Update Order Status called for order:', req.params.id);
+    console.log(`🔄 Updating order status: ${req.params.id} → ${req.body.status}`);
     
     const { status } = req.body;
     
@@ -650,6 +841,7 @@ exports.updateOrderStatus = async (req, res) => {
         invalidStatus: status,
         validStatuses
       });
+      console.log(`❌ Invalid status: ${status}`);
       return res.status(400).json({
         success: false,
         message: 'Invalid status'
@@ -665,6 +857,7 @@ exports.updateOrderStatus = async (req, res) => {
         orderId: req.params.id,
         reason: 'order_not_found'
       });
+      console.log(`❌ Order not found: ${req.params.id}`);
       return res.status(404).json({
         success: false,
         message: 'Order not found'
@@ -679,6 +872,7 @@ exports.updateOrderStatus = async (req, res) => {
         orderSellerId: order.seller.toString(),
         requestSellerId: req.seller._id.toString()
       });
+      console.log(`❌ Unauthorized seller access: ${req.params.id}`);
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this order'
@@ -691,6 +885,7 @@ exports.updateOrderStatus = async (req, res) => {
     if (status === 'Delivered') {
       order.isDelivered = true;
       order.deliveredAt = Date.now();
+      console.log(`📦 Order marked as delivered: ${order.orderNumber}`);
 
       // Generate invoice when order is delivered
       try {
@@ -698,6 +893,7 @@ exports.updateOrderStatus = async (req, res) => {
           orderId: order._id,
           orderNumber: order.orderNumber
         });
+        console.log(`📄 Generating invoice for order: ${order.orderNumber}`);
 
         const invoiceResult = await invoiceGenerator.generateInvoice(order);
         
@@ -710,6 +906,7 @@ exports.updateOrderStatus = async (req, res) => {
           orderNumber: order.orderNumber,
           invoiceUrl: invoiceResult.invoiceUrl
         });
+        console.log(`✅ Invoice generated: ${invoiceResult.invoiceUrl}`);
 
         // Emit invoice ready notification
         emitBuyerNotification(order.user._id, {
@@ -740,9 +937,6 @@ exports.updateOrderStatus = async (req, res) => {
       customerName: order.user.name
     });
 
-    console.log(`✅ Order status updated: ${previousStatus} → ${status}`);
-
-    // 🎯 Enhanced: Terminal success display for status updates
     console.log(`
 🔄 ===============================
    ORDER STATUS UPDATED!
@@ -765,7 +959,7 @@ exports.updateOrderStatus = async (req, res) => {
       updatedAt: updatedOrder.updatedAt
     }, 'order-status-updated');
 
-    // 🎯 NEW: Real-time notification to buyer about status update
+    // 🎯 Real-time notification to buyer about status update
     emitBuyerNotification(order.user._id, {
       _id: updatedOrder._id,
       orderNumber: updatedOrder.orderNumber,
@@ -776,7 +970,7 @@ exports.updateOrderStatus = async (req, res) => {
       updatedAt: updatedOrder.updatedAt
     }, 'order-status-update');
 
-    // 🎯 NEW: Send email notification to buyer for status updates
+    // 🎯 Send email notification to buyer for status updates
     sendEmailNotification(order.user.email, {
       ...updatedOrder.toObject(),
       user: order.user,
@@ -812,7 +1006,7 @@ exports.getSellerOrderStats = async (req, res) => {
       sellerId: req.seller._id
     });
 
-    console.log('📊 Get Seller Order Stats called for seller:', req.seller._id);
+    console.log(`📊 Calculating order statistics for seller: ${req.seller._id}`);
     
     const sellerId = req.seller._id;
 
@@ -841,7 +1035,7 @@ exports.getSellerOrderStats = async (req, res) => {
       isRead: false
     });
 
-    // 🎯 Enhanced: Get today's orders count
+    // Get today's orders count
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayOrdersCount = await Order.countDocuments({
@@ -870,7 +1064,7 @@ exports.getSellerOrderStats = async (req, res) => {
       }
     });
 
-    console.log('✅ Order stats calculated:', stats);
+    console.log(`✅ Order stats calculated for seller ${req.seller._id}:`, stats);
 
     res.status(200).json({
       success: true,
@@ -889,16 +1083,94 @@ exports.getSellerOrderStats = async (req, res) => {
     });
   }
 };
+
 // @desc    Get order invoice
 // @route   GET /api/orders/:id/invoice
 // @access  Private (User)
 exports.getOrderInvoice = async (req, res) => {
-  // Your logic to generate or fetch the invoice PDF
-  // For example:
   try {
-    // ... fetch order, generate PDF, send file ...
-    res.status(200).send('Invoice logic here');
+    terminalLog('INVOICE_FETCH_START', 'PROCESSING', {
+      orderId: req.params.id,
+      userId: req.user._id
+    });
+
+    console.log(`📄 Fetching invoice for order: ${req.params.id}`);
+
+    const order = await Order.findById(req.params.id)
+      .populate('user', 'name email')
+      .populate('seller', 'firstName shop')
+      .populate('orderItems.product', 'name images');
+
+    if (!order) {
+      terminalLog('INVOICE_FETCH', 'ERROR', {
+        orderId: req.params.id,
+        reason: 'order_not_found'
+      });
+      console.log(`❌ Order not found for invoice: ${req.params.id}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Check if user owns this order
+    if (order.user._id.toString() !== req.user._id.toString()) {
+      terminalLog('INVOICE_FETCH', 'ERROR', {
+        orderId: req.params.id,
+        reason: 'unauthorized_access',
+        orderUserId: order.user._id.toString(),
+        requestUserId: req.user._id.toString()
+      });
+      console.log(`❌ Unauthorized invoice access: ${req.params.id}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to access this invoice'
+      });
+    }
+
+    if (!order.invoiceGenerated || !order.invoiceUrl) {
+      terminalLog('INVOICE_FETCH', 'ERROR', {
+        orderId: req.params.id,
+        reason: 'invoice_not_generated',
+        invoiceGenerated: order.invoiceGenerated,
+        hasInvoiceUrl: !!order.invoiceUrl
+      });
+      console.log(`❌ Invoice not generated for order: ${req.params.id}`);
+      return res.status(400).json({
+        success: false,
+        message: 'Invoice not yet generated for this order'
+      });
+    }
+
+    terminalLog('INVOICE_FETCH', 'SUCCESS', {
+      orderId: req.params.id,
+      orderNumber: order.orderNumber,
+      invoiceUrl: order.invoiceUrl
+    });
+
+    console.log(`✅ Invoice found for order ${order.orderNumber}: ${order.invoiceUrl}`);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        invoiceUrl: order.invoiceUrl,
+        invoiceGenerated: order.invoiceGenerated
+      }
+    });
+
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+    terminalLog('INVOICE_FETCH', 'ERROR', {
+      orderId: req.params.id,
+      userId: req.user?._id,
+      error: error.message
+    });
+    console.error('❌ Get Order Invoice Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
   }
 };

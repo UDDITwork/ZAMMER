@@ -398,8 +398,8 @@ exports.getNearbyShops = async (req, res) => {
     const [longitude, latitude] = user.location.coordinates;
     console.log('📍 [NearbyShops] User location:', { latitude, longitude });
     
-    // Find nearby shops using geospatial query (default 10km radius)
-    const maxDistance = parseInt(req.query.distance) || 10000; // in meters
+    // Find nearby shops using geospatial query (default 2000km radius)
+    const maxDistance = parseInt(req.query.distance) || 2000000; // in meters (2000km)
     
     const shops = await Seller.find({
       'shop.location': {

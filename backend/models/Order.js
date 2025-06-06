@@ -1,4 +1,4 @@
-// backend/models/Order.js - Enhanced version
+// backend/models/Order.js - Fixed version without conflicting orderNumber generation
 const mongoose = require('mongoose');
 
 const OrderItemSchema = new mongoose.Schema({
@@ -114,7 +114,7 @@ const OrderSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
-  // 🎯 NEW: Enhanced cancellation tracking
+  // Enhanced cancellation tracking
   cancellationDetails: {
     cancelledBy: {
       type: String,
@@ -134,7 +134,7 @@ const OrderSchema = new mongoose.Schema({
       default: ''
     }
   },
-  // 🎯 NEW: Status history tracking
+  // Status history tracking
   statusHistory: [{
     status: {
       type: String,
@@ -154,7 +154,7 @@ const OrderSchema = new mongoose.Schema({
       default: ''
     }
   }],
-  // 🎯 NEW: Invoice tracking
+  // Invoice tracking
   invoiceGenerated: {
     type: Boolean,
     default: false
@@ -171,19 +171,12 @@ const OrderSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Generate order number before saving
-OrderSchema.pre('save', async function(next) {
-  if (!this.orderNumber) {
-    const date = new Date();
-    const year = date.getFullYear().toString().slice(-2);
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    
-    this.orderNumber = `ZAM${year}${month}${day}${random}`;
-  }
+// 🎯 REMOVED: Conflicting pre-save hook for orderNumber generation
+// orderNumber will be generated in the controller instead
 
-  // 🎯 NEW: Add status history entry when status changes
+// 🎯 NEW: Add status history entry when status changes (keeping this functionality)
+OrderSchema.pre('save', async function(next) {
+  // Add status history entry when status changes
   if (this.isModified('status') && !this.isNew) {
     this.statusHistory.push({
       status: this.status,
@@ -193,7 +186,7 @@ OrderSchema.pre('save', async function(next) {
     });
   }
 
-  // 🎯 NEW: Add initial status history for new orders
+  // Add initial status history for new orders
   if (this.isNew) {
     this.statusHistory.push({
       status: this.status,
@@ -206,7 +199,7 @@ OrderSchema.pre('save', async function(next) {
   next();
 });
 
-// 🎯 NEW: Method to update status with tracking
+// Method to update status with tracking
 OrderSchema.methods.updateStatus = function(newStatus, changedBy, notes = '') {
   this.status = newStatus;
   this._statusChangedBy = changedBy;
@@ -225,7 +218,7 @@ OrderSchema.methods.updateStatus = function(newStatus, changedBy, notes = '') {
   return this.save();
 };
 
-// 🎯 NEW: Method to get cancellation display text
+// Method to get cancellation display text
 OrderSchema.methods.getCancellationText = function() {
   if (this.status !== 'Cancelled' || !this.cancellationDetails.cancelledBy) {
     return null;

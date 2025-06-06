@@ -27,23 +27,15 @@ const PaymentPage = () => {
   // UPI details state
   const [upiId, setUpiId] = useState('');
 
-  // 🎯 Enhanced terminal logging for payment flow
+  // 🎯 NEW: Test mode indicator
+  const [isTestMode, setIsTestMode] = useState(orderService.isTestMode());
+
+  // Enhanced terminal logging for payment flow
   const logPaymentFlow = (action, status, data = null) => {
     const timestamp = new Date().toISOString();
     const logLevel = status === 'SUCCESS' ? '✅' : status === 'ERROR' ? '❌' : '🔄';
     
     console.log(`${logLevel} [PAYMENT-FLOW] ${timestamp} - ${action}`, data ? JSON.stringify(data, null, 2) : '');
-    
-    // Structured logging for production
-    if (process.env.NODE_ENV === 'production') {
-      console.log(JSON.stringify({
-        timestamp,
-        service: 'paymentPage',
-        action,
-        status,
-        data
-      }));
-    }
   };
 
   useEffect(() => {
@@ -65,9 +57,10 @@ const PaymentPage = () => {
     logPaymentFlow('PAGE_LOAD', 'SUCCESS', {
       paymentMethod: od?.paymentMethod,
       totalPrice: t?.totalPrice,
-      itemCount: ci?.length
+      itemCount: ci?.length,
+      testMode: isTestMode
     });
-  }, [location.state, navigate]);
+  }, [location.state, navigate, isTestMode]);
 
   const handleCardInputChange = (field, value) => {
     let formattedValue = value;
@@ -150,13 +143,14 @@ const PaymentPage = () => {
     logPaymentFlow('PAYMENT_START', 'PROCESSING', {
       paymentMethod: orderData.paymentMethod,
       totalPrice: totals.totalPrice,
+      testMode: isTestMode,
       timestamp: new Date().toISOString()
     });
 
     try {
       let paymentResult = null;
       
-      // Process payment based on method
+      // 🎯 ENHANCED: Process payment with mock system
       if (orderData.paymentMethod !== 'Cash on Delivery') {
         const paymentData = {
           amount: totals.totalPrice,
@@ -170,9 +164,11 @@ const PaymentPage = () => {
         
         logPaymentFlow('PAYMENT_PROCESSING', 'PROCESSING', {
           method: paymentData.method,
-          amount: paymentData.amount
+          amount: paymentData.amount,
+          testMode: isTestMode
         });
         
+        // 🎯 Use mock payment service
         const paymentResponse = await orderService.processPayment(paymentData);
         
         if (!paymentResponse.success) {
@@ -182,8 +178,26 @@ const PaymentPage = () => {
         paymentResult = paymentResponse.data;
         logPaymentFlow('PAYMENT_PROCESSING', 'SUCCESS', {
           transactionId: paymentResult.transactionId,
-          method: paymentResult.method
+          method: paymentResult.method,
+          isTest: paymentResult.isTest
         });
+
+        // 🎯 Show payment success details for testing
+        if (paymentResult.isTest) {
+          console.log(`
+💳 ===============================
+   MOCK PAYMENT SUCCESSFUL!
+===============================
+🔗 Transaction ID: ${paymentResult.transactionId}
+💳 Method: ${paymentResult.method}
+💰 Amount: ₹${paymentResult.amount}
+🏦 Gateway: ${paymentResult.gateway}
+⏱️ Processing Time: ${paymentResult.processingTime}ms
+🧪 Test Mode: ${paymentResult.isTest}
+📅 Time: ${new Date().toLocaleString()}
+===============================`);
+        }
+        
       } else {
         logPaymentFlow('COD_PROCESSING', 'SUCCESS', { method: 'Cash on Delivery' });
       }
@@ -220,7 +234,7 @@ const PaymentPage = () => {
       setCreatedOrder(orderResponse.data);
       setPaymentStep('success');
       
-      // 🎯 Enhanced success notification
+      // 🎯 Enhanced success notification with test mode indicator
       toast.success(
         <div className="flex items-center">
           <div className="bg-green-100 rounded-full p-2 mr-3">
@@ -229,8 +243,9 @@ const PaymentPage = () => {
             </svg>
           </div>
           <div>
-            <p className="font-medium">Order placed successfully!</p>
+            <p className="font-medium">Order placed successfully! {isTestMode && '🧪'}</p>
             <p className="text-sm text-gray-600">Order #{orderResponse.data.orderNumber}</p>
+            {isTestMode && <p className="text-xs text-blue-600">Test Mode Payment</p>}
           </div>
         </div>,
         {
@@ -246,6 +261,7 @@ const PaymentPage = () => {
         orderId: orderResponse.data._id,
         orderNumber: orderResponse.data.orderNumber,
         totalPrice: orderResponse.data.totalPrice,
+        testMode: isTestMode,
         timestamp: new Date().toISOString()
       });
 
@@ -258,6 +274,7 @@ const PaymentPage = () => {
 💰 Amount: ₹${totals.totalPrice}
 📦 Order ID: ${orderResponse.data._id}
 🔢 Order Number: ${orderResponse.data.orderNumber}
+🧪 Test Mode: ${isTestMode}
 📅 Time: ${new Date().toLocaleString()}
 ===============================`);
       
@@ -273,7 +290,8 @@ const PaymentPage = () => {
       logPaymentFlow('PAYMENT_ERROR', 'ERROR', {
         error: error.message,
         paymentMethod: orderData.paymentMethod,
-        step: paymentStep
+        step: paymentStep,
+        testMode: isTestMode
       });
       
       setPaymentStep('failed');
@@ -288,7 +306,7 @@ const PaymentPage = () => {
     setPaymentStep('form');
   };
 
-  // 🎯 Enhanced loading check with logging
+  // Enhanced loading check
   if (!orderData || !totals) {
     logPaymentFlow('PAGE_STATE', 'ERROR', { reason: 'missing_order_data' });
     return (
@@ -306,6 +324,21 @@ const PaymentPage = () => {
   return (
     <UserLayout>
       <div className="container mx-auto p-4 max-w-4xl">
+        {/* 🎯 NEW: Test Mode Indicator */}
+        {isTestMode && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="text-sm font-medium text-blue-800">🧪 Test Mode Active</p>
+                <p className="text-xs text-blue-600">All payments are simulated for testing purposes</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Processing State */}
         {paymentStep === 'processing' && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -313,16 +346,22 @@ const PaymentPage = () => {
               <div className="mb-4">
                 <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-orange-500 mx-auto"></div>
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">Processing Payment...</h3>
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                Processing Payment... {isTestMode && '🧪'}
+              </h3>
               <p className="text-gray-600">Please don't close this window</p>
               {orderData.paymentMethod === 'Card' && (
                 <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">🔒 Verifying card details with bank...</p>
+                  <p className="text-sm text-blue-800">
+                    🔒 {isTestMode ? 'Simulating card verification...' : 'Verifying card details with bank...'}
+                  </p>
                 </div>
               )}
               {orderData.paymentMethod === 'UPI' && (
                 <div className="mt-4 p-3 bg-green-50 rounded-lg">
-                  <p className="text-sm text-green-800">💚 Confirming UPI transaction...</p>
+                  <p className="text-sm text-green-800">
+                    💚 {isTestMode ? 'Simulating UPI transaction...' : 'Confirming UPI transaction...'}
+                  </p>
                 </div>
               )}
               {orderData.paymentMethod === 'Cash on Delivery' && (
@@ -343,7 +382,9 @@ const PaymentPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h2 className="text-3xl font-bold text-gray-800 mb-2">Payment Successful! 🎉</h2>
+              <h2 className="text-3xl font-bold text-gray-800 mb-2">
+                Payment Successful! 🎉 {isTestMode && '🧪'}
+              </h2>
               <p className="text-gray-600 mb-4">Your order has been placed successfully.</p>
               {createdOrder && (
                 <div className="bg-gray-50 rounded-lg p-4 max-w-md mx-auto">
@@ -352,6 +393,11 @@ const PaymentPage = () => {
                   <p className="text-sm text-green-600 mt-2">
                     ✅ Seller has been notified automatically
                   </p>
+                  {isTestMode && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      🧪 Test payment processed successfully
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -371,8 +417,17 @@ const PaymentPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Failed ❌</h2>
-              <p className="text-gray-600 mb-6">There was an issue processing your payment. Please try again.</p>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                Payment Failed ❌ {isTestMode && '🧪'}
+              </h2>
+              <p className="text-gray-600 mb-6">
+                There was an issue processing your payment. Please try again.
+              </p>
+              {isTestMode && (
+                <p className="text-sm text-blue-600 mb-4">
+                  🧪 This is a simulated payment failure for testing
+                </p>
+              )}
               <div className="space-x-4">
                 <button
                   onClick={retryPayment}
@@ -391,7 +446,7 @@ const PaymentPage = () => {
           </div>
         )}
 
-        {/* Payment Form - Rest of the component remains the same as original */}
+        {/* Payment Form - Rest of the component remains the same */}
         {paymentStep === 'form' && (
           <>
             {/* Header */}
@@ -401,7 +456,9 @@ const PaymentPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <h1 className="text-2xl font-bold text-gray-800">Payment</h1>
+              <h1 className="text-2xl font-bold text-gray-800">
+                Payment {isTestMode && '🧪'}
+              </h1>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -427,6 +484,7 @@ const PaymentPage = () => {
                       </svg>
                     )}
                     <span className="font-medium">{orderData.paymentMethod}</span>
+                    {isTestMode && <span className="ml-2 text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">TEST</span>}
                   </div>
                 </div>
 
@@ -434,6 +492,12 @@ const PaymentPage = () => {
                 {orderData.paymentMethod === 'Card' && (
                   <div className="bg-white rounded-lg shadow-sm border p-6">
                     <h2 className="text-lg font-semibold text-gray-800 mb-4">Card Details</h2>
+                    
+                    {isTestMode && (
+                      <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                        <p className="text-sm text-blue-800">🧪 Test Mode: Use any 16-digit number for testing</p>
+                      </div>
+                    )}
                     
                     <div className="space-y-4">
                       <div>
@@ -444,7 +508,7 @@ const PaymentPage = () => {
                           type="text"
                           value={cardDetails.cardNumber}
                           onChange={(e) => handleCardInputChange('cardNumber', e.target.value)}
-                          placeholder="1234 5678 9012 3456"
+                          placeholder={isTestMode ? "4111 1111 1111 1111 (Test)" : "1234 5678 9012 3456"}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                           maxLength="19"
                         />
@@ -459,7 +523,7 @@ const PaymentPage = () => {
                             type="text"
                             value={cardDetails.expiryDate}
                             onChange={(e) => handleCardInputChange('expiryDate', e.target.value)}
-                            placeholder="MM/YY"
+                            placeholder="12/25"
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                             maxLength="5"
                           />
@@ -497,6 +561,7 @@ const PaymentPage = () => {
                     <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                       <p className="text-sm text-blue-800">
                         🔒 Your card details are secure and encrypted
+                        {isTestMode && " (Test Mode - No real charges)"}
                       </p>
                     </div>
                   </div>
@@ -507,6 +572,12 @@ const PaymentPage = () => {
                   <div className="bg-white rounded-lg shadow-sm border p-6">
                     <h2 className="text-lg font-semibold text-gray-800 mb-4">UPI Payment</h2>
                     
+                    {isTestMode && (
+                      <div className="mb-4 p-3 bg-green-50 rounded-lg">
+                        <p className="text-sm text-green-800">🧪 Test Mode: Use any UPI ID format for testing</p>
+                      </div>
+                    )}
+                    
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         UPI ID *
@@ -515,7 +586,7 @@ const PaymentPage = () => {
                         type="text"
                         value={upiId}
                         onChange={(e) => setUpiId(e.target.value)}
-                        placeholder="yourname@paytm"
+                        placeholder={isTestMode ? "test@paytm (Test)" : "yourname@paytm"}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                       />
                     </div>
@@ -523,6 +594,7 @@ const PaymentPage = () => {
                     <div className="mt-4 p-3 bg-green-50 rounded-lg">
                       <p className="text-sm text-green-800">
                         💚 Quick and secure UPI payment
+                        {isTestMode && " (Test Mode - No real transaction)"}
                       </p>
                     </div>
                   </div>
@@ -544,6 +616,7 @@ const PaymentPage = () => {
                             <li>• Pay ₹{totals.totalPrice} to the delivery person</li>
                             <li>• Please keep exact change ready</li>
                             <li>• UPI payment to delivery person is also accepted</li>
+                            {isTestMode && <li>• 🧪 Test Mode: Order will be created immediately</li>}
                           </ul>
                         </div>
                       </div>
@@ -610,14 +683,14 @@ const PaymentPage = () => {
                               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
-                              Place Order
+                              Place Order {isTestMode && '🧪'}
                             </>
                           ) : (
                             <>
                               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                               </svg>
-                              Pay ₹{totals.totalPrice}
+                              Pay ₹{totals.totalPrice} {isTestMode && '🧪'}
                             </>
                           )}
                         </>
