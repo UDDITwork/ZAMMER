@@ -344,14 +344,12 @@ class SocketService {
         
         if (!this.isConnected) {
           this.connect();
+          setTimeout(() => {
+            if (this.isConnected) {
+              this.joinBuyerRoom(user._id);
+            }
+          }, 1000);
         }
-        
-        // Wait for connection then join room
-        setTimeout(() => {
-          if (this.isConnected) {
-            this.joinBuyerRoom(user._id);
-          }
-        }, 1000);
         
         return { type: 'buyer', user };
       } catch (error) {
@@ -364,14 +362,12 @@ class SocketService {
         
         if (!this.isConnected) {
           this.connect();
+          setTimeout(() => {
+            if (this.isConnected) {
+              this.joinSellerRoom(seller._id);
+            }
+          }, 1000);
         }
-        
-        // Wait for connection then join room
-        setTimeout(() => {
-          if (this.isConnected) {
-            this.joinSellerRoom(seller._id);
-          }
-        }, 1000);
         
         return { type: 'seller', seller };
       } catch (error) {

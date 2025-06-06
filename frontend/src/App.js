@@ -48,6 +48,12 @@ import TrendingPage from './pages/user/TrendingPage';
 import LimitedEditionPage from './pages/user/LimitedEditionPage';
 import OrderConfirmationPage from './pages/user/OrderConfirmationPage';
 
+// 🎯 FIXED: Import the missing MyOrdersPage component
+import MyOrdersPage from './pages/user/MyOrdersPage';
+
+// 🎯 TESTING: Import the socket test component
+import SocketTestComponent from './components/user/SocketTestComponent';
+
 // Development error logging
 const logRouteError = (error, errorInfo) => {
   console.error('Route Error:', error);
@@ -123,20 +129,27 @@ function App() {
             <Route path="/user/trending" element={<TrendingPage />} />
             <Route path="/user/limited-edition" element={<LimitedEditionPage />} />
             <Route path="/user/order-confirmation" element={<OrderConfirmationPage />} />
+            
+            {/* 🎯 FIXED: Add missing order routes */}
+            <Route path="/user/orders" element={<MyOrdersPage />} />
+            <Route path="/user/my-orders" element={<MyOrdersPage />} />
+            
+            {/* 🎯 TESTING: Add socket test route */}
+            <Route path="/test-socket" element={<SocketTestComponent />} />
+            
+            {/* Add this route for testing */}
+            <Route path="/test-places" element={<SimplePlacesTest />} />
               
-              {/* Add this route for testing */}
-              <Route path="/test-places" element={<SimplePlacesTest />} />
-              
-              {/* 404 Catch-all route */}
-              <Route path="*" element={
-                <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                  <div className="text-center">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-4">404 - Page Not Found</h1>
-                    <p className="text-gray-600 mb-4">The page you're looking for doesn't exist.</p>
-                    <Navigate to="/user/dashboard" replace />
-                  </div>
+            {/* 404 Catch-all route */}
+            <Route path="*" element={
+              <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="text-center">
+                  <h1 className="text-4xl font-bold text-gray-900 mb-4">404 - Page Not Found</h1>
+                  <p className="text-gray-600 mb-4">The page you're looking for doesn't exist.</p>
+                  <Navigate to="/user/dashboard" replace />
                 </div>
-              } />
+              </div>
+            } />
           </Routes>
         </div>
         </ErrorBoundary>

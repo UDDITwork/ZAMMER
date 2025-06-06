@@ -216,13 +216,13 @@ const MyOrdersPage = () => {
 
   const getStatusColor = (status) => {
     const statusMap = {
-      'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      'Processing': 'bg-blue-100 text-blue-800 border-blue-200',
-      'Shipped': 'bg-purple-100 text-purple-800 border-purple-200',
-      'Delivered': 'bg-green-100 text-green-800 border-green-200',
-      'Cancelled': 'bg-red-100 text-red-800 border-red-200'
+      'Pending': 'bg-gradient-to-r from-amber-50 to-yellow-100 text-amber-800 border border-amber-200 shadow-sm',
+      'Processing': 'bg-gradient-to-r from-blue-50 to-indigo-100 text-blue-800 border border-blue-200 shadow-sm',
+      'Shipped': 'bg-gradient-to-r from-purple-50 to-violet-100 text-purple-800 border border-purple-200 shadow-sm',
+      'Delivered': 'bg-gradient-to-r from-emerald-50 to-green-100 text-emerald-800 border border-emerald-200 shadow-sm',
+      'Cancelled': 'bg-gradient-to-r from-red-50 to-rose-100 text-red-800 border border-red-200 shadow-sm'
     };
-    return statusMap[status] || 'bg-gray-100 text-gray-800 border-gray-200';
+    return statusMap[status] || 'bg-gradient-to-r from-gray-50 to-slate-100 text-gray-800 border border-gray-200 shadow-sm';
   };
 
   const getTabColor = (tabKey) => {
@@ -230,12 +230,12 @@ const MyOrdersPage = () => {
     if (!tab) return 'border-gray-300 text-gray-600';
     
     const colorMap = {
-      'gray': 'border-gray-500 text-gray-700 bg-gray-50',
-      'yellow': 'border-yellow-500 text-yellow-700 bg-yellow-50',
-      'blue': 'border-blue-500 text-blue-700 bg-blue-50',
-      'purple': 'border-purple-500 text-purple-700 bg-purple-50',
-      'green': 'border-green-500 text-green-700 bg-green-50',
-      'red': 'border-red-500 text-red-700 bg-red-50'
+      'gray': 'border-slate-500 text-slate-700 bg-gradient-to-r from-slate-50 to-gray-100',
+      'yellow': 'border-amber-500 text-amber-700 bg-gradient-to-r from-amber-50 to-yellow-100',
+      'blue': 'border-blue-500 text-blue-700 bg-gradient-to-r from-blue-50 to-indigo-100',
+      'purple': 'border-purple-500 text-purple-700 bg-gradient-to-r from-purple-50 to-violet-100',
+      'green': 'border-emerald-500 text-emerald-700 bg-gradient-to-r from-emerald-50 to-green-100',
+      'red': 'border-red-500 text-red-700 bg-gradient-to-r from-red-50 to-rose-100'
     };
     
     return colorMap[tab.color] || 'border-gray-300 text-gray-600';
@@ -314,21 +314,32 @@ const MyOrdersPage = () => {
   if (!userAuth.isAuthenticated) {
     return (
       <UserLayout>
-        <div className="container mx-auto p-4">
-          <div className="text-center py-12">
-            <div className="mb-6">
-              <svg className="w-16 h-16 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+          <div className="container mx-auto p-4 sm:p-6 lg:p-8">
+            <div className="text-center py-16 sm:py-20">
+              <div className="mb-8">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-6 bg-gradient-to-br from-orange-100 via-orange-200 to-amber-200 rounded-full flex items-center justify-center shadow-xl border-4 border-white">
+                  <svg className="w-10 h-10 sm:w-12 sm:h-12 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-slate-800 via-slate-700 to-slate-600 bg-clip-text text-transparent mb-4">
+                Authentication Required
+              </h2>
+              <p className="text-slate-600 mb-8 text-sm sm:text-base max-w-md mx-auto leading-relaxed">
+                Please sign in to access your order history and track your purchases.
+              </p>
+              <Link
+                to="/user/login"
+                className="inline-flex items-center justify-center bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:via-orange-700 hover:to-amber-600 text-white px-8 py-3 sm:px-10 sm:py-4 rounded-xl font-semibold text-sm sm:text-base shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </svg>
+                Sign In to Continue
+              </Link>
             </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Login Required</h2>
-            <p className="text-gray-600 mb-6">Please login to view your orders.</p>
-            <Link
-              to="/user/login"
-              className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-medium"
-            >
-              Login to Continue
-            </Link>
           </div>
         </div>
       </UserLayout>
@@ -337,49 +348,54 @@ const MyOrdersPage = () => {
 
   return (
     <UserLayout>
-      <div className="my-orders-page pb-20">
-        {/* Header Section */}
-        <div className="bg-white border-b p-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <button 
-                onClick={() => navigate('/user/dashboard')} 
-                className="mr-4 p-2 hover:bg-gray-100 rounded-full"
-              >
-                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <div>
-                <h1 className="text-xl font-bold text-gray-800">My Orders</h1>
-                <p className="text-gray-600 text-sm">
-                  Track and manage your orders
-                  {socketConnected && (
-                    <span className="ml-2 inline-flex items-center">
-                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-1"></span>
-                      <span className="text-xs text-green-600">Live updates</span>
-                    </span>
-                  )}
-                </p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 pb-20 sm:pb-8">
+        {/* 🎯 PREMIUM: Enhanced Header Section */}
+        <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-lg">
+          <div className="px-4 sm:px-6 py-4 sm:py-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3 sm:space-x-4">
+                <button 
+                  onClick={() => navigate('/user/dashboard')} 
+                  className="group p-2 sm:p-2.5 hover:bg-slate-100 rounded-xl transition-all duration-300 active:scale-95"
+                >
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600 group-hover:text-slate-800 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <div>
+                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold bg-gradient-to-r from-slate-800 via-slate-700 to-slate-600 bg-clip-text text-transparent">
+                    My Orders
+                  </h1>
+                  <p className="text-xs sm:text-sm text-slate-600 flex items-center flex-wrap gap-2">
+                    <span>Track and manage your orders</span>
+                    {socketConnected && (
+                      <span className="inline-flex items-center">
+                        <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-emerald-500 rounded-full animate-pulse mr-1"></span>
+                        <span className="text-xs text-emerald-600 font-medium">Live updates</span>
+                      </span>
+                    )}
+                  </p>
+                </div>
               </div>
+              
+              <button
+                onClick={() => fetchOrders(pagination.currentPage)}
+                className="group bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
+              >
+                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span className="hidden sm:inline">Refresh</span>
+                <span className="sm:hidden">↻</span>
+              </button>
             </div>
-            
-            <button
-              onClick={() => fetchOrders(pagination.currentPage)}
-              className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh
-            </button>
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="bg-white border-b">
-          <div className="px-4">
-            <nav className="flex space-x-1 overflow-x-auto">
+        {/* 🎯 PREMIUM: Enhanced Tab Navigation */}
+        <div className="sticky top-[73px] sm:top-[81px] z-30 bg-white/90 backdrop-blur-xl border-b border-white/30">
+          <div className="px-2 sm:px-4">
+            <nav className="flex space-x-1 overflow-x-auto scrollbar-hide py-2">
               {statusTabs.map((tab) => {
                 const count = tab.key === 'All' 
                   ? orders.length 
@@ -390,19 +406,19 @@ const MyOrdersPage = () => {
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`flex-shrink-0 py-3 px-4 text-sm font-medium flex items-center space-x-2 border-b-2 transition-colors ${
+                    className={`group flex-shrink-0 py-2.5 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-semibold flex items-center space-x-1.5 sm:space-x-2 rounded-xl transition-all duration-300 border-2 ${
                       isActive
-                        ? 'border-orange-500 text-orange-600 bg-orange-50'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                        ? 'border-orange-300 text-orange-700 bg-gradient-to-r from-orange-50 via-orange-100 to-amber-50 shadow-lg transform scale-105'
+                        : 'border-transparent text-slate-600 hover:text-slate-800 hover:bg-white/70 hover:border-slate-200 hover:shadow-md'
                     }`}
                   >
-                    <span>{tab.icon}</span>
-                    <span>{tab.label}</span>
+                    <span className="text-sm sm:text-base">{tab.icon}</span>
+                    <span className="whitespace-nowrap">{tab.label}</span>
                     {count > 0 && (
-                      <span className={`px-2 py-1 text-xs rounded-full ${
+                      <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs rounded-full font-bold transition-all duration-300 ${
                         isActive 
-                          ? 'bg-orange-100 text-orange-800' 
-                          : 'bg-gray-100 text-gray-600'
+                          ? 'bg-orange-200 text-orange-800 shadow-sm' 
+                          : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200'
                       }`}>
                         {count}
                       </span>
@@ -414,77 +430,92 @@ const MyOrdersPage = () => {
           </div>
         </div>
 
-        {/* Orders List */}
-        <div className="p-4">
+        {/* 🎯 PREMIUM: Enhanced Orders List */}
+        <div className="px-4 sm:px-6 py-4 sm:py-6">
           {loading ? (
-            <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-              <span className="ml-3 text-gray-600">Loading your orders...</span>
+            <div className="flex flex-col justify-center items-center py-16 sm:py-20">
+              <div className="relative mb-6">
+                <div className="animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-4 border-orange-200 border-t-orange-500 shadow-lg"></div>
+                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-orange-400 to-amber-400 opacity-20 animate-pulse"></div>
+              </div>
+              <div className="text-center space-y-2">
+                <p className="text-slate-700 font-semibold text-sm sm:text-base">Loading your orders...</p>
+                <p className="text-slate-500 text-xs sm:text-sm">Please wait while we fetch your order history</p>
+              </div>
             </div>
           ) : filteredOrders.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-4 sm:space-y-6">
               {filteredOrders.map((order) => {
                 const progress = getOrderProgress(order.status);
                 const cancellationInfo = getCancellationInfo(order);
                 
                 return (
-                  <div key={order._id} className="bg-white rounded-lg shadow-sm border">
-                    {/* Order Header */}
-                    <div className="p-4 border-b">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div>
-                            <h3 className="font-semibold text-gray-900">
+                  <div key={order._id} className="group bg-white/80 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-lg hover:shadow-xl border border-white/50 hover:border-white/80 transition-all duration-500 overflow-hidden">
+                    {/* 🎯 PREMIUM: Order Header */}
+                    <div className="p-4 sm:p-6 border-b border-slate-100/50">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                        <div className="flex items-start space-x-3 sm:space-x-4">
+                          <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-md border border-white/50 flex-shrink-0">
+                            <span className="text-lg sm:text-xl">{getStatusEmoji(order.status)}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-slate-900 text-sm sm:text-base lg:text-lg truncate">
                               Order #{order.orderNumber}
                             </h3>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
                               Placed on {formatDate(order.createdAt)}
                             </p>
-                            {/* 🎯 NEW: Show cancellation info */}
+                            {/* 🎯 PREMIUM: Cancellation info */}
                             {cancellationInfo && (
-                              <div className="mt-1">
-                                <p className="text-xs text-red-600 font-medium">{cancellationInfo.text}</p>
-                                <p className="text-xs text-gray-500">{cancellationInfo.timestamp}</p>
+                              <div className="mt-2 p-2 bg-red-50 rounded-lg border border-red-100">
+                                <p className="text-xs font-medium text-red-700">{cancellationInfo.text}</p>
+                                <p className="text-xs text-red-600">{cancellationInfo.timestamp}</p>
                                 {cancellationInfo.reason !== 'No reason provided' && (
-                                  <p className="text-xs text-gray-500">Reason: {cancellationInfo.reason}</p>
+                                  <p className="text-xs text-red-600">Reason: {cancellationInfo.reason}</p>
                                 )}
                               </div>
                             )}
                           </div>
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(order.status)}`}>
-                            {getStatusEmoji(order.status)} {order.status}
-                          </span>
                         </div>
                         
-                        <div className="text-right">
-                          <p className="font-bold text-gray-900">₹{order.totalPrice}</p>
-                          <p className="text-sm text-gray-600">{order.paymentMethod}</p>
+                        <div className="flex items-center justify-between sm:flex-col sm:items-end sm:justify-start gap-2 sm:gap-1">
+                          <span className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-300 ${getStatusColor(order.status)}`}>
+                            {getStatusEmoji(order.status)} {order.status}
+                          </span>
+                          <div className="text-right">
+                            <p className="font-bold text-slate-900 text-sm sm:text-base lg:text-lg">₹{order.totalPrice}</p>
+                            <p className="text-xs sm:text-sm text-slate-600">{order.paymentMethod}</p>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Progress Bar */}
+                      {/* 🎯 PREMIUM: Progress Bar */}
                       {order.status !== 'Cancelled' && (
-                        <div className="mt-4">
-                          <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
-                            <span>Order Progress</span>
-                            <span>{progress.step}/{progress.total} steps completed</span>
+                        <div className="mt-4 sm:mt-6">
+                          <div className="flex items-center justify-between text-xs sm:text-sm text-slate-600 mb-3">
+                            <span className="font-medium">Order Progress</span>
+                            <span className="text-xs bg-slate-100 px-2 py-1 rounded-full">
+                              {progress.step}/{progress.total} steps completed
+                            </span>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="relative w-full bg-slate-200 rounded-full h-2 sm:h-3 overflow-hidden">
                             <div 
-                              className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                              className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 rounded-full transition-all duration-1000 ease-out shadow-sm"
                               style={{ width: `${progress.percentage}%` }}
-                            ></div>
+                            >
+                              <div className="absolute inset-0 bg-white/20 animate-pulse rounded-full"></div>
+                            </div>
                           </div>
                         </div>
                       )}
                     </div>
 
-                    {/* Order Items Preview */}
-                    <div className="p-4 border-b">
-                      <div className="flex items-center space-x-3">
-                        <div className="flex -space-x-2">
+                    {/* 🎯 PREMIUM: Order Items Preview */}
+                    <div className="p-4 sm:p-6 border-b border-slate-100/50">
+                      <div className="flex items-center space-x-3 sm:space-x-4">
+                        <div className="flex -space-x-2 sm:-space-x-3">
                           {order.orderItems?.slice(0, 3).map((item, index) => (
-                            <div key={index} className="w-10 h-10 bg-gray-200 rounded border-2 border-white overflow-hidden">
+                            <div key={index} className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg sm:rounded-xl border-2 sm:border-3 border-white overflow-hidden shadow-md">
                               {item.image ? (
                                 <img 
                                   src={item.image} 
@@ -493,7 +524,7 @@ const MyOrdersPage = () => {
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">
-                                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                   </svg>
                                 </div>
@@ -501,45 +532,45 @@ const MyOrdersPage = () => {
                             </div>
                           ))}
                           {order.orderItems?.length > 3 && (
-                            <div className="w-10 h-10 bg-gray-100 rounded border-2 border-white flex items-center justify-center">
-                              <span className="text-xs text-gray-600">+{order.orderItems.length - 3}</span>
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg sm:rounded-xl border-2 sm:border-3 border-white flex items-center justify-center shadow-md">
+                              <span className="text-xs sm:text-sm text-slate-700 font-bold">+{order.orderItems.length - 3}</span>
                             </div>
                           )}
                         </div>
                         
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-900 text-sm sm:text-base truncate">
                             {order.orderItems?.[0]?.name}
                             {order.orderItems?.length > 1 && ` and ${order.orderItems.length - 1} more item${order.orderItems.length > 2 ? 's' : ''}`}
                           </p>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-xs sm:text-sm text-slate-600 truncate">
                             From {order.seller?.shop?.name || order.seller?.firstName}
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="p-4">
-                      <div className="flex space-x-3">
+                    {/* 🎯 PREMIUM: Action Buttons */}
+                    <div className="p-4 sm:p-6">
+                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                         <button
                           onClick={() => {
                             setSelectedOrder(order);
                             setShowOrderDetails(true);
                           }}
-                          className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-lg text-sm font-medium"
+                          className="flex-1 bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:via-orange-700 hover:to-amber-600 text-white py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
                         >
                           View Details
                         </button>
                         
-                        {/* 🎯 NEW: Cancel order button */}
+                        {/* 🎯 PREMIUM: Cancel order button */}
                         {['Pending', 'Processing'].includes(order.status) && (
                           <button
                             onClick={() => handleCancelOrder(order)}
-                            className="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg text-sm font-medium flex items-center"
+                            className="bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold flex items-center justify-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
                           >
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                             Cancel
                           </button>
@@ -548,20 +579,22 @@ const MyOrdersPage = () => {
                         {order.status === 'Delivered' && (
                           <button
                             onClick={() => downloadInvoice(order.orderNumber)}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-4 rounded-lg text-sm font-medium flex items-center"
+                            className="bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-700 py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
                           >
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            Invoice
+                            <span className="hidden sm:inline">Invoice</span>
+                            <span className="sm:hidden">PDF</span>
                           </button>
                         )}
                         
                         <Link
                           to={`/user/shop/${order.seller?._id}`}
-                          className="bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-4 rounded-lg text-sm font-medium"
+                          className="bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-700 py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold text-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
                         >
-                          Visit Shop
+                          <span className="hidden sm:inline">Visit Shop</span>
+                          <span className="sm:hidden">Shop</span>
                         </Link>
                       </div>
                     </div>
@@ -569,42 +602,46 @@ const MyOrdersPage = () => {
                 );
               })}
 
-              {/* Pagination */}
+              {/* 🎯 PREMIUM: Enhanced Pagination */}
               {pagination.totalPages > 1 && (
-                <div className="flex justify-center items-center space-x-4 py-6">
+                <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6 py-8 sm:py-12">
                   <button
                     onClick={() => fetchOrders(pagination.currentPage - 1)}
                     disabled={pagination.currentPage === 1}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 disabled:from-slate-50 disabled:to-slate-100 text-slate-700 disabled:text-slate-400 px-6 py-3 rounded-xl text-sm sm:text-base font-semibold shadow-md hover:shadow-lg disabled:shadow-sm transform hover:-translate-y-0.5 disabled:transform-none transition-all duration-300 disabled:cursor-not-allowed active:scale-95"
                   >
-                    Previous
+                    ← Previous
                   </button>
                   
-                  <span className="text-sm text-gray-600">
-                    Page {pagination.currentPage} of {pagination.totalPages}
-                  </span>
+                  <div className="bg-white/80 backdrop-blur-sm px-4 py-2 rounded-xl shadow-md border border-white/50">
+                    <span className="text-sm sm:text-base text-slate-700 font-semibold">
+                      Page {pagination.currentPage} of {pagination.totalPages}
+                    </span>
+                  </div>
                   
                   <button
                     onClick={() => fetchOrders(pagination.currentPage + 1)}
                     disabled={pagination.currentPage === pagination.totalPages}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 disabled:from-slate-50 disabled:to-slate-100 text-slate-700 disabled:text-slate-400 px-6 py-3 rounded-xl text-sm sm:text-base font-semibold shadow-md hover:shadow-lg disabled:shadow-sm transform hover:-translate-y-0.5 disabled:transform-none transition-all duration-300 disabled:cursor-not-allowed active:scale-95"
                   >
-                    Next
+                    Next →
                   </button>
                 </div>
               )}
             </div>
           ) : (
-            <div className="text-center py-12">
-              <div className="mb-6">
-                <svg className="w-16 h-16 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
+            <div className="text-center py-16 sm:py-24">
+              <div className="mb-8">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-6 bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 rounded-full flex items-center justify-center shadow-xl border-4 border-white">
+                  <svg className="w-10 h-10 sm:w-12 sm:h-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                </div>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
+              <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 mb-3">
                 No {activeTab === 'All' ? '' : activeTab.toLowerCase()} orders found
               </h3>
-              <p className="text-gray-600 mb-6">
+              <p className="text-slate-600 mb-8 text-sm sm:text-base max-w-md mx-auto leading-relaxed">
                 {activeTab === 'All' 
                   ? "You haven't placed any orders yet. Start shopping to see your orders here!"
                   : `No orders with ${activeTab.toLowerCase()} status at the moment.`
@@ -613,8 +650,11 @@ const MyOrdersPage = () => {
               {activeTab === 'All' && (
                 <Link
                   to="/user/dashboard"
-                  className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-medium"
+                  className="inline-flex items-center justify-center bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:via-orange-700 hover:to-amber-600 text-white px-8 py-3 sm:px-10 sm:py-4 rounded-xl font-semibold text-sm sm:text-base shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300"
                 >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
                   Start Shopping
                 </Link>
               )}
@@ -622,46 +662,57 @@ const MyOrdersPage = () => {
           )}
         </div>
 
-        {/* 🎯 NEW: Order Cancellation Modal */}
+        {/* 🎯 PREMIUM: Enhanced Order Cancellation Modal */}
         {showCancelModal && cancellingOrder && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center">
-            <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowCancelModal(false)}></div>
-            <div className="relative bg-white rounded-t-lg w-full max-w-md max-h-[80vh] overflow-y-auto">
-              <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-red-600">Cancel Order</h3>
-                <button 
-                  onClick={() => setShowCancelModal(false)}
-                  className="p-2 hover:bg-gray-100 rounded-full"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowCancelModal(false)}></div>
+            <div className="relative bg-white/95 backdrop-blur-xl rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-white/50">
+              <div className="sticky top-0 bg-gradient-to-r from-red-50 to-rose-50 p-4 sm:p-6 border-b border-red-100 rounded-t-3xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-red-100 to-rose-200 rounded-xl flex items-center justify-center">
+                      <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-bold text-red-700">Cancel Order</h3>
+                  </div>
+                  <button 
+                    onClick={() => setShowCancelModal(false)}
+                    className="p-2 hover:bg-red-100 rounded-xl transition-all duration-300 active:scale-95"
+                  >
+                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               
-              <div className="p-4 space-y-4">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <div className="flex items-start">
-                    <svg className="w-5 h-5 text-red-600 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.856-.833-2.598 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                    </svg>
-                    <div>
-                      <h4 className="font-medium text-red-800">Confirm Cancellation</h4>
-                      <p className="text-sm text-red-700 mt-1">
-                        Are you sure you want to cancel order #{cancellingOrder.orderNumber}?
+              <div className="p-4 sm:p-6 space-y-6">
+                <div className="bg-gradient-to-r from-red-50 via-red-100 to-rose-50 border border-red-200 rounded-2xl p-4">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-8 h-8 bg-red-200 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg className="w-4 h-4 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.856-.833-2.598 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-red-800 text-sm sm:text-base">Confirm Cancellation</h4>
+                      <p className="text-sm text-red-700 mt-1 leading-relaxed">
+                        Are you sure you want to cancel order #{cancellingOrder.orderNumber}? This action cannot be undone.
                       </p>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm sm:text-base font-semibold text-slate-700 mb-3">
                     Reason for cancellation (optional)
                   </label>
                   <select
                     value={cancelReason}
                     onChange={(e) => setCancelReason(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-white/80 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm sm:text-base transition-all duration-300"
                   >
                     <option value="">Select a reason...</option>
                     {cancellationReasons.map((reason, index) => (
@@ -674,23 +725,23 @@ const MyOrdersPage = () => {
                       placeholder="Please specify your reason..."
                       value={cancelReason === 'Other' ? '' : cancelReason}
                       onChange={(e) => setCancelReason(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 mt-2"
+                      className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-white/80 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 mt-3 text-sm sm:text-base transition-all duration-300"
                       rows="3"
                     />
                   )}
                 </div>
 
-                <div className="flex space-x-3 pt-4">
+                <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 pt-4">
                   <button
                     onClick={() => setShowCancelModal(false)}
-                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium"
+                    className="flex-1 bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-700 py-3 sm:py-3.5 px-6 rounded-xl font-semibold text-sm sm:text-base shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
                   >
                     Keep Order
                   </button>
                   <button
                     onClick={confirmCancelOrder}
                     disabled={!socketConnected}
-                    className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white py-2 px-4 rounded-lg font-medium"
+                    className="flex-1 bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 disabled:from-red-300 disabled:to-rose-300 text-white py-3 sm:py-3.5 px-6 rounded-xl font-semibold text-sm sm:text-base shadow-lg hover:shadow-xl disabled:shadow-md transform hover:-translate-y-0.5 disabled:transform-none transition-all duration-300 disabled:cursor-not-allowed active:scale-95"
                   >
                     {socketConnected ? 'Cancel Order' : 'Connecting...'}
                   </button>
@@ -700,56 +751,65 @@ const MyOrdersPage = () => {
           </div>
         )}
 
-        {/* Order Details Modal - (keeping existing modal code) */}
+        {/* 🎯 PREMIUM: Enhanced Order Details Modal */}
         {showOrderDetails && selectedOrder && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center">
-            <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowOrderDetails(false)}></div>
-            <div className="relative bg-white rounded-t-lg w-full max-w-md max-h-[80vh] overflow-y-auto">
-              <div className="sticky top-0 bg-white p-4 border-b flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Order Details</h3>
-                <button 
-                  onClick={() => setShowOrderDetails(false)}
-                  className="p-2 hover:bg-gray-100 rounded-full"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowOrderDetails(false)}></div>
+            <div className="relative bg-white/95 backdrop-blur-xl rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-white/50">
+              <div className="sticky top-0 bg-gradient-to-r from-orange-50 to-amber-50 p-4 sm:p-6 border-b border-orange-100 rounded-t-3xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-orange-100 to-amber-200 rounded-xl flex items-center justify-center">
+                      <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-bold text-orange-700">Order Details</h3>
+                  </div>
+                  <button 
+                    onClick={() => setShowOrderDetails(false)}
+                    className="p-2 hover:bg-orange-100 rounded-xl transition-all duration-300 active:scale-95"
+                  >
+                    <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               
-              <div className="p-4 space-y-6">
+              <div className="p-4 sm:p-6 space-y-6">
                 {/* Order Info */}
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Order Information</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Order Number:</span>
-                      <span className="font-medium">{selectedOrder.orderNumber}</span>
+                <div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-2xl p-4">
+                  <h4 className="font-bold text-slate-900 mb-3 text-sm sm:text-base">Order Information</h4>
+                  <div className="space-y-3 text-xs sm:text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600">Order Number:</span>
+                      <span className="font-bold text-slate-900 bg-white px-2 py-1 rounded-lg shadow-sm">{selectedOrder.orderNumber}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Status:</span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedOrder.status)}`}>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600">Status:</span>
+                      <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${getStatusColor(selectedOrder.status)}`}>
                         {getStatusEmoji(selectedOrder.status)} {selectedOrder.status}
                       </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Order Date:</span>
-                      <span className="font-medium">{formatDate(selectedOrder.createdAt)}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600">Order Date:</span>
+                      <span className="font-semibold text-slate-900">{formatDate(selectedOrder.createdAt)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Amount:</span>
-                      <span className="font-bold text-orange-600">₹{selectedOrder.totalPrice}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600">Total Amount:</span>
+                      <span className="font-bold text-orange-600 text-sm sm:text-base">₹{selectedOrder.totalPrice}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Order Items */}
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-3">Items Ordered</h4>
+                  <h4 className="font-bold text-slate-900 mb-4 text-sm sm:text-base">Items Ordered</h4>
                   <div className="space-y-3">
                     {selectedOrder.orderItems?.map((item, index) => (
-                      <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                        <div className="w-12 h-12 bg-gray-200 rounded overflow-hidden">
+                      <div key={index} className="flex items-center space-x-3 p-3 bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl border border-white/50">
+                        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-slate-200 to-slate-300 rounded-xl overflow-hidden shadow-md border border-white/50 flex-shrink-0">
                           {item.image ? (
                             <img 
                               src={item.image} 
@@ -758,18 +818,18 @@ const MyOrdersPage = () => {
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
-                              <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                               </svg>
                             </div>
                           )}
                         </div>
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900 text-sm">{item.name}</p>
-                          <p className="text-xs text-gray-600">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-900 text-sm truncate">{item.name}</p>
+                          <p className="text-xs text-slate-600">
                             Qty: {item.quantity} | Size: {item.size} | Color: {item.color}
                           </p>
-                          <p className="text-sm font-medium text-gray-900">₹{item.price}</p>
+                          <p className="text-sm font-bold text-slate-900">₹{item.price}</p>
                         </div>
                       </div>
                     ))}
@@ -778,12 +838,12 @@ const MyOrdersPage = () => {
 
                 {/* Shipping Address */}
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Shipping Address</h4>
-                  <div className="p-3 bg-gray-50 rounded-lg text-sm">
-                    <p className="font-medium">{selectedOrder.shippingAddress?.address}</p>
-                    <p>{selectedOrder.shippingAddress?.city}, {selectedOrder.shippingAddress?.postalCode}</p>
-                    <p>{selectedOrder.shippingAddress?.country}</p>
-                    <p className="mt-1 text-gray-600">Phone: {selectedOrder.shippingAddress?.phone}</p>
+                  <h4 className="font-bold text-slate-900 mb-3 text-sm sm:text-base">Shipping Address</h4>
+                  <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 text-xs sm:text-sm">
+                    <p className="font-semibold text-slate-900">{selectedOrder.shippingAddress?.address}</p>
+                    <p className="text-slate-700">{selectedOrder.shippingAddress?.city}, {selectedOrder.shippingAddress?.postalCode}</p>
+                    <p className="text-slate-700">{selectedOrder.shippingAddress?.country}</p>
+                    <p className="mt-2 text-slate-600 font-medium">Phone: {selectedOrder.shippingAddress?.phone}</p>
                   </div>
                 </div>
               </div>
