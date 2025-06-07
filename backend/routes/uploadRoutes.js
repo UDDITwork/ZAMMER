@@ -1,34 +1,72 @@
 const express = require('express');
 const router = express.Router();
-const { upload, handleCloudinaryUpload } = require('../middleware/uploadMiddleware');
+const { upload } = require('../middleware/uploadMiddleware');
 const { protectSeller } = require('../middleware/authMiddleware');
-const { deleteFromCloudinary } = require('../utils/cloudinary');
+const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 
 // @route   POST /api/upload
-// @desc    Upload an image
+// @desc    Upload an image to Cloudinary
 // @access  Private
-router.post('/', protectSeller, upload.single('image'), handleCloudinaryUpload, (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      url: req.file.path,
-      public_id: req.file.public_id
+router.post('/', protectSeller, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided'
+      });
     }
-  });
+
+    console.log('📁 Processing image upload to Cloudinary');
+    
+    // Convert buffer to base64 for Cloudinary
+    const b64 = Buffer.from(req.file.buffer).toString('base64');
+    const dataURI = `data:${req.file.mimetype};base64,${b64}`;
+    
+    // Upload to Cloudinary
+    const result = await uploadToCloudinary(dataURI, 'zammer_uploads');
+    
+    console.log('✅ Image uploaded to Cloudinary:', result.url);
+    
+    res.json({
+      success: true,
+      data: {
+        url: result.url,
+        public_id: result.public_id
+      }
+    });
+  } catch (error) {
+    console.error('❌ Cloudinary upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error uploading image to Cloudinary',
+      error: error.message
+    });
+  }
 });
 
 // @route   POST /api/upload/multiple
-// @desc    Upload multiple images
+// @desc    Upload multiple images to Cloudinary
 // @access  Private
 router.post('/multiple', protectSeller, upload.array('images', 5), async (req, res) => {
   try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image files provided'
+      });
+    }
+
+    console.log(`📁 Processing ${req.files.length} images for Cloudinary upload`);
+    
     const uploadPromises = req.files.map(async (file) => {
       const b64 = Buffer.from(file.buffer).toString('base64');
       const dataURI = `data:${file.mimetype};base64,${b64}`;
-      return await uploadToCloudinary(dataURI, 'zammer');
+      return await uploadToCloudinary(dataURI, 'zammer_uploads');
     });
 
     const results = await Promise.all(uploadPromises);
+    
+    console.log(`✅ ${results.length} images uploaded to Cloudinary`);
     
     res.json({
       success: true,
@@ -38,10 +76,10 @@ router.post('/multiple', protectSeller, upload.array('images', 5), async (req, r
       }))
     });
   } catch (error) {
-    console.error('Multiple upload error:', error);
+    console.error('❌ Multiple Cloudinary upload error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error uploading files to Cloudinary',
+      message: 'Error uploading images to Cloudinary',
       error: error.message
     });
   }
@@ -53,7 +91,12 @@ router.post('/multiple', protectSeller, upload.array('images', 5), async (req, r
 router.delete('/:publicId', protectSeller, async (req, res) => {
   try {
     const { publicId } = req.params;
+    
+    console.log('🗑️ Deleting image from Cloudinary:', publicId);
+    
     const result = await deleteFromCloudinary(publicId);
+    
+    console.log('✅ Image deleted from Cloudinary:', publicId);
     
     res.json({
       success: true,
@@ -61,7 +104,7 @@ router.delete('/:publicId', protectSeller, async (req, res) => {
       data: result
     });
   } catch (error) {
-    console.error('Image deletion error:', error);
+    console.error('❌ Cloudinary deletion error:', error);
     res.status(500).json({
       success: false,
       message: 'Error deleting image from Cloudinary',

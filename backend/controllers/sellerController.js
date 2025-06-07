@@ -249,6 +249,9 @@ exports.updateSellerProfile = async (req, res) => {
         hasImages: !!req.body.shop.images,
         imagesCount: req.body.shop.images?.length || 0,
         hasMainImage: !!req.body.shop.mainImage,
+        imageTypes: req.body.shop.images?.map(img => 
+          img.includes('cloudinary.com') ? 'Cloudinary' : 'Base64/Other'
+        )
       });
     }
 
@@ -273,30 +276,27 @@ exports.updateSellerProfile = async (req, res) => {
         seller.shop = {};
       }
 
-      // Handle shop images update
+      // 🎯 FIXED: Handle shop images update properly
       if (req.body.shop.images) {
-        // Get the public IDs of images to be deleted
-        const oldImages = seller.shop.images || [];
-        const newImages = req.body.shop.images;
-        const imagesToDelete = oldImages.filter(img => !newImages.includes(img));
-
-        // Delete images from Cloudinary
-        for (const imageUrl of imagesToDelete) {
-          try {
-            // Extract public_id from Cloudinary URL
-            const publicId = imageUrl.split('/').slice(-1)[0].split('.')[0];
-            await deleteFromCloudinary(publicId);
-            console.log(`✅ Deleted image from Cloudinary: ${publicId}`);
-          } catch (error) {
-            console.error(`❌ Error deleting image from Cloudinary: ${error.message}`);
-          }
+        // Filter out base64 images and keep only Cloudinary URLs
+        const validImages = req.body.shop.images.filter(img => 
+          img.includes('cloudinary.com') || img.startsWith('http')
+        );
+        
+        if (validImages.length !== req.body.shop.images.length) {
+          console.log('⚠️ Filtered out non-Cloudinary images:', {
+            original: req.body.shop.images.length,
+            valid: validImages.length
+          });
         }
-
-        seller.shop.images = newImages;
+        
+        seller.shop.images = validImages;
       }
 
-      // Update main image if provided
-      if (req.body.shop.mainImage) {
+      // Update main image if provided (only if it's a valid URL)
+      if (req.body.shop.mainImage && 
+          (req.body.shop.mainImage.includes('cloudinary.com') || 
+           req.body.shop.mainImage.startsWith('http'))) {
         seller.shop.mainImage = req.body.shop.mainImage;
       }
 
@@ -315,6 +315,12 @@ exports.updateSellerProfile = async (req, res) => {
       if (req.body.shop.openTime) seller.shop.openTime = req.body.shop.openTime;
       if (req.body.shop.closeTime) seller.shop.closeTime = req.body.shop.closeTime;
       if (req.body.shop.workingDays) seller.shop.workingDays = req.body.shop.workingDays;
+      if (req.body.shop.description) seller.shop.description = req.body.shop.description;
+      
+      // 🎯 ADDED: Handle location updates
+      if (req.body.shop.location) {
+        seller.shop.location = req.body.shop.location;
+      }
     }
 
     // Update bank details if provided
@@ -339,7 +345,8 @@ exports.updateSellerProfile = async (req, res) => {
     console.log('💾 Seller data before saving:', {
       shopImagesCount: seller.shop.images?.length || 0,
       hasMainImage: !!seller.shop.mainImage,
-      shopName: seller.shop.name
+      shopName: seller.shop.name,
+      validCloudinaryImages: seller.shop.images?.filter(img => img.includes('cloudinary.com')).length || 0
     });
 
     const updatedSeller = await seller.save();

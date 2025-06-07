@@ -94,32 +94,6 @@ const productSchema = Yup.object().shape({
   images: Yup.array().min(1, 'At least one image is required')
 });
 
-// 🎯 IMPROVED: Better mock image upload with base64 fallback
-const mockImageUpload = async (file) => {
-  try {
-    // Simulate upload delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // 🎯 FIXED: Create base64 data URL for reliable image display
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        resolve(e.target.result); // Returns base64 data URL
-      };
-      reader.onerror = (error) => {
-        console.error('File reading error:', error);
-        // Fallback to a placeholder
-        resolve('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiIGZpbGw9IiNmMGYwZjAiLz4KPHRleHQgeD0iMTUwIiB5PSIxNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTkiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiI+UHJvZHVjdCBJbWFnZTwvdGV4dD4KPC9zdmc+');
-      };
-      reader.readAsDataURL(file);
-    });
-  } catch (error) {
-    console.error('Image upload error:', error);
-    // Return placeholder SVG
-    return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiIGZpbGw9IiNmMGYwZjAiLz4KPHRleHQgeD0iMTUwIiB5PSIxNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTkiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiI+UHJvZHVjdCBJbWFnZTwvdGV4dD4KPC9zdmc+';
-  }
-};
-
 const AddProduct = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -145,7 +119,9 @@ const AddProduct = () => {
         
         const data = await response.json();
         if (data.success) {
-          uploadedImages.push(data.data.url);
+          uploadedImages.push(data.data.url); // Cloudinary URL
+        } else {
+          throw new Error(data.message || 'Upload failed');
         }
       }
       
@@ -162,11 +138,20 @@ const AddProduct = () => {
   const removeImage = async (index, setFieldValue, images) => {
     try {
       const imageUrl = images[index];
-      // Extract public_id from Cloudinary URL
-      const publicId = imageUrl.split('/').slice(-1)[0].split('.')[0];
       
-      // Delete from Cloudinary
-      await deleteImage(publicId);
+      // Only try to delete from Cloudinary if it's a Cloudinary URL
+      if (imageUrl.includes('cloudinary.com')) {
+        // Extract public_id from Cloudinary URL
+        const publicId = imageUrl.split('/').slice(-1)[0].split('.')[0];
+        
+        // Delete from Cloudinary via backend
+        await fetch(`/api/upload/${publicId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
+          }
+        });
+      }
       
       // Update local state
       const newImages = [...images];

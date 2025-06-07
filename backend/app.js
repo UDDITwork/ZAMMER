@@ -324,6 +324,30 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// 🎯 ADDED: Cloudinary health check endpoint (optional)
+app.get('/api/cloudinary/status', (req, res) => {
+  try {
+    // Basic Cloudinary configuration check
+    const cloudinary = require('cloudinary').v2;
+    
+    res.json({
+      success: true,
+      message: 'Cloudinary integration active',
+      config: {
+        cloud_name: cloudinary.config().cloud_name ? 'Configured' : 'Missing',
+        api_key: cloudinary.config().api_key ? 'Configured' : 'Missing',
+        api_secret: cloudinary.config().api_secret ? 'Configured' : 'Missing'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Cloudinary configuration error',
+      error: error.message
+    });
+  }
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
@@ -344,10 +368,17 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/cart', cartRoutes);
 
-// 404 handler
+// 🎯 UPDATED: Better 404 handler (remove uploads directory references)
 app.use((req, res, next) => {
-  if (NODE_ENV === 'development') {
-    console.log(`⚠️ Route not found: ${req.method} ${req.originalUrl}`);
+  console.log(`⚠️ Route not found: ${req.method} ${req.originalUrl}`);
+  
+  // Special message for old upload routes
+  if (req.originalUrl.startsWith('/uploads/')) {
+    console.log('🔍 This looks like an old local upload request - we now use Cloudinary');
+    return res.status(404).json({ 
+      error: 'Local uploads no longer supported',
+      message: 'Images are now served from Cloudinary. Please check your image URLs.'
+    });
   }
   
   const error = new Error(`Not Found - ${req.originalUrl}`);
