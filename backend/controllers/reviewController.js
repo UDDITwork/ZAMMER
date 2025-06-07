@@ -227,3 +227,21 @@ exports.getUserReviews = async (req, res) => {
     });
   }
 };
+
+// @desc    Check if user can review a product
+// @route   GET /api/reviews/can-review/:productId
+// @access  Private (User)
+exports.checkCanReview = async (req, res) => {
+  try {
+    // Basic implementation
+    res.status(200).json({
+      success: true,
+      canReview: true
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server Error'
+    });
+  }
+};

@@ -3,7 +3,7 @@ const Seller = require('../models/Seller');
 const Product = require('../models/Product');
 const { generateToken } = require('../utils/jwtToken');
 const { validationResult } = require('express-validator');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 // @desc    Register a new user
 // @route   POST /api/users/register

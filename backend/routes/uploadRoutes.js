@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { upload } = require('../middleware/uploadMiddleware');
+const { upload, handleMulterError, logUploadOperation } = require('../middleware/uploadMiddleware');
 const { protectSeller } = require('../middleware/authMiddleware');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 
 // @route   POST /api/upload
 // @desc    Upload an image to Cloudinary
 // @access  Private
-router.post('/', protectSeller, upload.single('image'), async (req, res) => {
+router.post('/', protectSeller, logUploadOperation, upload.single('image'), handleMulterError, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -47,7 +47,7 @@ router.post('/', protectSeller, upload.single('image'), async (req, res) => {
 // @route   POST /api/upload/multiple
 // @desc    Upload multiple images to Cloudinary
 // @access  Private
-router.post('/multiple', protectSeller, upload.array('images', 5), async (req, res) => {
+router.post('/multiple', protectSeller, logUploadOperation, upload.array('images', 5), handleMulterError, async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({

@@ -1,62 +1,104 @@
 const multer = require('multer');
-const path = require('path');
-const { uploadToCloudinary } = require('../utils/cloudinary');
 
-// Setup multer for memory storage (for Cloudinary)
+// 🎯 IMPORTANT: Use memory storage for Cloudinary uploads
+// No need to save files to disk since we're uploading to Cloudinary
 const storage = multer.memoryStorage();
 
-// Check file type
-function checkFileType(file, cb) {
-  // Allowed extensions
-  const filetypes = /jpeg|jpg|png|gif/;
-  // Check extension
-  const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-  // Check mime type
-  const mimetype = filetypes.test(file.mimetype);
-
-  if (mimetype && extname) {
-    return cb(null, true);
+// File filter for images only
+const fileFilter = (req, file, cb) => {
+  console.log(`📁 File upload attempt: ${file.originalname} (${file.mimetype})`);
+  
+  // Check if file is an image
+  if (file.mimetype.startsWith('image/')) {
+    console.log(`✅ Image accepted: ${file.originalname}`);
+    cb(null, true);
   } else {
-    cb('Error: Images only!');
-  }
-}
-
-// Initialize upload
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 1000000 }, // 1MB limit
-  fileFilter: function(req, file, cb) {
-    checkFileType(file, cb);
-  }
-});
-
-// Middleware to handle Cloudinary upload
-const handleCloudinaryUpload = async (req, res, next) => {
-  try {
-    if (!req.file) {
-      return next();
-    }
-
-    // Convert buffer to base64
-    const b64 = Buffer.from(req.file.buffer).toString('base64');
-    const dataURI = `data:${req.file.mimetype};base64,${b64}`;
-
-    // Upload to Cloudinary
-    const result = await uploadToCloudinary(dataURI, 'zammer');
-    
-    // Replace file path with Cloudinary URL
-    req.file.path = result.url;
-    req.file.public_id = result.public_id;
-
-    next();
-  } catch (error) {
-    console.error('Cloudinary upload error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error uploading file to Cloudinary',
-      error: error.message
-    });
+    console.log(`❌ Invalid file type: ${file.mimetype}`);
+    const error = new Error('Only image files are allowed');
+    error.code = 'INVALID_FILE_TYPE';
+    cb(error, false);
   }
 };
 
-module.exports = { upload, handleCloudinaryUpload };
+// Configure multer
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+    files: 10 // Maximum 10 files
+  }
+});
+
+// Error handling middleware for multer
+const handleMulterError = (error, req, res, next) => {
+  console.error('📁 Multer Error:', error);
+  
+  if (error instanceof multer.MulterError) {
+    switch (error.code) {
+      case 'LIMIT_FILE_SIZE':
+        return res.status(400).json({
+          success: false,
+          message: 'File too large. Maximum size is 10MB.',
+          error: 'FILE_TOO_LARGE'
+        });
+      case 'LIMIT_FILE_COUNT':
+        return res.status(400).json({
+          success: false,
+          message: 'Too many files. Maximum is 10 files.',
+          error: 'TOO_MANY_FILES'
+        });
+      case 'LIMIT_UNEXPECTED_FILE':
+        return res.status(400).json({
+          success: false,
+          message: 'Unexpected file field.',
+          error: 'UNEXPECTED_FILE'
+        });
+      default:
+        return res.status(400).json({
+          success: false,
+          message: 'File upload error.',
+          error: error.code
+        });
+    }
+  }
+  
+  if (error.code === 'INVALID_FILE_TYPE') {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+      error: 'INVALID_FILE_TYPE'
+    });
+  }
+  
+  // Pass other errors to the next error handler
+  next(error);
+};
+
+// Logging middleware for upload operations
+const logUploadOperation = (req, res, next) => {
+  const originalSend = res.send;
+  
+  res.send = function(data) {
+    if (req.files && req.files.length > 0) {
+      console.log(`📁 Upload operation completed:`, {
+        fileCount: req.files.length,
+        totalSize: req.files.reduce((total, file) => total + file.size, 0),
+        files: req.files.map(f => ({ 
+          name: f.originalname, 
+          size: f.size, 
+          type: f.mimetype 
+        }))
+      });
+    }
+    originalSend.call(this, data);
+  };
+  
+  next();
+};
+
+module.exports = {
+  upload,
+  handleMulterError,
+  logUploadOperation
+};

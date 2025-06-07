@@ -1,12 +1,12 @@
 const Product = require('../models/Product');
 const { validationResult } = require('express-validator');
 const Seller = require('../models/Seller');
-const asyncHandler = require('express-async-handler');
+
 const User = require('../models/User');
-const mongoose = require('mongoose');
+
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 const { validateProductData } = require('../utils/validators');
-const { handleError } = require('../utils/errorHandler');
+
 
 // Enhanced terminal logging for production monitoring
 const terminalLog = (action, status, data = null) => {
