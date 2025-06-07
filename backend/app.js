@@ -33,7 +33,9 @@ const getAllowedOrigins = () => {
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://localhost:3000',
-    'http://zammer2.ap-south-1.elasticbeanstalk.com'
+    'http://zammer2.ap-south-1.elasticbeanstalk.com',
+    'https://zammer-git-main-udditworks-projects.vercel.app',
+    'https://zammer-jet.vercel.app'
   ];
   
   // Add production URLs
