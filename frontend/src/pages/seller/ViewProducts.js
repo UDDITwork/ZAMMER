@@ -9,6 +9,8 @@ import {
   toggleTrending,
   updateProductStatus 
 } from '../../services/productService';
+import { getProductReviews } from '../../services/reviewService';
+import StarRating from '../../components/common/StarRating';
 
 const ViewProducts = () => {
   const [products, setProducts] = useState([]);
@@ -17,6 +19,12 @@ const ViewProducts = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [toggleLoading, setToggleLoading] = useState({}); // Track loading state for individual toggles
+  
+  // 🎯 NEW: Reviews Modal States
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [productReviews, setProductReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -136,6 +144,27 @@ const ViewProducts = () => {
       toast.error(error.message || 'Something went wrong while updating the product status');
     } finally {
       setToggleLoading(prev => ({ ...prev, [`status_${productId}`]: false }));
+    }
+  };
+
+  // 🎯 NEW: Review Functions
+  const handleViewReviews = async (product) => {
+    setSelectedProduct(product);
+    setShowReviewsModal(true);
+    setReviewsLoading(true);
+    
+    try {
+      const response = await getProductReviews(product._id);
+      if (response.success) {
+        setProductReviews(response.data);
+      } else {
+        toast.error(response.message || 'Failed to fetch reviews');
+      }
+    } catch (error) {
+      console.error('Error fetching reviews:', error);
+      toast.error('Something went wrong while loading reviews');
+    } finally {
+      setReviewsLoading(false);
     }
   };
 
@@ -465,6 +494,14 @@ const ViewProducts = () => {
                                 )}
                               </button>
                             </div>
+                            
+                            {/* 🎯 NEW: View Reviews Button */}
+                            <button
+                              onClick={() => handleViewReviews(product)}
+                              className="flex-1 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 shadow-md bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600"
+                            >
+                              📝 View Reviews
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -543,6 +580,64 @@ const ViewProducts = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* 🎯 NEW: Reviews Modal */}
+          {showReviewsModal && selectedProduct && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-800">Product Reviews</h3>
+                    <p className="text-gray-600 mt-1">{selectedProduct.name}</p>
+                  </div>
+                  <button
+                    onClick={() => setShowReviewsModal(false)}
+                    className="text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {reviewsLoading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-200 border-t-blue-500"></div>
+                  </div>
+                ) : productReviews.length > 0 ? (
+                  <div className="space-y-6">
+                    {productReviews.map((review) => (
+                      <div key={review._id} className="bg-gray-50 rounded-2xl p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <div className="flex items-center space-x-3">
+                              <h4 className="font-semibold text-gray-800">{review.user.name}</h4>
+                              {review.isVerifiedPurchase && (
+                                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                                  Verified Purchase
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center mt-1">
+                              <StarRating rating={review.rating} />
+                              <span className="text-gray-500 text-sm ml-2">
+                                {new Date(review.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-gray-700">{review.review}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 bg-gray-50 rounded-2xl">
+                    <p className="text-gray-600">No reviews yet for this product.</p>
+                  </div>
+                )}
               </div>
             </div>
           )}

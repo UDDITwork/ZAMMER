@@ -2,6 +2,8 @@
 const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
+const https = require('https');
+const http = require('http');
 
 // Enhanced logging for invoice generation
 const logInvoiceOperation = (operation, data, type = 'info') => {
@@ -123,15 +125,47 @@ class InvoiceGenerator {
     };
 
     // 1. HEADER - Company Logo and Title
-    doc.fillColor('#f97316')
-       .fontSize(28)
-       .font('Helvetica-Bold')
-       .text('ZAMMER', 50, yPosition);
-    
-    doc.fillColor('#666666')
-       .fontSize(12)
-       .font('Helvetica')
-       .text('Marketplace', 50, yPosition + 35);
+    try {
+      // Add logo image
+      const logoBuffer = await this.downloadImage('https://zammernow.com/assets/logo.svg');
+      if (logoBuffer) {
+        doc.image(logoBuffer, 50, yPosition, { width: 60, height: 60 });
+        
+        // Company name next to logo
+        doc.fillColor('#f97316')
+           .fontSize(28)
+           .font('Helvetica-Bold')
+           .text('ZAMMER', 120, yPosition + 10);
+        
+        doc.fillColor('#666666')
+           .fontSize(12)
+           .font('Helvetica')
+           .text('Marketplace', 120, yPosition + 45);
+      } else {
+        // Fallback if logo fails to load
+        doc.fillColor('#f97316')
+           .fontSize(28)
+           .font('Helvetica-Bold')
+           .text('ZAMMER', 50, yPosition);
+        
+        doc.fillColor('#666666')
+           .fontSize(12)
+           .font('Helvetica')
+           .text('Marketplace', 50, yPosition + 35);
+      }
+    } catch (error) {
+      console.log('Logo loading failed, using text fallback');
+      // Fallback to text only
+      doc.fillColor('#f97316')
+         .fontSize(28)
+         .font('Helvetica-Bold')
+         .text('ZAMMER', 50, yPosition);
+      
+      doc.fillColor('#666666')
+         .fontSize(12)
+         .font('Helvetica')
+         .text('Marketplace', 50, yPosition + 35);
+    }
 
     // Invoice title on the right
     doc.fillColor('#000000')
@@ -344,6 +378,30 @@ class InvoiceGenerator {
        .fontSize(8)
        .font('Helvetica')
        .text('This is a computer-generated invoice. No signature required.', 50, yPosition);
+  }
+
+  // Download image from URL
+  async downloadImage(url) {
+    return new Promise((resolve) => {
+      const protocol = url.startsWith('https:') ? https : http;
+      
+      protocol.get(url, (response) => {
+        if (response.statusCode === 200) {
+          const chunks = [];
+          response.on('data', (chunk) => chunks.push(chunk));
+          response.on('end', () => {
+            const buffer = Buffer.concat(chunks);
+            resolve(buffer);
+          });
+        } else {
+          console.log(`Failed to download logo: ${response.statusCode}`);
+          resolve(null);
+        }
+      }).on('error', (error) => {
+        console.log(`Error downloading logo: ${error.message}`);
+        resolve(null);
+      });
+    });
   }
 
   // Generate unique invoice number

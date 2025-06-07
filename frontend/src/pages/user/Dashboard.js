@@ -13,6 +13,30 @@ import productService from '../../services/productService';
 import cartService from '../../services/cartService';
 import api from '../../services/api';
 
+// 🎯 FIX: Safe JSON parsing helper
+const safeJsonParse = (data, defaultValue = null) => {
+  try {
+    if (data === null || data === undefined || data === 'undefined') {
+      return defaultValue;
+    }
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('JSON Parse Error:', error);
+    return defaultValue;
+  }
+};
+
+// 🚨 EMERGENCY FIX: Wrap all API calls
+const safeApiCall = async (apiFunction, fallbackValue = []) => {
+  try {
+    const response = await apiFunction();
+    return response && response.success ? (response.data || fallbackValue) : fallbackValue;
+  } catch (error) {
+    console.error('Safe API Call Error:', error);
+    return fallbackValue;
+  }
+};
+
 const Dashboard = () => {
   const { userAuth, logoutUser, updateUser } = useContext(AuthContext);
   const [products, setProducts] = useState([]);
@@ -47,23 +71,32 @@ const Dashboard = () => {
         page: 1,
         limit: 8
       });
-      if (response.success && isMountedRef.current) {
-        setProducts(response.data);
-        console.log('✅ Products fetched successfully:', response.data.length);
+      
+      // 🎯 FIX: Safe response handling
+      if (response && response.success && isMountedRef.current) {
+        const productsData = Array.isArray(response.data) ? response.data : [];
+        setProducts(productsData);
+        console.log('✅ Products fetched successfully:', productsData.length);
       } else {
         console.log('⚠️ Products fetch response:', response);
-        toast.error(response.message || 'Failed to fetch products');
+        setProducts([]); // Safe fallback
+        if (response && response.message) {
+          toast.error(response.message);
+        }
       }
     } catch (error) {
       console.error('❌ Error fetching products:', error);
-      toast.error(error.message || 'Something went wrong');
+      setProducts([]); // Safe fallback
+      // Don't parse error response if it might be undefined
+      const errorMessage = error?.response?.data?.message || error?.message || 'Something went wrong';
+      toast.error(errorMessage);
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
       }
       fetchingRef.current = false;
     }
-  }, []); // No dependencies to prevent loops
+  }, []);
 
   const fetchTrendingProducts = useCallback(async () => {
     if (!isMountedRef.current) return;
@@ -75,14 +108,20 @@ const Dashboard = () => {
         limit: 4,
         isTrending: true
       });
-      if (response.success && isMountedRef.current) {
-        setTrendingProducts(response.data);
-        console.log('✅ Trending products fetched:', response.data.length);
+      
+      // 🎯 FIX: Safe parsing
+      if (response && response.success && isMountedRef.current) {
+        const trendingData = Array.isArray(response.data) ? response.data : [];
+        setTrendingProducts(trendingData);
+        console.log('✅ Trending products fetched:', trendingData.length);
+      } else {
+        setTrendingProducts([]); // Safe fallback
       }
     } catch (error) {
       console.error('❌ Error fetching trending products:', error);
+      setTrendingProducts([]); // Safe fallback
     }
-  }, []); // No dependencies
+  }, []);
 
   const fetchNearbyShops = useCallback(async () => {
     if (!isMountedRef.current) return;
@@ -90,44 +129,26 @@ const Dashboard = () => {
     setLoadingShops(true);
     try {
       console.log('🏪 [Dashboard] Starting to fetch nearby shops...');
-      console.log('🏪 [Dashboard] User auth state:', {
-        isAuthenticated: userAuth.isAuthenticated,
-        userId: userAuth.user?._id,
-        userLocation: userAuth.user?.location
-      });
       
       const response = await getNearbyShops();
-      console.log('🏪 [Dashboard] Nearby shops API response:', {
-        success: response.success,
-        count: response.count,
-        message: response.message,
-        data: response.data
-      });
+      console.log('🏪 [Dashboard] Raw API response:', response);
       
-      if (response.success && isMountedRef.current) {
-        console.log('✅ [Dashboard] Shops fetched successfully:', response.data?.length || 0);
-        console.log('🏪 [Dashboard] First shop data:', response.data?.[0]);
-        setShops(response.data || []);
+      // 🎯 FIX: Safe response parsing
+      if (response && response.success && isMountedRef.current) {
+        const shopsData = Array.isArray(response.data) ? response.data : [];
+        console.log('✅ [Dashboard] Shops fetched successfully:', shopsData.length);
+        setShops(shopsData);
         
-        if (response.data.length === 0) {
+        if (shopsData.length === 0) {
           console.log('⚠️ [Dashboard] No shops returned from API');
-          toast.info('No nearby shops found. Please check your location.');
-        }
-
-        // 🎯 NEW: Log distance information
-        if (response.data && response.data.length > 0) {
-          console.log('📊 [Dashboard] Shops with distances:');
-          response.data.slice(0, 3).forEach((shop, index) => {
-            console.log(`  ${index + 1}. ${shop.shop?.name} - ${shop.distanceText || 'No distance'}`);
-          });
         }
       } else {
         console.log('❌ [Dashboard] Shops fetch failed:', response);
-        toast.error(response.message || 'Failed to fetch nearby shops');
+        setShops([]); // Safe fallback
       }
     } catch (error) {
       console.error('❌ [Dashboard] Error fetching shops:', error);
-      toast.error('Failed to fetch nearby shops');
+      setShops([]); // Safe fallback
     } finally {
       if (isMountedRef.current) {
         setLoadingShops(false);
@@ -141,18 +162,20 @@ const Dashboard = () => {
     try {
       console.log('📦 Fetching user orders...');
       const response = await orderService.getUserOrders();
-      if (response.success && isMountedRef.current) {
-        setOrders(response.data);
-        console.log('✅ Orders fetched successfully:', response.data.length);
+      
+      // 🎯 FIX: Safe parsing
+      if (response && response.success && isMountedRef.current) {
+        const ordersData = Array.isArray(response.data) ? response.data : [];
+        setOrders(ordersData);
+        console.log('✅ Orders fetched successfully:', ordersData.length);
       } else {
-        console.log('⚠️ Orders fetch failed:', response.message);
-        // Don't show error toast for orders - might be auth issue
+        setOrders([]); // Safe fallback
       }
     } catch (error) {
       console.error('❌ Error fetching orders:', error);
-      // Don't show error toast for orders
+      setOrders([]); // Safe fallback
     }
-  }, []); // No dependencies
+  }, []);
 
   // 🎯 FIX: Enhanced location update with proper context update
   const requestLocationUpdate = useCallback(async () => {

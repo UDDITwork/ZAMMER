@@ -47,6 +47,7 @@ import WishlistPage from './pages/user/WishlistPage';
 import TrendingPage from './pages/user/TrendingPage';
 import LimitedEditionPage from './pages/user/LimitedEditionPage';
 import OrderConfirmationPage from './pages/user/OrderConfirmationPage';
+import UserProfile from './pages/user/UserProfile';
 
 // 🎯 FIXED: Import the missing MyOrdersPage component
 import MyOrdersPage from './pages/user/MyOrdersPage';
@@ -129,6 +130,7 @@ function App() {
             <Route path="/user/trending" element={<TrendingPage />} />
             <Route path="/user/limited-edition" element={<LimitedEditionPage />} />
             <Route path="/user/order-confirmation" element={<OrderConfirmationPage />} />
+            <Route path="/user/profile" element={<UserProfile />} />
             
             {/* 🎯 FIXED: Add missing order routes */}
             <Route path="/user/orders" element={<MyOrdersPage />} />

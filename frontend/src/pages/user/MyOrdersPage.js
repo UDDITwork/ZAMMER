@@ -120,13 +120,13 @@ const MyOrdersPage = () => {
       const response = await orderService.getUserOrders(page, 10);
       
       if (response.success) {
-        setOrders(response.data);
+        setOrders(response.data || []);
         setPagination({
-          currentPage: response.pagination.currentPage,
-          totalPages: response.pagination.totalPages,
-          count: response.pagination.count
+          currentPage: response.currentPage || 1,
+          totalPages: response.totalPages || 1,
+          count: response.count || 0
         });
-        console.log('✅ Orders fetched successfully:', response.data.length);
+        console.log('✅ Orders fetched successfully:', (response.data || []).length);
       } else {
         console.error('❌ Failed to fetch orders:', response.message);
         
@@ -552,13 +552,13 @@ const MyOrdersPage = () => {
 
                     {/* 🎯 PREMIUM: Action Buttons */}
                     <div className="p-4 sm:p-6">
-                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                      <div className="flex flex-wrap gap-2 sm:gap-3 sm:justify-start">
                         <button
                           onClick={() => {
                             setSelectedOrder(order);
                             setShowOrderDetails(true);
                           }}
-                          className="flex-1 bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:via-orange-700 hover:to-amber-600 text-white py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
+                          className="bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:via-orange-700 hover:to-amber-600 text-white py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
                         >
                           View Details
                         </button>
@@ -608,7 +608,7 @@ const MyOrdersPage = () => {
                   <button
                     onClick={() => fetchOrders(pagination.currentPage - 1)}
                     disabled={pagination.currentPage === 1}
-                    className="w-full sm:w-auto bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 disabled:from-slate-50 disabled:to-slate-100 text-slate-700 disabled:text-slate-400 px-6 py-3 rounded-xl text-sm sm:text-base font-semibold shadow-md hover:shadow-lg disabled:shadow-sm transform hover:-translate-y-0.5 disabled:transform-none transition-all duration-300 disabled:cursor-not-allowed active:scale-95"
+                    className="sm:w-auto bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 disabled:from-slate-50 disabled:to-slate-100 text-slate-700 disabled:text-slate-400 px-6 py-3 rounded-xl text-sm sm:text-base font-semibold shadow-md hover:shadow-lg disabled:shadow-sm transform hover:-translate-y-0.5 disabled:transform-none transition-all duration-300 disabled:cursor-not-allowed active:scale-95"
                   >
                     ← Previous
                   </button>
@@ -622,7 +622,7 @@ const MyOrdersPage = () => {
                   <button
                     onClick={() => fetchOrders(pagination.currentPage + 1)}
                     disabled={pagination.currentPage === pagination.totalPages}
-                    className="w-full sm:w-auto bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 disabled:from-slate-50 disabled:to-slate-100 text-slate-700 disabled:text-slate-400 px-6 py-3 rounded-xl text-sm sm:text-base font-semibold shadow-md hover:shadow-lg disabled:shadow-sm transform hover:-translate-y-0.5 disabled:transform-none transition-all duration-300 disabled:cursor-not-allowed active:scale-95"
+                    className="sm:w-auto bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 disabled:from-slate-50 disabled:to-slate-100 text-slate-700 disabled:text-slate-400 px-6 py-3 rounded-xl text-sm sm:text-base font-semibold shadow-md hover:shadow-lg disabled:shadow-sm transform hover:-translate-y-0.5 disabled:transform-none transition-all duration-300 disabled:cursor-not-allowed active:scale-95"
                   >
                     Next →
                   </button>

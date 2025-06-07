@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import { registerUser } from '../../services/userService';
+import { AuthContext } from '../../contexts/AuthContext';
 import fallbackApi from '../../services/fallbackApi';
 
 const RegisterSchema = Yup.object().shape({
@@ -29,6 +30,9 @@ const UserRegister = () => {
   const [apiError, setApiError] = useState(null);
   const [useFallbackApi, setUseFallbackApi] = useState(false);
   const navigate = useNavigate();
+  
+  // 🎯 ADD: Get loginUser from AuthContext
+  const { loginUser: contextLogin } = useContext(AuthContext);
 
   const handleSubmit = async (values, { setSubmitting }) => {
     setIsLoading(true);
@@ -63,8 +67,24 @@ const UserRegister = () => {
       }
       
       if (response.success) {
-        toast.success('Registration successful! Please login.');
-        navigate('/user/login');
+        // 🎯 ENHANCED: Auto-login after successful registration
+        if (response.data && response.data.token) {
+          try {
+            console.log('🔄 Auto-login after registration...');
+            await contextLogin(response.data);
+            toast.success(`Welcome to Zammer, ${response.data.name}!`);
+            navigate('/user/dashboard');
+          } catch (loginError) {
+            console.error('Auto-login failed:', loginError);
+            // Fallback to manual login
+            toast.success('Registration successful! Please login.');
+            navigate('/user/login');
+          }
+        } else {
+          // If no token returned, redirect to login
+          toast.success('Registration successful! Please login.');
+          navigate('/user/login');
+        }
       } else {
         setApiError({
           message: response.message || 'Registration failed',
@@ -258,7 +278,7 @@ const UserRegister = () => {
                     (isSubmitting || isLoading) ? 'opacity-70 cursor-not-allowed' : ''
                   }`}
                 >
-                  {isLoading ? 'Registering...' : 'Register'}
+                  {isLoading ? 'Creating Account...' : 'Register'}
                 </button>
               </div>
             </Form>

@@ -2,6 +2,31 @@ const Product = require('../models/Product');
 const { validationResult } = require('express-validator');
 const Seller = require('../models/Seller');
 const asyncHandler = require('express-async-handler');
+const Shop = require('../models/shopModel');
+const User = require('../models/userModel');
+const mongoose = require('mongoose');
+const { uploadToCloudinary } = require('../utils/cloudinary');
+const { validateProductData } = require('../utils/validators');
+const { handleError } = require('../utils/errorHandler');
+
+// Enhanced terminal logging for production monitoring
+const terminalLog = (action, status, data = null) => {
+  const timestamp = new Date().toISOString();
+  const logLevel = status === 'SUCCESS' ? '✅' : status === 'ERROR' ? '❌' : '🔄';
+  
+  console.log(`${logLevel} [PRODUCT-BACKEND] ${timestamp} - ${action}`, data ? JSON.stringify(data, null, 2) : '');
+  
+  // Additional structured logging for production monitoring
+  if (process.env.NODE_ENV === 'production') {
+    console.log(JSON.stringify({
+      timestamp,
+      service: 'productController',
+      action,
+      status,
+      data
+    }));
+  }
+};
 
 // @desc    Create a new product
 // @route   POST /api/products
@@ -233,7 +258,28 @@ exports.deleteProduct = async (req, res) => {
 // @access  Public
 exports.getMarketplaceProducts = async (req, res) => {
   try {
-    console.log('🏪 Get Marketplace Products called');
+    terminalLog('MARKETPLACE_PRODUCTS_FETCH_START', 'PROCESSING', {
+      queryParams: req.query,
+      userAgent: req.get('User-Agent')?.substring(0, 50),
+      ip: req.ip
+    });
+
+    console.log(`
+🛍️ ===============================
+   MARKETPLACE PRODUCTS REQUEST
+===============================
+📂 Category: ${req.query.category || 'All'}
+📁 SubCategory: ${req.query.subCategory || 'All'}
+🏷️ Product Category: ${req.query.productCategory || 'All'}
+🔍 Search: ${req.query.search || 'None'}
+📄 Page: ${req.query.page || 1}
+🔢 Limit: ${req.query.limit || 10}
+💰 Min Price: ${req.query.minPrice || 'None'}
+💰 Max Price: ${req.query.maxPrice || 'None'}
+📊 Sort By: ${req.query.sortBy || 'createdAt'}
+🔄 Sort Order: ${req.query.sortOrder || 'desc'}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
     
     // Basic pagination
     const page = parseInt(req.query.page, 10) || 1;
@@ -245,38 +291,153 @@ exports.getMarketplaceProducts = async (req, res) => {
     
     if (req.query.category) {
       filter.category = req.query.category;
+      console.log(`🏷️ Filtering by category: ${req.query.category}`);
     }
     
     if (req.query.subCategory) {
       filter.subCategory = req.query.subCategory;
+      console.log(`📁 Filtering by subcategory: ${req.query.subCategory}`);
     }
 
     if (req.query.productCategory) {
       filter.productCategory = req.query.productCategory;
+      console.log(`🎯 Filtering by product category: ${req.query.productCategory}`);
     }
 
-    console.log('🔍 Filter:', filter);
+    if (req.query.search) {
+      filter.$or = [
+        { name: { $regex: req.query.search, $options: 'i' } },
+        { description: { $regex: req.query.search, $options: 'i' } },
+        { tags: { $in: [new RegExp(req.query.search, 'i')] } }
+      ];
+      console.log(`🔍 Search query applied: "${req.query.search}"`);
+    }
 
-    // Build query
+    // Price range filtering
+    if (req.query.minPrice || req.query.maxPrice) {
+      filter.zammerPrice = {};
+      if (req.query.minPrice) {
+        filter.zammerPrice.$gte = parseInt(req.query.minPrice);
+      }
+      if (req.query.maxPrice) {
+        filter.zammerPrice.$lte = parseInt(req.query.maxPrice);
+      }
+      console.log(`💰 Price range filter: ₹${req.query.minPrice || 0} - ₹${req.query.maxPrice || '∞'}`);
+    }
+
+    // 🎯 Only show active products
+    filter.status = 'active';
+
+    terminalLog('DATABASE_QUERY_FILTER', 'PROCESSING', {
+      filter,
+      pagination: { page, limit, skip }
+    });
+
+    console.log('🔍 Final MongoDB Filter:', filter);
+
+    // Build sorting options
+    let sortOptions = {};
+    if (req.query.sortBy && req.query.sortOrder) {
+      sortOptions[req.query.sortBy] = req.query.sortOrder === 'asc' ? 1 : -1;
+    } else {
+      sortOptions.createdAt = -1; // Default: newest first
+    }
+
+    console.log('📊 Sort options:', sortOptions);
+
+    // Build query with seller population
     let query = Product.find(filter)
+      .populate({
+        path: 'seller',
+        select: 'firstName shop',
+        populate: {
+          path: 'shop',
+          select: 'name address images mainImage description category'
+        }
+      })
       .skip(skip)
       .limit(limit)
-      .sort({ createdAt: -1 }); // newest first
+      .sort(sortOptions);
 
     // Execute query
     const products = await query;
     const totalProducts = await Product.countDocuments(filter);
 
-    console.log(`✅ Found ${products.length} products (page ${page} of ${Math.ceil(totalProducts / limit)})`);
+    terminalLog('DATABASE_QUERY_SUCCESS', 'SUCCESS', {
+      productsFound: products.length,
+      totalProducts,
+      totalPages: Math.ceil(totalProducts / limit),
+      currentPage: page,
+      hasMore: page < Math.ceil(totalProducts / limit)
+    });
 
-    res.status(200).json({
+    console.log(`
+✅ ===============================
+   PRODUCTS FETCHED SUCCESSFULLY!
+===============================
+📦 Products Found: ${products.length}
+📊 Total in DB: ${totalProducts}
+📄 Current Page: ${page}
+📋 Total Pages: ${Math.ceil(totalProducts / limit)}
+🔍 Filters Applied: ${Object.keys(filter).length}
+📊 Sort Applied: ${Object.keys(sortOptions).join(', ')}
+⏱️ Query Time: ${new Date().toLocaleString()}
+===============================`);
+
+    // 🎯 Log sample products for debugging
+    if (products.length > 0) {
+      console.log('📦 Sample Products:');
+      products.slice(0, 3).forEach((product, index) => {
+        console.log(`  ${index + 1}. ${product.name} - ₹${product.zammerPrice} (${product.category}/${product.subCategory})`);
+      });
+    }
+
+    // 🎯 Enhanced response with metadata
+    const response = {
       success: true,
       count: products.length,
       totalPages: Math.ceil(totalProducts / limit),
       currentPage: page,
+      totalProducts,
+      hasNextPage: page < Math.ceil(totalProducts / limit),
+      hasPreviousPage: page > 1,
+      filters: {
+        category: req.query.category || null,
+        subCategory: req.query.subCategory || null,
+        productCategory: req.query.productCategory || null,
+        search: req.query.search || null,
+        priceRange: {
+          min: req.query.minPrice || null,
+          max: req.query.maxPrice || null
+        }
+      },
       data: products
+    };
+
+    terminalLog('API_RESPONSE_SENT', 'SUCCESS', {
+      responseSize: JSON.stringify(response).length,
+      productsCount: products.length,
+      page,
+      totalPages: Math.ceil(totalProducts / limit)
     });
+
+    res.status(200).json(response);
   } catch (error) {
+    terminalLog('MARKETPLACE_PRODUCTS_ERROR', 'ERROR', {
+      error: error.message,
+      stack: error.stack,
+      queryParams: req.query
+    });
+
+    console.log(`
+❌ ===============================
+   PRODUCTS FETCH FAILED!
+===============================
+🚨 Error: ${error.message}
+📋 Query Params: ${JSON.stringify(req.query)}
+⏱️ Time: ${new Date().toLocaleString()}
+===============================`);
+    
     console.error('❌ Get Marketplace Products error:', error);
     res.status(500).json({
       success: false,
