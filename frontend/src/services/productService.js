@@ -321,6 +321,25 @@ export const bulkUpdateProducts = async (productIds, updateData) => {
   }
 };
 
+// 🎯 NEW: Delete image from Cloudinary
+export const deleteImage = async (publicId) => {
+  try {
+    console.log('🗑️ Deleting image:', publicId);
+    
+    const response = await api.delete(`/upload/${publicId}`);
+    
+    console.log('✅ Image deletion response:', {
+      success: response.data.success,
+      message: response.data.message
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('❌ Image deletion error:', error.response?.data || error);
+    throw error.response?.data || error;
+  }
+};
+
 // Default export
 const productService = {
   createProduct,
@@ -337,6 +356,7 @@ const productService = {
   getTrendingProducts,
   searchProducts,
   bulkUpdateProducts,
+  deleteImage,
 };
 
 export default productService;

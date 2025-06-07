@@ -129,3 +129,22 @@ export const resetPassword = async (data) => {
     throw error.response?.data || error;
   }
 };
+
+// 🎯 NEW: Delete image from Cloudinary
+export const deleteImage = async (publicId) => {
+  try {
+    console.log('🗑️ Deleting image:', publicId);
+    
+    const response = await api.delete(`/upload/${publicId}`);
+    
+    console.log('✅ Image deletion response:', {
+      success: response.data.success,
+      message: response.data.message
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('❌ Image deletion error:', error.response?.data || error);
+    throw error.response?.data || error;
+  }
+};

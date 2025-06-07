@@ -16,27 +16,36 @@
     "lint": "echo 'Linting skipped'",
     "prestart": "node -e \"console.log('Starting ZAMMER Backend Server...')\""
   },
-  "keywords": ["marketplace", "ecommerce", "api", "nodejs", "express", "mongodb"],
+  "keywords": [
+    "marketplace",
+    "ecommerce",
+    "api",
+    "nodejs",
+    "express",
+    "mongodb"
+  ],
   "author": "ZAMMER Team",
   "license": "ISC",
   "dependencies": {
     "bcryptjs": "^3.0.2",
+    "cloudinary": "^1.41.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
-    "express": "^4.18.2",
+    "express": "^4.21.2",
     "express-async-handler": "^1.2.0",
+    "express-rate-limit": "^7.1.5",
     "express-validator": "^7.2.1",
-    "helmet": "^7.1.0",
+    "helmet": "^7.2.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.16.0",
     "mongoose": "^8.15.0",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.2",
+    "multer-storage-cloudinary": "^4.0.0",
     "pdfkit": "^0.17.1",
     "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1",
-    "express-rate-limit": "^7.1.5"
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

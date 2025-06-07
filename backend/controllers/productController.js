@@ -2,10 +2,9 @@ const Product = require('../models/Product');
 const { validationResult } = require('express-validator');
 const Seller = require('../models/Seller');
 const asyncHandler = require('express-async-handler');
-const Shop = require('../models/shopModel');
-const User = require('../models/userModel');
+const User = require('../models/User');
 const mongoose = require('mongoose');
-const { uploadToCloudinary } = require('../utils/cloudinary');
+const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 const { validateProductData } = require('../utils/validators');
 const { handleError } = require('../utils/errorHandler');
 
@@ -30,7 +29,7 @@ const terminalLog = (action, status, data = null) => {
 
 // @desc    Create a new product
 // @route   POST /api/products
-// @access  Private
+// @access  Private (Seller)
 exports.createProduct = async (req, res) => {
   try {
     console.log('📦 Create Product called');
@@ -59,31 +58,39 @@ exports.createProduct = async (req, res) => {
       isTrending
     } = req.body;
 
-    // Create new product
-    const product = await Product.create({
+    // Handle image uploads if files are present
+    let uploadedImages = [];
+    if (req.files && req.files.length > 0) {
+      console.log(`📁 Processing ${req.files.length} product images`);
+      
+      const uploadPromises = req.files.map(async (file) => {
+        const b64 = Buffer.from(file.buffer).toString('base64');
+        const dataURI = `data:${file.mimetype};base64,${b64}`;
+        return await uploadToCloudinary(dataURI, 'product_images');
+      });
+
+      const results = await Promise.all(uploadPromises);
+      uploadedImages = results.map(result => result.url);
+      console.log('📁 Processed Cloudinary uploads:', uploadedImages);
+    }
+
+    // Create product with uploaded images
+    const product = new Product({
+      ...req.body,
       seller: req.seller._id,
-      name,
-      description,
-      category,
-      subCategory,
-      productCategory,
-      zammerPrice,
-      mrp,
-      variants,
-      images,
-      tags,
-      isLimitedEdition,
-      isTrending
+      images: uploadedImages
     });
 
-    console.log('✅ Product created successfully:', product._id);
+    await product.save();
 
     res.status(201).json({
       success: true,
+      message: 'Product created successfully',
       data: product
     });
+
   } catch (error) {
-    console.error('❌ Create Product error:', error);
+    console.error('❌ Product creation error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -173,78 +180,121 @@ exports.getProductById = async (req, res) => {
  * @route  PUT /api/products/:id
  * @access Private (seller)
  */
-exports.updateProduct = asyncHandler(async (req, res) => {
-  const productId = req.params.id;
-  console.log('📝 Update Product called:', productId);
-
-  // 1️⃣  Fetch current doc
-  const existing = await Product.findById(productId);
-  if (!existing) {
-    return res.status(404).json({ success:false, message:'Product not found' });
-  }
-
-  // 2️⃣  Check if the product belongs to the seller
-  if (existing.seller.toString() !== req.seller._id.toString()) {
-    return res.status(403).json({ success: false, message: 'Not authorized to update this product' });
-  }
-
-  // 3️⃣  Merge incoming fields with current values to see end-state
-  const finalMrp          = ('mrp'          in req.body) ? Number(req.body.mrp)          : existing.mrp;
-  const finalZammerPrice  = ('zammerPrice'  in req.body) ? Number(req.body.zammerPrice)  : existing.zammerPrice;
-
-  // 4️⃣  Manual validation of the tricky rule
-  if (finalMrp < finalZammerPrice) {
-    return res.status(400).json({
-      success : false,
-      message : 'MRP must be greater than or equal to Zammer Price',
-      data    : { mrp: finalMrp, zammerPrice: finalZammerPrice }
-    });
-  }
-
-  // 5️⃣  Apply updates & save (we skip mongoose runValidators because we just validated)
-  Object.assign(existing, req.body);
-  const updated = await existing.save({ validateBeforeSave:false });  // safe, we validated
-
-  console.log('✅ Product updated:', updated._id);
-  res.status(200).json({ success:true, data:updated });
-});
-
-// @desc    Delete a product
-// @route   DELETE /api/products/:id
-// @access  Private
-exports.deleteProduct = async (req, res) => {
+exports.updateProduct = async (req, res) => {
   try {
-    console.log('🗑️ Delete Product called:', req.params.id);
-    
     const product = await Product.findById(req.params.id);
 
     if (!product) {
-      console.log('❌ Product not found:', req.params.id);
       return res.status(404).json({
         success: false,
         message: 'Product not found'
       });
     }
 
-    // Check if the product belongs to the seller
+    // Check if the seller owns this product
     if (product.seller.toString() !== req.seller._id.toString()) {
-      console.log('❌ Unauthorized delete attempt:', req.params.id);
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this product'
+      });
+    }
+
+    // Handle image updates
+    if (req.body.images) {
+      // Get the public IDs of images to be deleted
+      const oldImages = product.images || [];
+      const newImages = req.body.images;
+      const imagesToDelete = oldImages.filter(img => !newImages.includes(img));
+
+      // Delete images from Cloudinary
+      for (const imageUrl of imagesToDelete) {
+        try {
+          // Extract public_id from Cloudinary URL
+          const publicId = imageUrl.split('/').slice(-1)[0].split('.')[0];
+          await deleteFromCloudinary(publicId);
+          console.log(`✅ Deleted image from Cloudinary: ${publicId}`);
+        } catch (error) {
+          console.error(`❌ Error deleting image from Cloudinary: ${error.message}`);
+        }
+      }
+
+      product.images = newImages;
+    }
+
+    // Update other fields
+    if (req.body.name) product.name = req.body.name;
+    if (req.body.description) product.description = req.body.description;
+    if (req.body.category) product.category = req.body.category;
+    if (req.body.subCategory) product.subCategory = req.body.subCategory;
+    if (req.body.productCategory) product.productCategory = req.body.productCategory;
+    if (req.body.zammerPrice) product.zammerPrice = req.body.zammerPrice;
+    if (req.body.mrp) product.mrp = req.body.mrp;
+    if (req.body.discountPercentage) product.discountPercentage = req.body.discountPercentage;
+    if (req.body.variants) product.variants = req.body.variants;
+    if (req.body.stock) product.stock = req.body.stock;
+    if (req.body.isActive !== undefined) product.isActive = req.body.isActive;
+
+    await product.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Product updated successfully',
+      data: product
+    });
+
+  } catch (error) {
+    console.error('❌ Product update error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Delete a product
+// @route   DELETE /api/products/:id
+// @access  Private (Seller)
+exports.deleteProduct = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Check if the seller owns this product
+    if (product.seller.toString() !== req.seller._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to delete this product'
       });
     }
 
-    await Product.findByIdAndDelete(req.params.id);
+    // Delete images from Cloudinary
+    for (const imageUrl of product.images) {
+      try {
+        // Extract public_id from Cloudinary URL
+        const publicId = imageUrl.split('/').slice(-1)[0].split('.')[0];
+        await deleteFromCloudinary(publicId);
+        console.log(`✅ Deleted image from Cloudinary: ${publicId}`);
+      } catch (error) {
+        console.error(`❌ Error deleting image from Cloudinary: ${error.message}`);
+      }
+    }
 
-    console.log('✅ Product deleted successfully:', req.params.id);
+    await product.remove();
 
     res.status(200).json({
       success: true,
-      data: {}
+      message: 'Product deleted successfully'
     });
+
   } catch (error) {
-    console.error('❌ Delete Product error:', error);
+    console.error('❌ Product deletion error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',

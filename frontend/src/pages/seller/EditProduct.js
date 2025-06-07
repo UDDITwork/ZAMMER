@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import { Formik, Form, Field, ErrorMessage, FieldArray } from 'formik';
 import * as Yup from 'yup';
 import SellerLayout from '../../components/layouts/SellerLayout';
-import { getProductById, updateProduct } from '../../services/productService';
+import { getProductById, updateProduct, deleteImage } from '../../services/productService';
 
 // 🎯 FIXED: Categories EXACTLY matching backend Product.js schema
 const productCategories = {
@@ -186,8 +186,21 @@ const EditProduct = () => {
       const uploadedImages = [...images];
       
       for (const file of files) {
-        const imageUrl = await mockImageUpload(file);
-        uploadedImages.push(imageUrl);
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
+          }
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          uploadedImages.push(data.data.url);
+        }
       }
       
       setFieldValue('images', uploadedImages);
@@ -197,6 +210,27 @@ const EditProduct = () => {
       console.error('Image upload error:', error);
     } finally {
       setUploadingImages(false);
+    }
+  };
+
+  const removeImage = async (index, setFieldValue, images) => {
+    try {
+      const imageUrl = images[index];
+      // Extract public_id from Cloudinary URL
+      const publicId = imageUrl.split('/').slice(-1)[0].split('.')[0];
+      
+      // Delete from Cloudinary
+      await deleteImage(publicId);
+      
+      // Update local state
+      const newImages = [...images];
+      newImages.splice(index, 1);
+      setFieldValue('images', newImages);
+      
+      toast.success('Image removed');
+    } catch (error) {
+      toast.error('Failed to remove image');
+      console.error('Image removal error:', error);
     }
   };
 
@@ -698,11 +732,7 @@ const EditProduct = () => {
                           />
                           <button
                             type="button"
-                            onClick={() => {
-                              const newImages = [...values.images];
-                              newImages.splice(index, 1);
-                              setFieldValue('images', newImages);
-                            }}
+                            onClick={() => removeImage(index, setFieldValue, values.images)}
                             className="absolute top-1 right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs hover:bg-red-600"
                           >
                             ×

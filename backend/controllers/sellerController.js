@@ -4,32 +4,7 @@ const { validationResult } = require('express-validator');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
-
-// 🎯 NEW: Mock image upload function (same as used in AddProduct.js)
-const mockImageUpload = async (file) => {
-  try {
-    // Simulate upload delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Create base64 data URL for reliable image display
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        resolve(e.target.result); // Returns base64 data URL
-      };
-      reader.onerror = (error) => {
-        console.error('File reading error:', error);
-        // Fallback to a placeholder
-        resolve('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiIGZpbGw9IiNmMGYwZjAiLz4KPHRleHQgeD0iMTUwIiB5PSIxNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTkiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiI+U2hvcCBJbWFnZTwvdGV4dD4KPC9zdmc+');
-      };
-      reader.readAsDataURL(file);
-    });
-  } catch (error) {
-    console.error('Image upload error:', error);
-    // Return placeholder SVG
-    return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSIzMDAiIGZpbGw9IiNmMGYwZjAiLz4KPHRleHQgeD0iMTUwIiB5PSIxNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM5OTkiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiI+U2hvcCBJbWFnZTwvdGV4dD4KPC9zdmc+';
-  }
-};
+const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 
 // @desc    Register a new seller
 // @route   POST /api/sellers/register
@@ -190,16 +165,13 @@ exports.getSellerProfile = async (req, res) => {
   }
 };
 
-// 🎯 NEW: Upload shop images endpoint
 // @desc    Upload shop images
 // @route   POST /api/sellers/upload-shop-images
 // @access  Private
 exports.uploadShopImages = async (req, res) => {
   try {
     console.log('📸 Shop image upload request received');
-    console.log('Request body:', req.body);
-    console.log('Files received:', req.files ? req.files.length : 'No files');
-
+    
     const seller = await Seller.findById(req.seller._id);
     if (!seller) {
       return res.status(404).json({
@@ -208,19 +180,21 @@ exports.uploadShopImages = async (req, res) => {
       });
     }
 
-    // Handle images from request body (base64 encoded images)
     let uploadedImages = [];
     
-    if (req.body.images && Array.isArray(req.body.images)) {
-      uploadedImages = req.body.images;
-      console.log('📷 Processing base64 images:', uploadedImages.length);
-    }
-
-    // Handle file uploads if any
+    // Handle file uploads
     if (req.files && req.files.length > 0) {
-      const fileUrls = req.files.map(file => `/uploads/${file.filename}`);
-      uploadedImages = [...uploadedImages, ...fileUrls];
-      console.log('📁 Processing file uploads:', fileUrls);
+      console.log(`📁 Processing ${req.files.length} files`);
+      
+      const uploadPromises = req.files.map(async (file) => {
+        const b64 = Buffer.from(file.buffer).toString('base64');
+        const dataURI = `data:${file.mimetype};base64,${b64}`;
+        return await uploadToCloudinary(dataURI, 'shop_images');
+      });
+
+      const results = await Promise.all(uploadPromises);
+      uploadedImages = results.map(result => result.url);
+      console.log('📁 Processed Cloudinary uploads:', uploadedImages);
     }
 
     if (uploadedImages.length === 0) {
@@ -275,7 +249,6 @@ exports.updateSellerProfile = async (req, res) => {
         hasImages: !!req.body.shop.images,
         imagesCount: req.body.shop.images?.length || 0,
         hasMainImage: !!req.body.shop.mainImage,
-        firstImageType: req.body.shop.images?.[0]?.substring(0, 20) + '...' || 'none'
       });
     }
 
@@ -300,7 +273,34 @@ exports.updateSellerProfile = async (req, res) => {
         seller.shop = {};
       }
 
-      // Update basic shop details
+      // Handle shop images update
+      if (req.body.shop.images) {
+        // Get the public IDs of images to be deleted
+        const oldImages = seller.shop.images || [];
+        const newImages = req.body.shop.images;
+        const imagesToDelete = oldImages.filter(img => !newImages.includes(img));
+
+        // Delete images from Cloudinary
+        for (const imageUrl of imagesToDelete) {
+          try {
+            // Extract public_id from Cloudinary URL
+            const publicId = imageUrl.split('/').slice(-1)[0].split('.')[0];
+            await deleteFromCloudinary(publicId);
+            console.log(`✅ Deleted image from Cloudinary: ${publicId}`);
+          } catch (error) {
+            console.error(`❌ Error deleting image from Cloudinary: ${error.message}`);
+          }
+        }
+
+        seller.shop.images = newImages;
+      }
+
+      // Update main image if provided
+      if (req.body.shop.mainImage) {
+        seller.shop.mainImage = req.body.shop.mainImage;
+      }
+
+      // Update other shop details
       if (req.body.shop.name) seller.shop.name = req.body.shop.name;
       if (req.body.shop.address) seller.shop.address = req.body.shop.address;
       if (req.body.shop.gstNumber) seller.shop.gstNumber = req.body.shop.gstNumber;
@@ -315,48 +315,6 @@ exports.updateSellerProfile = async (req, res) => {
       if (req.body.shop.openTime) seller.shop.openTime = req.body.shop.openTime;
       if (req.body.shop.closeTime) seller.shop.closeTime = req.body.shop.closeTime;
       if (req.body.shop.workingDays) seller.shop.workingDays = req.body.shop.workingDays;
-      
-      // 🎯 ENHANCED: Handle shop images update with better debugging  
-      if (req.body.shop.images) {
-        console.log('📸 Updating shop images');
-        console.log('📊 Images data:', {
-          isArray: Array.isArray(req.body.shop.images),
-          length: req.body.shop.images.length,
-          firstImagePreview: req.body.shop.images[0]?.substring(0, 50) + '...' || 'none'
-        });
-        
-        // Ensure images is an array and initialize if needed
-        if (Array.isArray(req.body.shop.images)) {
-          seller.shop.images = req.body.shop.images;
-          console.log('✅ Shop images updated successfully');
-        } else {
-          console.log('❌ Shop images is not an array:', typeof req.body.shop.images);
-          seller.shop.images = []; // Initialize as empty array if invalid
-        }
-      }
-
-      // 🎯 ENHANCED: Handle main image update with debugging
-      if (req.body.shop.mainImage) {
-        console.log('🖼️ Updating main shop image');
-        console.log('🔍 Main image preview:', req.body.shop.mainImage.substring(0, 50) + '...');
-        seller.shop.mainImage = req.body.shop.mainImage;
-        console.log('✅ Main shop image updated successfully');
-      }
-
-      // 🎯 Handle shop description
-      if (req.body.shop.description !== undefined) {
-        seller.shop.description = req.body.shop.description;
-        console.log('📝 Shop description updated');
-      }
-      
-      // Location data
-      if (req.body.shop.location && req.body.shop.location.coordinates) {
-        seller.shop.location = {
-          type: 'Point',
-          coordinates: req.body.shop.location.coordinates
-        };
-        console.log('📍 Shop location updated');
-      }
     }
 
     // Update bank details if provided

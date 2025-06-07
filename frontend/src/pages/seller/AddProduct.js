@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import { Formik, Form, Field, ErrorMessage, FieldArray } from 'formik';
 import * as Yup from 'yup';
 import SellerLayout from '../../components/layouts/SellerLayout';
-import { createProduct } from '../../services/productService';
+import { createProduct, deleteImage } from '../../services/productService';
 
 // 🎯 FIXED: Categories EXACTLY matching backend Product.js schema
 const productCategories = {
@@ -132,8 +132,21 @@ const AddProduct = () => {
       const uploadedImages = [...images];
       
       for (const file of files) {
-        const imageUrl = await mockImageUpload(file);
-        uploadedImages.push(imageUrl);
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
+          }
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          uploadedImages.push(data.data.url);
+        }
       }
       
       setFieldValue('images', uploadedImages);
@@ -143,6 +156,27 @@ const AddProduct = () => {
       console.error('Image upload error:', error);
     } finally {
       setUploadingImages(false);
+    }
+  };
+
+  const removeImage = async (index, setFieldValue, images) => {
+    try {
+      const imageUrl = images[index];
+      // Extract public_id from Cloudinary URL
+      const publicId = imageUrl.split('/').slice(-1)[0].split('.')[0];
+      
+      // Delete from Cloudinary
+      await deleteImage(publicId);
+      
+      // Update local state
+      const newImages = [...images];
+      newImages.splice(index, 1);
+      setFieldValue('images', newImages);
+      
+      toast.success('Image removed');
+    } catch (error) {
+      toast.error('Failed to remove image');
+      console.error('Image removal error:', error);
     }
   };
 
@@ -652,11 +686,7 @@ const AddProduct = () => {
                               </div>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  const newImages = [...values.images];
-                                  newImages.splice(index, 1);
-                                  setFieldValue('images', newImages);
-                                }}
+                                onClick={() => removeImage(index, setFieldValue, values.images)}
                                 className="absolute -top-3 -right-3 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors shadow-lg opacity-0 group-hover:opacity-100"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

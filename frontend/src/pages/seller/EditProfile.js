@@ -4,8 +4,9 @@ import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import SellerLayout from '../../components/layouts/SellerLayout';
 import GooglePlacesAutocomplete from '../../components/GooglePlacesAutocomplete';
-import { getSellerProfile, updateSellerProfile } from '../../services/sellerService';
+import { getSellerProfile, updateSellerProfile, uploadShopImages, deleteImage } from '../../services/sellerService';
 import { AuthContext } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const ProfileSchema = Yup.object().shape({
   firstName: Yup.string().required('First name is required'),
@@ -54,6 +55,7 @@ const EditProfile = () => {
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [uploadingImages, setUploadingImages] = useState(false);
   const { sellerAuth, loginSeller } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchSellerProfile();
@@ -123,15 +125,30 @@ const EditProfile = () => {
   };
 
   // 🎯 NEW: Remove shop image
-  const removeShopImage = (index, setFieldValue, currentImages) => {
-    const newImages = [...currentImages];
-    const removedImage = newImages.splice(index, 1)[0];
-    setFieldValue('shop.images', newImages);
-    
-    // If removed image was the main image, set new main image
-    setFieldValue('shop.mainImage', newImages.length > 0 ? newImages[0] : '');
-    
-    toast.success('Shop image removed');
+  const removeShopImage = async (index, setFieldValue, currentImages, values) => {
+    try {
+      const imageUrl = currentImages[index];
+      // Extract public_id from Cloudinary URL
+      const publicId = imageUrl.split('/').slice(-1)[0].split('.')[0];
+      
+      // Delete from Cloudinary
+      await deleteImage(publicId);
+      
+      // Update local state
+      const newImages = [...currentImages];
+      newImages.splice(index, 1);
+      setFieldValue('shop.images', newImages);
+      
+      // If removed image was the main image, set new main image
+      if (values.shop.mainImage === imageUrl) {
+        setFieldValue('shop.mainImage', newImages.length > 0 ? newImages[0] : '');
+      }
+      
+      toast.success('Shop image removed');
+    } catch (error) {
+      toast.error('Failed to remove image');
+      console.error('Image removal error:', error);
+    }
   };
 
   // 🎯 NEW: Set main image
@@ -586,7 +603,7 @@ const EditProfile = () => {
                                 )}
                                 
                                 {/* Action Buttons */}
-                                <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="absolute top-2 right-2 flex gap-2">
                                   {values.shop.mainImage !== image && (
                                     <button
                                       type="button"
@@ -599,7 +616,7 @@ const EditProfile = () => {
                                   )}
                                   <button
                                     type="button"
-                                    onClick={() => removeShopImage(index, setFieldValue, values.shop.images)}
+                                    onClick={() => removeShopImage(index, setFieldValue, values.shop.images, values)}
                                     className="w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors shadow-lg"
                                     title="Remove image"
                                   >

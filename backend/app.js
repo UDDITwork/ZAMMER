@@ -234,30 +234,16 @@ const limiter = rateLimit({
 
 app.use('/api/', limiter);
 
-// 🎯 Create uploads directory if it doesn't exist
+// 🎯 Create public directory for other static files
 const publicDir = path.join(__dirname, 'public');
-const uploadsDir = path.join(publicDir, 'uploads');
 
 if (!fs.existsSync(publicDir)) {
   fs.mkdirSync(publicDir, { recursive: true });
   console.log('📁 Created public directory:', publicDir);
 }
 
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-  console.log('📁 Created uploads directory:', uploadsDir);
-}
-
-// 🎯 Serve static files
-app.use('/uploads', express.static(uploadsDir, {
-  setHeaders: (res, path, stat) => {
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET');
-  }
-}));
-
-app.use(express.static(publicDir));
+// Serve static files from public directory
+app.use('/public', express.static(publicDir));
 
 // 🎯 PRODUCTION: Enhanced CORS configuration
 const corsOptions = {
@@ -269,25 +255,21 @@ const corsOptions = {
     
     // Check if origin is in allowed list
     const isAllowed = allowedOrigins.some(allowedOrigin => {
-      if (typeof allowedOrigin === 'string') {
-        return allowedOrigin === origin;
-      } else if (allowedOrigin instanceof RegExp) {
+      if (allowedOrigin instanceof RegExp) {
         return allowedOrigin.test(origin);
       }
-      return false;
+      return allowedOrigin === origin;
     });
     
     if (isAllowed) {
       callback(null, true);
     } else {
-      console.warn(`❌ CORS blocked origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['set-cookie']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 };
 
 app.use(cors(corsOptions));
@@ -350,53 +332,6 @@ app.get('/', (req, res) => {
     environment: NODE_ENV,
     documentation: '/api/health',
     status: 'operational'
-  });
-});
-
-// Enhanced image handler
-app.get('/uploads/:filename', (req, res) => {
-  const filename = req.params.filename;
-  const filePath = path.join(uploadsDir, filename);
-  
-  if (NODE_ENV === 'development') {
-    console.log(`🖼️ Image request: ${filename}`);
-  }
-  
-  if (fs.existsSync(filePath)) {
-    return res.sendFile(filePath);
-  }
-  
-  // Generate placeholder for mock/product images
-  if (filename.includes('mock-product') || filename.includes('product-')) {
-    const placeholderSVG = `
-      <svg width="300" height="300" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#f97316;stop-opacity:0.1" />
-            <stop offset="100%" style="stop-color:#f97316;stop-opacity:0.3" />
-          </linearGradient>
-        </defs>
-        <rect width="300" height="300" fill="url(#grad1)" stroke="#f97316" stroke-width="2"/>
-        <circle cx="150" cy="120" r="30" fill="#f97316" opacity="0.3"/>
-        <rect x="120" y="160" width="60" height="40" fill="#f97316" opacity="0.3" rx="5"/>
-        <text x="150" y="220" text-anchor="middle" fill="#ea580c" font-family="Arial, sans-serif" font-size="14" font-weight="bold">
-          ZAMMER Product
-        </text>
-        <text x="150" y="240" text-anchor="middle" fill="#9a3412" font-family="Arial, sans-serif" font-size="10">
-          ${filename.substring(0, 20)}${filename.length > 20 ? '...' : ''}
-        </text>
-      </svg>
-    `;
-    
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    return res.send(placeholderSVG);
-  }
-  
-  res.status(404).json({
-    error: 'Image not found',
-    filename: filename,
-    message: 'The requested image does not exist'
   });
 });
 

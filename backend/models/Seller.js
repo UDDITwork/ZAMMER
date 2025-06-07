@@ -162,12 +162,8 @@ sellerSchema.methods.getMainShopImage = function() {
 sellerSchema.virtual('shop.mainImageUrl').get(function() {
   const mainImage = this.getMainShopImage();
   if (mainImage) {
-    // If it's already a full URL (starts with http), return as is
-    if (mainImage.startsWith('http')) {
-      return mainImage;
-    }
-    // Otherwise, construct the URL (for uploaded files)
-    return `/uploads/${mainImage}`;
+    // Return the URL as is since it will be a Cloudinary URL
+    return mainImage;
   }
   return null;
 });
