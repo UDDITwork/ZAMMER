@@ -223,6 +223,8 @@ app.use(helmet({
   },
 }));
 
+app.set('trust proxy', 1); // Enable trusting proxy headers for express-rate-limit
+
 // 🎯 PRODUCTION: Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -247,6 +249,22 @@ if (!fs.existsSync(publicDir)) {
 
 // Serve static files from public directory
 app.use('/public', express.static(publicDir));
+
+// 🎯 Serve frontend static assets in production
+if (NODE_ENV === 'production') {
+  const frontendBuildPath = path.join(__dirname, '..', 'frontend', 'build');
+  
+  // Ensure build directory exists
+  if (!fs.existsSync(frontendBuildPath)) {
+    console.error(`❌ Frontend build directory not found: ${frontendBuildPath}`);
+  } else {
+    app.use(express.static(frontendBuildPath));
+
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(frontendBuildPath, 'index.html'));
+    });
+  }
+}
 
 // 🎯 PRODUCTION: Enhanced CORS configuration
 const corsOptions = {
@@ -362,57 +380,38 @@ app.get('/', (req, res) => {
   });
 });
 
-// API Routes
+// Mount API routes
 app.use('/api/products', productRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/sellers', sellerRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/sellers', sellerRoutes);
+app.use('/api/orders', orderRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/cart', cartRoutes);
 
-// 🎯 UPDATED: Better 404 handler (remove uploads directory references)
-app.use((req, res, next) => {
-  console.log(`⚠️ Route not found: ${req.method} ${req.originalUrl}`);
-  
-  // Special message for old upload routes
-  if (req.originalUrl.startsWith('/uploads/')) {
-    console.log('🔍 This looks like an old local upload request - we now use Cloudinary');
-    return res.status(404).json({ 
-      error: 'Local uploads no longer supported',
-      message: 'Images are now served from Cloudinary. Please check your image URLs.'
-    });
-  }
-  
-  const error = new Error(`Not Found - ${req.originalUrl}`);
-  error.status = 404;
-  next(error);
-});
+// Serve static files from public directory
+app.use('/public', express.static(publicDir));
 
-// Error handler
-app.use((err, req, res, next) => {
-  if (NODE_ENV === 'development') {
-    console.error('💥 Error Handler Triggered:');
-    console.error('📍 URL:', req.originalUrl);
-    console.error('🔧 Method:', req.method);
-    console.error('❌ Error:', err.message);
-    
-    if (err.status !== 404) {
-      console.error('📋 Stack:', err.stack);
-    }
+// Serve frontend static assets in production
+if (NODE_ENV === 'production') {
+  const frontendBuildPath = path.join(__dirname, '..', 'frontend', 'build');
+  if (fs.existsSync(frontendBuildPath)) {
+    app.use(express.static(frontendBuildPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(frontendBuildPath, 'index.html'));
+    });
+  } else {
+    console.error(`❌ Frontend build directory not found: ${frontendBuildPath}`);
   }
-  
-  const statusCode = err.status || 500;
-  
-  res.status(statusCode).json({
-    success: false,
-    message: err.message || 'Internal Server Error',
-    ...(NODE_ENV === 'development' && {
-      stack: err.stack,
-      url: req.originalUrl,
-      method: req.method
-    })
-  });
+}
+
+// Error handling middleware
+app.use(errorHandler);
+
+// Start server, explicitly binding to 0.0.0.0 for Elastic Beanstalk
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n✅ Server running in ${NODE_ENV} mode on http://0.0.0.0:${PORT}\n`);
+  connectDB();
 });
 
 // Graceful shutdown handling

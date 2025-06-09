@@ -239,7 +239,6 @@ OrderSchema.methods.getCancellationText = function() {
 OrderSchema.index({ user: 1, createdAt: -1 });
 OrderSchema.index({ seller: 1, createdAt: -1 });
 OrderSchema.index({ status: 1 });
-OrderSchema.index({ orderNumber: 1 });
 OrderSchema.index({ 'cancellationDetails.cancelledBy': 1 });
 
 module.exports = mongoose.model('Order', OrderSchema);
