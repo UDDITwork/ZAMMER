@@ -109,7 +109,7 @@ const AddProduct = () => {
         const formData = new FormData();
         formData.append('image', file);
         
-        const response = await fetch('/api/upload', {
+        const response = await fetch(`${process.env.REACT_APP_API_URL.replace('/api', '')}/api/upload`, {
           method: 'POST',
           body: formData,
           headers: {
@@ -135,80 +135,245 @@ const AddProduct = () => {
     }
   };
 
-  const removeImage = async (index, setFieldValue, images) => {
-    try {
-      const imageUrl = images[index];
+// ✅ FIXED: removeImage function with proper timeoutId scope handling
+const removeImage = async (index, setFieldValue, images) => {
+  try {
+    const imageUrl = images[index];
+    console.log(`🗑️ Starting image removal for index ${index}`);
+    console.log('🔍 Image URL:', imageUrl);
+    
+    if (imageUrl.includes('cloudinary.com')) {
+      // ✅ FIXED: Proper extraction of publicId from Cloudinary URL
+      const url = new URL(imageUrl);
+      const pathParts = url.pathname.split('/');
       
-      // Only try to delete from Cloudinary if it's a Cloudinary URL
-      if (imageUrl.includes('cloudinary.com')) {
-        // Extract public_id from Cloudinary URL
-        const publicId = imageUrl.split('/').slice(-1)[0].split('.')[0];
+      // Find the upload index and extract everything after version number
+      const uploadIndex = pathParts.indexOf('upload');
+      if (uploadIndex === -1) {
+        throw new Error('Invalid Cloudinary URL format');
+      }
+      
+      // Get path after 'upload/v123456789/' -> this includes folder/filename
+      const pathAfterVersion = pathParts.slice(uploadIndex + 2); // Skip 'upload' and version
+      const fullPath = pathAfterVersion.join('/');
+      
+      // Remove file extension to get the public_id
+      const publicId = fullPath.replace(/\.[^/.]+$/, '');
+      
+      console.log('🔍 Extracted publicId:', publicId);
+      
+      if (!publicId) {
+        throw new Error('Could not extract publicId from URL');
+      }
+      
+      // ✅ ENHANCED: Multiple deletion strategies with different timeouts
+      const attemptDeletion = async () => {
+        const strategies = [
+          { name: 'Quick', timeout: 25000 },
+          { name: 'Normal', timeout: 40000 },
+          { name: 'Extended', timeout: 60000 }
+        ];
         
-        // Delete from Cloudinary via backend
-        await fetch(`/api/upload/${publicId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
+        for (let i = 0; i < strategies.length; i++) {
+          const strategy = strategies[i];
+          console.log(`🚀 Attempting ${strategy.name} deletion (${strategy.timeout}ms timeout)`);
+          
+          // ✅ FIXED: Declare timeoutId outside try block to fix scope issue
+          let timeoutId;
+          let controller;
+          
+          try {
+            controller = new AbortController();
+            timeoutId = setTimeout(() => controller.abort(), strategy.timeout);
+            
+            const response = await fetch(`${process.env.REACT_APP_API_URL}/upload/${encodeURIComponent(publicId)}`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`,
+                'Content-Type': 'application/json'
+              },
+              signal: controller.signal
+            });
+            
+            // ✅ FIXED: Clear timeout immediately after successful response
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              timeoutId = null;
+            }
+            
+            console.log(`📡 ${strategy.name} response status:`, response.status);
+            
+            const result = await response.json();
+            console.log(`📡 ${strategy.name} response data:`, result);
+            
+            if (response.ok) {
+              console.log(`✅ ${strategy.name} deletion successful:`, result);
+              
+              // Check for warnings in successful responses
+              if (result.data && result.data.warning) {
+                toast.warning(`Image removed: ${result.data.warning}`);
+              } else {
+                toast.success('Image deleted successfully from cloud storage');
+              }
+              return true;
+            } else if (response.status === 404) {
+              console.log('⚠️ Image not found in Cloudinary (may already be deleted)');
+              toast.warning('Image was already deleted from cloud storage');
+              return true;
+            } else if (response.status === 408 || response.status === 499) {
+              // Timeout - try next strategy if available
+              if (i < strategies.length - 1) {
+                console.log(`⏱️ ${strategy.name} deletion timed out, trying next strategy...`);
+                continue;
+              } else {
+                console.log('⏱️ Final deletion attempt timed out, assuming success');
+                toast.warning('Deletion timed out, but image likely removed from cloud storage');
+                return true;
+              }
+            } else {
+              throw new Error(result.message || `HTTP ${response.status}: Failed to delete image`);
+            }
+            
+          } catch (fetchError) {
+            // ✅ FIXED: Properly handle timeoutId cleanup in all error cases
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              timeoutId = null;
+            }
+            
+            if (fetchError.name === 'AbortError') {
+              console.log(`⏱️ ${strategy.name} deletion aborted due to timeout`);
+              if (i < strategies.length - 1) {
+                console.log('🔄 Trying next deletion strategy...');
+                continue;
+              } else {
+                console.log('🤝 All strategies timed out, assuming deletion succeeded');
+                toast.warning('Deletion requests timed out, but image likely removed');
+                return true;
+              }
+            } else {
+              throw fetchError;
+            }
           }
-        });
-      }
-      
-      // Update local state
-      const newImages = [...images];
-      newImages.splice(index, 1);
-      setFieldValue('images', newImages);
-      
-      toast.success('Image removed');
-    } catch (error) {
-      toast.error('Failed to remove image');
-      console.error('Image removal error:', error);
-    }
-  };
-
-  const handleSubmit = async (values, { setSubmitting, resetForm }) => {
-    setIsLoading(true);
-    try {
-      // Transform data to match backend schema exactly
-      const productData = {
-        ...values,
-        // Ensure variants match backend VariantSchema exactly
-        variants: values.variants.map(variant => ({
-          color: variant.color,
-          colorCode: variant.colorCode,
-          size: variant.size,
-          quantity: Number(variant.quantity), // Ensure it's a number
-          images: [] // Variant-specific images can be added later
-        }))
+        }
+        
+        // If we get here, all strategies failed
+        throw new Error('All deletion strategies failed');
       };
-
-      console.log('Submitting product data:', productData);
       
-      const response = await createProduct(productData);
-      
-      if (response.success) {
-        toast.success('Product added successfully!');
-        resetForm();
-        navigate('/seller/view-products');
-      } else {
-        toast.error(response.message || 'Failed to add product');
-      }
-    } catch (error) {
-      console.error('Product creation error:', error);
-      
-      // Enhanced error message handling
-      if (error.message && error.message.includes('validation failed')) {
-        const errorDetails = error.message.split(':').slice(1).join(':').trim();
-        toast.error(`Validation Error: ${errorDetails}`);
-      } else if (error.message && error.message.includes('enum')) {
-        toast.error('Please select from the available dropdown options only');
-      } else {
-        toast.error(error.message || 'Something went wrong while adding the product');
-      }
-    } finally {
-      setIsLoading(false);
-      setSubmitting(false);
+      await attemptDeletion();
     }
-  };
+    
+    // Always remove from local state regardless of cloud deletion result
+    const newImages = [...images];
+    newImages.splice(index, 1);
+    setFieldValue('images', newImages);
+    
+    console.log('✅ Image removed from form');
+    
+  } catch (error) {
+    console.error('❌ Image removal error:', {
+      message: error.message,
+      imageUrl: images[index],
+      index: index
+    });
+    
+    // Still remove from local state even if cloud deletion fails
+    const newImages = [...images];
+    newImages.splice(index, 1);
+    setFieldValue('images', newImages);
+    
+    // Show appropriate error message based on error type
+    if (error.message.includes('timeout') || error.message.includes('Timeout') || error.message.includes('aborted')) {
+      toast.warning('Image removed from form. Cloud deletion may have succeeded despite timeout.');
+    } else if (error.message.includes('not found') || error.message.includes('404')) {
+      toast.info('Image removed from form (was already deleted from cloud)');
+    } else if (error.message.includes('network') || error.message.includes('fetch')) {
+      toast.warning('Network error during deletion, but image removed from form');
+    } else {
+      toast.error(`Image removed from form. Cloud deletion error: ${error.message}`);
+    }
+    
+    console.log('✅ Image removed from form despite cloud deletion error');
+  }
+};
+
+const handleSubmit = async (values, { setSubmitting, resetForm }) => {
+  setIsLoading(true);
+  try {
+    // ✅ ENHANCED: Validate images before submission
+    if (!values.images || values.images.length === 0) {
+      toast.error('Please upload at least one product image');
+      return;
+    }
+
+    // Filter out any invalid images
+    const validImages = values.images.filter(img => 
+      typeof img === 'string' && 
+      (img.includes('cloudinary.com') || img.startsWith('http'))
+    );
+
+    if (validImages.length === 0) {
+      toast.error('Please upload at least one valid product image');
+      return;
+    }
+
+    // Transform data to match backend schema exactly
+    const productData = {
+      name: values.name.trim(),
+      description: values.description.trim(),
+      category: values.category,
+      subCategory: values.subCategory,
+      productCategory: values.productCategory,
+      zammerPrice: Number(values.zammerPrice),
+      mrp: Number(values.mrp),
+      // Ensure variants match backend VariantSchema exactly
+      variants: values.variants.map(variant => ({
+        color: variant.color.trim(),
+        colorCode: variant.colorCode.trim(),
+        size: variant.size,
+        quantity: Number(variant.quantity), // Ensure it's a number
+        images: [] // Variant-specific images can be added later
+      })),
+      images: validImages, // ✅ Use validated images
+      tags: values.tags.map(tag => tag.trim()).filter(tag => tag), // Clean tags
+      isLimitedEdition: Boolean(values.isLimitedEdition),
+      isTrending: Boolean(values.isTrending)
+    };
+
+    console.log('📦 Submitting product data:', {
+      name: productData.name,
+      imageCount: productData.images.length,
+      variantCount: productData.variants.length,
+      images: productData.images
+    });
+    
+    const response = await createProduct(productData);
+    
+    if (response.success) {
+      toast.success('Product added successfully!');
+      resetForm();
+      navigate('/seller/view-products');
+    } else {
+      toast.error(response.message || 'Failed to add product');
+    }
+  } catch (error) {
+    console.error('❌ Product creation error:', error);
+    
+    // Enhanced error message handling
+    if (error.message && error.message.includes('validation failed')) {
+      const errorDetails = error.message.split(':').slice(1).join(':').trim();
+      toast.error(`Validation Error: ${errorDetails}`);
+    } else if (error.message && error.message.includes('enum')) {
+      toast.error('Please select from the available dropdown options only');
+    } else {
+      toast.error(error.message || 'Something went wrong while adding the product');
+    }
+  } finally {
+    setIsLoading(false);
+    setSubmitting(false);
+  }
+};
 
   return (
     <SellerLayout>

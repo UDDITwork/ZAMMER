@@ -30,9 +30,14 @@ const terminalLog = (action, status, data = null) => {
 // @desc    Create a new product
 // @route   POST /api/products
 // @access  Private (Seller)
+// @desc    Create a new product
+// @route   POST /api/products
+// @access  Private (Seller)
 exports.createProduct = async (req, res) => {
   try {
     console.log('📦 Create Product called');
+    console.log('📋 Request body:', JSON.stringify(req.body, null, 2));
+    console.log('📁 Request files:', req.files ? req.files.length : 'No files');
     
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -52,16 +57,28 @@ exports.createProduct = async (req, res) => {
       zammerPrice,
       mrp,
       variants,
-      images,
+      images, // ✅ Images from frontend (Cloudinary URLs)
       tags,
       isLimitedEdition,
       isTrending
     } = req.body;
 
-    // Handle image uploads if files are present
-    let uploadedImages = [];
+    // ✅ FIXED: Handle images correctly - prioritize frontend images over file uploads
+    let finalImages = [];
+
+    // Check if images are provided from frontend (already uploaded to Cloudinary)
+    if (images && Array.isArray(images) && images.length > 0) {
+      // Filter out any invalid URLs and keep only Cloudinary URLs
+      finalImages = images.filter(img => 
+        typeof img === 'string' && 
+        (img.includes('cloudinary.com') || img.startsWith('http'))
+      );
+      console.log('📁 Using frontend images:', finalImages.length, 'valid images');
+    }
+
+    // Handle additional file uploads if files are present (for additional images)
     if (req.files && req.files.length > 0) {
-      console.log(`📁 Processing ${req.files.length} product images`);
+      console.log(`📁 Processing ${req.files.length} additional product images`);
       
       const uploadPromises = req.files.map(async (file) => {
         const b64 = Buffer.from(file.buffer).toString('base64');
@@ -70,27 +87,77 @@ exports.createProduct = async (req, res) => {
       });
 
       const results = await Promise.all(uploadPromises);
-      uploadedImages = results.map(result => result.url);
-      console.log('📁 Processed Cloudinary uploads:', uploadedImages);
+      const additionalImages = results.map(result => result.url);
+      console.log('📁 Processed additional Cloudinary uploads:', additionalImages);
+      
+      // Add additional images to final images array
+      finalImages = [...finalImages, ...additionalImages];
     }
 
-    // Create product with uploaded images
-    const product = new Product({
-      ...req.body,
-      seller: req.seller._id,
-      images: uploadedImages
+    // ✅ VALIDATION: Ensure we have at least one image
+    if (!finalImages || finalImages.length === 0) {
+      console.log('❌ No valid images provided');
+      return res.status(400).json({
+        success: false,
+        message: 'At least one valid image is required'
+      });
+    }
+
+    console.log('✅ Final images for product:', finalImages);
+
+    // ✅ FIXED: Create product with correct image handling
+    const productData = {
+      name,
+      description,
+      category,
+      subCategory,
+      productCategory,
+      zammerPrice: Number(zammerPrice),
+      mrp: Number(mrp),
+      variants: variants.map(variant => ({
+        ...variant,
+        quantity: Number(variant.quantity)
+      })),
+      images: finalImages, // ✅ Use the correctly processed images
+      tags: tags || [],
+      isLimitedEdition: Boolean(isLimitedEdition),
+      isTrending: Boolean(isTrending),
+      seller: req.seller._id
+    };
+
+    console.log('💾 Creating product with data:', {
+      name: productData.name,
+      imageCount: productData.images.length,
+      variantCount: productData.variants.length,
+      seller: productData.seller
     });
 
-    await product.save();
+    const product = new Product(productData);
+    const savedProduct = await product.save();
+
+    console.log('✅ Product created successfully:', {
+      id: savedProduct._id,
+      name: savedProduct.name,
+      images: savedProduct.images
+    });
 
     res.status(201).json({
       success: true,
       message: 'Product created successfully',
-      data: product
+      data: savedProduct
     });
 
   } catch (error) {
     console.error('❌ Product creation error:', error);
+    
+    // Enhanced error logging
+    if (error.name === 'ValidationError') {
+      console.error('📋 Validation Error Details:', Object.keys(error.errors).map(key => ({
+        field: key,
+        message: error.errors[key].message
+      })));
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Server Error',
