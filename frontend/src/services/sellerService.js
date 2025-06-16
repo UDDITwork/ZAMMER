@@ -148,3 +148,25 @@ export const deleteImage = async (publicId) => {
     throw error.response?.data || error;
   }
 };
+
+// 🎯 NEW: Real Cloudinary upload for shop images (file upload)
+export const uploadShopImageToCloudinary = async (file) => {
+  try {
+    console.log('📸 Uploading shop image to Cloudinary via backend...');
+    
+    const formData = new FormData();
+    formData.append('images', file);
+    
+    const response = await api.post('/sellers/upload-shop-images', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
+    console.log('✅ Shop image Cloudinary upload successful:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Shop image Cloudinary upload failed:', error.response?.data || error);
+    throw error.response?.data || error;
+  }
+};

@@ -70,14 +70,17 @@ api.interceptors.request.use(
     // Get tokens from localStorage
     const sellerToken = localStorage.getItem('sellerToken');
     const userToken = localStorage.getItem('userToken');
+    const adminToken = localStorage.getItem('adminToken');
     const userData = localStorage.getItem('userData');
     
     debugLog('🔑 TOKEN CHECK', {
       hasSellerToken: !!sellerToken,
       hasUserToken: !!userToken,
+      hasAdminToken: !!adminToken,
       hasUserData: !!userData,
       sellerTokenValid: sellerToken ? isValidJWTStructure(sellerToken) : false,
-      userTokenValid: userToken ? isValidJWTStructure(userToken) : false
+      userTokenValid: userToken ? isValidJWTStructure(userToken) : false,
+      adminTokenValid: adminToken ? isValidJWTStructure(adminToken) : false
     }, 'info');
     
     // Only cleanup tokens that are clearly malformed (have wrong structure)
@@ -97,19 +100,26 @@ api.interceptors.request.use(
       cleanupNeeded = true;
     }
     
+    if (adminToken && !isValidJWTStructure(adminToken)) {
+      debugLog('🧹 Removing malformed admin token', { tokenLength: adminToken.length }, 'warning');
+      localStorage.removeItem('adminToken');
+      cleanupNeeded = true;
+    }
+    
     if (cleanupNeeded) {
       debugLog('🧹 Token cleanup completed', null, 'warning');
       // Re-read tokens after cleanup
+      const cleanedAdminToken = localStorage.getItem('adminToken');
       const cleanedSellerToken = localStorage.getItem('sellerToken');
       const cleanedUserToken = localStorage.getItem('userToken');
       
       // Use the cleaned tokens
-      const token = cleanedSellerToken || cleanedUserToken;
+      const token = cleanedAdminToken || cleanedSellerToken || cleanedUserToken;
       
       if (token) {
         config.headers['Authorization'] = `Bearer ${token}`;
         debugLog('✅ CLEANED TOKEN ADDED', {
-          tokenType: cleanedSellerToken ? 'seller' : 'user',
+          tokenType: cleanedAdminToken ? 'admin' : cleanedSellerToken ? 'seller' : 'user',
           tokenPreview: `${token.substring(0, 20)}...`
         }, 'success');
       } else {
@@ -117,12 +127,12 @@ api.interceptors.request.use(
       }
     } else {
       // Use existing valid tokens
-      const token = sellerToken || userToken;
+      const token = adminToken || sellerToken || userToken;
       
       if (token) {
         config.headers['Authorization'] = `Bearer ${token}`;
         debugLog('✅ TOKEN ADDED', {
-          tokenType: sellerToken ? 'seller' : 'user',
+          tokenType: adminToken ? 'admin' : sellerToken ? 'seller' : 'user',
           tokenPreview: `${token.substring(0, 20)}...`
         }, 'success');
       } else {
@@ -208,6 +218,7 @@ api.interceptors.response.use(
         localStorage.removeItem('userData');
         localStorage.removeItem('sellerToken');
         localStorage.removeItem('sellerData');
+        localStorage.removeItem('adminToken');
         
         debugLog('🧹 ALL TOKENS CLEANED DUE TO AUTH ERROR', {
           code: errorData.code
@@ -224,6 +235,7 @@ api.interceptors.response.use(
       localStorage.removeItem('userData');
       localStorage.removeItem('sellerToken');
       localStorage.removeItem('sellerData');
+      localStorage.removeItem('adminToken');
       
       // Redirect to login after short delay
       setTimeout(() => {
@@ -236,76 +248,38 @@ api.interceptors.response.use(
   }
 );
 
-// Global debug function for testing
-if (process.env.NODE_ENV === 'development') {
-  window.debugAPI = {
-    checkTokens: () => {
-      const userToken = localStorage.getItem('userToken');
-      const userData = localStorage.getItem('userData');
-      const sellerToken = localStorage.getItem('sellerToken');
-      
-      const result = {
-        userToken: userToken ? {
-          exists: true,
-          length: userToken.length,
-          preview: `${userToken.substring(0, 30)}...`,
-          isValidStructure: isValidJWTStructure(userToken)
-        } : { exists: false },
-        userData: userData ? { exists: true, length: userData.length } : { exists: false },
-        sellerToken: sellerToken ? {
-          exists: true,
-          length: sellerToken.length,
-          preview: `${sellerToken.substring(0, 30)}...`,
-          isValidStructure: isValidJWTStructure(sellerToken)
-        } : { exists: false },
-        allKeys: Object.keys(localStorage)
-      };
-      
-      console.log('🔍 TOKEN DEBUG REPORT:', result);
-      return result;
-    },
-    
-    testRequest: async (endpoint = '/cart') => {
-      try {
-        const response = await api.get(endpoint);
-        console.log('✅ TEST REQUEST SUCCESS:', response.data);
-        return response.data;
-      } catch (error) {
-        console.log('❌ TEST REQUEST FAILED:', error);
-        return error;
-      }
-    },
-    
-    clearAllTokens: () => {
-      localStorage.removeItem('userToken');
-      localStorage.removeItem('userData');
-      localStorage.removeItem('sellerToken');
-      localStorage.removeItem('sellerData');
-      console.log('🧹 ALL TOKENS CLEARED');
-    },
-    
-    setTestToken: () => {
-      const testUserData = {
-        _id: 'test-user-id',
-        name: 'Test User',
-        email: 'test@example.com',
-        token: 'test-token-123'
-      };
-      
-      localStorage.setItem('userToken', testUserData.token);
-      localStorage.setItem('userData', JSON.stringify(testUserData));
-      console.log('🧪 TEST TOKEN SET');
-    }
+// 🎯 NEW: Image loading interceptor for debugging
+const testImageLoading = (imageUrl) => {
+  if (!imageUrl || typeof imageUrl !== 'string') {
+    console.log('❌ Invalid image URL provided for testing');
+    return;
+  }
+  
+  console.log(`🧪 Testing image load: ${imageUrl.substring(0, 50)}...`);
+  
+  const img = new Image();
+  
+  img.onload = function() {
+    console.log(`✅ Image loaded successfully: ${imageUrl.substring(0, 50)}...`);
+    console.log(`   📐 Dimensions: ${this.naturalWidth}x${this.naturalHeight}`);
   };
   
-  debugLog('🔧 DEBUG MODE ENABLED', {
-    availableFunctions: [
-      'window.debugAPI.checkTokens() - Check current token status',
-      'window.debugAPI.testRequest() - Test API request',
-      'window.debugAPI.clearAllTokens() - Clear all tokens',
-      'window.debugAPI.setTestToken() - Set test token'
-    ]
-  }, 'info');
+  img.onerror = function() {
+    console.log(`❌ Image failed to load: ${imageUrl.substring(0, 50)}...`);
+    console.log(`   🔍 Possible issues:`);
+    console.log(`   - CORS policy blocking the image`);
+    console.log(`   - Invalid Cloudinary URL`);
+    console.log(`   - Image doesn't exist on Cloudinary`);
+    console.log(`   - Network connectivity issues`);
+  };
+  
+  img.src = imageUrl;
+};
+
+// Export for global use in development
+if (process.env.NODE_ENV === 'development') {
+  window.testImageLoading = testImageLoading;
+  console.log('🧪 Image testing function available: window.testImageLoading(url)');
 }
 
 export default api;

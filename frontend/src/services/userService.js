@@ -153,26 +153,93 @@ export const updateUserLocation = async (locationData) => {
   }
 };
 
-// Get nearby shops
+// Get nearby shops - FIXED to ensure it gets ALL shops
 export const getNearbyShops = async () => {
   try {
-    debugLog('🏪 Fetching nearby shops', null, 'info');
+    console.log('🏪 [UserService] Fetching nearby shops...');
+    console.log('🏪 [UserService] API endpoint: /shops/nearby');
 
-    const response = await api.get('/users/nearby-shops');
+    // 🎯 FIXED: Call the correct shops endpoint that returns ALL shops
+    const response = await api.get('/shops/nearby');
     
-    debugLog('✅ Nearby shops fetched', {
+    console.log('🏪 [UserService] Raw response received:', {
+      success: response.data?.success,
+      dataType: typeof response.data?.data,
+      isArray: Array.isArray(response.data?.data),
+      count: response.data?.count || 0,
+      firstShop: response.data?.data?.[0]?.shop?.name || 'none'
+    });
+    
+    // 🎯 FIXED: Validate response data more carefully
+    if (!response.data) {
+      console.error('❌ [UserService] No response data received');
+      return {
+        success: false,
+        message: 'No response data received from server',
+        data: []
+      };
+    }
+
+    if (!response.data.success) {
+      console.error('❌ [UserService] API returned success: false', response.data);
+      return {
+        success: false,
+        message: response.data.message || 'Failed to fetch shops',
+        data: []
+      };
+    }
+
+    if (!Array.isArray(response.data.data)) {
+      console.error('❌ [UserService] Invalid data format - not an array:', {
+        dataType: typeof response.data.data,
+        data: response.data.data
+      });
+      return {
+        success: false,
+        message: 'Invalid response format from server',
+        data: []
+      };
+    }
+
+    console.log('✅ [UserService] Nearby shops fetched successfully:', {
       success: response.data.success,
-      count: response.data.count
-    }, response.data.count === 0 ? 'warning' : 'success');
+      count: response.data.count,
+      actualDataLength: response.data.data.length,
+      sampleShop: response.data.data[0] ? {
+        id: response.data.data[0]._id,
+        name: response.data.data[0].shop?.name,
+        hasLocation: !!response.data.data[0].shop?.location,
+        hasImages: !!response.data.data[0].shop?.images?.length,
+        category: response.data.data[0].shop?.category
+      } : null
+    });
 
     return response.data;
   } catch (error) {
-    debugLog('❌ Nearby shops fetch failed', {
+    console.error('❌ [UserService] Nearby shops fetch failed:', {
       status: error.response?.status,
-      message: error.response?.data?.message || error.message
-    }, 'error');
+      statusText: error.response?.statusText,
+      message: error.response?.data?.message || error.message,
+      url: error.config?.url,
+      method: error.config?.method,
+      baseURL: error.config?.baseURL,
+      fullURL: `${error.config?.baseURL}${error.config?.url}`,
+      isNetworkError: !error.response,
+      errorData: error.response?.data
+    });
 
-    throw error.response?.data || { success: false, message: 'Network error' };
+    // 🎯 FIXED: Return consistent error format instead of throwing
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to fetch nearby shops',
+      error: error.message,
+      data: [],
+      debug: {
+        status: error.response?.status,
+        endpoint: error.config?.url,
+        isNetworkError: !error.response
+      }
+    };
   }
 };
 

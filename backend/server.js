@@ -4,7 +4,7 @@ const socketIo = require('socket.io');
 
 // Environment variables
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8080; // GAE uses 8080
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 console.log(`
@@ -42,10 +42,11 @@ try {
       origins.push(FRONTEND_URL);
     }
     
-    // Add Amplify and CloudFront domains
+    // Add Google App Engine URLs
     origins.push(
-      /https:\/\/.*\.amplifyapp\.com$/,
-      /https:\/\/.*\.cloudfront\.net$/
+      /https:\/\/.*\.appspot\.com$/,
+      /https:\/\/.*\.googleusercontent\.com$/,
+      'https://onyx-osprey-462815-i9.appspot.com'
     );
     
     return origins;
@@ -111,10 +112,10 @@ try {
 🎉 ===============================
    ZAMMER SERVER READY!
 ===============================
-🌐 HTTP Server: http://localhost:${PORT}
-📡 Socket Server: ws://localhost:${PORT}
-🛒 API Endpoints: http://localhost:${PORT}/api
-💚 Health Check: http://localhost:${PORT}/api/health
+🌐 HTTP Server: http://0.0.0.0:${PORT}
+📡 Socket Server: ws://0.0.0.0:${PORT}
+🛒 API Endpoints: http://0.0.0.0:${PORT}/api
+💚 Health Check: http://0.0.0.0:${PORT}/api/health
 🔔 Real-time: OPERATIONAL
 🚀 Environment: ${NODE_ENV}
 ===============================`);

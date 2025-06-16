@@ -4,7 +4,7 @@ import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import SellerLayout from '../../components/layouts/SellerLayout';
 import GooglePlacesAutocomplete from '../../components/GooglePlacesAutocomplete';
-import { getSellerProfile, updateSellerProfile, uploadShopImages, deleteImage } from '../../services/sellerService';
+import { getSellerProfile, updateSellerProfile, uploadShopImages, deleteImage, uploadShopImageToCloudinary } from '../../services/sellerService';
 import { AuthContext } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -94,20 +94,36 @@ const EditProfile = () => {
     toast.success('Address selected successfully!');
   };
 
-  // 🎯 NEW: Handle shop image upload
+  // 🎯 FIXED: Real Cloudinary upload for shop images
   const handleShopImageUpload = async (e, setFieldValue, currentImages) => {
     setUploadingImages(true);
     try {
       const files = Array.from(e.target.files);
+      console.log('📸 Starting real Cloudinary upload for shop images:', files.length);
+      
       const uploadedImages = [...(currentImages || [])];
       
-      console.log('📸 Uploading shop images:', files.length);
-      
+      // Upload each file to Cloudinary via backend
       for (const file of files) {
-        const imageUrl = await mockImageUpload(file);
-        uploadedImages.push(imageUrl);
+        try {
+          console.log(`📤 Uploading file to Cloudinary: ${file.name}`);
+          const response = await uploadShopImageToCloudinary(file);
+          
+          if (response.success && response.data.images) {
+            // Get the newly uploaded images from the response
+            const newImages = response.data.images.filter(img => 
+              !uploadedImages.includes(img)
+            );
+            uploadedImages.push(...newImages);
+            console.log(`✅ File uploaded to Cloudinary successfully: ${file.name}`);
+          }
+        } catch (uploadError) {
+          console.error(`❌ Failed to upload ${file.name} to Cloudinary:`, uploadError);
+          toast.error(`Failed to upload ${file.name}`);
+        }
       }
       
+      // Update form with Cloudinary URLs
       setFieldValue('shop.images', uploadedImages);
       
       // Set main image if not already set
@@ -115,10 +131,10 @@ const EditProfile = () => {
         setFieldValue('shop.mainImage', uploadedImages[0]);
       }
       
-      toast.success(`${files.length} shop image(s) uploaded successfully`);
+      toast.success(`${files.length} shop image(s) uploaded to Cloudinary successfully`);
     } catch (error) {
-      toast.error('Failed to upload shop images');
-      console.error('Shop image upload error:', error);
+      toast.error('Failed to upload shop images to Cloudinary');
+      console.error('Shop image Cloudinary upload error:', error);
     } finally {
       setUploadingImages(false);
     }

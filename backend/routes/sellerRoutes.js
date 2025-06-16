@@ -1,18 +1,20 @@
 const express = require('express');
 const { body } = require('express-validator');
 const router = express.Router();
+const { protectSeller } = require('../middleware/authMiddleware');
+const { upload, handleMulterError } = require('../middleware/uploadMiddleware');
 const {
   registerSeller,
   loginSeller,
   getSellerProfile,
   updateSellerProfile,
+  uploadShopImages,
   forgotPassword,
   verifyResetToken,
   resetPassword,
   resetPasswordDirect,
   checkEmailExists
 } = require('../controllers/sellerController');
-const { protectSeller } = require('../middleware/authMiddleware');
 const Seller = require('../models/Seller');
 
 // Register a seller
@@ -61,5 +63,10 @@ router.post('/reset-password-direct', [
   body('email').isEmail().withMessage('Please enter a valid email'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
 ], resetPasswordDirect);
+
+// @desc    Upload shop images to Cloudinary
+// @route   POST /api/sellers/upload-shop-images
+// @access  Private (Seller)
+router.post('/upload-shop-images', protectSeller, upload.array('images', 10), handleMulterError, uploadShopImages);
 
 module.exports = router;

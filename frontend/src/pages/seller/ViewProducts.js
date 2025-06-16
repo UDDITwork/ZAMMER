@@ -33,13 +33,30 @@ const ViewProducts = () => {
   const fetchProducts = async () => {
     setLoading(true);
     try {
+      console.log('🔍 [SELLER] Fetching seller products...');
       const response = await getSellerProducts();
+      
       if (response.success) {
+        console.log(`✅ [SELLER] Found ${response.data.length} products`);
+        
+        // 🎯 NEW: Debug seller product images
+        response.data.forEach((product, index) => {
+          console.log(`📦 [SELLER] Product ${index + 1}: ${product.name}`);
+          console.log(`   📁 Images: ${product.images?.length || 0}`);
+          if (product.images && product.images.length > 0) {
+            product.images.forEach((img, imgIdx) => {
+              console.log(`   🖼️  Image ${imgIdx + 1}: ${img.substring(0, 50)}...`);
+              console.log(`   ✅ Is Cloudinary: ${img.includes('cloudinary.com')}`);
+            });
+          }
+        });
+        
         setProducts(response.data);
       } else {
         toast.error(response.message || 'Failed to fetch products');
       }
     } catch (error) {
+      console.error('❌ [SELLER] Error fetching products:', error);
       toast.error(error.message || 'Something went wrong');
     } finally {
       setLoading(false);
@@ -350,6 +367,17 @@ const ViewProducts = () => {
                               src={product.images[0]}
                               alt={product.name}
                               className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                              onLoad={() => {
+                                console.log(`✅ [SELLER] Image loaded: ${product.name}`);
+                              }}
+                              onError={(e) => {
+                                console.error(`❌ [SELLER] Image failed: ${product.name} - ${e.target.src}`);
+                                console.error('🔍 [SELLER] Debug info:', {
+                                  productName: product.name,
+                                  imageUrl: e.target.src,
+                                  isCloudinary: e.target.src.includes('cloudinary.com')
+                                });
+                              }}
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-400">
@@ -358,6 +386,12 @@ const ViewProducts = () => {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                 </svg>
                                 <span className="text-sm font-medium">No Image</span>
+                                {/* 🎯 Debug info for seller */}
+                                {process.env.NODE_ENV === 'development' && (
+                                  <div className="text-xs text-red-500 mt-1">
+                                    Debug: {product.images ? `${product.images.length} images` : 'No images'}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )}
