@@ -18,6 +18,8 @@ const userRoutes = require('./routes/userRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const cartRoutes = require('./routes/cartRoutes');
+const shopRoutes = require('./routes/shopRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 // Initialize app
 const app = express();
@@ -43,12 +45,18 @@ const getAllowedOrigins = () => {
     origins.push(FRONTEND_URL);
   }
   
-  // Add Amplify app domains (update these with your actual Amplify URLs)
+  // 🎯 NEW: Add Cloudinary domains
+  origins.push(
+    'https://res.cloudinary.com',
+    'https://cloudinary.com',
+    /https:\/\/.*\.cloudinary\.com$/,
+    /https:\/\/res\.cloudinary\.com$/
+  );
+  
+  // Add Amplify app domains
   origins.push(
     /https:\/\/.*\.amplifyapp\.com$/,
-    /https:\/\/.*\.cloudfront\.net$/,
-    // Add your custom domain here if you have one
-    // 'https://your-custom-domain.com'
+    /https:\/\/.*\.cloudfront\.net$/
   );
   
   return origins;
@@ -388,6 +396,8 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/shops', shopRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Serve static files from public directory
 app.use('/public', express.static(publicDir));

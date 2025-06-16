@@ -63,47 +63,27 @@ exports.createProduct = async (req, res) => {
       isTrending
     } = req.body;
 
-    // ✅ FIXED: Handle images correctly - prioritize frontend images over file uploads
+    // ✅ FIXED: Only accept Cloudinary URLs from frontend
     let finalImages = [];
 
-    // Check if images are provided from frontend (already uploaded to Cloudinary)
+    // Only accept Cloudinary URLs from frontend
     if (images && Array.isArray(images) && images.length > 0) {
-      // Filter out any invalid URLs and keep only Cloudinary URLs
       finalImages = images.filter(img => 
         typeof img === 'string' && 
-        (img.includes('cloudinary.com') || img.startsWith('http'))
+        img.includes('cloudinary.com')
       );
-      console.log('📁 Using frontend images:', finalImages.length, 'valid images');
+      console.log('✅ Filtered Cloudinary images:', finalImages.length);
     }
 
-    // Handle additional file uploads if files are present (for additional images)
-    if (req.files && req.files.length > 0) {
-      console.log(`📁 Processing ${req.files.length} additional product images`);
-      
-      const uploadPromises = req.files.map(async (file) => {
-        const b64 = Buffer.from(file.buffer).toString('base64');
-        const dataURI = `data:${file.mimetype};base64,${b64}`;
-        return await uploadToCloudinary(dataURI, 'product_images');
-      });
-
-      const results = await Promise.all(uploadPromises);
-      const additionalImages = results.map(result => result.url);
-      console.log('📁 Processed additional Cloudinary uploads:', additionalImages);
-      
-      // Add additional images to final images array
-      finalImages = [...finalImages, ...additionalImages];
-    }
-
-    // ✅ VALIDATION: Ensure we have at least one image
     if (!finalImages || finalImages.length === 0) {
-      console.log('❌ No valid images provided');
+      console.log('❌ No valid Cloudinary images provided');
       return res.status(400).json({
         success: false,
-        message: 'At least one valid image is required'
+        message: 'At least one valid Cloudinary image is required'
       });
     }
 
-    console.log('✅ Final images for product:', finalImages);
+    console.log('✅ Final Cloudinary images for product:', finalImages);
 
     // ✅ FIXED: Create product with correct image handling
     const productData = {
@@ -324,9 +304,12 @@ exports.updateProduct = async (req, res) => {
 // @access  Private (Seller)
 exports.deleteProduct = async (req, res) => {
   try {
+    console.log('🗑️ Delete Product called for ID:', req.params.id);
+    
     const product = await Product.findById(req.params.id);
 
     if (!product) {
+      console.log('❌ Product not found:', req.params.id);
       return res.status(404).json({
         success: false,
         message: 'Product not found'
@@ -335,14 +318,17 @@ exports.deleteProduct = async (req, res) => {
 
     // Check if the seller owns this product
     if (product.seller.toString() !== req.seller._id.toString()) {
+      console.log('❌ Unauthorized delete attempt by seller:', req.seller._id);
       return res.status(403).json({
         success: false,
         message: 'Not authorized to delete this product'
       });
     }
 
+    console.log('🖼️ Deleting product images from Cloudinary...');
+    
     // Delete images from Cloudinary
-    for (const imageUrl of product.images) {
+    for (const imageUrl of product.images || []) {
       try {
         // Extract public_id from Cloudinary URL
         const publicId = imageUrl.split('/').slice(-1)[0].split('.')[0];
@@ -350,10 +336,14 @@ exports.deleteProduct = async (req, res) => {
         console.log(`✅ Deleted image from Cloudinary: ${publicId}`);
       } catch (error) {
         console.error(`❌ Error deleting image from Cloudinary: ${error.message}`);
+        // Continue even if image deletion fails
       }
     }
 
-    await product.remove();
+    // ✅ FIXED: Use findByIdAndDelete() instead of product.remove()
+    await Product.findByIdAndDelete(req.params.id);
+    
+    console.log('✅ Product deleted successfully:', req.params.id);
 
     res.status(200).json({
       success: true,
@@ -370,195 +360,172 @@ exports.deleteProduct = async (req, res) => {
   }
 };
 
-// @desc    Get all products (for marketplace)
+// @desc    Get all marketplace products with filtering
 // @route   GET /api/products/marketplace
 // @access  Public
 exports.getMarketplaceProducts = async (req, res) => {
   try {
-    terminalLog('MARKETPLACE_PRODUCTS_FETCH_START', 'PROCESSING', {
-      queryParams: req.query,
-      userAgent: req.get('User-Agent')?.substring(0, 50),
-      ip: req.ip
-    });
+    console.log('🏪 [ProductController] ===== FETCHING MARKETPLACE PRODUCTS =====');
+    console.log('🏪 [ProductController] Query params:', req.query);
 
-    console.log(`
-🛍️ ===============================
-   MARKETPLACE PRODUCTS REQUEST
-===============================
-📂 Category: ${req.query.category || 'All'}
-📁 SubCategory: ${req.query.subCategory || 'All'}
-🏷️ Product Category: ${req.query.productCategory || 'All'}
-🔍 Search: ${req.query.search || 'None'}
-📄 Page: ${req.query.page || 1}
-🔢 Limit: ${req.query.limit || 10}
-💰 Min Price: ${req.query.minPrice || 'None'}
-💰 Max Price: ${req.query.maxPrice || 'None'}
-📊 Sort By: ${req.query.sortBy || 'createdAt'}
-🔄 Sort Order: ${req.query.sortOrder || 'desc'}
-🕐 Time: ${new Date().toLocaleString()}
-===============================`);
-    
-    // Basic pagination
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 10;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    // Filter options
-    const filter = {};
-    
+    // 🎯 FIXED: Initialize filter with active status
+    const filter = { status: 'active' };
+
+    // 🎯 NEW: Add seller filter for shop-specific products
+    if (req.query.seller) {
+      filter.seller = req.query.seller;
+      console.log(`🏪 [ProductController] Filtering by seller: ${req.query.seller}`);
+    }
+
+    // 🎯 FIXED: Case-insensitive category filtering
     if (req.query.category) {
-      filter.category = req.query.category;
-      console.log(`🏷️ Filtering by category: ${req.query.category}`);
+      filter.category = new RegExp(`^${req.query.category}$`, 'i');
+      console.log(`🏷️ [ProductController] Filtering by category: ${req.query.category}`);
     }
-    
+
+    // 🎯 FIXED: Case-insensitive subcategory filtering
     if (req.query.subCategory) {
-      filter.subCategory = req.query.subCategory;
-      console.log(`📁 Filtering by subcategory: ${req.query.subCategory}`);
+      filter.subCategory = new RegExp(`^${req.query.subCategory}$`, 'i');
+      console.log(`📁 [ProductController] Filtering by subcategory: ${req.query.subCategory}`);
     }
 
+    // 🎯 FIXED: Case-insensitive product category filtering
     if (req.query.productCategory) {
-      filter.productCategory = req.query.productCategory;
-      console.log(`🎯 Filtering by product category: ${req.query.productCategory}`);
+      filter.productCategory = new RegExp(`^${req.query.productCategory}$`, 'i');
+      console.log(`🏷️ [ProductController] Filtering by product category: ${req.query.productCategory}`);
     }
 
-    if (req.query.search) {
-      filter.$or = [
-        { name: { $regex: req.query.search, $options: 'i' } },
-        { description: { $regex: req.query.search, $options: 'i' } },
-        { tags: { $in: [new RegExp(req.query.search, 'i')] } }
-      ];
-      console.log(`🔍 Search query applied: "${req.query.search}"`);
-    }
-
-    // Price range filtering
+    // 🎯 FIXED: Price range filtering
     if (req.query.minPrice || req.query.maxPrice) {
       filter.zammerPrice = {};
       if (req.query.minPrice) {
-        filter.zammerPrice.$gte = parseInt(req.query.minPrice);
+        filter.zammerPrice.$gte = parseFloat(req.query.minPrice);
+        console.log(`💰 [ProductController] Min price filter: ${req.query.minPrice}`);
       }
       if (req.query.maxPrice) {
-        filter.zammerPrice.$lte = parseInt(req.query.maxPrice);
+        filter.zammerPrice.$lte = parseFloat(req.query.maxPrice);
+        console.log(`💰 [ProductController] Max price filter: ${req.query.maxPrice}`);
       }
-      console.log(`💰 Price range filter: ₹${req.query.minPrice || 0} - ₹${req.query.maxPrice || '∞'}`);
     }
 
-    // 🎯 Only show active products
-    filter.status = 'active';
+    // 🎯 FIXED: Search term filtering
+    if (req.query.search) {
+      filter.$or = [
+        { name: new RegExp(req.query.search, 'i') },
+        { description: new RegExp(req.query.search, 'i') }
+      ];
+      console.log(`🔍 [ProductController] Search term: ${req.query.search}`);
+    }
 
-    terminalLog('DATABASE_QUERY_FILTER', 'PROCESSING', {
-      filter,
-      pagination: { page, limit, skip }
-    });
+    // 🎯 FIXED: Trending products filter
+    if (req.query.isTrending === 'true') {
+      filter.isTrending = true;
+      console.log('🔥 [ProductController] Filtering trending products');
+    }
 
-    console.log('🔍 Final MongoDB Filter:', filter);
-
-    // Build sorting options
-    let sortOptions = {};
-    if (req.query.sortBy && req.query.sortOrder) {
-      sortOptions[req.query.sortBy] = req.query.sortOrder === 'asc' ? 1 : -1;
+    // 🎯 FIXED: Sort options
+    let sort = {};
+    if (req.query.sort) {
+      switch (req.query.sort) {
+        case 'price_asc':
+          sort = { zammerPrice: 1 };
+          console.log('📊 [ProductController] Sorting by price ascending');
+          break;
+        case 'price_desc':
+          sort = { zammerPrice: -1 };
+          console.log('📊 [ProductController] Sorting by price descending');
+          break;
+        case 'newest':
+          sort = { createdAt: -1 };
+          console.log('📊 [ProductController] Sorting by newest');
+          break;
+        case 'popular':
+          sort = { numReviews: -1 };
+          console.log('📊 [ProductController] Sorting by popularity');
+          break;
+        default:
+          sort = { createdAt: -1 };
+          console.log('📊 [ProductController] Default sorting by newest');
+      }
     } else {
-      sortOptions.createdAt = -1; // Default: newest first
+      sort = { createdAt: -1 }; // Default sort
     }
 
-    console.log('📊 Sort options:', sortOptions);
-
-    // Build query with seller population
-    let query = Product.find(filter)
-      .populate({
-        path: 'seller',
-        select: 'firstName shop',
-        populate: {
-          path: 'shop',
-          select: 'name address images mainImage description category'
-        }
-      })
-      .skip(skip)
-      .limit(limit)
-      .sort(sortOptions);
-
-    // Execute query
-    const products = await query;
-    const totalProducts = await Product.countDocuments(filter);
-
-    terminalLog('DATABASE_QUERY_SUCCESS', 'SUCCESS', {
-      productsFound: products.length,
-      totalProducts,
-      totalPages: Math.ceil(totalProducts / limit),
-      currentPage: page,
-      hasMore: page < Math.ceil(totalProducts / limit)
+    // 🎯 FIXED: Debug logging before query execution
+    console.log('🔍 [ProductController] Final MongoDB Filter Object:', JSON.stringify(filter, null, 2));
+    console.log('📊 [ProductController] Query URL params received:', {
+      seller: req.query.seller, // 🎯 NEW: Log seller filter
+      category: req.query.category,
+      subCategory: req.query.subCategory,
+      productCategory: req.query.productCategory,
+      minPrice: req.query.minPrice,
+      maxPrice: req.query.maxPrice,
+      search: req.query.search,
+      isTrending: req.query.isTrending,
+      sort: req.query.sort
     });
 
-    console.log(`
-✅ ===============================
-   PRODUCTS FETCHED SUCCESSFULLY!
-===============================
-📦 Products Found: ${products.length}
-📊 Total in DB: ${totalProducts}
-📄 Current Page: ${page}
-📋 Total Pages: ${Math.ceil(totalProducts / limit)}
-🔍 Filters Applied: ${Object.keys(filter).length}
-📊 Sort Applied: ${Object.keys(sortOptions).join(', ')}
-⏱️ Query Time: ${new Date().toLocaleString()}
-===============================`);
+    // 🎯 FIXED: Execute query with proper error handling
+    const [products, total] = await Promise.all([
+      Product.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .populate('seller', 'firstName shop.name shop.category')
+        .lean(),
+      Product.countDocuments(filter)
+    ]);
 
-    // 🎯 Log sample products for debugging
-    if (products.length > 0) {
-      console.log('📦 Sample Products:');
-      products.slice(0, 3).forEach((product, index) => {
-        console.log(`  ${index + 1}. ${product.name} - ₹${product.zammerPrice} (${product.category}/${product.subCategory})`);
+    console.log(`✅ [ProductController] Found ${products.length} products out of ${total} total`);
+
+    // 🎯 NEW: Special logging for seller-specific queries
+    if (req.query.seller) {
+      console.log(`🏪 [ProductController] Shop-specific query results for seller ${req.query.seller}:`, {
+        productsFound: products.length,
+        totalProducts: total,
+        shopHasProducts: products.length > 0
       });
     }
 
-    // 🎯 Enhanced response with metadata
-    const response = {
+    // 🎯 FIXED: Enhanced response with pagination info
+    res.status(200).json({
       success: true,
       count: products.length,
-      totalPages: Math.ceil(totalProducts / limit),
+      total,
+      totalPages: Math.ceil(total / limit),
       currentPage: page,
-      totalProducts,
-      hasNextPage: page < Math.ceil(totalProducts / limit),
-      hasPreviousPage: page > 1,
+      data: products,
       filters: {
-        category: req.query.category || null,
-        subCategory: req.query.subCategory || null,
-        productCategory: req.query.productCategory || null,
-        search: req.query.search || null,
-        priceRange: {
-          min: req.query.minPrice || null,
-          max: req.query.maxPrice || null
+        applied: Object.keys(filter).length > 1, // More than just status
+        active: {
+          seller: req.query.seller, // 🎯 NEW: Include seller in response
+          category: req.query.category,
+          subCategory: req.query.subCategory,
+          productCategory: req.query.productCategory,
+          priceRange: req.query.minPrice || req.query.maxPrice ? {
+            min: req.query.minPrice,
+            max: req.query.maxPrice
+          } : null,
+          search: req.query.search,
+          isTrending: req.query.isTrending === 'true'
         }
-      },
-      data: products
-    };
-
-    terminalLog('API_RESPONSE_SENT', 'SUCCESS', {
-      responseSize: JSON.stringify(response).length,
-      productsCount: products.length,
-      page,
-      totalPages: Math.ceil(totalProducts / limit)
+      }
     });
 
-    res.status(200).json(response);
   } catch (error) {
-    terminalLog('MARKETPLACE_PRODUCTS_ERROR', 'ERROR', {
-      error: error.message,
+    console.error('❌ [ProductController] Error fetching marketplace products:', {
+      message: error.message,
       stack: error.stack,
-      queryParams: req.query
+      query: req.query
     });
-
-    console.log(`
-❌ ===============================
-   PRODUCTS FETCH FAILED!
-===============================
-🚨 Error: ${error.message}
-📋 Query Params: ${JSON.stringify(req.query)}
-⏱️ Time: ${new Date().toLocaleString()}
-===============================`);
     
-    console.error('❌ Get Marketplace Products error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server Error',
+      message: 'Error fetching marketplace products',
       error: error.message
     });
   }

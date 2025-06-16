@@ -109,6 +109,8 @@ const AddProduct = () => {
         const formData = new FormData();
         formData.append('image', file);
         
+        console.log('📤 Uploading to Cloudinary via /api/upload...');
+        
         const response = await fetch(`${process.env.REACT_APP_API_URL.replace('/api', '')}/api/upload`, {
           method: 'POST',
           body: formData,
@@ -118,18 +120,21 @@ const AddProduct = () => {
         });
         
         const data = await response.json();
+        console.log('📥 Upload response:', data);
+        
         if (data.success) {
-          uploadedImages.push(data.data.url); // Cloudinary URL
+          uploadedImages.push(data.data.url); // ✅ Use Cloudinary URL
+          console.log('✅ Cloudinary URL added:', data.data.url);
         } else {
           throw new Error(data.message || 'Upload failed');
         }
       }
       
       setFieldValue('images', uploadedImages);
-      toast.success(`${files.length} image(s) uploaded successfully`);
+      toast.success(`${files.length} image(s) uploaded to Cloudinary`);
     } catch (error) {
-      toast.error('Failed to upload images');
-      console.error('Image upload error:', error);
+      console.error('❌ Cloudinary upload failed:', error);
+      toast.error('Failed to upload images to Cloudinary');
     } finally {
       setUploadingImages(false);
     }

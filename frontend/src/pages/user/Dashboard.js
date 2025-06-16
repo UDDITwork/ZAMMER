@@ -77,6 +77,45 @@ const Dashboard = () => {
         const productsData = Array.isArray(response.data) ? response.data : [];
         setProducts(productsData);
         console.log('✅ Products fetched successfully:', productsData.length);
+
+        // 🎯 NEW: Frontend image debugging
+        console.log(`
+🖼️ ===============================
+   FRONTEND IMAGE DEBUG REPORT
+===============================`);
+
+        if (productsData.length > 0) {
+          productsData.forEach((product, index) => {
+            console.log(`📦 Frontend Product ${index + 1}: ${product.name}`);
+            console.log(`   📁 Images received: ${product.images?.length || 0}`);
+            
+            if (product.images && product.images.length > 0) {
+              product.images.forEach((imageUrl, imgIndex) => {
+                console.log(`   🖼️  Image ${imgIndex + 1}: ${imageUrl}`);
+                console.log(`   ✅ URL Valid: ${typeof imageUrl === 'string' && imageUrl.length > 0}`);
+                console.log(`   ✅ Is Cloudinary: ${imageUrl.includes('cloudinary.com')}`);
+                console.log(`   ✅ Accessible: Testing...`);
+                
+                // Test image accessibility
+                const testImg = new Image();
+                testImg.onload = () => {
+                  console.log(`   ✅ Image ${imgIndex + 1} loaded successfully`);
+                };
+                testImg.onerror = () => {
+                  console.log(`   ❌ Image ${imgIndex + 1} failed to load: ${imageUrl}`);
+                };
+                testImg.src = imageUrl;
+              });
+            } else {
+              console.log(`   ❌ No images received for product: ${product.name}`);
+            }
+            console.log(`───────────────────────────────────`);
+          });
+        } else {
+          console.log(`❌ No products received from API`);
+        }
+
+        console.log(`===============================`);
       } else {
         console.log('⚠️ Products fetch response:', response);
         setProducts([]); // Safe fallback
@@ -128,33 +167,123 @@ const Dashboard = () => {
     
     setLoadingShops(true);
     try {
-      console.log('🏪 [Dashboard] Starting to fetch nearby shops...');
+      console.log('🏪 [Dashboard] ===== STARTING SHOP FETCH =====');
+      console.log('🏪 [Dashboard] User authenticated:', userAuth.isAuthenticated);
+      console.log('🏪 [Dashboard] User ID:', userAuth.user?._id);
+      console.log('🏪 [Dashboard] User location:', userAuth.user?.location);
       
+      console.log('🏪 [Dashboard] Calling getNearbyShops()...');
       const response = await getNearbyShops();
-      console.log('🏪 [Dashboard] Raw API response:', response);
       
-      // 🎯 FIX: Safe response parsing
-      if (response && response.success && isMountedRef.current) {
-        const shopsData = Array.isArray(response.data) ? response.data : [];
-        console.log('✅ [Dashboard] Shops fetched successfully:', shopsData.length);
-        setShops(shopsData);
+      console.log('🏪 [Dashboard] ===== RAW API RESPONSE =====');
+      console.log('🏪 [Dashboard] Response type:', typeof response);
+      console.log('🏪 [Dashboard] Response keys:', Object.keys(response || {}));
+      console.log('🏪 [Dashboard] Response:', response);
+      
+      // 🎯 FIXED: Handle both success and failure cases properly
+      if (!response) {
+        console.error('❌ [Dashboard] No response received from getNearbyShops');
+        toast.error('No response from server');
+        setShops([]);
+        return;
+      }
+
+      // 🎯 FIXED: Check success but also handle when data exists but success is false
+      if (!response.success && (!response.data || response.data.length === 0)) {
+        console.error('❌ [Dashboard] API returned failure:', {
+          success: response.success,
+          message: response.message,
+          error: response.error,
+          debug: response.debug
+        });
         
-        if (shopsData.length === 0) {
-          console.log('⚠️ [Dashboard] No shops returned from API');
+        toast.error(response.message || 'Failed to fetch nearby shops');
+        setShops([]);
+        return;
+      }
+
+      // 🎯 FIXED: Validate data array more carefully
+      const shopsData = Array.isArray(response.data) ? response.data : [];
+      
+      console.log('🏪 [Dashboard] ===== PROCESSING SHOP DATA =====');
+      console.log('🏪 [Dashboard] Data is array:', Array.isArray(response.data));
+      console.log('🏪 [Dashboard] Data length:', shopsData.length);
+      console.log('🏪 [Dashboard] Response success:', response.success);
+      console.log('🏪 [Dashboard] Response count:', response.count);
+      
+      if (shopsData.length > 0) {
+        console.log('🏪 [Dashboard] Shop data details:');
+        shopsData.forEach((shop, index) => {
+          console.log(`   ${index + 1}. ${shop.shop?.name || 'NO NAME'} (ID: ${shop._id})`);
+          console.log(`      - Category: ${shop.shop?.category || 'No category'}`);
+          console.log(`      - Images: ${shop.shop?.images?.length || 0}`);
+          console.log(`      - Main Image: ${shop.shop?.mainImage || 'No main image'}`);
+          console.log(`      - Location: ${shop.shop?.location ? 'Has location' : 'No location'}`);
+        });
+        
+        console.log('✅ [Dashboard] Sample shop structure:', {
+          sellerId: shopsData[0]._id,
+          name: shopsData[0].shop?.name,
+          hasLocation: !!shopsData[0].shop?.location,
+          hasImages: !!shopsData[0].shop?.images?.length,
+          imageCount: shopsData[0].shop?.images?.length || 0,
+          firstImage: shopsData[0].shop?.images?.[0] || 'none',
+          mainImage: shopsData[0].shop?.mainImage || 'none',
+          category: shopsData[0].shop?.category,
+          address: shopsData[0].shop?.address
+        });
+      } else {
+        console.log('⚠️ [Dashboard] No shops in response data');
+        
+        // 🎯 NEW: Debug why no shops
+        if (response.success) {
+          console.log('ℹ️ [Dashboard] API successful but returned empty array');
+          console.log('ℹ️ [Dashboard] This means no sellers have shop.name in database');
+        }
+      }
+
+      // 🎯 FIXED: Set shops regardless of success status if data exists
+      if (isMountedRef.current) {
+        setShops(shopsData);
+        console.log('🏪 [Dashboard] Set shops state with', shopsData.length, 'shops');
+      }
+
+      // 🎯 FIXED: Only show "no shops" message if truly no data
+      if (shopsData.length === 0) {
+        console.log('ℹ️ [Dashboard] No shops found - showing empty state');
+        if (response.success) {
+          toast.info('No shops available in the database');
         }
       } else {
-        console.log('❌ [Dashboard] Shops fetch failed:', response);
-        setShops([]); // Safe fallback
+        console.log('✅ [Dashboard] Successfully loaded', shopsData.length, 'shops');
+        toast.success(`Found ${shopsData.length} shops!`);
       }
+
     } catch (error) {
-      console.error('❌ [Dashboard] Error fetching shops:', error);
-      setShops([]); // Safe fallback
+      console.error('❌ [Dashboard] ===== ERROR FETCHING SHOPS =====');
+      console.error('❌ [Dashboard] Error type:', error.constructor.name);
+      console.error('❌ [Dashboard] Error message:', error.message);
+      console.error('❌ [Dashboard] Error details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          baseURL: error.config?.baseURL
+        }
+      });
+      
+      toast.error(`Failed to load shops: ${error.message}`);
+      setShops([]);
+      
     } finally {
       if (isMountedRef.current) {
         setLoadingShops(false);
+        console.log('🏪 [Dashboard] Set loadingShops to false');
       }
     }
-  }, [userAuth.user?.location]);
+  }, [userAuth.isAuthenticated, userAuth.user?._id]);
 
   const fetchOrders = useCallback(async () => {
     if (!isMountedRef.current) return;
@@ -427,6 +556,36 @@ const Dashboard = () => {
   const toggleOrderTracker = () => {
     setShowOrderTracker(prev => !prev);
   };
+
+  // Add this useEffect after the existing ones
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && products.length > 0) {
+      console.log('🧪 Setting up image testing functions...');
+      
+      // Test all product images
+      window.testAllProductImages = () => {
+        console.log('🧪 Testing all product images...');
+        products.forEach((product, productIndex) => {
+          if (product.images && product.images.length > 0) {
+            product.images.forEach((imageUrl, imageIndex) => {
+              console.log(`Testing ${product.name} - Image ${imageIndex + 1}`);
+              const img = new Image();
+              img.onload = () => console.log(`✅ ${product.name} - Image ${imageIndex + 1} - SUCCESS`);
+              img.onerror = () => console.log(`❌ ${product.name} - Image ${imageIndex + 1} - FAILED: ${imageUrl}`);
+              img.src = imageUrl;
+            });
+          }
+        });
+      };
+      
+      // Auto-test images when products load
+      setTimeout(() => {
+        window.testAllProductImages();
+      }, 2000);
+      
+      console.log('🧪 Test function available: window.testAllProductImages()');
+    }
+  }, [products]);
 
   // 🎯 FIX: Don't render if not authenticated
   if (!userAuth.isAuthenticated) {
@@ -808,8 +967,8 @@ const Dashboard = () => {
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                           </svg>
-                          <span className="font-bold">4.9</span>
-                          <span className="text-gray-500 text-xs">({Math.floor(Math.random() * 100) + 10})</span>
+                          <span className="font-bold">{shop.averageRating?.toFixed(1) || '0.0'}</span>
+                          <span className="text-gray-500 text-xs">({shop.numReviews || 0})</span>
                         </div>
                         
                         {/* Image indicator */}
@@ -822,7 +981,7 @@ const Dashboard = () => {
                       
                       <div className="p-4">
                         <h3 className="font-bold text-gray-800 truncate text-lg mb-1">{shop.shop?.name || 'Shop Name'}</h3>
-                        {/* 🎯 NEW: Distance display */}
+                        {/* Distance display */}
                         {shop.distanceText && (
                           <div className="text-green-600 text-xs font-semibold mb-2 flex items-center">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -840,23 +999,12 @@ const Dashboard = () => {
                           </p>
                         )}
                         
-                        <p className="text-sm text-gray-500 mb-4 flex items-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          <span>1.5 km from you</span>
-                        </p>
-                        <div className="mb-4 text-sm">
-                          <span className="text-gray-700">Price starts from </span>
-                          <span className="text-orange-600 font-bold text-lg">₹230</span>
-                        </div>
-                  <Link
-                    to={`/user/shop/${shop._id}`}
+                        <Link
+                          to={`/user/shop/${shop._id}`}
                           className="block text-center bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white py-3 rounded-xl text-sm font-bold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
-                  >
-                    Explore Shop →
-                  </Link>
+                        >
+                          Explore Shop →
+                        </Link>
                       </div>
                 </div>
               ))}
@@ -925,6 +1073,22 @@ const Dashboard = () => {
                         src={product.images[0]} 
                         alt={product.name} 
                         className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        onLoad={(e) => {
+                          console.log(`✅ Image loaded successfully: ${product.name} - ${e.target.src.substring(0, 50)}...`);
+                        }}
+                        onError={(e) => {
+                          console.error(`❌ Image failed to load: ${product.name} - ${e.target.src}`);
+                          console.error('🔍 Debugging info:', {
+                            originalSrc: e.target.src,
+                            productName: product.name,
+                            imageIndex: 0,
+                            totalImages: product.images?.length || 0,
+                            allImages: product.images
+                          });
+                          
+                          // You could set a fallback image here if needed
+                          // e.target.src = '/path/to/fallback-image.jpg';
+                        }}
                       />
                     ) : (
                       <div className="h-full w-full flex items-center justify-center text-gray-400 bg-gradient-to-br from-gray-100 to-gray-200">
@@ -932,12 +1096,18 @@ const Dashboard = () => {
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
-                          <span className="text-sm">No image</span>
+                          <span className="text-sm">No image available</span>
+                          {/* 🎯 NEW: Debug info for missing images */}
+                          {process.env.NODE_ENV === 'development' && (
+                            <div className="text-xs text-red-500 mt-1">
+                              Debug: {product.images ? `${product.images.length} images in array` : 'No images array'}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
                       <button className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white transition-all duration-300 shadow-lg">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                         </svg>
                       </button>

@@ -10,6 +10,16 @@ import { AuthProvider } from './contexts/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import SimplePlacesTest from './components/SimplePlacesTest';
 
+// 🎯 NEW: Admin Auth Pages
+import AdminLogin from './pages/auth/AdminLogin';
+
+// 🎯 NEW: Admin Dashboard Pages
+import AdminDashboard from './pages/admin/AdminDashboard';
+import ViewAllSellers from './pages/admin/ViewAllSellers';
+import ViewSellerProfile from './pages/admin/ViewSellerProfile';
+import ViewAllUsers from './pages/admin/ViewAllUsers';
+import ViewUserProfile from './pages/admin/ViewUserProfile';
+
 // Seller Auth Pages
 import SellerLogin from './pages/auth/SellerLogin';
 import SellerRegister from './pages/auth/SellerRegister';
@@ -86,6 +96,14 @@ function App() {
           <Routes>
             {/* Root redirect */}
             <Route path="/" element={<Navigate replace to="/user/dashboard" />} />
+            
+            {/* 🎯 NEW: Admin Routes */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/sellers" element={<ViewAllSellers />} />
+            <Route path="/admin/sellers/:id" element={<ViewSellerProfile />} />
+            <Route path="/admin/users" element={<ViewAllUsers />} />
+            <Route path="/admin/users/:id" element={<ViewUserProfile />} />
             
             {/* Seller Auth Routes */}
             <Route path="/seller/login" element={<SellerLogin />} />

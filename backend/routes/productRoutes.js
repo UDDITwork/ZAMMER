@@ -19,9 +19,10 @@ const {
   getTrendingProducts
 } = require('../controllers/productController');
 const { protectSeller, optionalUserAuth } = require('../middleware/authMiddleware');
+const { debugImages } = require('../middleware/imageDebugMiddleware');
 
 // Public routes - use optionalUserAuth instead of requiring auth
-router.get('/marketplace', optionalUserAuth, getMarketplaceProducts);
+router.get('/marketplace', optionalUserAuth, debugImages, getMarketplaceProducts);
 router.get('/marketplace/limited-edition', optionalUserAuth, (req, res, next) => {
   console.log('✅ /marketplace/limited-edition route hit');
   next();

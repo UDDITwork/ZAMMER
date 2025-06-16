@@ -113,7 +113,7 @@ const CategoryPage = () => {
             {subcategories.map((subcat) => (
               <Link
                 key={subcat.id}
-                to={`/user/products?category=${category}&subcategory=${subcat.id}`}
+                to={`/user/products?category=${category}&subCategory=${subcat.id}`}
                 className="relative rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 group transform hover:scale-105"
               >
                 <div className="h-40 bg-gray-200 relative overflow-hidden">

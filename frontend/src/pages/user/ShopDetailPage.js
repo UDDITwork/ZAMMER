@@ -72,17 +72,47 @@ const ShopDetailPage = () => {
   const fetchShopProducts = async () => {
     setLoadingProducts(true);
     try {
-      // This is a temporary solution - in a real implementation, 
-      // we'd have a dedicated endpoint for shop products
+      console.log('🏪 [ShopDetailPage] Fetching products for shop:', shopId);
+      
+      // 🎯 FIXED: Use the correct API call with seller filter
       const response = await getMarketplaceProducts({
-        seller: shopId,
-        limit: 10
+        seller: shopId, // 🎯 CRITICAL: Filter by seller ID
+        limit: 20,
+        page: 1,
+        status: 'active' // Only get active products
       });
+      
+      console.log('🏪 [ShopDetailPage] Shop products API response:', {
+        success: response.success,
+        count: response.count,
+        total: response.total,
+        productsFound: response.data?.length || 0,
+        shopId: shopId
+      });
+
       if (response.success) {
-        setProducts(response.data);
+        setProducts(response.data || []);
+        
+        // 🎯 ENHANCED: Log detailed results
+        console.log(`✅ [ShopDetailPage] Successfully fetched ${response.data?.length || 0} products for shop ${shopId}`);
+        
+        if (response.data && response.data.length > 0) {
+          console.log('🏪 [ShopDetailPage] Sample products:', response.data.slice(0, 2).map(p => ({
+            id: p._id,
+            name: p.name,
+            seller: p.seller?._id,
+            sellerMatches: p.seller?._id === shopId
+          })));
+        } else {
+          console.log('📦 [ShopDetailPage] No products found for this shop');
+        }
+      } else {
+        console.error('❌ [ShopDetailPage] Failed to fetch shop products:', response.message);
+        toast.error(response.message || 'Failed to fetch shop products');
       }
     } catch (error) {
-      console.error('Error fetching shop products:', error);
+      console.error('❌ [ShopDetailPage] Error fetching shop products:', error);
+      toast.error('Something went wrong while loading shop products');
     } finally {
       setLoadingProducts(false);
     }

@@ -13,10 +13,34 @@ export const getShop = async (shopId) => {
 // Get shop products
 export const getShopProducts = async (shopId) => {
   try {
+    console.log('🏪 [ShopService] Fetching products for shop:', shopId);
+    
+    if (!shopId) {
+      throw new Error('Shop ID is required');
+    }
+    
+    // 🎯 CRITICAL: Use the correct API endpoint that filters by seller
     const response = await api.get(`/products/shop/${shopId}`);
-    return response.data;
+    
+    console.log('🏪 [ShopService] Shop products response:', {
+      success: response.data?.success,
+      count: response.data?.count,
+      total: response.data?.total,
+      shopId: shopId
+    });
+    
+    if (response.data) {
+      return response.data;
+    } else {
+      throw new Error('No data received from server');
+    }
   } catch (error) {
-    throw error.response?.data || { success: false, message: 'Network error' };
+    console.error('❌ [ShopService] Error fetching shop products:', {
+      shopId,
+      error: error.message,
+      responseData: error.response?.data
+    });
+    throw error.response?.data || { success: false, message: 'Network error while fetching shop products' };
   }
 };
 

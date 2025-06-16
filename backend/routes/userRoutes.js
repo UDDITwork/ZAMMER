@@ -37,9 +37,6 @@ router.post(
   loginUser
 );
 
-// Make nearby shops accessible without requiring auth
-router.get('/nearby-shops', optionalUserAuth, getNearbyShops);
-
 // Protected routes
 router.get('/profile', protectUser, getUserProfile);
 router.put('/profile', protectUser, updateUserProfile);
