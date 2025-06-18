@@ -24,10 +24,14 @@ const adminRoutes = require('./routes/adminRoutes');
 // Initialize app
 const app = express();
 
-// 🎯 PRODUCTION: Get environment variables
+// 🎯 DYNAMIC: Environment configuration
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const PORT = process.env.PORT || 5000;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const PORT = process.env.PORT || (NODE_ENV === 'production' ? 8080 : 5001);
+
+// 🎯 DYNAMIC: Set Frontend URL based on environment
+const FRONTEND_URL = NODE_ENV === 'production' 
+  ? (process.env.FRONTEND_URL_PROD || 'https://onyx-osprey-462815-i9.appspot.com')
+  : (process.env.FRONTEND_URL_LOCAL || 'http://localhost:3000');
 
 // 🎯 PRODUCTION: Define allowed origins for CORS
 const getAllowedOrigins = () => {
@@ -45,7 +49,14 @@ const getAllowedOrigins = () => {
     origins.push(FRONTEND_URL);
   }
   
-  // 🎯 NEW: Add Cloudinary domains
+  // 🎯 Google App Engine URLs
+  origins.push(
+    'https://onyx-osprey-462815-i9.appspot.com',
+    /https:\/\/.*\.appspot\.com$/,
+    /https:\/\/.*\.googleusercontent\.com$/
+  );
+  
+  // 🎯 Cloudinary domains
   origins.push(
     'https://res.cloudinary.com',
     'https://cloudinary.com',
@@ -258,22 +269,6 @@ if (!fs.existsSync(publicDir)) {
 // Serve static files from public directory
 app.use('/public', express.static(publicDir));
 
-// 🎯 Serve frontend static assets in production
-if (NODE_ENV === 'production') {
-  const frontendBuildPath = path.join(__dirname, '..', 'frontend', 'build');
-  
-  // Ensure build directory exists
-  if (!fs.existsSync(frontendBuildPath)) {
-    console.error(`❌ Frontend build directory not found: ${frontendBuildPath}`);
-  } else {
-    app.use(express.static(frontendBuildPath));
-
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(frontendBuildPath, 'index.html'));
-    });
-  }
-}
-
 // 🎯 PRODUCTION: Enhanced CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
@@ -377,17 +372,6 @@ app.get('/api/cloudinary/status', (req, res) => {
   }
 });
 
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({
-    message: 'ZAMMER Marketplace API',
-    version: '1.0.0',
-    environment: NODE_ENV,
-    documentation: '/api/health',
-    status: 'operational'
-  });
-});
-
 // Mount API routes
 app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
@@ -397,31 +381,57 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/shops', shopRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin', adminRoutes); // 🎯 Your admin routes
 
-// Serve static files from public directory
-app.use('/public', express.static(publicDir));
-
-// Serve frontend static assets in production
+// 🎯 UPDATED: Serve frontend static files in production
 if (NODE_ENV === 'production') {
   const frontendBuildPath = path.join(__dirname, '..', 'frontend', 'build');
+  
   if (fs.existsSync(frontendBuildPath)) {
+    console.log('✅ Serving frontend from:', frontendBuildPath);
     app.use(express.static(frontendBuildPath));
+    
+    // Handle React Router routes - serve index.html for non-API routes
     app.get('*', (req, res) => {
+      // Don't serve index.html for API routes
+      if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: 'API endpoint not found' });
+      }
+      
       res.sendFile(path.join(frontendBuildPath, 'index.html'));
     });
   } else {
     console.error(`❌ Frontend build directory not found: ${frontendBuildPath}`);
+    
+    // Fallback root endpoint
+    app.get('/', (req, res) => {
+      res.json({
+        message: 'ZAMMER Marketplace API',
+        version: '1.0.0',
+        environment: NODE_ENV,
+        documentation: '/api/health',
+        status: 'operational',
+        note: 'Frontend build not found'
+      });
+    });
   }
+} else {
+  // Development root endpoint
+  app.get('/', (req, res) => {
+    res.json({
+      message: 'ZAMMER Marketplace API',
+      version: '1.0.0',
+      environment: NODE_ENV,
+      documentation: '/api/health',
+      status: 'operational'
+    });
+  });
 }
 
 // Error handling middleware
 app.use(errorHandler);
 
-// Don't start the server here - let server.js handle it
-// Just export the app, server, and io for server.js to use
-
-// Graceful shutdown handling (keep these for when server.js starts the server)
+// Graceful shutdown handling
 process.on('SIGINT', () => {
   console.log('\n📴 Received SIGINT. Graceful shutdown...');
   server.close(() => {
