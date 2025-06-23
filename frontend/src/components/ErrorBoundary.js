@@ -1,14 +1,10 @@
+// frontend/src/components/ErrorBoundary.js
 import React from 'react';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { 
-      hasError: false, 
-      error: null, 
-      errorInfo: null,
-      retryCount: 0
-    };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error) {
@@ -17,11 +13,9 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Log error details
-    console.error('ErrorBoundary caught an error:', error);
-    console.error('Error Info:', errorInfo);
+    // Log the error
+    console.error('ErrorBoundary caught an error:', error, errorInfo);
     
-    // Store error details in state
     this.setState({
       error: error,
       errorInfo: errorInfo
@@ -31,145 +25,56 @@ class ErrorBoundary extends React.Component {
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
     }
-
-    // In production, send error to monitoring service
-    if (process.env.NODE_ENV === 'production') {
-      // Example: Sentry.captureException(error, { contexts: { react: errorInfo } });
-      console.error('Production Error Logged:', {
-        error: error.message,
-        stack: error.stack,
-        componentStack: errorInfo.componentStack,
-        url: window.location.href,
-        userAgent: navigator.userAgent,
-        timestamp: new Date().toISOString()
-      });
-    }
   }
-
-  handleRetry = () => {
-    this.setState(prevState => ({
-      hasError: false,
-      error: null,
-      errorInfo: null,
-      retryCount: prevState.retryCount + 1
-    }));
-  };
-
-  handleReload = () => {
-    window.location.reload();
-  };
 
   render() {
     if (this.state.hasError) {
-      // Development error display
-      if (process.env.NODE_ENV === 'development') {
-        return (
-          <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-lg p-6 max-w-4xl w-full">
-              <div className="flex items-center mb-4">
-                <div className="bg-red-100 rounded-full p-2 mr-3">
-                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <h1 className="text-2xl font-bold text-red-600">Development Error</h1>
-              </div>
-              
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-gray-800 mb-2">Error Message:</h2>
-                <p className="text-red-600 font-mono text-sm bg-red-50 p-3 rounded border">
-                  {this.state.error && this.state.error.toString()}
-                </p>
-              </div>
-
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-gray-800 mb-2">Component Stack:</h2>
-                <pre className="text-sm bg-gray-50 p-3 rounded border overflow-auto max-h-40">
-                  {this.state.errorInfo && this.state.errorInfo.componentStack}
-                </pre>
-              </div>
-
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-gray-800 mb-2">Error Stack:</h2>
-                <pre className="text-sm bg-gray-50 p-3 rounded border overflow-auto max-h-40">
-                  {this.state.error && this.state.error.stack}
-                </pre>
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={this.handleRetry}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors"
-                >
-                  Try Again
-                </button>
-                <button
-                  onClick={this.handleReload}
-                  className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md transition-colors"
-                >
-                  Reload Page
-                </button>
-              </div>
-
-              <div className="mt-4 text-sm text-gray-600">
-                <p><strong>Retry Count:</strong> {this.state.retryCount}</p>
-                <p><strong>URL:</strong> {window.location.href}</p>
-                <p><strong>Timestamp:</strong> {new Date().toLocaleString()}</p>
-              </div>
-            </div>
-          </div>
-        );
-      }
-
-      // Production error display (user-friendly)
+      // Fallback UI
       return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full text-center">
-            <div className="bg-red-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center p-8 max-w-md mx-auto">
+            <div className="mb-4">
+              <svg className="mx-auto h-12 w-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
             </div>
-            
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">Oops! Something went wrong</h1>
-            <p className="text-gray-600 mb-6">
-              We're sorry, but something unexpected happened. Our team has been notified and is working to fix this issue.
-            </p>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Oops! Something went wrong</h1>
+            <p className="text-gray-600 mb-6">The application encountered an error. Please try refreshing the page.</p>
             
             <div className="space-y-3">
-              <button
-                onClick={this.handleRetry}
-                className="w-full bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md transition-colors"
+              <button 
+                onClick={() => window.location.reload()} 
+                className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
               >
-                Try Again
+                Refresh Page
               </button>
-              <button
-                onClick={this.handleReload}
-                className="w-full bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md transition-colors"
-              >
-                Reload Page
-              </button>
-              <button
-                onClick={() => window.location.href = '/user/dashboard'}
-                className="w-full border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md transition-colors"
+              
+              <a 
+                href="/" 
+                className="block w-full bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
               >
                 Go to Home
-              </button>
+              </a>
             </div>
 
-            <div className="mt-6 text-sm text-gray-500">
-              <p>Error ID: {Date.now()}</p>
-              {this.state.retryCount > 0 && (
-                <p>Retry attempts: {this.state.retryCount}</p>
-              )}
-            </div>
+            {process.env.NODE_ENV === 'development' && this.state.error && (
+              <details className="mt-6 text-left">
+                <summary className="cursor-pointer text-sm text-gray-500 mb-2">Error Details (Development)</summary>
+                <pre className="text-xs bg-gray-100 p-3 rounded overflow-auto">
+                  {this.state.error && this.state.error.toString()}
+                  <br />
+                  {this.state.errorInfo.componentStack}
+                </pre>
+              </details>
+            )}
           </div>
         </div>
       );
     }
 
+    // If no error, render children normally
     return this.props.children;
   }
 }
 
-export default ErrorBoundary; 
+export default ErrorBoundary;

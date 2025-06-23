@@ -18,7 +18,7 @@ gcloud auth login
 
 # Set project ID
 echo "📡 Setting project ID..."
-gcloud config set project onyx-osprey-462815-i9
+gcloud config set project zammer2
 
 # Enable required APIs
 echo "🔧 Enabling required APIs..."

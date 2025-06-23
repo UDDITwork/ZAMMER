@@ -1,10 +1,12 @@
 require('dotenv').config();
 const http = require('http');
 const socketIo = require('socket.io');
+const path = require('path');
+const express = require('express');
 
 // Environment variables
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const PORT = process.env.PORT || 8080; // GAE uses 8080
+const PORT = Number(process.env.PORT) || 8080; // FIXED: Use 8080 to match app.yaml
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 console.log(`

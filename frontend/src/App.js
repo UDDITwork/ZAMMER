@@ -10,10 +10,10 @@ import { AuthProvider } from './contexts/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import SimplePlacesTest from './components/SimplePlacesTest';
 
-// 🎯 NEW: Admin Auth Pages
+// Admin Auth Pages
 import AdminLogin from './pages/auth/AdminLogin';
 
-// 🎯 NEW: Admin Dashboard Pages
+// Admin Dashboard Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ViewAllSellers from './pages/admin/ViewAllSellers';
 import ViewSellerProfile from './pages/admin/ViewSellerProfile';
@@ -58,12 +58,47 @@ import TrendingPage from './pages/user/TrendingPage';
 import LimitedEditionPage from './pages/user/LimitedEditionPage';
 import OrderConfirmationPage from './pages/user/OrderConfirmationPage';
 import UserProfile from './pages/user/UserProfile';
-
-// 🎯 FIXED: Import the missing MyOrdersPage component
 import MyOrdersPage from './pages/user/MyOrdersPage';
 
-// 🎯 TESTING: Import the socket test component
+// Testing Components
 import SocketTestComponent from './components/user/SocketTestComponent';
+
+// Landing Page Component
+const LandingPage = () => {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+      <div className="text-center text-white p-8">
+        <h1 className="text-6xl font-bold mb-6">ZAMMER</h1>
+        <p className="text-xl mb-8">Your Complete Online Marketplace</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
+          <a 
+            href="/user/login" 
+            className="bg-white text-blue-600 px-6 py-4 rounded-lg font-semibold hover:bg-gray-100 transition-colors block"
+          >
+            User Login
+          </a>
+          <a 
+            href="/seller/login" 
+            className="bg-transparent border-2 border-white text-white px-6 py-4 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors block"
+          >
+            Seller Login
+          </a>
+          <a 
+            href="/admin/login" 
+            className="bg-yellow-500 text-black px-6 py-4 rounded-lg font-semibold hover:bg-yellow-400 transition-colors block"
+          >
+            Admin Login
+          </a>
+        </div>
+        <div className="mt-8 text-sm opacity-80">
+          <p>Backend API: Running</p>
+          <p>Database: Connected</p>
+          <p>Real-time: Active</p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Development error logging
 const logRouteError = (error, errorInfo) => {
@@ -94,10 +129,10 @@ function App() {
               pauseOnHover
             />
           <Routes>
-            {/* Root redirect */}
-            <Route path="/" element={<Navigate replace to="/user/dashboard" />} />
+            {/* Root Landing Page */}
+            <Route path="/" element={<LandingPage />} />
             
-            {/* 🎯 NEW: Admin Routes */}
+            {/* Admin Routes */}
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/sellers" element={<ViewAllSellers />} />
@@ -113,17 +148,17 @@ function App() {
             
             {/* Seller Dashboard Routes */}
             <Route path="/seller/dashboard" element={<SellerDashboard />} />
-              <Route path="/seller/add-product" element={<AddProduct />} />
-              <Route path="/seller/edit-product/:id" element={<EditProduct />} />
-              <Route path="/seller/view-products" element={<ViewProducts />} />
-              <Route path="/seller/edit-profile" element={<EditProfile />} />
-              <Route path="/seller/orders" element={<Orders />} />
+            <Route path="/seller/add-product" element={<AddProduct />} />
+            <Route path="/seller/edit-product/:id" element={<EditProduct />} />
+            <Route path="/seller/view-products" element={<ViewProducts />} />
+            <Route path="/seller/edit-profile" element={<EditProfile />} />
+            <Route path="/seller/orders" element={<Orders />} />
               
-              {/* Legacy route redirects for backward compatibility */}
-              <Route path="/seller/products/add" element={<Navigate replace to="/seller/add-product" />} />
-              <Route path="/seller/products/edit/:id" element={<Navigate replace to="/seller/edit-product/:id" />} />
-              <Route path="/seller/products" element={<Navigate replace to="/seller/view-products" />} />
-              <Route path="/seller/profile" element={<Navigate replace to="/seller/edit-profile" />} />
+            {/* Legacy route redirects for backward compatibility */}
+            <Route path="/seller/products/add" element={<Navigate replace to="/seller/add-product" />} />
+            <Route path="/seller/products/edit/:id" element={<Navigate replace to="/seller/edit-product/:id" />} />
+            <Route path="/seller/products" element={<Navigate replace to="/seller/view-products" />} />
+            <Route path="/seller/profile" element={<Navigate replace to="/seller/edit-profile" />} />
             
             {/* User Auth Routes */}
             <Route path="/user/login" element={<UserLogin />} />
@@ -150,14 +185,12 @@ function App() {
             <Route path="/user/order-confirmation" element={<OrderConfirmationPage />} />
             <Route path="/user/profile" element={<UserProfile />} />
             
-            {/* 🎯 FIXED: Add missing order routes */}
+            {/* User Order Routes */}
             <Route path="/user/orders" element={<MyOrdersPage />} />
             <Route path="/user/my-orders" element={<MyOrdersPage />} />
             
-            {/* 🎯 TESTING: Add socket test route */}
+            {/* Testing Routes */}
             <Route path="/test-socket" element={<SocketTestComponent />} />
-            
-            {/* Add this route for testing */}
             <Route path="/test-places" element={<SimplePlacesTest />} />
               
             {/* 404 Catch-all route */}
@@ -165,8 +198,15 @@ function App() {
               <div className="min-h-screen flex items-center justify-center bg-gray-50">
                 <div className="text-center">
                   <h1 className="text-4xl font-bold text-gray-900 mb-4">404 - Page Not Found</h1>
-                  <p className="text-gray-600 mb-4">The page you're looking for doesn't exist.</p>
-                  <Navigate to="/user/dashboard" replace />
+                  <p className="text-gray-600 mb-6">The page you're looking for doesn't exist.</p>
+                  <div className="space-x-4">
+                    <a href="/" className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors">
+                      Go Home
+                    </a>
+                    <a href="/user/login" className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors">
+                      User Login
+                    </a>
+                  </div>
                 </div>
               </div>
             } />

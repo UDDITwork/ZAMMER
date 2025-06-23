@@ -1,39 +1,39 @@
 {
-    "name": "zammer-marketplace",
-    "version": "1.0.0",
-    "description": "ZAMMER Marketplace - Full Stack Application",
-    "main": "backend/server.js",
-    "engines": {
-      "node": ">=18.0.0",
-      "npm": ">=8.0.0"
-    },
-    "scripts": {
-      "start": "cd backend && npm start",
-      "build": "npm run build:frontend && npm run build:backend",
-      "build:frontend": "cd frontend && npm install && npm run build",
-      "build:frontend:local": "cd frontend && npm install && REACT_APP_API_URL=http://localhost:5001/api npm run build",
-      "build:frontend:prod": "cd frontend && npm install && REACT_APP_API_URL=https://onyx-osprey-462815-i9.appspot.com/api npm run build",
-      "build:backend": "cd backend && npm install --production",
-      "dev:frontend": "cd frontend && npm start",
-      "dev:backend": "cd backend && npm run dev",
-      "install:all": "npm run install:backend && npm run install:frontend",
-      "install:backend": "cd backend && npm install",
-      "install:frontend": "cd frontend && npm install",
-      "gcp-build": "npm run build:frontend:prod && npm run build:backend",
-      "postinstall": "echo 'ZAMMER Marketplace deployed successfully'",
-      "deploy:gcp": "npm run build:frontend:prod && gcloud app deploy app.yaml --quiet",
-      "logs:gcp": "gcloud app logs tail -s default"
-    },
-    "keywords": [
-      "marketplace",
-      "ecommerce",
-      "nodejs",
-      "react",
-      "mongodb",
-      "google-app-engine"
-    ],
-    "author": "ZAMMER Team",
-    "license": "ISC",
-    "devDependencies": {},
-    "dependencies": {}
-  }
+  "name": "zammer-marketplace",
+  "version": "1.0.0",
+  "description": "ZAMMER Marketplace - Full Stack Application",
+  "main": "backend/server.js",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=8.0.0"
+  },
+  "scripts": {
+    "start": "cd backend && npm start",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "cd frontend && npm install && npm run build",
+    "build:frontend:local": "cd frontend && npm install && npm run build",
+    "build:frontend:prod": "cd frontend && npm install && REACT_APP_API_URL=https://zammer2.uc.r.appspot.com/api npm run build",
+    "build:backend": "cd backend && npm install --production",
+    "dev:frontend": "cd frontend && npm start",
+    "dev:backend": "cd backend && npm run dev",
+    "install:all": "npm run install:backend && npm run install:frontend",
+    "install:backend": "cd backend && npm install",
+    "install:frontend": "cd frontend && npm install",
+    "gcp-build": "echo 'Building frontend...' && cd frontend && npm ci && REACT_APP_API_URL=https://zammer2.uc.r.appspot.com/api npm run build && echo 'Copying build to backend...' && mkdir -p ../backend/public && cp -r build/* ../backend/public/ && echo 'Installing backend dependencies...' && cd ../backend && npm ci --production && echo 'Build complete!'",
+    "postinstall": "echo 'ZAMMER Marketplace deployed successfully'",
+    "deploy:gcp": "npm run build:frontend:prod && gcloud app deploy app.yaml --quiet",
+    "logs:gcp": "gcloud app logs tail -s default"
+  },
+  "keywords": [
+    "marketplace",
+    "ecommerce",
+    "nodejs",
+    "react", 
+    "mongodb",
+    "google-app-engine"
+  ],
+  "author": "ZAMMER Team",
+  "license": "ISC",
+  "devDependencies": {},
+  "dependencies": {}
+}

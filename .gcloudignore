@@ -5,23 +5,20 @@
 .git
 .gitignore
 
-# Node modules
+# Node modules (except production dependencies in backend)
 node_modules/
 frontend/node_modules/
-backend/node_modules/
 
 # Frontend source files (we only need the build)
-frontend/src/
-frontend/public/
-frontend/.env.local
-frontend/.env.development.local
-frontend/.env.test.local
-frontend/.env.production.local
+#frontend/src/
+#frontend/public/
+frontend/.env*
+frontend/package*.json
+frontend/README.md
 
 # Backend development files
 backend/.env.local
 backend/.env.development.local
-backend/package-lock.json
 
 # Development and testing files
 *.log
@@ -53,9 +50,12 @@ docs/
 
 # Environment files (handled via app.yaml)
 .env
-frontend/.env
 backend/.env
 
-# Build artifacts
+# Build artifacts that we don't need
 frontend/build/static/js/*.map
 frontend/build/static/css/*.map
+
+# But KEEP the frontend build directory
+!frontend/build/
+!frontend/build/**

@@ -1,0 +1,32 @@
+runtime: nodejs20
+entrypoint: npm start
+
+env_variables:
+  NODE_ENV: production
+  MONGO_URI: mongodb+srv://wintertailsmanrdjiima:bpY9xRpJoBy1gRYR@zammer.pumbd8u.mongodb.net/?retryWrites=true&w=majority&appName=zammer
+  JWT_SECRET: zammer_marketplace_9X7bPq2R5sT8vZ3wK6jH1mN4cF0dL5aE
+  EMAIL_USER: udditkantsinha@gmail.com
+  EMAIL_PASS: bwzn snqd lfbb mpyy
+  EMAIL_HOST: smtp.gmail.com
+  EMAIL_PORT: 587
+  CLOUDINARY_CLOUD_NAME: dr17ap4sb
+  CLOUDINARY_API_KEY: 826141828894487
+  CLOUDINARY_API_SECRET: RYIjPUnsL6ooJ89KUWyqzSWe5bQ
+  CLOUDINARY_URL: cloudinary://826141828894487:RYIjPUnsL6ooJ89KUWyqzSWe5bQ@dr17ap4sb
+  FRONTEND_URL: https://zammer2.uc.r.appspot.com
+  
+automatic_scaling:
+  min_instances: 0
+  max_instances: 10
+  target_cpu_utilization: 0.6
+
+resources:
+  cpu: 1
+  memory_gb: 0.5
+  disk_size_gb: 10
+
+# Let Express handle all routing, including static assets
+handlers:
+- url: /.*
+  script: auto
+  secure: always
