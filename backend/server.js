@@ -6,7 +6,7 @@ const express = require('express');
 
 // Environment variables
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const PORT = Number(process.env.PORT) || 8080; // FIXED: Use 8080 to match app.yaml
+const PORT = Number(process.env.PORT) || 5001; // FIXED: Use 5001 for localhost development
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 console.log(`

@@ -30,22 +30,20 @@ const productCategories = {
       { id: 'Dresses', name: 'Dresses', image: '/placeholders/women-dresses.jpg' },
       { id: 'Jeans', name: 'Jeans', image: '/placeholders/women-jeans.jpg' },
       { id: 'Nightwear', name: 'Nightwear', image: '/placeholders/women-nightwear.jpg' },
-      { id: 'Sleepwear', name: 'Sleepwear', image: '/placeholders/women-sleepwear.jpg' },
-      { id: 'Lehengass', name: 'Lehengass', image: '/placeholders/women-lehenga.jpg' },
+      { id: 'Lehenga', name: 'Lehenga', image: '/placeholders/women-lehenga.jpg' },
       { id: 'Rayon', name: 'Rayon', image: '/placeholders/women-rayon.jpg' },
-      { id: 'Shrugs', name: 'Shrugs', image: '/placeholders/women-shrugs.jpg' }
+      { id: 'Shrug', name: 'Shrug', image: '/placeholders/women-shrug.jpg' },
+      { id: 'Shrugs', name: 'Shrugs', image: '/placeholders/women-shrugs.jpg' },
     ]
   },
   Kids: {
     title: 'Kids',
     description: 'Find cute, comfortable kids styles...',
     subCategories: [
-      { id: 'T-shirts', name: 'T-shirts', image: '/placeholders/kids-tshirts.jpg' },
-      { id: 'Shirts', name: 'Shirts', image: '/placeholders/kids-shirts.jpg' },
+      { id: 'T-shirts', name: 'T-shirts', image: '/placeholders/kids-thirts.jpg' },
       { id: 'Boys Sets', name: 'Boys Sets', image: '/placeholders/kids-boys.jpg' },
       { id: 'Top Wear', name: 'Top Wear', image: '/placeholders/kids-topwear.jpg' },
       { id: 'Nightwear', name: 'Nightwear', image: '/placeholders/kids-nightwear.jpg' },
-      { id: 'Sleepwear', name: 'Sleepwear', image: '/placeholders/kids-sleepwear.jpg' }
     ]
   }
 };

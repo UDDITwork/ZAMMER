@@ -1,0 +1,30 @@
+{
+  "name": "zammer-marketplace",
+  "version": "1.0.0",
+  "description": "ZAMMER Marketplace - Full Stack Application",
+  "main": "backend/server.js",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=8.0.0"
+  },
+  "scripts": {
+    "start": "cd backend && npm start",
+    "dev:frontend": "cd frontend && npm start",
+    "dev:backend": "cd backend && npm run dev",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "build:frontend": "cd frontend && npm install && npm run build",
+    "copy:frontend": "mkdir -p backend/public && cp -r frontend/build/* backend/public/",
+    "install:backend": "cd backend && npm install --production",
+    "gcp-build": "npm run build:frontend && npm run copy:frontend && npm run install:backend"
+  },
+  "keywords": [
+    "marketplace",
+    "ecommerce",
+    "nodejs",
+    "react", 
+    "mongodb",
+    "google-app-engine"
+  ],
+  "author": "ZAMMER Team",
+  "license": "ISC"
+}

@@ -286,16 +286,28 @@ const Dashboard = () => {
   }, [userAuth.isAuthenticated, userAuth.user?._id]);
 
   const fetchOrders = useCallback(async () => {
-    if (!isMountedRef.current) return;
-    
+    if (!userAuth.isAuthenticated || !userAuth.user?._id) {
+      console.log('⚠️ User not authenticated, skipping orders fetch');
+      return;
+    }
+
     try {
       console.log('📦 Fetching user orders...');
-      const response = await orderService.getUserOrders();
+      const response = await orderService.getMyOrders({
+        page: 1,
+        limit: 10
+      });
       
-      // 🎯 FIX: Safe parsing
       if (response && response.success && isMountedRef.current) {
         const ordersData = Array.isArray(response.data) ? response.data : [];
         setOrders(ordersData);
+        
+        // Filter active orders (not delivered/cancelled)
+        const active = ordersData.filter(order => 
+          !['Delivered', 'Cancelled'].includes(order.status)
+        );
+        setActiveOrders(active);
+        
         console.log('✅ Orders fetched successfully:', ordersData.length);
       } else {
         setOrders([]); // Safe fallback
@@ -304,7 +316,7 @@ const Dashboard = () => {
       console.error('❌ Error fetching orders:', error);
       setOrders([]); // Safe fallback
     }
-  }, []);
+  }, [userAuth.isAuthenticated, userAuth.user?._id]);
 
   // 🎯 FIX: Enhanced location update with proper context update
   const requestLocationUpdate = useCallback(async () => {
@@ -527,7 +539,7 @@ const Dashboard = () => {
       socketService.removeListener('new-order');
       socketService.disconnect();
     };
-  }, [userAuth.user?._id, fetchOrders]); // Minimal dependencies
+  }, [userAuth.user?._id]); // Remove fetchOrders dependency to prevent loops
 
   // 🎯 NEW: Helper function to get shop image
   const getShopImage = (shop) => {

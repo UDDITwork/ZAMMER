@@ -109,6 +109,13 @@ export const AuthProvider = ({ children }) => {
           safeGetItem('userData')
         ];
 
+        debugLog('🔍 STORAGE CHECK', {
+          sellerToken: !!sellerToken,
+          sellerData: !!sellerData,
+          userToken: !!userToken,
+          userData: !!userData
+        }, 'info');
+
         // Check seller auth
         if (sellerToken && sellerData && isValidJWTStructure(sellerToken)) {
           try {
@@ -211,6 +218,24 @@ export const AuthProvider = ({ children }) => {
       clearTimeout(initTimeout);
     };
   }, []); // 🎯 IMPORTANT: Empty dependency array to run only once
+
+  // 🎯 NEW: Monitor auth state changes for debugging
+  useEffect(() => {
+    debugLog('🔄 AUTH STATE CHANGED', {
+      userAuth: {
+        isAuthenticated: userAuth.isAuthenticated,
+        hasUser: !!userAuth.user,
+        hasToken: !!userAuth.token,
+        userName: userAuth.user?.name
+      },
+      sellerAuth: {
+        isAuthenticated: sellerAuth.isAuthenticated,
+        hasSeller: !!sellerAuth.seller,
+        hasToken: !!sellerAuth.token,
+        sellerName: sellerAuth.seller?.firstName
+      }
+    }, 'info');
+  }, [userAuth.isAuthenticated, userAuth.user, userAuth.token, sellerAuth.isAuthenticated, sellerAuth.seller, sellerAuth.token]);
 
   // Enhanced login user function
   const loginUser = async (data) => {

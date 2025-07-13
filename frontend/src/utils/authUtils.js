@@ -68,6 +68,105 @@ export const clearAuth = (redirectPath = '/user/login') => {
     clearAuth();
   };
   
+  // Authentication debugging utilities
+  export const debugAuthState = () => {
+    const userToken = localStorage.getItem('userToken');
+    const userData = localStorage.getItem('userData');
+    const sellerToken = localStorage.getItem('sellerToken');
+    const sellerData = localStorage.getItem('sellerData');
+
+    console.log('🔧 AUTH STATE DEBUG:', {
+      localStorage: {
+        userToken: userToken ? {
+          exists: true,
+          length: userToken.length,
+          preview: `${userToken.substring(0, 30)}...`
+        } : { exists: false },
+        userData: userData ? {
+          exists: true,
+          length: userData.length,
+          preview: userData.substring(0, 50) + '...'
+        } : { exists: false },
+        sellerToken: sellerToken ? {
+          exists: true,
+          length: sellerToken.length,
+          preview: `${sellerToken.substring(0, 30)}...`
+        } : { exists: false },
+        sellerData: sellerData ? {
+          exists: true,
+          length: sellerData.length,
+          preview: sellerData.substring(0, 50) + '...'
+        } : { exists: false }
+      },
+      allKeys: Object.keys(localStorage)
+    });
+
+    return {
+      userToken: !!userToken,
+      userData: !!userData,
+      sellerToken: !!sellerToken,
+      sellerData: !!sellerData
+    };
+  };
+
+  // Clear all authentication data
+  export const clearAllAuth = () => {
+    console.log('🧹 Clearing all authentication data...');
+    localStorage.removeItem('userToken');
+    localStorage.removeItem('userData');
+    localStorage.removeItem('sellerToken');
+    localStorage.removeItem('sellerData');
+    console.log('✅ All auth data cleared');
+  };
+
+  // Test authentication flow
+  export const testAuthFlow = async () => {
+    console.log('🧪 Testing authentication flow...');
+    
+    // Clear existing auth
+    clearAllAuth();
+    
+    // Check initial state
+    const initialState = debugAuthState();
+    console.log('📊 Initial state:', initialState);
+    
+    // Simulate login (this would be called by the actual login process)
+    const testUserData = {
+      _id: 'test-user-id',
+      name: 'Test User',
+      email: 'test@example.com',
+      token: 'test-token-123'
+    };
+    
+    localStorage.setItem('userToken', testUserData.token);
+    localStorage.setItem('userData', JSON.stringify(testUserData));
+    
+    // Check post-login state
+    const postLoginState = debugAuthState();
+    console.log('📊 Post-login state:', postLoginState);
+    
+    // Simulate logout
+    clearAllAuth();
+    
+    // Check post-logout state
+    const postLogoutState = debugAuthState();
+    console.log('📊 Post-logout state:', postLogoutState);
+    
+    console.log('✅ Auth flow test completed');
+  };
+
+  // Make functions available globally in development
+  if (process.env.NODE_ENV === 'development') {
+    window.debugAuthState = debugAuthState;
+    window.clearAllAuth = clearAllAuth;
+    window.testAuthFlow = testAuthFlow;
+    
+    console.log('🔧 Auth utilities available globally:');
+    console.log('  - window.debugAuthState() - Check current auth state');
+    console.log('  - window.clearAllAuth() - Clear all auth data');
+    console.log('  - window.testAuthFlow() - Test authentication flow');
+  }
+
   export default {
     clearAuth,
     handleAuthError,
