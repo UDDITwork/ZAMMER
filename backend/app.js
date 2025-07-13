@@ -26,11 +26,11 @@ const app = express();
 
 // 🎯 FIXED: Environment configuration
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const PORT = process.env.PORT || 8080; // FIXED: Use 8080 for production to match app.yaml
+const PORT = process.env.PORT || 5001; // FIXED: Use 5001 for localhost development
 
 // 🎯 DYNAMIC: Set Frontend URL based on environment
 const FRONTEND_URL = NODE_ENV === 'production' 
-  ? 'https://onyx-osprey-462815-i9.appspot.com'
+  ? 'https://zammer2.uc.r.appspot.com'
   : 'http://localhost:3000';
 
 // 🎯 PRODUCTION: Define allowed origins for CORS
@@ -39,8 +39,8 @@ const getAllowedOrigins = () => {
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://localhost:3000',
-    'https://onyx-osprey-462815-i9.appspot.com',
-    'https://onyx-osprey-462815-i9.uc.r.appspot.com'
+    'https://zammer2.uc.r.appspot.com',  // Updated production URL
+    'https://onyx-osprey-462815-i9.appspot.com'  // Keep for backward compatibility
   ];
   
   // 🎯 Cloudinary domains
@@ -179,16 +179,33 @@ const limiter = rateLimit({
 
 app.use('/api/', limiter);
 
-// 🎯 PRODUCTION: Enhanced CORS configuration
+// ENHANCED: Log all incoming requests for perfect tracking
+app.use((req, res, next) => {
+  const logColor = '\x1b[36m'; // Cyan
+  const resetColor = '\x1b[0m';
+  console.log(`${logColor}➡️  [REQUEST] ${req.method} ${req.originalUrl} | Auth: ${req.headers.authorization ? 'YES' : 'NO'} | Origin: ${req.headers.origin || 'N/A'}${resetColor}`);
+  next();
+});
+
+// ENHANCED: CORS configuration for perfect tracking
 const corsOptions = {
   origin: getAllowedOrigins(),
   credentials: false,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  preflightContinue: true,
+  optionsSuccessStatus: 204
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+
+// Log CORS preflight requests
+app.options('*', (req, res, next) => {
+  const logColor = '\x1b[35m'; // Magenta
+  const resetColor = '\x1b[0m';
+  console.log(`${logColor}🛫 [CORS-PREFLIGHT] ${req.method} ${req.originalUrl} | Origin: ${req.headers.origin || 'N/A'} | Headers: ${req.headers['access-control-request-headers']}${resetColor}`);
+  next();
+}, cors(corsOptions));
 
 // Parse JSON body requests
 app.use(express.json({ limit: '10mb' }));
@@ -245,30 +262,30 @@ app.use('/api/admin', adminRoutes);
 // ─────────────────────────────────────────────
 // FIXED: Serve React static assets from frontend/build
 // ─────────────────────────────────────────────
-const possiblePaths = [
+  const possiblePaths = [
   path.join(__dirname, 'public'),  // Primary: copied to backend/public
   path.join(__dirname, '..', 'frontend', 'build'),  // Alternative: ../frontend/build
-];
-
-let frontendBuildPath = null;
-let indexPath = null;
-
-// Find the correct frontend build path
-for (const buildPath of possiblePaths) {
-  console.log(`🔍 Checking frontend build path: ${buildPath}`);
+  ];
   
-  if (fs.existsSync(buildPath)) {
-    const testIndexPath = path.join(buildPath, 'index.html');
+  let frontendBuildPath = null;
+  let indexPath = null;
+  
+  // Find the correct frontend build path
+  for (const buildPath of possiblePaths) {
+    console.log(`🔍 Checking frontend build path: ${buildPath}`);
     
-    if (fs.existsSync(testIndexPath)) {
-      frontendBuildPath = buildPath;
-      indexPath = testIndexPath;
-      console.log(`✅ Frontend build found at: ${frontendBuildPath}`);
+    if (fs.existsSync(buildPath)) {
+      const testIndexPath = path.join(buildPath, 'index.html');
       
-      // List contents for debugging
-      try {
-        const contents = fs.readdirSync(buildPath);
-        console.log(`📂 Build directory contents: ${contents.join(', ')}`);
+      if (fs.existsSync(testIndexPath)) {
+        frontendBuildPath = buildPath;
+        indexPath = testIndexPath;
+        console.log(`✅ Frontend build found at: ${frontendBuildPath}`);
+        
+        // List contents for debugging
+        try {
+          const contents = fs.readdirSync(buildPath);
+          console.log(`📂 Build directory contents: ${contents.join(', ')}`);
         
         // Check static folder structure
         const staticPath = path.join(buildPath, 'static');
@@ -290,21 +307,21 @@ for (const buildPath of possiblePaths) {
             console.log(`📂 CSS files: ${cssFiles.join(', ')}`);
           }
         }
-      } catch (err) {
-        console.log('📂 Could not list build directory contents');
+        } catch (err) {
+          console.log('📂 Could not list build directory contents');
+        }
+        
+        break;
       }
-      
-      break;
     }
   }
-}
-
-if (frontendBuildPath && indexPath) {
-  console.log('✅ Frontend build directory found');
-  console.log('✅ index.html found');
   
+  if (frontendBuildPath && indexPath) {
+    console.log('✅ Frontend build directory found');
+    console.log('✅ index.html found');
+    
   // FIXED: Serve static files FIRST with correct configuration
-  app.use(express.static(frontendBuildPath, {
+    app.use(express.static(frontendBuildPath, {
     maxAge: NODE_ENV === 'production' ? '1d' : '0',
     etag: true,
     lastModified: true,
@@ -329,66 +346,66 @@ if (frontendBuildPath && indexPath) {
       
       // Log static file serving for debugging
       console.log(`📁 Serving static file: ${req.path} -> ${filePath}`);
-    }
-  }));
-  
-  // FIXED: Handle React Router routes (SPA fallback) - MUST be AFTER static files
-  app.get('*', (req, res) => {
-    // Skip API routes
-    if (req.path.startsWith('/api/')) {
-      return res.status(404).json({ 
-        error: 'API endpoint not found',
-        path: req.path,
-        method: req.method 
-      });
-    }
+      }
+    }));
     
+  // FIXED: Handle React Router routes (SPA fallback) - MUST be AFTER static files
+    app.get('*', (req, res) => {
+      // Skip API routes
+      if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ 
+          error: 'API endpoint not found',
+          path: req.path,
+          method: req.method 
+        });
+      }
+      
     // FIXED: Don't serve index.html for static file requests that failed
     if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|map)$/)) {
       console.log(`❌ Static file not found: ${req.path}`);
       return res.status(404).send(`Static file not found: ${req.path}`);
-    }
+      }
+      
+      console.log(`📄 Serving index.html for route: ${req.path}`);
+      
+      // Send the React app
+      res.sendFile(indexPath, (err) => {
+        if (err) {
+          console.error(`❌ Error serving index.html for ${req.path}:`, err);
+          res.status(500).json({ 
+            error: 'Failed to serve frontend',
+            path: req.path 
+          });
+        }
+      });
+    });
     
-    console.log(`📄 Serving index.html for route: ${req.path}`);
+  } else {
+    console.error(`❌ Frontend build not found in any of these locations:`);
+    possiblePaths.forEach(p => console.error(`   - ${p}`));
     
-    // Send the React app
-    res.sendFile(indexPath, (err) => {
-      if (err) {
-        console.error(`❌ Error serving index.html for ${req.path}:`, err);
-        res.status(500).json({ 
-          error: 'Failed to serve frontend',
-          path: req.path 
+    // Fallback for missing build
+    app.get('/', (req, res) => {
+      res.status(200).json({
+        message: 'ZAMMER Marketplace API',
+        version: '1.0.0',
+        environment: NODE_ENV,
+        status: 'operational',
+        note: 'Frontend build not found',
+        checkedPaths: possiblePaths,
+        solution: 'Please run: npm run build:frontend:prod and redeploy'
+      });
+    });
+    
+    // Catch-all for missing frontend
+    app.get('*', (req, res) => {
+      if (!req.path.startsWith('/api/')) {
+        res.status(404).json({
+          error: 'Frontend not available',
+          path: req.path,
+          message: 'Frontend build files not found on server'
         });
       }
-    });
-  });
-  
-} else {
-  console.error(`❌ Frontend build not found in any of these locations:`);
-  possiblePaths.forEach(p => console.error(`   - ${p}`));
-  
-  // Fallback for missing build
-  app.get('/', (req, res) => {
-    res.status(200).json({
-      message: 'ZAMMER Marketplace API',
-      version: '1.0.0',
-      environment: NODE_ENV,
-      status: 'operational',
-      note: 'Frontend build not found',
-      checkedPaths: possiblePaths,
-      solution: 'Please run: npm run build:frontend:prod and redeploy'
-    });
-  });
-  
-  // Catch-all for missing frontend
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api/')) {
-      res.status(404).json({
-        error: 'Frontend not available',
-        path: req.path,
-        message: 'Frontend build files not found on server'
-      });
-    }
   });
 }
 

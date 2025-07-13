@@ -3,12 +3,17 @@ import axios from 'axios';
 
 // Dynamic API URL based on environment
 const getApiUrl = () => {
-  // Check if we're in production (deployed to App Engine)
+  // If running on App Engine (production)
   if (window.location.hostname.includes('appspot.com')) {
     return 'https://onyx-osprey-462815-i9.uc.r.appspot.com/api';
   }
-  
-  // Use environment variable or fallback to production URL
+
+  // Always use local backend in development
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:5001/api';
+  }
+
+  // Fallback to environment variable (for custom deployments)
   return process.env.REACT_APP_API_URL || 'https://onyx-osprey-462815-i9.uc.r.appspot.com/api';
 };
 
@@ -29,16 +34,32 @@ const api = axios.create({
 // Request interceptor for authentication
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token') || localStorage.getItem('sellerToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    // 🎯 FIX: Use correct localStorage keys that match AuthContext
+    const userToken = localStorage.getItem('userToken');
+    const sellerToken = localStorage.getItem('sellerToken');
+    let usedToken = null;
+    let tokenSource = null;
     
-    // Log API calls in development
+    if (userToken) {
+      config.headers.Authorization = `Bearer ${userToken}`;
+      usedToken = userToken;
+      tokenSource = 'userToken';
+    } else if (sellerToken) {
+      config.headers.Authorization = `Bearer ${sellerToken}`;
+      usedToken = sellerToken;
+      tokenSource = 'sellerToken';
+    }
+
+    // ENHANCED DEBUG: Log token status for every API call
     if (process.env.NODE_ENV === 'development') {
+      if (usedToken) {
+        console.log(`🔑 [API] Using ${tokenSource}:`, usedToken.substring(0, 20) + '...' + usedToken.slice(-8));
+      } else {
+        console.warn('⚠️ [API] No token found in localStorage for this request');
+      }
       console.log(`🌐 API Call: ${config.method?.toUpperCase()} ${config.url}`);
     }
-    
+
     return config;
   },
   (error) => {
@@ -56,12 +77,18 @@ api.interceptors.response.use(
     console.error('🚨 API Response Error:', error);
     
     if (error.response?.status === 401) {
-      // Clear tokens on unauthorized
-      localStorage.removeItem('token');
+      // 🎯 FIX: Clear correct localStorage keys
+      localStorage.removeItem('userToken');
+      localStorage.removeItem('userData');
       localStorage.removeItem('sellerToken');
+      localStorage.removeItem('sellerData');
       
-      // Redirect to login if not already there
-      if (!window.location.pathname.includes('/login')) {
+      // 🎯 FIX: Only redirect if not already on login page and not a guest request
+      const isLoginPage = window.location.pathname.includes('/login');
+      const isGuestRequest = !error.config?.headers?.Authorization;
+      
+      if (!isLoginPage && !isGuestRequest) {
+        console.log('🔄 Redirecting to login due to 401 error');
         window.location.href = '/user/login';
       }
     }

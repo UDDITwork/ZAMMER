@@ -2,9 +2,13 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { ROUTES } from './routes';
 
 // Auth Provider
 import { AuthProvider } from './contexts/AuthContext';
+
+// Import auth utilities for debugging
+import './utils/authUtils';
 
 // Error Boundary Component
 import ErrorBoundary from './components/ErrorBoundary';
@@ -60,45 +64,23 @@ import OrderConfirmationPage from './pages/user/OrderConfirmationPage';
 import UserProfile from './pages/user/UserProfile';
 import MyOrdersPage from './pages/user/MyOrdersPage';
 
+// Static Pages
+import AboutPage from './pages/user/AboutPage';
+import ContactPage from './pages/user/ContactPage';
+import HelpPage from './pages/user/HelpPage';
+
 // Testing Components
 import SocketTestComponent from './components/user/SocketTestComponent';
 
 // Landing Page Component
-const LandingPage = () => {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-      <div className="text-center text-white p-8">
-        <h1 className="text-6xl font-bold mb-6">ZAMMER</h1>
-        <p className="text-xl mb-8">Your Complete Online Marketplace</p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
-          <a 
-            href="/user/login" 
-            className="bg-white text-blue-600 px-6 py-4 rounded-lg font-semibold hover:bg-gray-100 transition-colors block"
-          >
-            User Login
-          </a>
-          <a 
-            href="/seller/login" 
-            className="bg-transparent border-2 border-white text-white px-6 py-4 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors block"
-          >
-            Seller Login
-          </a>
-          <a 
-            href="/admin/login" 
-            className="bg-yellow-500 text-black px-6 py-4 rounded-lg font-semibold hover:bg-yellow-400 transition-colors block"
-          >
-            Admin Login
-          </a>
-        </div>
-        <div className="mt-8 text-sm opacity-80">
-          <p>Backend API: Running</p>
-          <p>Database: Connected</p>
-          <p>Real-time: Active</p>
-        </div>
-      </div>
-    </div>
-  );
-};
+import LandingPage from './components/LandingPage';
+
+// Policy Pages
+import ContactPolicy from './pages/policy/ContactPolicy';
+import ShippingPolicy from './pages/policy/ShippingPolicy';
+import TermsPolicy from './pages/policy/TermsPolicy';
+import RefundPolicy from './pages/policy/RefundPolicy';
+import PrivacyPolicy from './pages/policy/PrivacyPolicy';
 
 // Development error logging
 const logRouteError = (error, errorInfo) => {
@@ -130,7 +112,7 @@ function App() {
             />
           <Routes>
             {/* Root Landing Page */}
-            <Route path="/" element={<LandingPage />} />
+            <Route path={ROUTES.LANDING} element={<LandingPage />} />
             
             {/* Admin Routes */}
             <Route path="/admin/login" element={<AdminLogin />} />
@@ -192,6 +174,18 @@ function App() {
             {/* Testing Routes */}
             <Route path="/test-socket" element={<SocketTestComponent />} />
             <Route path="/test-places" element={<SimplePlacesTest />} />
+            
+            {/* Static Pages */}
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/help" element={<HelpPage />} />
+            
+            {/* Policy Pages */}
+            <Route path={ROUTES.POLICY_CONTACT} element={<ContactPolicy />} />
+            <Route path={ROUTES.POLICY_SHIPPING} element={<ShippingPolicy />} />
+            <Route path={ROUTES.POLICY_TERMS} element={<TermsPolicy />} />
+            <Route path={ROUTES.POLICY_REFUND} element={<RefundPolicy />} />
+            <Route path={ROUTES.POLICY_PRIVACY} element={<PrivacyPolicy />} />
               
             {/* 404 Catch-all route */}
             <Route path="*" element={
