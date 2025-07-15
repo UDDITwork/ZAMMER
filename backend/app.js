@@ -36,6 +36,7 @@ const FRONTEND_URL = NODE_ENV === 'production'
 // 🎯 PRODUCTION: Define allowed origins for CORS
 const getAllowedOrigins = () => {
   const origins = [
+    'https://zammernow.com',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://localhost:3000',
