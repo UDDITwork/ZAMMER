@@ -345,7 +345,7 @@ app.use('/api/admin', adminRoutes);
       }
       
       // Log static file serving for debugging
-      console.log(`📁 Serving static file: ${req.path} -> ${filePath}`);
+      console.log(`📁 Serving static file: ${filePath}`);
       }
     }));
     
