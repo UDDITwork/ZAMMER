@@ -37,9 +37,11 @@ api.interceptors.request.use(
     // 🎯 FIX: Use correct localStorage keys that match AuthContext
     const userToken = localStorage.getItem('userToken');
     const sellerToken = localStorage.getItem('sellerToken');
+    const adminToken = localStorage.getItem('adminToken');
+
     let usedToken = null;
     let tokenSource = null;
-    
+  
     if (userToken) {
       config.headers.Authorization = `Bearer ${userToken}`;
       usedToken = userToken;
@@ -48,6 +50,10 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${sellerToken}`;
       usedToken = sellerToken;
       tokenSource = 'sellerToken';
+    } else if (adminToken) {
+      config.headers.Authorization = `Bearer ${adminToken}`;
+      usedToken = adminToken;
+      tokenSource = 'adminToken';
     }
 
     // ENHANCED DEBUG: Log token status for every API call
