@@ -15,7 +15,7 @@
     "postinstall": "echo 'Backend dependencies installed successfully'",
     "lint": "echo 'Linting skipped'",
     "prestart": "node -e \"console.log('Starting ZAMMER Backend Server...')\"",
-    "copy-frontend": "if [ -d \"../frontend/build\" ]; then echo 'Copying frontend build...'; cp -r ../frontend/build ./public/; echo 'Frontend copied successfully'; else echo 'Frontend build not found'; fi"
+    "copy-frontend": "if [ -d \"../frontend/build\" ]; then echo 'Copying frontend build...'; cp -r ../frontend/build/* ./public/; echo 'Frontend copied successfully'; else echo 'Frontend build not found'; fi"
   },
   "keywords": [
     "marketplace",
