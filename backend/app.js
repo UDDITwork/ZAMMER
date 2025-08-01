@@ -36,6 +36,7 @@ const FRONTEND_URL = NODE_ENV === 'production'
 // 🎯 PRODUCTION: Define allowed origins for CORS
 const getAllowedOrigins = () => {
   const origins = [
+    'https://zammernow.com',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://localhost:3000',
@@ -345,7 +346,7 @@ app.use('/api/admin', adminRoutes);
       }
       
       // Log static file serving for debugging
-      console.log(`📁 Serving static file: ${req.path} -> ${filePath}`);
+      console.log(`📁 Serving static file: ${filePath}`);
       }
     }));
     
