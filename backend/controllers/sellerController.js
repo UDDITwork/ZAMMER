@@ -93,20 +93,44 @@ exports.loginSeller = async (req, res) => {
 
     const { email, password } = req.body;
 
+    console.log('🔐 [SellerLogin] Login attempt:', {
+      email: email,
+      passwordLength: password?.length || 0,
+      hasPassword: !!password
+    });
+
     // Find seller
     const seller = await Seller.findOne({ email });
 
     if (!seller) {
+      console.log('❌ [SellerLogin] Seller not found:', { email });
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
     }
 
+    console.log('✅ [SellerLogin] Seller found:', {
+      sellerId: seller._id,
+      sellerName: seller.firstName,
+      hasStoredPassword: !!seller.password,
+      storedPasswordLength: seller.password?.length || 0
+    });
+
     // Match password
     const isMatch = await seller.matchPassword(password);
 
+    console.log('🔍 [SellerLogin] Password match result:', {
+      isMatch: isMatch,
+      enteredPasswordLength: password?.length || 0,
+      storedPasswordLength: seller.password?.length || 0
+    });
+
     if (!isMatch) {
+      console.log('❌ [SellerLogin] Password mismatch for seller:', {
+        sellerId: seller._id,
+        sellerEmail: seller.email
+      });
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
@@ -115,6 +139,12 @@ exports.loginSeller = async (req, res) => {
 
     // Generate JWT token
     const token = generateToken(seller._id);
+
+    console.log('✅ [SellerLogin] Login successful:', {
+      sellerId: seller._id,
+      sellerName: seller.firstName,
+      tokenGenerated: !!token
+    });
 
     res.status(200).json({
       success: true,
@@ -128,7 +158,7 @@ exports.loginSeller = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error(error);
+    console.error('❌ [SellerLogin] Error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -460,6 +490,11 @@ exports.resetPassword = async (req, res) => {
   try {
     const { token, password } = req.body;
     
+    console.log('🔄 [ResetPassword] Password reset attempt:', {
+      tokenLength: token?.length || 0,
+      passwordLength: password?.length || 0
+    });
+    
     // Find seller by reset token and check if token is not expired
     const seller = await Seller.findOne({
       resetPasswordToken: token,
@@ -467,14 +502,22 @@ exports.resetPassword = async (req, res) => {
     });
     
     if (!seller) {
+      console.log('❌ [ResetPassword] Invalid or expired token:', { token });
       return res.status(400).json({
         success: false,
         message: 'Password reset token is invalid or has expired'
       });
     }
     
-    // Update password
+    console.log('✅ [ResetPassword] Seller found:', {
+      sellerId: seller._id,
+      sellerName: seller.firstName,
+      currentPasswordLength: seller.password?.length || 0
+    });
+    
+    // 🎯 FIX: Use markModified to ensure pre-save middleware triggers
     seller.password = password;
+    seller.markModified('password');
     
     // Clear reset token fields
     seller.resetPasswordToken = undefined;
@@ -482,12 +525,17 @@ exports.resetPassword = async (req, res) => {
     
     await seller.save();
     
+    console.log('✅ [ResetPassword] Password reset successful:', {
+      sellerId: seller._id,
+      newPasswordLength: seller.password?.length || 0
+    });
+    
     return res.status(200).json({
       success: true,
       message: 'Password has been reset successfully'
     });
   } catch (error) {
-    console.error('Reset password error:', error);
+    console.error('❌ [ResetPassword] Error:', error);
     return res.status(500).json({
       success: false,
       message: 'Error resetting password'
@@ -500,27 +548,45 @@ exports.resetPasswordDirect = async (req, res) => {
   try {
     const { email, password } = req.body;
     
+    console.log('🔄 [ResetPasswordDirect] Password reset attempt:', {
+      email: email,
+      passwordLength: password?.length || 0
+    });
+    
     // Find seller by email
     const seller = await Seller.findOne({ email });
     
     if (!seller) {
+      console.log('❌ [ResetPasswordDirect] Seller not found:', { email });
       return res.status(404).json({
         success: false,
         message: 'Seller with this email does not exist'
       });
     }
     
-    // Update password
+    console.log('✅ [ResetPasswordDirect] Seller found:', {
+      sellerId: seller._id,
+      sellerName: seller.firstName,
+      currentPasswordLength: seller.password?.length || 0
+    });
+    
+    // 🎯 FIX: Use markModified to ensure pre-save middleware triggers
     seller.password = password;
+    seller.markModified('password');
     
     await seller.save();
+    
+    console.log('✅ [ResetPasswordDirect] Password reset successful:', {
+      sellerId: seller._id,
+      newPasswordLength: seller.password?.length || 0
+    });
     
     return res.status(200).json({
       success: true,
       message: 'Password has been reset successfully'
     });
   } catch (error) {
-    console.error('Reset password error:', error);
+    console.error('❌ [ResetPasswordDirect] Error:', error);
     return res.status(500).json({
       success: false,
       message: 'Error resetting password'

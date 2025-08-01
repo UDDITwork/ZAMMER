@@ -144,7 +144,32 @@ sellerSchema.pre('save', async function(next) {
 
 // Method to check password
 sellerSchema.methods.matchPassword = async function(enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+  try {
+    console.log('🔍 [matchPassword] Comparing passwords:', {
+      enteredPasswordLength: enteredPassword?.length || 0,
+      storedPasswordLength: this.password?.length || 0,
+      hasEnteredPassword: !!enteredPassword,
+      hasStoredPassword: !!this.password
+    });
+    
+    if (!enteredPassword || !this.password) {
+      console.log('❌ [matchPassword] Missing password data');
+      return false;
+    }
+    
+    const isMatch = await bcrypt.compare(enteredPassword, this.password);
+    
+    console.log('🔍 [matchPassword] Comparison result:', {
+      isMatch: isMatch,
+      enteredPasswordPreview: enteredPassword.substring(0, 3) + '...',
+      storedPasswordPreview: this.password.substring(0, 10) + '...'
+    });
+    
+    return isMatch;
+  } catch (error) {
+    console.error('❌ [matchPassword] Error during password comparison:', error);
+    return false;
+  }
 };
 
 // Method to get main shop image or default
