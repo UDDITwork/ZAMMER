@@ -15,6 +15,7 @@ const {
   resetPasswordDirect,
   checkEmailExists
 } = require('../controllers/sellerController');
+const { debugPasswordIssues, testPasswordComparison } = require('../utils/passwordDebug');
 const Seller = require('../models/Seller');
 
 // Register a seller
@@ -68,5 +69,76 @@ router.post('/reset-password-direct', [
 // @route   POST /api/sellers/upload-shop-images
 // @access  Private (Seller)
 router.post('/upload-shop-images', protectSeller, upload.array('images', 10), handleMulterError, uploadShopImages);
+
+// 🎯 DEBUG ROUTES (Development only)
+if (process.env.NODE_ENV === 'development') {
+  // Debug password issues
+  router.post('/debug/password-issues', async (req, res) => {
+    try {
+      const result = await debugPasswordIssues();
+      res.json({
+        success: true,
+        message: 'Password debug completed',
+        data: result
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Debug failed',
+        error: error.message
+      });
+    }
+  });
+
+  // Test password for specific seller
+  router.post('/debug/test-password', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      const result = await testPasswordComparison(email, password);
+      res.json({
+        success: true,
+        data: { isMatch: result }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Test failed',
+        error: error.message
+      });
+    }
+  });
+
+  // Get seller password info (for debugging)
+  router.get('/debug/seller/:email', async (req, res) => {
+    try {
+      const { email } = req.params;
+      const seller = await Seller.findOne({ email }).select('email password firstName');
+      
+      if (!seller) {
+        return res.status(404).json({
+          success: false,
+          message: 'Seller not found'
+        });
+      }
+      
+      res.json({
+        success: true,
+        data: {
+          email: seller.email,
+          firstName: seller.firstName,
+          passwordLength: seller.password?.length || 0,
+          isHashed: seller.password?.length > 20,
+          passwordPreview: seller.password ? seller.password.substring(0, 10) + '...' : 'none'
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Debug failed',
+        error: error.message
+      });
+    }
+  });
+}
 
 module.exports = router;
