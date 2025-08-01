@@ -45,32 +45,51 @@ class SocketService {
     return 'http://localhost:5000';
   }
 
-  // Initialize Socket.io connection
+  // 🎯 FIXED: Initialize Socket.io connection - NOW RETURNS A PROMISE
   connect() {
-    try {
-      const serverUrl = this.getServerUrl();
-      debugLog('🔌 Initializing Socket.io connection', { serverUrl }, 'socket');
+    return new Promise((resolve, reject) => {
+      try {
+        const serverUrl = this.getServerUrl();
+        debugLog('🔌 Initializing Socket.io connection', { serverUrl }, 'socket');
 
-      this.socket = io(serverUrl, {
-        withCredentials: true,
-        transports: ['websocket', 'polling'],
-        timeout: 10000,
-        reconnection: true,
-        reconnectionAttempts: this.maxReconnectAttempts,
-        reconnectionDelay: this.reconnectInterval
-      });
+        // If already connected, resolve immediately
+        if (this.socket && this.isConnected) {
+          debugLog('✅ Socket already connected', { socketId: this.socket.id }, 'success');
+          resolve(this.socket);
+          return;
+        }
 
-      this.setupEventHandlers();
-      return this.socket;
-    } catch (error) {
-      debugLog('❌ Socket connection error', error, 'error');
-      return null;
-    }
+        // If socket exists but not connected, disconnect first
+        if (this.socket) {
+          this.socket.disconnect();
+          this.socket = null;
+        }
+
+        this.socket = io(serverUrl, {
+          withCredentials: true,
+          transports: ['websocket', 'polling'],
+          timeout: 10000,
+          reconnection: true,
+          reconnectionAttempts: this.maxReconnectAttempts,
+          reconnectionDelay: this.reconnectInterval
+        });
+
+        // Set up event handlers with Promise resolution
+        this.setupEventHandlersWithPromise(resolve, reject);
+
+      } catch (error) {
+        debugLog('❌ Socket connection error', error, 'error');
+        reject(error);
+      }
+    });
   }
 
-  // Setup basic event handlers
-  setupEventHandlers() {
-    if (!this.socket) return;
+  // 🎯 NEW: Setup event handlers with Promise support
+  setupEventHandlersWithPromise(resolve, reject) {
+    if (!this.socket) {
+      reject(new Error('Socket not initialized'));
+      return;
+    }
 
     // Connection successful
     this.socket.on('connect', () => {
@@ -80,6 +99,9 @@ class SocketService {
         socketId: this.socket.id,
         isConnected: this.isConnected
       }, 'success');
+      
+      // Resolve the Promise
+      resolve(this.socket);
     });
 
     // Connection error
@@ -90,7 +112,18 @@ class SocketService {
         type: error.type,
         description: error.description
       }, 'error');
+      
+      // Reject the Promise
+      reject(error);
     });
+
+    // Setup other event handlers
+    this.setupBasicEventHandlers();
+  }
+
+  // 🎯 REFACTORED: Setup basic event handlers (separated from Promise logic)
+  setupBasicEventHandlers() {
+    if (!this.socket) return;
 
     // Disconnection
     this.socket.on('disconnect', (reason) => {
@@ -140,6 +173,11 @@ class SocketService {
     this.socket.on('pong', (data) => {
       debugLog('🏓 Pong received', data, 'socket');
     });
+  }
+
+  // Setup basic event handlers (LEGACY - kept for backward compatibility)
+  setupEventHandlers() {
+    this.setupBasicEventHandlers();
   }
 
   // 🎯 NEW: Join buyer room for order notifications
@@ -329,54 +367,62 @@ class SocketService {
     };
   }
 
-  // 🎯 NEW: Auto-connect based on authentication
+  // 🎯 UPDATED: Auto-connect based on authentication - NOW RETURNS A PROMISE
   autoConnect() {
-    // Check if user is authenticated
-    const userToken = localStorage.getItem('userToken');
-    const userData = localStorage.getItem('userData');
-    const sellerToken = localStorage.getItem('sellerToken');
-    const sellerData = localStorage.getItem('sellerData');
+    return new Promise((resolve, reject) => {
+      // Check if user is authenticated
+      const userToken = localStorage.getItem('userToken');
+      const userData = localStorage.getItem('userData');
+      const sellerToken = localStorage.getItem('sellerToken');
+      const sellerData = localStorage.getItem('sellerData');
 
-    if (userToken && userData) {
-      try {
-        const user = JSON.parse(userData);
-        debugLog('🔄 Auto-connecting as buyer', { userId: user._id, userName: user.name }, 'buyer');
-        
-        if (!this.isConnected) {
-          this.connect();
-          setTimeout(() => {
-            if (this.isConnected) {
+      if (userToken && userData) {
+        try {
+          const user = JSON.parse(userData);
+          debugLog('🔄 Auto-connecting as buyer', { userId: user._id, userName: user.name }, 'buyer');
+          
+          if (!this.isConnected) {
+            this.connect().then(() => {
               this.joinBuyerRoom(user._id);
-            }
-          }, 1000);
+              resolve({ type: 'buyer', user });
+            }).catch(reject);
+          } else {
+            this.joinBuyerRoom(user._id);
+            resolve({ type: 'buyer', user });
+          }
+          
+          return;
+        } catch (error) {
+          debugLog('❌ Invalid user data', error, 'error');
+          reject(error);
+          return;
         }
-        
-        return { type: 'buyer', user };
-      } catch (error) {
-        debugLog('❌ Invalid user data', error, 'error');
-      }
-    } else if (sellerToken && sellerData) {
-      try {
-        const seller = JSON.parse(sellerData);
-        debugLog('🔄 Auto-connecting as seller', { sellerId: seller._id, sellerName: seller.firstName }, 'socket');
-        
-        if (!this.isConnected) {
-          this.connect();
-          setTimeout(() => {
-            if (this.isConnected) {
+      } else if (sellerToken && sellerData) {
+        try {
+          const seller = JSON.parse(sellerData);
+          debugLog('🔄 Auto-connecting as seller', { sellerId: seller._id, sellerName: seller.firstName }, 'socket');
+          
+          if (!this.isConnected) {
+            this.connect().then(() => {
               this.joinSellerRoom(seller._id);
-            }
-          }, 1000);
+              resolve({ type: 'seller', seller });
+            }).catch(reject);
+          } else {
+            this.joinSellerRoom(seller._id);
+            resolve({ type: 'seller', seller });
+          }
+          
+          return;
+        } catch (error) {
+          debugLog('❌ Invalid seller data', error, 'error');
+          reject(error);
+          return;
         }
-        
-        return { type: 'seller', seller };
-      } catch (error) {
-        debugLog('❌ Invalid seller data', error, 'error');
       }
-    }
 
-    debugLog('⚠️ No valid authentication found for auto-connect', null, 'warning');
-    return null;
+      debugLog('⚠️ No valid authentication found for auto-connect', null, 'warning');
+      reject(new Error('No valid authentication found'));
+    });
   }
 
   // Disconnect socket
@@ -396,7 +442,7 @@ class SocketService {
     }
   }
 
-  // Manual reconnection
+  // 🎯 UPDATED: Manual reconnection - NOW RETURNS A PROMISE
   reconnect() {
     debugLog('🔄 Manual reconnection attempt', null, 'socket');
     this.disconnect();
@@ -413,8 +459,8 @@ if (process.env.NODE_ENV === 'development') {
   
   debugLog('🔧 DEBUG MODE - Enhanced socket service available globally', {
     availableFunctions: [
-      'window.socketService.connect() - Connect to server',
-      'window.socketService.autoConnect() - Auto-connect based on auth',
+      'window.socketService.connect() - Connect to server (returns Promise)',
+      'window.socketService.autoConnect() - Auto-connect based on auth (returns Promise)',
       'window.socketService.joinBuyerRoom(userId) - Join buyer room',
       'window.socketService.joinSellerRoom(sellerId) - Join seller room',
       'window.socketService.ping() - Test connection',
