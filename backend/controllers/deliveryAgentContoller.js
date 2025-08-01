@@ -1,12 +1,11 @@
-// backend/controllers/deliveryAgentController.js - Complete Delivery Agent Management
+// backend/controllers/deliveryAgentContoller.js - Complete Delivery Agent Management
 
 const DeliveryAgent = require('../models/DeliveryAgent');
 const Order = require('../models/Order');
 const OtpVerification = require('../models/OtpVerification');
-const User = require('../models/User');
 const { generateToken } = require('../utils/jwtToken');
 const { validationResult } = require('express-validator');
-const otpService = require('../services/otpService');
+const bcrypt = require('bcryptjs');
 
 // Enhanced terminal logging for delivery operations
 const terminalLog = (action, status, data = null) => {
@@ -15,7 +14,6 @@ const terminalLog = (action, status, data = null) => {
   
   console.log(`${logLevel} [DELIVERY-CONTROLLER] ${timestamp} - ${action}`, data ? JSON.stringify(data, null, 2) : '');
   
-  // Additional structured logging for production monitoring
   if (process.env.NODE_ENV === 'production') {
     console.log(JSON.stringify({
       timestamp,
@@ -35,22 +33,22 @@ exports.registerDeliveryAgent = async (req, res) => {
     terminalLog('DELIVERY_AGENT_REGISTER_START', 'PROCESSING', {
       email: req.body.email,
       name: req.body.name,
-      phoneNumber: req.body.phoneNumber ? `${req.body.phoneNumber.substring(0, 5)}***` : 'N/A'
+      phone: req.body.phone
     });
 
     console.log(`
 🚚 ===============================
    DELIVERY AGENT REGISTRATION
 ===============================
-👤 Name: ${req.body.name}
 📧 Email: ${req.body.email}
-📱 Phone: ${req.body.phoneNumber ? `${req.body.phoneNumber.substring(0, 5)}***` : 'N/A'}
+👤 Name: ${req.body.name}
+📱 Phone: ${req.body.phone}
 🕐 Time: ${new Date().toLocaleString()}
 ===============================`);
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      terminalLog('DELIVERY_AGENT_VALIDATION_ERROR', 'ERROR', errors.array());
+      terminalLog('DELIVERY_REGISTER_VALIDATION_ERROR', 'ERROR', errors.array());
       return res.status(400).json({ 
         success: false, 
         errors: errors.array() 
@@ -61,128 +59,101 @@ exports.registerDeliveryAgent = async (req, res) => {
       name,
       email,
       password,
-      phoneNumber,
-      aadharNumber,
-      panNumber,
-      licenseNumber,
-      dateOfBirth,
+      phone,
       address,
-      vehicleDetails,
-      emergencyContact,
-      workingHours,
-      preferredAreas
+      vehicleType,
+      vehicleModel,
+      vehicleRegistration,
+      licenseNumber,
+      workingAreas,
+      emergencyContact
     } = req.body;
 
-    // Check if delivery agent already exists
-    const existingAgent = await DeliveryAgent.findOne({
-      $or: [
-        { email: email.toLowerCase() },
-        { phoneNumber }
-      ]
+    // Check if agent already exists
+    const agentExists = await DeliveryAgent.findOne({ 
+      $or: [{ email }, { phone }] 
     });
 
-    if (existingAgent) {
-      terminalLog('DELIVERY_AGENT_ALREADY_EXISTS', 'ERROR', {
-        email: email.toLowerCase(),
-        phoneNumber,
-        existingAgentId: existingAgent._id
+    if (agentExists) {
+      terminalLog('DELIVERY_AGENT_EXISTS', 'ERROR', {
+        email,
+        phone,
+        existingAgentId: agentExists._id
       });
       return res.status(400).json({
         success: false,
-        message: 'Delivery agent already exists with this email or phone number'
+        message: 'Delivery agent already exists with this email or phone'
       });
     }
 
     // Create new delivery agent
-    const deliveryAgentData = {
+    const deliveryAgent = await DeliveryAgent.create({
       name,
-      email: email.toLowerCase(),
+      email,
       password,
-      phoneNumber,
-      aadharNumber: aadharNumber || '',
-      panNumber: panNumber || '',
-      licenseNumber: licenseNumber || '',
-      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-      address: address || {
-        street: '',
-        city: '',
-        state: '',
-        pincode: '',
-        coordinates: [0, 0]
+      phone,
+      address,
+      vehicleDetails: {
+        type: vehicleType,
+        model: vehicleModel,
+        registrationNumber: vehicleRegistration
       },
-      vehicleDetails: vehicleDetails || {
-        type: 'Motorcycle',
-        model: '',
-        registrationNumber: '',
-        insuranceExpiry: null
+      documents: {
+        licenseNumber
       },
-      emergencyContact: emergencyContact || {
-        name: '',
-        phoneNumber: '',
-        relationship: ''
-      },
-      workingHours: workingHours || {
-        startTime: '09:00',
-        endTime: '21:00',
-        workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-      },
-      preferredAreas: preferredAreas || []
-    };
-
-    const deliveryAgent = new DeliveryAgent(deliveryAgentData);
-    const savedAgent = await deliveryAgent.save();
-
-    // Generate JWT token
-    const token = generateToken(savedAgent._id);
-
-    terminalLog('DELIVERY_AGENT_REGISTER_SUCCESS', 'SUCCESS', {
-      agentId: savedAgent._id,
-      name: savedAgent.name,
-      email: savedAgent.email,
-      phoneNumber: `${savedAgent.phoneNumber.substring(0, 5)}***`
+      workingAreas: workingAreas || [],
+      emergencyContact,
+      profileCompletion: 85 // Initial completion percentage
     });
 
-    console.log(`
+    if (deliveryAgent) {
+      // Generate JWT token
+      const token = generateToken(deliveryAgent._id);
+
+      terminalLog('DELIVERY_AGENT_REGISTER_SUCCESS', 'SUCCESS', {
+        agentId: deliveryAgent._id,
+        agentName: deliveryAgent.name,
+        email: deliveryAgent.email
+      });
+
+      console.log(`
 ✅ ===============================
    DELIVERY AGENT REGISTERED!
 ===============================
-🆔 Agent ID: ${savedAgent._id}
-👤 Name: ${savedAgent.name}
-📧 Email: ${savedAgent.email}
-📱 Phone: ${savedAgent.phoneNumber.substring(0, 5)}***
-🚗 Vehicle: ${savedAgent.vehicleDetails.type}
+🆔 Agent ID: ${deliveryAgent._id}
+👤 Name: ${deliveryAgent.name}
+📧 Email: ${deliveryAgent.email}
+🚗 Vehicle: ${deliveryAgent.vehicleDetails.type}
 📅 Registered: ${new Date().toLocaleString()}
 ===============================`);
 
-    res.status(201).json({
-      success: true,
-      message: 'Delivery agent registered successfully',
-      data: {
-        _id: savedAgent._id,
-        name: savedAgent.name,
-        email: savedAgent.email,
-        phoneNumber: savedAgent.phoneNumber,
-        isVerified: savedAgent.isVerified,
-        vehicleDetails: savedAgent.vehicleDetails,
+      const responseData = {
+        _id: deliveryAgent._id,
+        name: deliveryAgent.name,
+        email: deliveryAgent.email,
+        phone: deliveryAgent.phone,
+        isOnline: deliveryAgent.isOnline,
+        isAvailable: deliveryAgent.isAvailable,
         token
-      }
-    });
+      };
 
+      res.status(201).json({
+        success: true,
+        data: responseData
+      });
+    } else {
+      terminalLog('DELIVERY_AGENT_CREATE_FAILED', 'ERROR');
+      res.status(400).json({
+        success: false,
+        message: 'Invalid delivery agent data'
+      });
+    }
   } catch (error) {
     terminalLog('DELIVERY_AGENT_REGISTER_ERROR', 'ERROR', {
       error: error.message,
       stack: error.stack
     });
-    
-    console.log(`
-❌ ===============================
-   DELIVERY AGENT REGISTRATION FAILED!
-===============================
-🚨 Error: ${error.message}
-⏱️  Time: ${new Date().toLocaleString()}
-===============================`);
-    
-    console.error('❌ Register Delivery Agent Error:', error);
+    console.error('❌ Delivery Agent Registration Error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -200,11 +171,17 @@ exports.loginDeliveryAgent = async (req, res) => {
       email: req.body.email
     });
 
-    console.log(`🔑 Delivery agent login attempt: ${req.body.email}`);
+    console.log(`
+🔐 ===============================
+   DELIVERY AGENT LOGIN
+===============================
+📧 Email: ${req.body.email}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      terminalLog('DELIVERY_AGENT_LOGIN_VALIDATION_ERROR', 'ERROR', errors.array());
+      terminalLog('DELIVERY_LOGIN_VALIDATION_ERROR', 'ERROR', errors.array());
       return res.status(400).json({ 
         success: false, 
         errors: errors.array() 
@@ -213,15 +190,11 @@ exports.loginDeliveryAgent = async (req, res) => {
 
     const { email, password } = req.body;
 
-    // Find delivery agent by email
-    const deliveryAgent = await DeliveryAgent.findOne({ 
-      email: email.toLowerCase() 
-    }).select('+password');
+    // Find delivery agent
+    const deliveryAgent = await DeliveryAgent.findOne({ email }).select('+password');
 
     if (!deliveryAgent) {
-      terminalLog('DELIVERY_AGENT_LOGIN_NOT_FOUND', 'ERROR', {
-        email: email.toLowerCase()
-      });
+      terminalLog('DELIVERY_AGENT_NOT_FOUND', 'ERROR', { email });
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
@@ -230,9 +203,9 @@ exports.loginDeliveryAgent = async (req, res) => {
 
     // Check if agent is blocked
     if (deliveryAgent.isBlocked) {
-      terminalLog('DELIVERY_AGENT_LOGIN_BLOCKED', 'ERROR', {
+      terminalLog('DELIVERY_AGENT_BLOCKED', 'ERROR', {
         agentId: deliveryAgent._id,
-        blockReason: deliveryAgent.blockReason
+        reason: deliveryAgent.blockReason
       });
       return res.status(403).json({
         success: false,
@@ -240,22 +213,21 @@ exports.loginDeliveryAgent = async (req, res) => {
       });
     }
 
-    // Check password
+    // Match password
     const isMatch = await deliveryAgent.matchPassword(password);
 
     if (!isMatch) {
-      terminalLog('DELIVERY_AGENT_LOGIN_INVALID_PASSWORD', 'ERROR', {
-        email: email.toLowerCase(),
-        agentId: deliveryAgent._id
-      });
+      terminalLog('DELIVERY_AGENT_PASSWORD_MISMATCH', 'ERROR', { email });
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
     }
 
-    // Update last active time
+    // Update last login and set online status
+    deliveryAgent.lastLoginAt = new Date();
     deliveryAgent.lastActiveAt = new Date();
+    deliveryAgent.isOnline = true;
     await deliveryAgent.save();
 
     // Generate JWT token
@@ -263,33 +235,36 @@ exports.loginDeliveryAgent = async (req, res) => {
 
     terminalLog('DELIVERY_AGENT_LOGIN_SUCCESS', 'SUCCESS', {
       agentId: deliveryAgent._id,
-      name: deliveryAgent.name,
-      email: deliveryAgent.email,
-      isOnline: deliveryAgent.isOnline,
-      isAvailable: deliveryAgent.isAvailable
+      agentName: deliveryAgent.name
     });
 
-    console.log(`✅ Delivery agent logged in: ${deliveryAgent.name} (${deliveryAgent.email})`);
+    console.log(`
+✅ ===============================
+   DELIVERY AGENT LOGGED IN!
+===============================
+🆔 Agent ID: ${deliveryAgent._id}
+👤 Name: ${deliveryAgent.name}
+📧 Email: ${deliveryAgent.email}
+🟢 Status: Online
+📅 Login Time: ${new Date().toLocaleString()}
+===============================`);
+
+    const responseData = {
+      _id: deliveryAgent._id,
+      name: deliveryAgent.name,
+      email: deliveryAgent.email,
+      phone: deliveryAgent.phone,
+      isOnline: deliveryAgent.isOnline,
+      isAvailable: deliveryAgent.isAvailable,
+      currentLocation: deliveryAgent.currentLocation,
+      stats: deliveryAgent.stats,
+      token
+    };
 
     res.status(200).json({
       success: true,
-      message: 'Login successful',
-      data: {
-        _id: deliveryAgent._id,
-        name: deliveryAgent.name,
-        email: deliveryAgent.email,
-        phoneNumber: deliveryAgent.phoneNumber,
-        isOnline: deliveryAgent.isOnline,
-        isAvailable: deliveryAgent.isAvailable,
-        isVerified: deliveryAgent.isVerified,
-        currentOrder: deliveryAgent.currentOrder,
-        orderStatus: deliveryAgent.orderStatus,
-        stats: deliveryAgent.stats,
-        vehicleDetails: deliveryAgent.vehicleDetails,
-        token
-      }
+      data: responseData
     });
-
   } catch (error) {
     terminalLog('DELIVERY_AGENT_LOGIN_ERROR', 'ERROR', {
       error: error.message
@@ -313,23 +288,29 @@ exports.getDeliveryAgentProfile = async (req, res) => {
     });
 
     const deliveryAgent = await DeliveryAgent.findById(req.deliveryAgent._id)
-      .populate('currentOrder', 'orderNumber totalPrice user seller status')
       .select('-password -resetPasswordToken');
+
+    if (!deliveryAgent) {
+      terminalLog('DELIVERY_AGENT_PROFILE_NOT_FOUND', 'ERROR', {
+        agentId: req.deliveryAgent._id
+      });
+      return res.status(404).json({
+        success: false,
+        message: 'Delivery agent not found'
+      });
+    }
 
     terminalLog('GET_DELIVERY_AGENT_PROFILE_SUCCESS', 'SUCCESS', {
       agentId: deliveryAgent._id,
-      name: deliveryAgent.name,
-      hasCurrentOrder: !!deliveryAgent.currentOrder
+      agentName: deliveryAgent.name
     });
 
     res.status(200).json({
       success: true,
       data: deliveryAgent
     });
-
   } catch (error) {
     terminalLog('GET_DELIVERY_AGENT_PROFILE_ERROR', 'ERROR', {
-      agentId: req.deliveryAgent?._id,
       error: error.message
     });
     console.error('❌ Get Delivery Agent Profile Error:', error);
@@ -341,67 +322,63 @@ exports.getDeliveryAgentProfile = async (req, res) => {
   }
 };
 
-// @desc    Update delivery agent status (online/offline)
-// @route   PUT /api/delivery/status
+// @desc    Update delivery agent profile
+// @route   PUT /api/delivery/profile
 // @access  Private (Delivery Agent)
-exports.updateDeliveryAgentStatus = async (req, res) => {
+exports.updateDeliveryAgentProfile = async (req, res) => {
   try {
-    terminalLog('UPDATE_DELIVERY_AGENT_STATUS_START', 'PROCESSING', {
+    terminalLog('UPDATE_DELIVERY_AGENT_PROFILE', 'PROCESSING', {
       agentId: req.deliveryAgent._id,
-      requestBody: req.body
+      updateFields: Object.keys(req.body)
     });
 
-    const { isOnline, isAvailable, currentLocation } = req.body;
+    const deliveryAgent = await DeliveryAgent.findById(req.deliveryAgent._id);
 
-    const deliveryAgent = req.deliveryAgent;
-
-    // Update status fields
-    if (typeof isOnline === 'boolean') {
-      deliveryAgent.isOnline = isOnline;
-    }
-    
-    if (typeof isAvailable === 'boolean') {
-      deliveryAgent.isAvailable = isAvailable;
-    }
-
-    // Update location if provided
-    if (currentLocation && currentLocation.coordinates) {
-      deliveryAgent.currentLocation = {
-        type: 'Point',
-        coordinates: currentLocation.coordinates,
-        lastUpdated: new Date()
-      };
+    if (!deliveryAgent) {
+      terminalLog('DELIVERY_AGENT_UPDATE_NOT_FOUND', 'ERROR', {
+        agentId: req.deliveryAgent._id
+      });
+      return res.status(404).json({
+        success: false,
+        message: 'Delivery agent not found'
+      });
     }
 
-    deliveryAgent.lastActiveAt = new Date();
-    await deliveryAgent.save();
+    // Update allowed fields
+    const allowedUpdates = [
+      'name', 'phone', 'address', 'vehicleDetails', 'documents', 
+      'workingAreas', 'emergencyContact', 'bankDetails', 'workingHours'
+    ];
 
-    terminalLog('UPDATE_DELIVERY_AGENT_STATUS_SUCCESS', 'SUCCESS', {
-      agentId: deliveryAgent._id,
-      isOnline: deliveryAgent.isOnline,
-      isAvailable: deliveryAgent.isAvailable,
-      locationUpdated: !!(currentLocation && currentLocation.coordinates)
-    });
-
-    console.log(`🔄 Delivery agent status updated: ${deliveryAgent.name} - Online: ${deliveryAgent.isOnline}, Available: ${deliveryAgent.isAvailable}`);
-
-    res.status(200).json({
-      success: true,
-      message: 'Status updated successfully',
-      data: {
-        isOnline: deliveryAgent.isOnline,
-        isAvailable: deliveryAgent.isAvailable,
-        currentLocation: deliveryAgent.currentLocation,
-        lastActiveAt: deliveryAgent.lastActiveAt
+    Object.keys(req.body).forEach(key => {
+      if (allowedUpdates.includes(key)) {
+        if (key === 'vehicleDetails' || key === 'documents' || key === 'bankDetails') {
+          deliveryAgent[key] = { ...deliveryAgent[key], ...req.body[key] };
+        } else {
+          deliveryAgent[key] = req.body[key];
+        }
       }
     });
 
+    // Update profile completion percentage
+    deliveryAgent.profileCompletion = calculateProfileCompletion(deliveryAgent);
+
+    const updatedAgent = await deliveryAgent.save();
+
+    terminalLog('UPDATE_DELIVERY_AGENT_PROFILE_SUCCESS', 'SUCCESS', {
+      agentId: updatedAgent._id,
+      profileCompletion: updatedAgent.profileCompletion
+    });
+
+    res.status(200).json({
+      success: true,
+      data: updatedAgent
+    });
   } catch (error) {
-    terminalLog('UPDATE_DELIVERY_AGENT_STATUS_ERROR', 'ERROR', {
-      agentId: req.deliveryAgent?._id,
+    terminalLog('UPDATE_DELIVERY_AGENT_PROFILE_ERROR', 'ERROR', {
       error: error.message
     });
-    console.error('❌ Update Delivery Agent Status Error:', error);
+    console.error('❌ Update Delivery Agent Profile Error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -415,54 +392,77 @@ exports.updateDeliveryAgentStatus = async (req, res) => {
 // @access  Private (Delivery Agent)
 exports.getAvailableOrders = async (req, res) => {
   try {
-    terminalLog('GET_AVAILABLE_ORDERS_START', 'PROCESSING', {
+    terminalLog('GET_AVAILABLE_ORDERS', 'PROCESSING', {
       agentId: req.deliveryAgent._id,
-      agentLocation: req.deliveryAgent.currentLocation.coordinates
+      agentLocation: req.deliveryAgent.currentLocation
     });
 
-    console.log(`📦 Getting available orders for agent: ${req.deliveryAgent.name}`);
+    console.log(`
+📦 ===============================
+   FETCHING AVAILABLE ORDERS
+===============================
+🚚 Agent: ${req.deliveryAgent.name}
+📍 Location: ${req.deliveryAgent.currentLocation?.coordinates || 'Not set'}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
 
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 10;
-    const skip = (page - 1) * limit;
-
-    // Get orders ready for assignment
+    // Find orders that are approved and ready for assignment
     const orders = await Order.find({
       'adminApproval.status': { $in: ['approved', 'auto_approved'] },
       'deliveryAgent.status': 'unassigned',
-      status: { $nin: ['Cancelled', 'Delivered'] },
-      isPaid: true // Only assign paid orders
+      status: { $nin: ['Cancelled', 'Delivered'] }
     })
-    .populate('user', 'name email mobileNumber')
+    .populate('user', 'name phone')
     .populate('seller', 'firstName shop')
+    .populate('orderItems.product', 'name images')
     .sort({ createdAt: 1 }) // FIFO basis
-    .skip(skip)
-    .limit(limit);
-
-    const totalOrders = await Order.countDocuments({
-      'adminApproval.status': { $in: ['approved', 'auto_approved'] },
-      'deliveryAgent.status': 'unassigned',
-      status: { $nin: ['Cancelled', 'Delivered'] },
-      isPaid: true
-    });
+    .limit(20);
 
     terminalLog('GET_AVAILABLE_ORDERS_SUCCESS', 'SUCCESS', {
       agentId: req.deliveryAgent._id,
-      availableOrdersCount: orders.length,
-      totalAvailableOrders: totalOrders,
-      page
+      orderCount: orders.length
     });
 
-    console.log(`✅ Found ${orders.length} available orders for delivery`);
+    console.log(`
+✅ ===============================
+   AVAILABLE ORDERS FETCHED
+===============================
+📦 Orders Found: ${orders.length}
+🚚 Agent: ${req.deliveryAgent.name}
+📅 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    // Format orders for delivery agent (hide sensitive info like order ID initially)
+    const formattedOrders = orders.map(order => ({
+      _id: order._id,
+      // Don't show orderNumber until pickup
+      status: order.status,
+      totalPrice: order.totalPrice,
+      deliveryFees: order.deliveryFees,
+      orderItems: order.orderItems.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        image: item.image
+      })),
+      user: {
+        name: order.user.name,
+        phone: order.user.phone
+      },
+      seller: {
+        name: order.seller.firstName,
+        shopName: order.seller.shop?.name,
+        address: order.seller.shop?.address
+      },
+      shippingAddress: order.shippingAddress,
+      createdAt: order.createdAt,
+      estimatedDelivery: order.estimatedDelivery.estimatedAt
+    }));
 
     res.status(200).json({
       success: true,
-      count: orders.length,
-      totalPages: Math.ceil(totalOrders / limit),
-      currentPage: page,
-      data: orders
+      count: formattedOrders.length,
+      data: formattedOrders
     });
-
   } catch (error) {
     terminalLog('GET_AVAILABLE_ORDERS_ERROR', 'ERROR', {
       agentId: req.deliveryAgent?._id,
@@ -478,150 +478,131 @@ exports.getAvailableOrders = async (req, res) => {
 };
 
 // @desc    Accept order for delivery
-// @route   PUT /api/delivery/orders/:orderId/accept
+// @route   PUT /api/delivery/orders/:id/accept
 // @access  Private (Delivery Agent)
 exports.acceptOrder = async (req, res) => {
   try {
-    terminalLog('ACCEPT_ORDER_START', 'PROCESSING', {
-      agentId: req.deliveryAgent._id,
-      orderId: req.params.orderId
+    terminalLog('ACCEPT_ORDER', 'PROCESSING', {
+      orderId: req.params.id,
+      agentId: req.deliveryAgent._id
     });
 
-    console.log(`🤝 Delivery agent ${req.deliveryAgent.name} accepting order: ${req.params.orderId}`);
+    console.log(`
+📦 ===============================
+   ACCEPTING ORDER
+===============================
+📋 Order ID: ${req.params.id}
+🚚 Agent: ${req.deliveryAgent.name}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
 
-    const { orderId } = req.params;
-    const deliveryAgent = req.deliveryAgent;
-
-    // Check if agent can accept orders
-    if (!deliveryAgent.canAcceptOrder()) {
-      terminalLog('ACCEPT_ORDER_AGENT_UNAVAILABLE', 'ERROR', {
-        agentId: deliveryAgent._id,
-        isOnline: deliveryAgent.isOnline,
-        isAvailable: deliveryAgent.isAvailable,
-        isBlocked: deliveryAgent.isBlocked,
-        orderStatus: deliveryAgent.orderStatus,
-        currentOrder: deliveryAgent.currentOrder
-      });
-      return res.status(400).json({
-        success: false,
-        message: 'Agent is not available to accept orders'
-      });
-    }
-
-    // Find the order
-    const order = await Order.findById(orderId)
-      .populate('user', 'name email mobileNumber')
+    const order = await Order.findById(req.params.id)
+      .populate('user', 'name phone')
       .populate('seller', 'firstName shop');
 
     if (!order) {
-      terminalLog('ACCEPT_ORDER_NOT_FOUND', 'ERROR', { orderId });
+      terminalLog('ACCEPT_ORDER_NOT_FOUND', 'ERROR', {
+        orderId: req.params.id
+      });
       return res.status(404).json({
         success: false,
         message: 'Order not found'
       });
     }
 
-    // Check if order can be assigned
-    if (!order.canAssignDeliveryAgent) {
-      terminalLog('ACCEPT_ORDER_NOT_ASSIGNABLE', 'ERROR', {
-        orderId,
-        adminApprovalStatus: order.adminApproval.status,
-        deliveryAgentStatus: order.deliveryAgent.status,
-        orderStatus: order.status
+    // Check if order is available for assignment
+    if (order.deliveryAgent.status !== 'unassigned') {
+      terminalLog('ORDER_ALREADY_ASSIGNED', 'ERROR', {
+        orderId: req.params.id,
+        currentStatus: order.deliveryAgent.status,
+        assignedTo: order.deliveryAgent.agent
       });
       return res.status(400).json({
         success: false,
-        message: 'Order is not available for assignment'
+        message: 'Order is no longer available'
       });
     }
 
-    // Assign delivery agent to order
-    order.deliveryAgent = {
-      agent: deliveryAgent._id,
-      assignedAt: new Date(),
-      assignedBy: null, // Self-assigned
-      status: 'accepted',
-      acceptedAt: new Date()
-    };
-
-    order.status = 'Pickup_Ready';
-    order._statusChangedBy = 'delivery_agent';
-    order._statusChangeNotes = `Order accepted by delivery agent ${deliveryAgent.name}`;
-
-    await order.save();
+    // Assign order to delivery agent
+    await order.assignDeliveryAgent(req.deliveryAgent._id, null);
 
     // Update delivery agent status
-    deliveryAgent.currentOrder = order._id;
-    deliveryAgent.orderStatus = 'assigned';
-    deliveryAgent.isAvailable = false; // Agent is now busy
+    const deliveryAgent = await DeliveryAgent.findById(req.deliveryAgent._id);
+    deliveryAgent.stats.assignedOrders += 1;
     await deliveryAgent.save();
 
     terminalLog('ACCEPT_ORDER_SUCCESS', 'SUCCESS', {
-      agentId: deliveryAgent._id,
-      orderId: order._id,
+      orderId: req.params.id,
       orderNumber: order.orderNumber,
-      customerName: order.user.name,
-      totalPrice: order.totalPrice
+      agentId: req.deliveryAgent._id
     });
 
     console.log(`
 ✅ ===============================
-   ORDER ACCEPTED BY AGENT!
+   ORDER ACCEPTED!
 ===============================
-🚚 Agent: ${deliveryAgent.name}
 📦 Order: ${order.orderNumber}
+🚚 Agent: ${req.deliveryAgent.name}
+🏪 Seller: ${order.seller.firstName}
 👤 Customer: ${order.user.name}
-💰 Amount: ₹${order.totalPrice}
-📅 Accepted: ${new Date().toLocaleString()}
+📅 Time: ${new Date().toLocaleString()}
 ===============================`);
 
     // Emit real-time notifications
     if (global.emitToBuyer) {
-      global.emitToBuyer(order.user._id, 'delivery-agent-assigned', {
+      global.emitToBuyer(order.user._id, 'order-agent-assigned', {
         _id: order._id,
         orderNumber: order.orderNumber,
         status: order.status,
         deliveryAgent: {
-          name: deliveryAgent.name,
-          phoneNumber: deliveryAgent.phoneNumber,
-          vehicleDetails: deliveryAgent.vehicleDetails
+          name: req.deliveryAgent.name,
+          phone: req.deliveryAgent.phone
         }
       });
     }
 
     if (global.emitToSeller) {
-      global.emitToSeller(order.seller._id, 'delivery-agent-assigned', {
+      global.emitToSeller(order.seller._id, 'order-agent-assigned', {
         _id: order._id,
         orderNumber: order.orderNumber,
         status: order.status,
         deliveryAgent: {
-          name: deliveryAgent.name,
-          phoneNumber: deliveryAgent.phoneNumber
+          name: req.deliveryAgent.name,
+          phone: req.deliveryAgent.phone
         }
       });
     }
 
+    // Now return order with orderNumber visible
+    const responseOrder = {
+      _id: order._id,
+      orderNumber: order.orderNumber, // Now visible after acceptance
+      status: order.status,
+      totalPrice: order.totalPrice,
+      deliveryFees: order.deliveryFees,
+      user: {
+        name: order.user.name,
+        phone: order.user.phone
+      },
+      seller: {
+        name: order.seller.firstName,
+        shopName: order.seller.shop?.name,
+        address: order.seller.shop?.address,
+        phone: order.seller.phone
+      },
+      shippingAddress: order.shippingAddress,
+      deliveryAgent: order.deliveryAgent
+    };
+
     res.status(200).json({
       success: true,
       message: 'Order accepted successfully',
-      data: {
-        orderId: order._id,
-        orderNumber: order.orderNumber,
-        status: order.status,
-        customer: order.user,
-        seller: order.seller,
-        totalPrice: order.totalPrice,
-        deliveryAgent: {
-          status: order.deliveryAgent.status,
-          acceptedAt: order.deliveryAgent.acceptedAt
-        }
-      }
+      data: responseOrder
     });
-
   } catch (error) {
     terminalLog('ACCEPT_ORDER_ERROR', 'ERROR', {
+      orderId: req.params.id,
       agentId: req.deliveryAgent?._id,
-      orderId: req.params.orderId,
       error: error.message
     });
     console.error('❌ Accept Order Error:', error);
@@ -633,95 +614,98 @@ exports.acceptOrder = async (req, res) => {
   }
 };
 
-// @desc    Confirm order pickup from seller
-// @route   PUT /api/delivery/orders/:orderId/pickup
+// @desc    Complete order pickup
+// @route   PUT /api/delivery/orders/:id/pickup
 // @access  Private (Delivery Agent)
-exports.confirmPickup = async (req, res) => {
+exports.completePickup = async (req, res) => {
   try {
-    terminalLog('CONFIRM_PICKUP_START', 'PROCESSING', {
+    terminalLog('COMPLETE_PICKUP', 'PROCESSING', {
+      orderId: req.params.id,
       agentId: req.deliveryAgent._id,
-      orderId: req.params.orderId,
-      requestBody: req.body
+      orderIdVerification: req.body.orderIdVerification
     });
 
-    console.log(`📤 Confirming pickup for order: ${req.params.orderId}`);
+    const { orderIdVerification, pickupNotes, location } = req.body;
 
-    const { orderId } = req.params;
-    const { verificationMethod, location, notes } = req.body;
-    const deliveryAgent = req.deliveryAgent;
+    console.log(`
+📦 ===============================
+   COMPLETING PICKUP
+===============================
+📋 Order ID: ${req.params.id}
+🔢 Order ID Verification: ${orderIdVerification}
+🚚 Agent: ${req.deliveryAgent.name}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
 
-    // Find the order
-    const order = await Order.findById(orderId)
-      .populate('user', 'name email mobileNumber')
-      .populate('seller', 'firstName shop');
+    const order = await Order.findById(req.params.id)
+      .populate('user', 'name phone')
+      .populate('seller', 'firstName shop phone');
 
     if (!order) {
-      terminalLog('PICKUP_ORDER_NOT_FOUND', 'ERROR', { orderId });
+      terminalLog('PICKUP_ORDER_NOT_FOUND', 'ERROR', {
+        orderId: req.params.id
+      });
       return res.status(404).json({
         success: false,
         message: 'Order not found'
       });
     }
 
-    // Check if delivery agent is assigned to this order
-    if (!order.deliveryAgent.agent || order.deliveryAgent.agent.toString() !== deliveryAgent._id.toString()) {
+    // Verify order is assigned to this agent
+    if (order.deliveryAgent.agent?.toString() !== req.deliveryAgent._id.toString()) {
       terminalLog('PICKUP_UNAUTHORIZED_AGENT', 'ERROR', {
-        orderId,
-        assignedAgentId: order.deliveryAgent.agent?.toString(),
-        requestingAgentId: deliveryAgent._id.toString()
+        orderId: req.params.id,
+        assignedAgent: order.deliveryAgent.agent,
+        currentAgent: req.deliveryAgent._id
       });
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to pickup this order'
+        message: 'Order not assigned to you'
       });
     }
 
-    // Check if order is ready for pickup
-    if (order.deliveryAgent.status !== 'accepted' || order.status !== 'Pickup_Ready') {
-      terminalLog('PICKUP_INVALID_STATUS', 'ERROR', {
-        orderId,
-        deliveryAgentStatus: order.deliveryAgent.status,
-        orderStatus: order.status
+    // Verify order ID matches (security check)
+    if (orderIdVerification !== order.orderNumber) {
+      terminalLog('PICKUP_ORDER_ID_MISMATCH', 'ERROR', {
+        orderId: req.params.id,
+        providedOrderNumber: orderIdVerification,
+        actualOrderNumber: order.orderNumber
       });
       return res.status(400).json({
         success: false,
-        message: 'Order is not ready for pickup'
+        message: 'Order ID verification failed. Please check the order number.'
       });
     }
 
     // Complete pickup
-    const pickupData = {
-      method: verificationMethod || 'order_id',
-      location: location || {
-        type: 'Point',
-        coordinates: deliveryAgent.currentLocation.coordinates
-      },
-      notes: notes || 'Order picked up successfully'
-    };
+    await order.completePickup({
+      method: 'order_id',
+      notes: pickupNotes || '',
+      location: location || { type: 'Point', coordinates: [0, 0] }
+    });
 
-    await order.completePickup(pickupData);
-
-    // Update delivery agent status
-    deliveryAgent.orderStatus = 'pickup_in_progress';
+    // Update delivery agent stats
+    const deliveryAgent = await DeliveryAgent.findById(req.deliveryAgent._id);
+    deliveryAgent.stats.completedPickups += 1;
+    deliveryAgent.currentLocation = location || deliveryAgent.currentLocation;
     await deliveryAgent.save();
 
-    terminalLog('CONFIRM_PICKUP_SUCCESS', 'SUCCESS', {
-      agentId: deliveryAgent._id,
-      orderId: order._id,
+    terminalLog('COMPLETE_PICKUP_SUCCESS', 'SUCCESS', {
+      orderId: req.params.id,
       orderNumber: order.orderNumber,
-      verificationMethod: pickupData.method
+      agentId: req.deliveryAgent._id
     });
 
     console.log(`
 ✅ ===============================
-   ORDER PICKUP CONFIRMED!
+   PICKUP COMPLETED!
 ===============================
-🚚 Agent: ${deliveryAgent.name}
 📦 Order: ${order.orderNumber}
-👤 Customer: ${order.user.name}
+🚚 Agent: ${req.deliveryAgent.name}
 🏪 Seller: ${order.seller.firstName}
-📍 Method: ${pickupData.method}
-📅 Picked up: ${new Date().toLocaleString()}
+👤 Customer: ${order.user.name}
+📍 Status: Out for Delivery
+📅 Time: ${new Date().toLocaleString()}
 ===============================`);
 
     // Emit real-time notifications
@@ -730,7 +714,10 @@ exports.confirmPickup = async (req, res) => {
         _id: order._id,
         orderNumber: order.orderNumber,
         status: order.status,
-        pickup: order.pickup
+        deliveryAgent: {
+          name: req.deliveryAgent.name,
+          phone: req.deliveryAgent.phone
+        }
       });
     }
 
@@ -739,31 +726,30 @@ exports.confirmPickup = async (req, res) => {
         _id: order._id,
         orderNumber: order.orderNumber,
         status: order.status,
-        pickup: order.pickup
+        deliveryAgent: {
+          name: req.deliveryAgent.name,
+          phone: req.deliveryAgent.phone
+        }
       });
     }
 
     res.status(200).json({
       success: true,
-      message: 'Pickup confirmed successfully',
+      message: 'Pickup completed successfully',
       data: {
         orderId: order._id,
         orderNumber: order.orderNumber,
         status: order.status,
-        pickup: order.pickup,
-        deliveryAgent: {
-          status: order.deliveryAgent.status
-        }
+        pickupCompletedAt: order.pickup.completedAt
       }
     });
-
   } catch (error) {
-    terminalLog('CONFIRM_PICKUP_ERROR', 'ERROR', {
+    terminalLog('COMPLETE_PICKUP_ERROR', 'ERROR', {
+      orderId: req.params.id,
       agentId: req.deliveryAgent?._id,
-      orderId: req.params.orderId,
       error: error.message
     });
-    console.error('❌ Confirm Pickup Error:', error);
+    console.error('❌ Complete Pickup Error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -772,260 +758,124 @@ exports.confirmPickup = async (req, res) => {
   }
 };
 
-// @desc    Generate OTP for delivery confirmation
-// @route   POST /api/delivery/orders/:orderId/generate-otp
+// @desc    Complete order delivery
+// @route   PUT /api/delivery/orders/:id/deliver
 // @access  Private (Delivery Agent)
-exports.generateDeliveryOTP = async (req, res) => {
+exports.completeDelivery = async (req, res) => {
   try {
-    terminalLog('GENERATE_DELIVERY_OTP_START', 'PROCESSING', {
+    terminalLog('COMPLETE_DELIVERY', 'PROCESSING', {
+      orderId: req.params.id,
       agentId: req.deliveryAgent._id,
-      orderId: req.params.orderId
+      hasOTP: !!req.body.otp
     });
 
-    const { orderId } = req.params;
-    const deliveryAgent = req.deliveryAgent;
+    const { 
+      otp, 
+      deliveryNotes, 
+      recipientName, 
+      location,
+      codPayment 
+    } = req.body;
 
-    // Find the order
-    const order = await Order.findById(orderId)
-      .populate('user', 'name email mobileNumber')
-      .populate('seller', 'firstName shop');
+    console.log(`
+📦 ===============================
+   COMPLETING DELIVERY
+===============================
+📋 Order ID: ${req.params.id}
+🔢 OTP: ${otp ? '***' + otp.slice(-2) : 'Not provided'}
+🚚 Agent: ${req.deliveryAgent.name}
+👤 Recipient: ${recipientName || 'Not specified'}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    const order = await Order.findById(req.params.id)
+      .populate('user', 'name phone')
+      .populate('seller', 'firstName shop phone')
+      .populate('otpVerification.currentOTP');
 
     if (!order) {
-      terminalLog('OTP_ORDER_NOT_FOUND', 'ERROR', { orderId });
+      terminalLog('DELIVERY_ORDER_NOT_FOUND', 'ERROR', {
+        orderId: req.params.id
+      });
       return res.status(404).json({
         success: false,
         message: 'Order not found'
       });
     }
 
-    // Check if delivery agent is assigned to this order
-    if (!order.deliveryAgent.agent || order.deliveryAgent.agent.toString() !== deliveryAgent._id.toString()) {
-      terminalLog('OTP_UNAUTHORIZED_AGENT', 'ERROR', {
-        orderId,
-        assignedAgentId: order.deliveryAgent.agent?.toString(),
-        requestingAgentId: deliveryAgent._id.toString()
-      });
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to generate OTP for this order'
-      });
-    }
-
-    // Check if order is out for delivery
-    if (order.status !== 'Out_for_Delivery') {
-      terminalLog('OTP_INVALID_ORDER_STATUS', 'ERROR', {
-        orderId,
-        orderStatus: order.status
-      });
-      return res.status(400).json({
-        success: false,
-        message: 'Order must be out for delivery to generate OTP'
-      });
-    }
-
-    // Create OTP using OTP service
-    const otpResult = await otpService.createDeliveryOTP({
-      orderId: order._id,
-      userId: order.user._id,
-      deliveryAgentId: deliveryAgent._id,
-      userPhone: order.user.mobileNumber || order.shippingAddress.phone,
-      purpose: 'delivery_confirmation',
-      deliveryLocation: {
-        type: 'Point',
-        coordinates: deliveryAgent.currentLocation.coordinates,
-        address: order.shippingAddress.address
-      },
-      notes: 'OTP for order delivery confirmation'
-    });
-
-    if (!otpResult.success) {
-      terminalLog('GENERATE_DELIVERY_OTP_FAILED', 'ERROR', {
-        orderId,
-        error: otpResult.error
-      });
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to generate delivery OTP',
-        error: otpResult.error
-      });
-    }
-
-    // Update order with OTP reference
-    order.otpVerification.currentOTP = otpResult.otpId;
-    await order.save();
-
-    terminalLog('GENERATE_DELIVERY_OTP_SUCCESS', 'SUCCESS', {
-      agentId: deliveryAgent._id,
-      orderId: order._id,
-      orderNumber: order.orderNumber,
-      otpId: otpResult.otpId,
-      customerPhone: order.user.mobileNumber ? `${order.user.mobileNumber.substring(0, 5)}***` : 'N/A'
-    });
-
-    console.log(`📱 OTP generated for delivery of order: ${order.orderNumber}`);
-
-    res.status(200).json({
-      success: true,
-      message: 'Delivery OTP generated successfully',
-      data: {
-        orderId: order._id,
-        orderNumber: order.orderNumber,
-        otpId: otpResult.otpId,
-        expiresAt: otpResult.expiresAt,
-        testMode: otpResult.testMode,
-        // Only return OTP code in test mode
-        otpCode: otpResult.testMode ? otpResult.otpCode : null
-      }
-    });
-
-  } catch (error) {
-    terminalLog('GENERATE_DELIVERY_OTP_ERROR', 'ERROR', {
-      agentId: req.deliveryAgent?._id,
-      orderId: req.params.orderId,
-      error: error.message
-    });
-    console.error('❌ Generate Delivery OTP Error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server Error',
-      error: error.message
-    });
-  }
-};
-
-// @desc    Confirm delivery with OTP
-// @route   PUT /api/delivery/orders/:orderId/deliver
-// @access  Private (Delivery Agent)
-exports.confirmDelivery = async (req, res) => {
-  try {
-    terminalLog('CONFIRM_DELIVERY_START', 'PROCESSING', {
-      agentId: req.deliveryAgent._id,
-      orderId: req.params.orderId,
-      requestBody: req.body
-    });
-
-    console.log(`📦 Confirming delivery for order: ${req.params.orderId}`);
-
-    const { orderId } = req.params;
-    const { otpCode, recipientName, notes, codPayment, location } = req.body;
-    const deliveryAgent = req.deliveryAgent;
-
-    // Find the order
-    const order = await Order.findById(orderId)
-      .populate('user', 'name email mobileNumber')
-      .populate('seller', 'firstName shop');
-
-    if (!order) {
-      terminalLog('DELIVERY_ORDER_NOT_FOUND', 'ERROR', { orderId });
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-
-    // Check if delivery agent is assigned to this order
-    if (!order.deliveryAgent.agent || order.deliveryAgent.agent.toString() !== deliveryAgent._id.toString()) {
+    // Verify order is assigned to this agent
+    if (order.deliveryAgent.agent?.toString() !== req.deliveryAgent._id.toString()) {
       terminalLog('DELIVERY_UNAUTHORIZED_AGENT', 'ERROR', {
-        orderId,
-        assignedAgentId: order.deliveryAgent.agent?.toString(),
-        requestingAgentId: deliveryAgent._id.toString()
+        orderId: req.params.id,
+        assignedAgent: order.deliveryAgent.agent,
+        currentAgent: req.deliveryAgent._id
       });
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to deliver this order'
+        message: 'Order not assigned to you'
       });
     }
 
-    // Check if order is out for delivery
-    if (order.status !== 'Out_for_Delivery') {
-      terminalLog('DELIVERY_INVALID_STATUS', 'ERROR', {
-        orderId,
-        orderStatus: order.status
+    // Verify pickup was completed
+    if (!order.pickup.isCompleted) {
+      terminalLog('DELIVERY_PICKUP_NOT_COMPLETED', 'ERROR', {
+        orderId: req.params.id
       });
       return res.status(400).json({
         success: false,
-        message: 'Order is not ready for delivery'
+        message: 'Order pickup must be completed first'
       });
     }
 
-    // Verify OTP if required
-    if (order.otpVerification.isRequired && otpCode) {
-      if (!order.otpVerification.currentOTP) {
-        terminalLog('DELIVERY_OTP_NOT_GENERATED', 'ERROR', {
-          orderId,
-          orderNumber: order.orderNumber
-        });
-        return res.status(400).json({
-          success: false,
-          message: 'OTP not generated for this order'
-        });
-      }
-
-      // Verify OTP using OTP service
-      const otpVerificationResult = await otpService.verifyDeliveryOTP({
-        otpId: order.otpVerification.currentOTP,
-        orderId: order._id,
-        enteredCode: otpCode,
-        verifiedBy: 'delivery_agent',
-        deliveryLocation: location || {
-          type: 'Point',
-          coordinates: deliveryAgent.currentLocation.coordinates
-        },
-        paymentDetails: codPayment
-      });
-
-      if (!otpVerificationResult.success) {
+    // OTP verification for delivery
+    if (order.otpVerification.isRequired && otp) {
+      const otpRecord = order.otpVerification.currentOTP;
+      if (!otpRecord || !otpRecord.isValid() || otpRecord.otp !== otp) {
         terminalLog('DELIVERY_OTP_VERIFICATION_FAILED', 'ERROR', {
-          orderId,
-          error: otpVerificationResult.message
+          orderId: req.params.id,
+          providedOTP: otp ? '***' + otp.slice(-2) : 'none'
         });
         return res.status(400).json({
           success: false,
-          message: otpVerificationResult.message
+          message: 'Invalid or expired OTP'
         });
       }
     }
 
     // Complete delivery
-    const deliveryData = {
-      location: location || {
-        type: 'Point',
-        coordinates: deliveryAgent.currentLocation.coordinates
-      },
+    await order.completeDelivery({
+      notes: deliveryNotes || '',
       recipientName: recipientName || order.user.name,
-      notes: notes || 'Order delivered successfully',
-      codPayment: codPayment,
-      deliveryAgentId: deliveryAgent._id
-    };
+      location: location || { type: 'Point', coordinates: [0, 0] },
+      deliveryAgentId: req.deliveryAgent._id,
+      codPayment: codPayment
+    });
 
-    await order.completeDelivery(deliveryData);
-
-    // Update delivery agent status
-    deliveryAgent.currentOrder = null;
-    deliveryAgent.orderStatus = 'idle';
+    // Update delivery agent stats
+    const deliveryAgent = await DeliveryAgent.findById(req.deliveryAgent._id);
+    deliveryAgent.stats.completedDeliveries += 1;
+    deliveryAgent.stats.totalEarnings += order.deliveryFees.agentEarning;
+    deliveryAgent.currentLocation = location || deliveryAgent.currentLocation;
     deliveryAgent.isAvailable = true; // Agent is now available for new orders
-    
-    // Update delivery stats
-    await deliveryAgent.updateDeliveryStats('completed', null, order.deliveryFees.agentEarning);
+    await deliveryAgent.save();
 
-    terminalLog('CONFIRM_DELIVERY_SUCCESS', 'SUCCESS', {
-      agentId: deliveryAgent._id,
-      orderId: order._id,
+    terminalLog('COMPLETE_DELIVERY_SUCCESS', 'SUCCESS', {
+      orderId: req.params.id,
       orderNumber: order.orderNumber,
-      recipientName: deliveryData.recipientName,
-      codCollected: !!(codPayment && codPayment.amount)
+      agentId: req.deliveryAgent._id,
+      codCollected: !!codPayment
     });
 
     console.log(`
 🎉 ===============================
-   ORDER DELIVERED SUCCESSFULLY!
+   DELIVERY COMPLETED!
 ===============================
-🚚 Agent: ${deliveryAgent.name}
 📦 Order: ${order.orderNumber}
+🚚 Agent: ${req.deliveryAgent.name}
 👤 Customer: ${order.user.name}
-📋 Recipient: ${deliveryData.recipientName}
-💰 COD: ${codPayment ? `₹${codPayment.amount}` : 'No'}
-📅 Delivered: ${new Date().toLocaleString()}
+💰 COD: ${codPayment ? '₹' + codPayment.amount : 'N/A'}
+🏆 Agent Earnings: ₹${order.deliveryFees.agentEarning}
+📅 Time: ${new Date().toLocaleString()}
 ===============================`);
 
     // Emit real-time notifications
@@ -1034,9 +884,10 @@ exports.confirmDelivery = async (req, res) => {
         _id: order._id,
         orderNumber: order.orderNumber,
         status: order.status,
-        delivery: order.delivery,
-        isDelivered: order.isDelivered,
-        deliveredAt: order.deliveredAt
+        deliveredAt: order.deliveredAt,
+        deliveryAgent: {
+          name: req.deliveryAgent.name
+        }
       });
     }
 
@@ -1045,34 +896,29 @@ exports.confirmDelivery = async (req, res) => {
         _id: order._id,
         orderNumber: order.orderNumber,
         status: order.status,
-        delivery: order.delivery,
-        isDelivered: order.isDelivered,
-        deliveredAt: order.deliveredAt
+        deliveredAt: order.deliveredAt,
+        codCollected: !!codPayment
       });
     }
 
     res.status(200).json({
       success: true,
-      message: 'Delivery confirmed successfully',
+      message: 'Delivery completed successfully',
       data: {
         orderId: order._id,
         orderNumber: order.orderNumber,
         status: order.status,
-        isDelivered: order.isDelivered,
         deliveredAt: order.deliveredAt,
-        delivery: order.delivery,
-        codPayment: order.codPayment,
-        agentEarning: order.deliveryFees.agentEarning
+        earnings: order.deliveryFees.agentEarning
       }
     });
-
   } catch (error) {
-    terminalLog('CONFIRM_DELIVERY_ERROR', 'ERROR', {
+    terminalLog('COMPLETE_DELIVERY_ERROR', 'ERROR', {
+      orderId: req.params.id,
       agentId: req.deliveryAgent?._id,
-      orderId: req.params.orderId,
       error: error.message
     });
-    console.error('❌ Confirm Delivery Error:', error);
+    console.error('❌ Complete Delivery Error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -1081,31 +927,245 @@ exports.confirmDelivery = async (req, res) => {
   }
 };
 
-// @desc    Get delivery agent's order history
-// @route   GET /api/delivery/orders/history
+// @desc    Update delivery agent location
+// @route   PUT /api/delivery/location
+// @access  Private (Delivery Agent)
+exports.updateLocation = async (req, res) => {
+  try {
+    const { latitude, longitude } = req.body;
+
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        success: false,
+        message: 'Latitude and longitude are required'
+      });
+    }
+
+    const deliveryAgent = await DeliveryAgent.findById(req.deliveryAgent._id);
+    deliveryAgent.currentLocation = {
+      type: 'Point',
+      coordinates: [longitude, latitude]
+    };
+    deliveryAgent.lastActiveAt = new Date();
+
+    await deliveryAgent.save();
+
+    terminalLog('UPDATE_LOCATION_SUCCESS', 'SUCCESS', {
+      agentId: req.deliveryAgent._id,
+      coordinates: [longitude, latitude]
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Location updated successfully',
+      data: {
+        currentLocation: deliveryAgent.currentLocation
+      }
+    });
+  } catch (error) {
+    terminalLog('UPDATE_LOCATION_ERROR', 'ERROR', {
+      agentId: req.deliveryAgent?._id,
+      error: error.message
+    });
+    console.error('❌ Update Location Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get delivery agent's assigned orders
+// @route   GET /api/delivery/orders/assigned
+// @access  Private (Delivery Agent)
+exports.getAssignedOrders = async (req, res) => {
+  try {
+    terminalLog('GET_ASSIGNED_ORDERS', 'PROCESSING', {
+      agentId: req.deliveryAgent._id
+    });
+
+    const orders = await Order.find({
+      'deliveryAgent.agent': req.deliveryAgent._id,
+      status: { $nin: ['Delivered', 'Cancelled'] }
+    })
+    .populate('user', 'name phone')
+    .populate('seller', 'firstName shop phone')
+    .populate('orderItems.product', 'name images')
+    .sort({ 'deliveryAgent.assignedAt': -1 });
+
+    terminalLog('GET_ASSIGNED_ORDERS_SUCCESS', 'SUCCESS', {
+      agentId: req.deliveryAgent._id,
+      orderCount: orders.length
+    });
+
+    res.status(200).json({
+      success: true,
+      count: orders.length,
+      data: orders
+    });
+  } catch (error) {
+    terminalLog('GET_ASSIGNED_ORDERS_ERROR', 'ERROR', {
+      agentId: req.deliveryAgent?._id,
+      error: error.message
+    });
+    console.error('❌ Get Assigned Orders Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get delivery agent statistics
+// @route   GET /api/delivery/stats
+// @access  Private (Delivery Agent)
+exports.getDeliveryStats = async (req, res) => {
+  try {
+    terminalLog('GET_DELIVERY_STATS', 'PROCESSING', {
+      agentId: req.deliveryAgent._id
+    });
+
+    const deliveryAgent = await DeliveryAgent.findById(req.deliveryAgent._id);
+    
+    // Get recent orders stats
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    
+    const todayDeliveries = await Order.countDocuments({
+      'deliveryAgent.agent': req.deliveryAgent._id,
+      'delivery.completedAt': { $gte: todayStart },
+      'delivery.isCompleted': true
+    });
+
+    const pendingOrders = await Order.countDocuments({
+      'deliveryAgent.agent': req.deliveryAgent._id,
+      status: { $nin: ['Delivered', 'Cancelled'] }
+    });
+
+    const stats = {
+      ...deliveryAgent.stats,
+      todayDeliveries,
+      pendingOrders,
+      profileCompletion: deliveryAgent.profileCompletion,
+      averageRating: deliveryAgent.rating.average,
+      totalRatings: deliveryAgent.rating.count
+    };
+
+    terminalLog('GET_DELIVERY_STATS_SUCCESS', 'SUCCESS', {
+      agentId: req.deliveryAgent._id,
+      todayDeliveries,
+      totalDeliveries: deliveryAgent.stats.completedDeliveries
+    });
+
+    res.status(200).json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    terminalLog('GET_DELIVERY_STATS_ERROR', 'ERROR', {
+      agentId: req.deliveryAgent?._id,
+      error: error.message
+    });
+    console.error('❌ Get Delivery Stats Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Toggle delivery agent availability
+// @route   PUT /api/delivery/availability
+// @access  Private (Delivery Agent)
+exports.toggleAvailability = async (req, res) => {
+  try {
+    terminalLog('TOGGLE_AVAILABILITY', 'PROCESSING', {
+      agentId: req.deliveryAgent._id,
+      currentStatus: req.deliveryAgent.isAvailable
+    });
+
+    const deliveryAgent = await DeliveryAgent.findById(req.deliveryAgent._id);
+    deliveryAgent.isAvailable = !deliveryAgent.isAvailable;
+    deliveryAgent.lastActiveAt = new Date();
+
+    // If going offline, also set isOnline to false
+    if (!deliveryAgent.isAvailable) {
+      deliveryAgent.isOnline = false;
+    } else {
+      deliveryAgent.isOnline = true;
+    }
+
+    await deliveryAgent.save();
+
+    terminalLog('TOGGLE_AVAILABILITY_SUCCESS', 'SUCCESS', {
+      agentId: req.deliveryAgent._id,
+      newStatus: deliveryAgent.isAvailable,
+      isOnline: deliveryAgent.isOnline
+    });
+
+    console.log(`
+🔄 ===============================
+   AVAILABILITY UPDATED
+===============================
+🚚 Agent: ${deliveryAgent.name}
+📱 Available: ${deliveryAgent.isAvailable ? 'YES' : 'NO'}
+🟢 Online: ${deliveryAgent.isOnline ? 'YES' : 'NO'}
+📅 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    res.status(200).json({
+      success: true,
+      message: `Agent is now ${deliveryAgent.isAvailable ? 'available' : 'unavailable'}`,
+      data: {
+        isAvailable: deliveryAgent.isAvailable,
+        isOnline: deliveryAgent.isOnline
+      }
+    });
+  } catch (error) {
+    terminalLog('TOGGLE_AVAILABILITY_ERROR', 'ERROR', {
+      agentId: req.deliveryAgent?._id,
+      error: error.message
+    });
+    console.error('❌ Toggle Availability Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get delivery history
+// @route   GET /api/delivery/history
 // @access  Private (Delivery Agent)
 exports.getDeliveryHistory = async (req, res) => {
   try {
-    terminalLog('GET_DELIVERY_HISTORY_START', 'PROCESSING', {
-      agentId: req.deliveryAgent._id
+    terminalLog('GET_DELIVERY_HISTORY', 'PROCESSING', {
+      agentId: req.deliveryAgent._id,
+      page: req.query.page || 1
     });
 
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
     const skip = (page - 1) * limit;
 
-    // Get orders handled by this delivery agent
     const orders = await Order.find({
-      'deliveryAgent.agent': req.deliveryAgent._id
+      'deliveryAgent.agent': req.deliveryAgent._id,
+      'delivery.isCompleted': true
     })
-    .populate('user', 'name email mobileNumber')
+    .populate('user', 'name')
     .populate('seller', 'firstName shop')
-    .sort({ 'deliveryAgent.assignedAt': -1 })
+    .select('orderNumber totalPrice deliveryFees delivery createdAt')
+    .sort({ 'delivery.completedAt': -1 })
     .skip(skip)
     .limit(limit);
 
     const totalOrders = await Order.countDocuments({
-      'deliveryAgent.agent': req.deliveryAgent._id
+      'deliveryAgent.agent': req.deliveryAgent._id,
+      'delivery.isCompleted': true
     });
 
     terminalLog('GET_DELIVERY_HISTORY_SUCCESS', 'SUCCESS', {
@@ -1122,7 +1182,6 @@ exports.getDeliveryHistory = async (req, res) => {
       currentPage: page,
       data: orders
     });
-
   } catch (error) {
     terminalLog('GET_DELIVERY_HISTORY_ERROR', 'ERROR', {
       agentId: req.deliveryAgent?._id,
@@ -1137,113 +1196,93 @@ exports.getDeliveryHistory = async (req, res) => {
   }
 };
 
-// @desc    Get delivery agent dashboard stats
-// @route   GET /api/delivery/dashboard/stats
+// @desc    Logout delivery agent
+// @route   POST /api/delivery/logout
 // @access  Private (Delivery Agent)
-exports.getDeliveryDashboardStats = async (req, res) => {
+exports.logoutDeliveryAgent = async (req, res) => {
   try {
-    terminalLog('GET_DELIVERY_DASHBOARD_STATS', 'PROCESSING', {
+    terminalLog('DELIVERY_AGENT_LOGOUT', 'PROCESSING', {
       agentId: req.deliveryAgent._id
     });
 
-    const deliveryAgent = req.deliveryAgent;
+    // Update agent status to offline
+    const deliveryAgent = await DeliveryAgent.findById(req.deliveryAgent._id);
+    deliveryAgent.isOnline = false;
+    deliveryAgent.isAvailable = false;
+    deliveryAgent.lastActiveAt = new Date();
+    await deliveryAgent.save();
 
-    // Get today's deliveries
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    
-    const todayDeliveries = await Order.countDocuments({
-      'deliveryAgent.agent': deliveryAgent._id,
-      'delivery.completedAt': { $gte: todayStart },
-      'delivery.isCompleted': true
+    terminalLog('DELIVERY_AGENT_LOGOUT_SUCCESS', 'SUCCESS', {
+      agentId: req.deliveryAgent._id,
+      agentName: req.deliveryAgent.name
     });
 
-    // Get this week's deliveries
-    const weekStart = new Date();
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    weekStart.setHours(0, 0, 0, 0);
-
-    const weekDeliveries = await Order.countDocuments({
-      'deliveryAgent.agent': deliveryAgent._id,
-      'delivery.completedAt': { $gte: weekStart },
-      'delivery.isCompleted': true
-    });
-
-    // Get pending orders
-    const pendingOrders = await Order.countDocuments({
-      'deliveryAgent.agent': deliveryAgent._id,
-      'delivery.isCompleted': false,
-      status: { $nin: ['Cancelled', 'Delivered'] }
-    });
-
-    // Get recent earnings (this month)
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
-
-    const monthlyEarnings = await Order.aggregate([
-      {
-        $match: {
-          'deliveryAgent.agent': deliveryAgent._id,
-          'delivery.completedAt': { $gte: monthStart },
-          'delivery.isCompleted': true
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          totalEarnings: { $sum: '$deliveryFees.agentEarning' }
-        }
-      }
-    ]);
-
-    const stats = {
-      agent: {
-        name: deliveryAgent.name,
-        isOnline: deliveryAgent.isOnline,
-        isAvailable: deliveryAgent.isAvailable,
-        currentOrder: deliveryAgent.currentOrder,
-        orderStatus: deliveryAgent.orderStatus
-      },
-      performance: deliveryAgent.stats,
-      today: {
-        deliveries: todayDeliveries
-      },
-      week: {
-        deliveries: weekDeliveries
-      },
-      pending: {
-        orders: pendingOrders
-      },
-      earnings: {
-        thisMonth: monthlyEarnings[0]?.totalEarnings || 0,
-        total: deliveryAgent.stats.totalEarnings
-      }
-    };
-
-    terminalLog('GET_DELIVERY_DASHBOARD_STATS_SUCCESS', 'SUCCESS', {
-      agentId: deliveryAgent._id,
-      todayDeliveries,
-      weekDeliveries,
-      pendingOrders,
-      monthlyEarnings: stats.earnings.thisMonth
-    });
+    console.log(`
+🚪 ===============================
+   DELIVERY AGENT LOGGED OUT
+===============================
+🚚 Agent: ${req.deliveryAgent.name}
+📴 Status: Offline
+📅 Time: ${new Date().toLocaleString()}
+===============================`);
 
     res.status(200).json({
       success: true,
-      data: stats
+      message: 'Logged out successfully'
     });
-
   } catch (error) {
-    terminalLog('GET_DELIVERY_DASHBOARD_STATS_ERROR', 'ERROR', {
+    terminalLog('DELIVERY_AGENT_LOGOUT_ERROR', 'ERROR', {
       agentId: req.deliveryAgent?._id,
       error: error.message
     });
-    console.error('❌ Get Delivery Dashboard Stats Error:', error);
+    console.error('❌ Delivery Agent Logout Error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
       error: error.message
     });
   }
-}; 
+};
+
+// Helper function to calculate profile completion percentage
+const calculateProfileCompletion = (agent) => {
+  let completion = 0;
+  const fields = [
+    { field: 'name', weight: 10 },
+    { field: 'email', weight: 10 },
+    { field: 'phone', weight: 10 },
+    { field: 'address', weight: 15 },
+    { field: 'vehicleDetails.type', weight: 10 },
+    { field: 'vehicleDetails.model', weight: 5 },
+    { field: 'vehicleDetails.registrationNumber', weight: 10 },
+    { field: 'documents.licenseNumber', weight: 15 },
+    { field: 'bankDetails.accountNumber', weight: 10 },
+    { field: 'emergencyContact.name', weight: 5 }
+  ];
+
+  fields.forEach(({ field, weight }) => {
+    const value = field.split('.').reduce((obj, key) => obj?.[key], agent);
+    if (value && value.toString().trim() !== '') {
+      completion += weight;
+    }
+  });
+
+  return Math.min(completion, 100);
+};
+
+module.exports = {
+  registerDeliveryAgent,
+  loginDeliveryAgent,
+  getDeliveryAgentProfile,
+  updateDeliveryAgentProfile,
+  getAvailableOrders,
+  acceptOrder,
+  completePickup,
+  completeDelivery,
+  updateLocation,
+  getAssignedOrders,
+  getDeliveryStats,
+  toggleAvailability,
+  getDeliveryHistory,
+  logoutDeliveryAgent
+};
