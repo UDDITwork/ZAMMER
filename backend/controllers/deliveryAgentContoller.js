@@ -1271,18 +1271,18 @@ const calculateProfileCompletion = (agent) => {
 };
 
 module.exports = {
-  registerDeliveryAgent,
-  loginDeliveryAgent,
-  getDeliveryAgentProfile,
-  updateDeliveryAgentProfile,
-  getAvailableOrders,
-  acceptOrder,
-  completePickup,
-  completeDelivery,
-  updateLocation,
-  getAssignedOrders,
-  getDeliveryStats,
-  toggleAvailability,
-  getDeliveryHistory,
-  logoutDeliveryAgent
+  registerDeliveryAgent: exports.registerDeliveryAgent,
+  loginDeliveryAgent: exports.loginDeliveryAgent,
+  getDeliveryAgentProfile: exports.getDeliveryAgentProfile,
+  updateDeliveryAgentProfile: exports.updateDeliveryAgentProfile,
+  getAvailableOrders: exports.getAvailableOrders,
+  acceptOrder: exports.acceptOrder,
+  completePickup: exports.completePickup,
+  completeDelivery: exports.completeDelivery,
+  updateLocation: exports.updateLocation,
+  getAssignedOrders: exports.getAssignedOrders,
+  getDeliveryStats: exports.getDeliveryStats,
+  toggleAvailability: exports.toggleAvailability,
+  getDeliveryHistory: exports.getDeliveryHistory,
+  logoutDeliveryAgent: exports.logoutDeliveryAgent
 };
