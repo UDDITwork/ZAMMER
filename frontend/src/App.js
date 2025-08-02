@@ -15,7 +15,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import SimplePlacesTest from './components/SimplePlacesTest';
 
 // Admin Auth Pages
-import AdminLogin from './pages/auth/AdminLogin';
+import AdminLogin from './pages/admin/AdminLogin';
 
 // Admin Dashboard Pages
 import AdminDashboard from './pages/admin/AdminDashboard';

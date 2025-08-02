@@ -56,6 +56,12 @@ export const AuthProvider = ({ children }) => {
     token: null,
   });
 
+  const [adminAuth, setAdminAuth] = useState({
+    isAuthenticated: false,
+    admin: null,
+    token: null,
+  });
+
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState(null);
 
@@ -537,6 +543,7 @@ export const AuthProvider = ({ children }) => {
     // Auth states
     sellerAuth,
     userAuth,
+    adminAuth,
     loading,
     initError,
     
@@ -547,6 +554,18 @@ export const AuthProvider = ({ children }) => {
     logoutUser,
     handleAuthError,
     
+    // Admin functions (placeholder for now)
+    admin: adminAuth.admin,
+    logout: () => {
+      setAdminAuth({
+        isAuthenticated: false,
+        admin: null,
+        token: null,
+      });
+      safeRemoveItem('adminToken');
+      safeRemoveItem('adminData');
+    },
+    
     // Utility functions
     debugAuth,
     
@@ -556,6 +575,7 @@ export const AuthProvider = ({ children }) => {
       _internalState: {
         sellerAuth,
         userAuth,
+        adminAuth,
         loading,
         initError
       }
@@ -579,4 +599,13 @@ export const AuthProvider = ({ children }) => {
       {children}
     </AuthContext.Provider>
   );
+};
+
+// Custom hook to use auth context
+export const useAuth = () => {
+  const context = React.useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };
