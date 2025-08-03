@@ -1,187 +1,392 @@
+// backend/routes/shopRoutes.js - Production-Ready Shop Routes with Distance Calculation
+
 const express = require('express');
 const router = express.Router();
 const Seller = require('../models/Seller');
+const locationService = require('../utils/locationUtils');
 
-// @desc    Get ALL shops from database (NO RESTRICTIONS)
-// @route   GET /api/shops/nearby
+// 🎯 LOGGING UTILITIES
+const logShopRequest = (action, data) => {
+  const timestamp = new Date().toISOString();
+  console.log(`🏪 [SHOP-ROUTES] ${timestamp} | ${action} | ${JSON.stringify(data)}`);
+};
+
+const logShopError = (action, error, additionalData = {}) => {
+  const timestamp = new Date().toISOString();
+  console.error(`❌ [SHOP-ROUTES-ERROR] ${timestamp} | ${action} | Error: ${error.message} | Data: ${JSON.stringify(additionalData)}`);
+};
+
+// 🎯 GET ALL SHOPS (with distance calculation)
+// @desc    Get all shops with optional distance calculation
+// @route   GET /api/shops
 // @access  Public
-router.get('/nearby', async (req, res) => {
+router.get('/', async (req, res) => {
+  const startTime = Date.now();
+  
   try {
-    console.log('🏪 [ShopRoutes] ===== FETCHING ALL SHOPS =====');
-    console.log('🏪 [ShopRoutes] Route hit: GET /api/shops/nearby');
-    console.log('🏪 [ShopRoutes] Request query:', req.query);
-    console.log('🏪 [ShopRoutes] Request headers:', {
-      'user-agent': req.headers['user-agent'],
-      'authorization': req.headers.authorization ? 'Present' : 'Not present'
-    });
+    logShopRequest('GET_ALL_SHOPS', { query: req.query });
     
-    // 🎯 FIXED: Get ALL sellers with shop data - NO CONDITIONS
-    console.log('🏪 [ShopRoutes] Executing database query...');
+    const { lat, lng, limit = 50, page = 1 } = req.query;
+    const skip = (page - 1) * limit;
     
-    const sellers = await Seller.find({
-      // 🎯 CRITICAL: Only check if shop.name exists - that's it!
-      'shop.name': { $exists: true, $ne: null, $ne: '' }
-    })
-    .select(`
-      _id
-      firstName 
-      email
-      shop.name 
-      shop.description 
-      shop.category 
-      shop.location 
-      shop.images 
-      shop.mainImage 
-      shop.openTime 
-      shop.closeTime 
-      shop.phoneNumber 
-      shop.address 
-      shop.gstNumber
-      shop.workingDays
-      averageRating 
-      numReviews 
-      createdAt
-      updatedAt
-    `)
-    .sort({ 'shop.name': 1 });
+    // Build query
+    let query = {
+      isVerified: true,
+      "shop.isActive": true,
+      "shop.name": { $exists: true, $ne: null, $ne: '' }
+    };
     
-    console.log(`🏪 [ShopRoutes] Database query completed`);
-    console.log(`🏪 [ShopRoutes] Found ${sellers.length} sellers with shops`);
-    
-    // 🎯 DEBUGGING: Log each shop found
-    if (sellers.length > 0) {
-      console.log('🏪 [ShopRoutes] Shop details:');
-      sellers.forEach((seller, index) => {
-        console.log(`   ${index + 1}. ${seller.shop?.name || 'NO NAME'} (ID: ${seller._id})`);
-        console.log(`      - Category: ${seller.shop?.category || 'No category'}`);
-        console.log(`      - Address: ${seller.shop?.address || 'No address'}`);
-        console.log(`      - Images: ${seller.shop?.images?.length || 0} images`);
-        console.log(`      - Location: ${seller.shop?.location ? 'Has location' : 'No location'}`);
-      });
+    // Add location-based query if coordinates provided
+    if (lat && lng) {
+      const userLocation = { latitude: parseFloat(lat), longitude: parseFloat(lng) };
+      const validation = locationService.validateCoordinates(userLocation.longitude, userLocation.latitude);
       
-      // Sample shop data for debugging
-      console.log('📊 [ShopRoutes] Sample shop data:', {
-        sellerId: sellers[0]._id,
-        name: sellers[0].shop?.name,
-        hasLocation: !!sellers[0].shop?.location,
-        hasImages: !!sellers[0].shop?.images?.length,
-        imagesArray: sellers[0].shop?.images || [],
-        category: sellers[0].shop?.category,
-        address: sellers[0].shop?.address
-      });
-    } else {
-      console.log('⚠️ [ShopRoutes] NO SHOPS FOUND IN DATABASE!');
-      
-      // 🎯 DEBUGGING: Check if ANY sellers exist
-      const totalSellers = await Seller.countDocuments();
-      console.log(`🔍 [ShopRoutes] Total sellers in database: ${totalSellers}`);
-      
-      if (totalSellers > 0) {
-        // Check sellers without shop names
-        const sellersWithoutShopName = await Seller.find({
-          $or: [
-            { 'shop.name': { $exists: false } },
-            { 'shop.name': null },
-            { 'shop.name': '' }
-          ]
-        }).select('_id firstName email shop');
-        
-        console.log(`🔍 [ShopRoutes] Sellers without shop name: ${sellersWithoutShopName.length}`);
-        if (sellersWithoutShopName.length > 0) {
-          console.log('🔍 [ShopRoutes] Sample sellers without shop name:', 
-            sellersWithoutShopName.slice(0, 3).map(s => ({
-              id: s._id,
-              name: s.firstName,
-              email: s.email,
-              shopName: s.shop?.name || 'MISSING'
-            }))
-          );
-        }
+      if (validation.isValid) {
+        query = {
+          ...query,
+          "shop.location": {
+            $near: {
+              $geometry: {
+                type: "Point",
+                coordinates: [validation.longitude, validation.latitude]
+              },
+              $maxDistance: 50000 // 50km in meters
+            }
+          }
+        };
+        logShopRequest('LOCATION_BASED_QUERY', { userLocation, validation });
+      } else {
+        logShopError('INVALID_COORDINATES', new Error(validation.error), { userLocation });
       }
     }
     
-    // 🎯 ALWAYS return success with data (even if empty)
-    const response = {
+    // Execute query
+    const sellers = await Seller.find(query)
+      .select(`
+        _id firstName email shop.name shop.description shop.category 
+        shop.location shop.images shop.mainImage shop.openTime shop.closeTime 
+        shop.phoneNumber shop.address shop.gstNumber shop.workingDays
+        averageRating numReviews createdAt updatedAt
+      `)
+      .limit(parseInt(limit))
+      .skip(skip)
+      .lean();
+    
+    logShopRequest('QUERY_RESULTS', { 
+      found: sellers.length, 
+      processingTime: `${Date.now() - startTime}ms` 
+    });
+    
+    // Calculate distances if coordinates provided
+    let shopsWithDistances = sellers;
+    if (lat && lng) {
+      const userLocation = { latitude: parseFloat(lat), longitude: parseFloat(lng) };
+      shopsWithDistances = locationService.sortShopsByDistance(sellers, userLocation);
+      logShopRequest('DISTANCE_CALCULATION_COMPLETE', { 
+        shopsProcessed: shopsWithDistances.length 
+      });
+    }
+    
+    // Get total count for pagination
+    const totalShops = await Seller.countDocuments(query);
+    
+    res.status(200).json({
       success: true,
-      count: sellers.length,
-      data: sellers,
-      message: sellers.length > 0 
-        ? `Found ${sellers.length} shops` 
-        : 'No shops found with valid shop names',
-      timestamp: new Date().toISOString(),
-      debug: {
-        queryUsed: "{ 'shop.name': { $exists: true, $ne: null, $ne: '' } }",
-        totalCount: sellers.length
-      }
+      data: shopsWithDistances,
+      count: shopsWithDistances.length,
+      totalShops,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(totalShops / limit),
+        hasNext: page * limit < totalShops,
+        hasPrev: page > 1
+      },
+      userLocation: lat && lng ? { latitude: parseFloat(lat), longitude: parseFloat(lng) } : null,
+      processingTime: `${Date.now() - startTime}ms`
+    });
+    
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+    logShopError('GET_ALL_SHOPS_FAILED', error, { processingTime: `${processingTime}ms` });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching shops',
+      error: error.message,
+      processingTime: `${processingTime}ms`
+    });
+  }
+});
+
+// 🎯 GET NEARBY SHOPS (Production-Grade)
+// @desc    Get shops within specified distance
+// @route   GET /api/shops/nearby
+// @access  Public
+router.get('/nearby', async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    const { lat, lng, maxDistance = 50, limit = 20 } = req.query;
+    
+    logShopRequest('NEARBY_SHOPS_REQUEST', { lat, lng, maxDistance, limit });
+    
+    if (!lat || !lng) {
+      return res.status(400).json({
+        success: false,
+        message: 'Latitude and longitude are required for nearby search'
+      });
+    }
+    
+    const userLocation = { 
+      latitude: parseFloat(lat), 
+      longitude: parseFloat(lng) 
     };
     
-    console.log('📤 [ShopRoutes] Sending response:', {
-      success: response.success,
-      count: response.count,
-      dataLength: response.data.length,
-      message: response.message
+    const validation = locationService.validateCoordinates(userLocation.longitude, userLocation.latitude);
+    
+    if (!validation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid coordinates provided',
+        error: validation.error
+      });
+    }
+    
+    // Create geospatial query
+    const nearbyQuery = locationService.createNearbyQuery(userLocation, parseInt(maxDistance));
+    
+    logShopRequest('NEARBY_QUERY_CREATED', { 
+      userLocation, 
+      maxDistance: `${maxDistance}km`,
+      query: nearbyQuery 
     });
     
-    res.status(200).json(response);
+    // Execute query with geospatial index
+    const sellers = await Seller.find(nearbyQuery)
+      .select(`
+        _id firstName email shop.name shop.description shop.category 
+        shop.location shop.images shop.mainImage shop.openTime shop.closeTime 
+        shop.phoneNumber shop.address shop.gstNumber shop.workingDays
+        averageRating numReviews createdAt updatedAt
+      `)
+      .limit(parseInt(limit))
+      .lean();
     
-  } catch (error) {
-    console.error('❌ [ShopRoutes] Critical error fetching shops:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
+    logShopRequest('NEARBY_QUERY_RESULTS', { 
+      found: sellers.length, 
+      processingTime: `${Date.now() - startTime}ms` 
     });
     
-    res.status(500).json({
-      success: false,
-      message: 'Server Error while fetching shops',
-      error: error.message,
-      timestamp: new Date().toISOString(),
-      debug: {
-        route: '/api/shops/nearby',
-        method: 'GET'
+    // Calculate exact distances and sort
+    const shopsWithDistances = locationService.sortShopsByDistance(sellers, userLocation);
+    
+    // Filter by max distance (additional safety check)
+    const filteredShops = shopsWithDistances.filter(shop => 
+      shop.distance <= parseInt(maxDistance)
+    );
+    
+    logShopRequest('NEARBY_SHOPS_FINAL', { 
+      totalFound: sellers.length,
+      withinDistance: filteredShops.length,
+      maxDistance: `${maxDistance}km`
+    });
+    
+    res.status(200).json({
+      success: true,
+      data: filteredShops,
+      count: filteredShops.length,
+      userLocation,
+      searchRadius: `${maxDistance}km`,
+      processingTime: `${Date.now() - startTime}ms`,
+      stats: {
+        totalShopsFound: sellers.length,
+        shopsWithinRadius: filteredShops.length,
+        averageDistance: filteredShops.length > 0 
+          ? (filteredShops.reduce((sum, shop) => sum + shop.distance, 0) / filteredShops.length).toFixed(2)
+          : 0
       }
     });
+    
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+    logShopError('NEARBY_SHOPS_FAILED', error, { processingTime: `${processingTime}ms` });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching nearby shops',
+      error: error.message,
+      processingTime: `${processingTime}ms`
+    });
   }
 });
 
-// 🎯 DEBUGGING ENDPOINT: Get ALL sellers (for debugging)
-router.get('/debug/all-sellers', async (req, res) => {
+// 🎯 GET SHOP BY ID (with distance calculation)
+// @desc    Get specific shop by ID
+// @route   GET /api/shops/:id
+// @access  Public
+router.get('/:id', async (req, res) => {
+  const startTime = Date.now();
+  
   try {
-    console.log('🔍 [ShopRoutes] DEBUG: Fetching ALL sellers...');
+    const { id } = req.params;
+    const { lat, lng } = req.query;
     
-    const allSellers = await Seller.find({})
-      .select('_id firstName email shop')
-      .limit(10); // Limit for safety
+    logShopRequest('GET_SHOP_BY_ID', { shopId: id, userLocation: lat && lng ? { lat, lng } : null });
     
-    const sellersWithShops = await Seller.countDocuments({
-      'shop.name': { $exists: true, $ne: null, $ne: '' }
+    const seller = await Seller.findById(id)
+      .select(`
+        _id firstName email shop.name shop.description shop.category 
+        shop.location shop.images shop.mainImage shop.openTime shop.closeTime 
+        shop.phoneNumber shop.address shop.gstNumber shop.workingDays
+        averageRating numReviews createdAt updatedAt
+      `)
+      .lean();
+    
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: 'Shop not found'
+      });
+    }
+    
+    let shopData = seller;
+    
+    // Calculate distance if user location provided
+    if (lat && lng && seller.shop?.location?.coordinates) {
+      const userLocation = { latitude: parseFloat(lat), longitude: parseFloat(lng) };
+      const distanceResult = locationService.calculateDistance(
+        [userLocation.longitude, userLocation.latitude],
+        seller.shop.location.coordinates
+      );
+      
+      shopData = {
+        ...seller,
+        distance: distanceResult.distance,
+        distanceText: distanceResult.distanceText,
+        isAccurate: distanceResult.isAccurate
+      };
+      
+      logShopRequest('DISTANCE_CALCULATED', { 
+        shopId: id, 
+        distance: distanceResult.distanceText,
+        isAccurate: distanceResult.isAccurate 
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: shopData,
+      userLocation: lat && lng ? { latitude: parseFloat(lat), longitude: parseFloat(lng) } : null,
+      processingTime: `${Date.now() - startTime}ms`
     });
     
-    const totalSellers = await Seller.countDocuments();
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+    logShopError('GET_SHOP_BY_ID_FAILED', error, { processingTime: `${processingTime}ms` });
     
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching shop',
+      error: error.message,
+      processingTime: `${processingTime}ms`
+    });
+  }
+});
+
+// 🎯 TEST DISTANCE CALCULATION
+// @desc    Test distance calculation for a specific shop
+// @route   GET /api/shops/test-distance/:shopId
+// @access  Public
+router.get('/test-distance/:shopId', async (req, res) => {
+  try {
+    const { shopId } = req.params;
+    const { lat, lng } = req.query;
+    
+    if (!lat || !lng) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide lat and lng query parameters'
+      });
+    }
+
+    const shop = await Seller.findById(shopId);
+    if (!shop) {
+      return res.status(404).json({
+        success: false,
+        message: 'Shop not found'
+      });
+    }
+
+    const userLocation = { longitude: parseFloat(lng), latitude: parseFloat(lat) };
+    const distance = locationService.calculateDistance(
+      [userLocation.longitude, userLocation.latitude],
+      shop.shop.location.coordinates
+    );
+
     res.json({
       success: true,
-      debug: true,
+      data: {
+        shopName: shop.shop.name,
+        shopAddress: shop.shop.address,
+        userLocation: `${lat}, ${lng}`,
+        shopLocation: shop.shop.location.coordinates,
+        distance: distance.distance,
+        distanceText: distance.distanceText,
+        isAccurate: distance.distance < 1000 // Should be less than 1000km for Gujarat
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 🎯 HEALTH CHECK
+// @desc    Check shop service health
+// @route   GET /api/shops/health
+// @access  Public
+router.get('/health', async (req, res) => {
+  try {
+    const stats = await locationService.getLocationStats(Seller);
+    
+    res.status(200).json({
+      success: true,
+      service: 'shopRoutes',
+      timestamp: new Date().toISOString(),
       stats: {
-        totalSellers,
-        sellersWithShops,
-        sellersWithoutShops: totalSellers - sellersWithShops
+        totalShops: stats.totalShops,
+        shopsWithValidLocation: stats.shopsWithValidLocation,
+        averageLatitude: stats.averageLatitude,
+        averageLongitude: stats.averageLongitude
       },
-      sampleSellers: allSellers.map(seller => ({
-        id: seller._id,
-        name: seller.firstName,
-        email: seller.email,
-        hasShop: !!seller.shop,
-        shopName: seller.shop?.name || 'NO SHOP NAME',
-        shopCategory: seller.shop?.category || 'NO CATEGORY'
-      }))
+      routes: {
+        getAllShops: 'GET /api/shops',
+        getNearbyShops: 'GET /api/shops/nearby?lat=&lng=&maxDistance=',
+        getShopById: 'GET /api/shops/:id',
+        testDistance: 'GET /api/shops/test-distance/:shopId?lat=&lng=',
+        health: 'GET /api/shops/health'
+      }
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: error.message
+      service: 'shopRoutes',
+      error: error.message,
+      timestamp: new Date().toISOString()
     });
   }
 });
 
-module.exports = router; 
+// 🎯 ERROR HANDLING MIDDLEWARE
+router.use((error, req, res, next) => {
+  console.error('❌ [ShopRoutes] Error:', error);
+  
+  res.status(500).json({
+    success: false,
+    message: 'Shop service error',
+    error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+    timestamp: new Date().toISOString()
+  });
+});
+
+module.exports = router;

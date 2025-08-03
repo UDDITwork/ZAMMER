@@ -1,48 +1,40 @@
-// frontend/src/pages/delivery/DeliveryProfile.js - Delivery Agent Profile Management
+// frontend/src/pages/delivery/DeliveryProfile.js - Fixed to use AuthContext
 
-import React, { useState, useEffect } from 'react';
-import { useDelivery } from '../../contexts/DeliveryContext';
-import DeliveryLayout from '../../components/layouts/DeliveryLayout';
+import React, { useState, useEffect, useContext } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import { AuthContext } from '../../contexts/AuthContext';
 
 const DeliveryProfile = () => {
-  const { 
-    agent, 
-    updateProfile, 
-    changePassword, 
-    loading,
-    showNotification 
-  } = useDelivery();
-
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  const navigate = useNavigate();
+  const { deliveryAgentAuth, logoutDeliveryAgent, updateDeliveryAgent } = useContext(AuthContext);
   
   // Profile form data
   const [profileData, setProfileData] = useState({
     name: '',
     email: '',
-    phone: '',
+    phoneNumber: '',
     address: '',
-    vehicleType: '',
-    vehicleModel: '',
-    vehicleRegistration: '',
-    licenseNumber: '',
+    vehicleDetails: {
+      type: '',
+      model: '',
+      registrationNumber: ''
+    },
+    documents: {
+      licenseNumber: ''
+    },
     emergencyContact: {
       name: '',
-      phone: '',
+      phoneNumber: '',
       relationship: ''
     },
-    workingAreas: [],
-    availability: {
-      monday: { enabled: true, start: '09:00', end: '18:00' },
-      tuesday: { enabled: true, start: '09:00', end: '18:00' },
-      wednesday: { enabled: true, start: '09:00', end: '18:00' },
-      thursday: { enabled: true, start: '09:00', end: '18:00' },
-      friday: { enabled: true, start: '09:00', end: '18:00' },
-      saturday: { enabled: true, start: '09:00', end: '18:00' },
-      sunday: { enabled: false, start: '09:00', end: '18:00' }
-    }
+    workingAreas: []
   });
 
   // Password change form data
@@ -54,29 +46,81 @@ const DeliveryProfile = () => {
 
   const [errors, setErrors] = useState({});
 
-  // Load agent data on component mount
+  // Check authentication and load data
   useEffect(() => {
-    if (agent) {
-      setProfileData(prev => ({
-        ...prev,
-        name: agent.name || '',
-        email: agent.email || '',
-        phone: agent.phone || '',
-        address: agent.address || '',
-        vehicleType: agent.vehicleType || '',
-        vehicleModel: agent.vehicleModel || '',
-        vehicleRegistration: agent.vehicleRegistration || '',
-        licenseNumber: agent.licenseNumber || '',
-        emergencyContact: agent.emergencyContact || prev.emergencyContact,
-        workingAreas: agent.workingAreas || [],
-        availability: agent.availability || prev.availability
-      }));
+    if (!deliveryAgentAuth.isAuthenticated || !deliveryAgentAuth.deliveryAgent) {
+      console.log('🚚 [PROFILE] Not authenticated, redirecting to login');
+      navigate('/delivery/login');
+      return;
     }
-  }, [agent]);
+
+    loadProfileData();
+  }, [navigate, deliveryAgentAuth]);
+
+  // Load profile data
+  const loadProfileData = async () => {
+    try {
+      setLoading(true);
+      const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
+      
+      if (!token) {
+        navigate('/delivery/login');
+        return;
+      }
+
+      const response = await fetch('http://localhost:5001/api/delivery/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const agent = data.data;
+        
+        setProfileData({
+          name: agent.name || '',
+          email: agent.email || '',
+          phoneNumber: agent.phoneNumber || '',
+          address: agent.address || '',
+          vehicleDetails: {
+            type: agent.vehicleDetails?.type || '',
+            model: agent.vehicleDetails?.model || '',
+            registrationNumber: agent.vehicleDetails?.registrationNumber || ''
+          },
+          documents: {
+            licenseNumber: agent.documents?.licenseNumber || agent.licenseNumber || ''
+          },
+          emergencyContact: agent.emergencyContact || {
+            name: '',
+            phoneNumber: '',
+            relationship: ''
+          },
+          workingAreas: agent.workingAreas || []
+        });
+
+        console.log('✅ [PROFILE] Profile data loaded successfully');
+      } else {
+        console.error('❌ [PROFILE] Failed to load profile:', response.status);
+        if (response.status === 401) {
+          logoutDeliveryAgent();
+          navigate('/delivery/login');
+        } else {
+          toast.error('Failed to load profile data');
+        }
+      }
+    } catch (error) {
+      console.error('❌ [PROFILE] Error loading profile:', error);
+      toast.error('Failed to load profile data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handle profile input changes
   const handleProfileChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value } = e.target;
     
     if (name.includes('.')) {
       // Handle nested objects
@@ -89,16 +133,20 @@ const DeliveryProfile = () => {
             [child]: value
           }
         }));
-      } else if (parent === 'availability') {
-        const [day, field] = child.split('_');
+      } else if (parent === 'vehicleDetails') {
         setProfileData(prev => ({
           ...prev,
-          availability: {
-            ...prev.availability,
-            [day]: {
-              ...prev.availability[day],
-              [field]: type === 'checkbox' ? checked : value
-            }
+          vehicleDetails: {
+            ...prev.vehicleDetails,
+            [child]: value
+          }
+        }));
+      } else if (parent === 'documents') {
+        setProfileData(prev => ({
+          ...prev,
+          documents: {
+            ...prev.documents,
+            [child]: value
           }
         }));
       }
@@ -149,18 +197,18 @@ const DeliveryProfile = () => {
       newErrors.email = 'Please enter a valid email address';
     }
 
-    if (!profileData.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
-    } else if (!/^[6-9]\d{9}$/.test(profileData.phone)) {
-      newErrors.phone = 'Please enter a valid Indian mobile number';
+    if (!profileData.phoneNumber.trim()) {
+      newErrors.phoneNumber = 'Phone number is required';
+    } else if (!/^[6-9]\d{9}$/.test(profileData.phoneNumber)) {
+      newErrors.phoneNumber = 'Please enter a valid Indian mobile number';
     }
 
-    if (!profileData.vehicleRegistration.trim()) {
-      newErrors.vehicleRegistration = 'Vehicle registration is required';
+    if (!profileData.vehicleDetails.registrationNumber.trim()) {
+      newErrors['vehicleDetails.registrationNumber'] = 'Vehicle registration is required';
     }
 
-    if (!profileData.licenseNumber.trim()) {
-      newErrors.licenseNumber = 'License number is required';
+    if (!profileData.documents.licenseNumber.trim()) {
+      newErrors['documents.licenseNumber'] = 'License number is required';
     }
 
     setErrors(newErrors);
@@ -200,16 +248,32 @@ const DeliveryProfile = () => {
     setIsSaving(true);
     
     try {
-      const result = await updateProfile(profileData);
+      const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
       
-      if (result.success) {
+      const response = await fetch('http://localhost:5001/api/delivery/profile', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(profileData)
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
         setIsEditing(false);
-        showNotification('Profile updated successfully!', 'success');
+        updateDeliveryAgent(data.data); // Update context
+        toast.success('Profile updated successfully!');
+        console.log('✅ [PROFILE] Profile updated successfully');
       } else {
-        setErrors({ submit: result.message });
+        setErrors({ submit: data.message });
+        toast.error(data.message || 'Failed to update profile');
       }
     } catch (error) {
+      console.error('❌ [PROFILE] Error updating profile:', error);
       setErrors({ submit: 'Failed to update profile. Please try again.' });
+      toast.error('Failed to update profile');
     } finally {
       setIsSaving(false);
     }
@@ -226,20 +290,37 @@ const DeliveryProfile = () => {
     setIsChangingPassword(true);
     
     try {
-      const result = await changePassword(passwordData);
+      const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
       
-      if (result.success) {
+      const response = await fetch('http://localhost:5001/api/delivery/change-password', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
         setPasswordData({
           currentPassword: '',
           newPassword: '',
           confirmPassword: ''
         });
-        showNotification('Password changed successfully!', 'success');
+        toast.success('Password changed successfully!');
       } else {
-        setErrors({ password: result.message });
+        setErrors({ password: data.message });
+        toast.error(data.message || 'Failed to change password');
       }
     } catch (error) {
+      console.error('❌ [PROFILE] Error changing password:', error);
       setErrors({ password: 'Failed to change password. Please try again.' });
+      toast.error('Failed to change password');
     } finally {
       setIsChangingPassword(false);
     }
@@ -247,62 +328,86 @@ const DeliveryProfile = () => {
 
   // Handle cancel edit
   const handleCancelEdit = () => {
-    // Reset form data to original values
-    if (agent) {
-      setProfileData(prev => ({
-        ...prev,
-        name: agent.name || '',
-        email: agent.email || '',
-        phone: agent.phone || '',
-        address: agent.address || '',
-        vehicleType: agent.vehicleType || '',
-        vehicleModel: agent.vehicleModel || '',
-        vehicleRegistration: agent.vehicleRegistration || '',
-        licenseNumber: agent.licenseNumber || '',
-        emergencyContact: agent.emergencyContact || prev.emergencyContact,
-        workingAreas: agent.workingAreas || [],
-        availability: agent.availability || prev.availability
-      }));
-    }
+    // Reset form data and reload from context/API
+    loadProfileData();
     setIsEditing(false);
     setErrors({});
   };
 
-  const vehicleTypes = [
-    { value: 'bike', label: 'Motorcycle/Bike' },
-    { value: 'scooter', label: 'Scooter' },
-    { value: 'bicycle', label: 'Bicycle' },
-    { value: 'car', label: 'Car' }
-  ];
+  const handleLogout = () => {
+    logoutDeliveryAgent();
+    navigate('/delivery/login');
+    toast.success('Logged out successfully');
+  };
 
-  const days = [
-    { key: 'monday', label: 'Monday' },
-    { key: 'tuesday', label: 'Tuesday' },
-    { key: 'wednesday', label: 'Wednesday' },
-    { key: 'thursday', label: 'Thursday' },
-    { key: 'friday', label: 'Friday' },
-    { key: 'saturday', label: 'Saturday' },
-    { key: 'sunday', label: 'Sunday' }
+  const vehicleTypes = [
+    { value: 'Bicycle', label: 'Bicycle' },
+    { value: 'Motorcycle', label: 'Motorcycle' },
+    { value: 'Scooter', label: 'Scooter' },
+    { value: 'Car', label: 'Car' },
+    { value: 'Van', label: 'Van' }
   ];
 
   if (loading) {
     return (
-      <DeliveryLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500"></div>
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <div className="bg-white shadow">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-6">
+              <div className="flex items-center">
+                <Link to="/delivery/dashboard" className="text-orange-600 hover:text-orange-500 mr-4">
+                  ← Back to Dashboard
+                </Link>
+                <h1 className="text-2xl font-bold text-gray-900">🚚 Profile Settings</h1>
+              </div>
+            </div>
+          </div>
         </div>
-      </DeliveryLayout>
+
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading profile...</p>
+          </div>
+        </div>
+      </div>
     );
   }
 
   return (
-    <DeliveryLayout>
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center">
+              <Link to="/delivery/dashboard" className="text-orange-600 hover:text-orange-500 mr-4">
+                ← Back to Dashboard
+              </Link>
+              <h1 className="text-2xl font-bold text-gray-900">🚚 Profile Settings</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-500">
+                Welcome, {deliveryAgentAuth.deliveryAgent?.name}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+          <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
             Profile Settings
-          </h1>
+          </h2>
           <p className="mt-1 text-sm text-gray-500">
             Manage your personal information and account settings
           </p>
@@ -348,16 +453,6 @@ const DeliveryProfile = () => {
               Vehicle Details
             </button>
             <button
-              onClick={() => setActiveTab('availability')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'availability'
-                  ? 'border-orange-500 text-orange-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Availability
-            </button>
-            <button
               onClick={() => setActiveTab('security')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'security'
@@ -375,7 +470,7 @@ const DeliveryProfile = () => {
           <div className="bg-white shadow rounded-lg">
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-medium text-gray-900">Personal Information</h2>
+                <h3 className="text-lg font-medium text-gray-900">Personal Information</h3>
                 <div className="flex space-x-3">
                   {isEditing ? (
                     <>
@@ -459,21 +554,21 @@ const DeliveryProfile = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">
                     Phone Number
                   </label>
                   <input
                     type="tel"
-                    id="phone"
-                    name="phone"
-                    value={profileData.phone}
+                    id="phoneNumber"
+                    name="phoneNumber"
+                    value={profileData.phoneNumber}
                     onChange={handleProfileChange}
                     disabled={!isEditing}
                     className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                      !isEditing ? 'bg-gray-50 text-gray-500' : errors.phone ? 'border-red-300' : 'border-gray-300'
+                      !isEditing ? 'bg-gray-50 text-gray-500' : errors.phoneNumber ? 'border-red-300' : 'border-gray-300'
                     }`}
                   />
-                  {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
+                  {errors.phoneNumber && <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>}
                 </div>
               </div>
 
@@ -497,7 +592,7 @@ const DeliveryProfile = () => {
 
               {/* Emergency Contact */}
               <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Emergency Contact</h3>
+                <h4 className="text-lg font-medium text-gray-900 mb-4">Emergency Contact</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label htmlFor="emergencyContact.name" className="block text-sm font-medium text-gray-700">
@@ -517,14 +612,14 @@ const DeliveryProfile = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="emergencyContact.phone" className="block text-sm font-medium text-gray-700">
+                    <label htmlFor="emergencyContact.phoneNumber" className="block text-sm font-medium text-gray-700">
                       Contact Phone
                     </label>
                     <input
                       type="tel"
-                      id="emergencyContact.phone"
-                      name="emergencyContact.phone"
-                      value={profileData.emergencyContact.phone}
+                      id="emergencyContact.phoneNumber"
+                      name="emergencyContact.phoneNumber"
+                      value={profileData.emergencyContact.phoneNumber}
                       onChange={handleProfileChange}
                       disabled={!isEditing}
                       className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
@@ -561,7 +656,7 @@ const DeliveryProfile = () => {
           <div className="bg-white shadow rounded-lg">
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-medium text-gray-900">Vehicle Information</h2>
+                <h3 className="text-lg font-medium text-gray-900">Vehicle Information</h3>
                 <div className="flex space-x-3">
                   {isEditing ? (
                     <>
@@ -598,13 +693,13 @@ const DeliveryProfile = () => {
             <div className="px-6 py-4 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="vehicleType" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="vehicleDetails.type" className="block text-sm font-medium text-gray-700">
                     Vehicle Type
                   </label>
                   <select
-                    id="vehicleType"
-                    name="vehicleType"
-                    value={profileData.vehicleType}
+                    id="vehicleDetails.type"
+                    name="vehicleDetails.type"
+                    value={profileData.vehicleDetails.type}
                     onChange={handleProfileChange}
                     disabled={!isEditing}
                     className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
@@ -621,14 +716,14 @@ const DeliveryProfile = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="vehicleModel" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="vehicleDetails.model" className="block text-sm font-medium text-gray-700">
                     Vehicle Model
                   </label>
                   <input
                     type="text"
-                    id="vehicleModel"
-                    name="vehicleModel"
-                    value={profileData.vehicleModel}
+                    id="vehicleDetails.model"
+                    name="vehicleDetails.model"
+                    value={profileData.vehicleDetails.model}
                     onChange={handleProfileChange}
                     disabled={!isEditing}
                     placeholder="e.g., Honda Activa, Royal Enfield"
@@ -639,138 +734,40 @@ const DeliveryProfile = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="vehicleRegistration" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="vehicleDetails.registrationNumber" className="block text-sm font-medium text-gray-700">
                     Registration Number
                   </label>
                   <input
                     type="text"
-                    id="vehicleRegistration"
-                    name="vehicleRegistration"
-                    value={profileData.vehicleRegistration}
+                    id="vehicleDetails.registrationNumber"
+                    name="vehicleDetails.registrationNumber"
+                    value={profileData.vehicleDetails.registrationNumber}
                     onChange={handleProfileChange}
                     disabled={!isEditing}
                     className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                      !isEditing ? 'bg-gray-50 text-gray-500' : errors.vehicleRegistration ? 'border-red-300' : 'border-gray-300'
+                      !isEditing ? 'bg-gray-50 text-gray-500' : errors['vehicleDetails.registrationNumber'] ? 'border-red-300' : 'border-gray-300'
                     }`}
                   />
-                  {errors.vehicleRegistration && <p className="mt-1 text-sm text-red-600">{errors.vehicleRegistration}</p>}
+                  {errors['vehicleDetails.registrationNumber'] && <p className="mt-1 text-sm text-red-600">{errors['vehicleDetails.registrationNumber']}</p>}
                 </div>
 
                 <div>
-                  <label htmlFor="licenseNumber" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="documents.licenseNumber" className="block text-sm font-medium text-gray-700">
                     License Number
                   </label>
                   <input
                     type="text"
-                    id="licenseNumber"
-                    name="licenseNumber"
-                    value={profileData.licenseNumber}
+                    id="documents.licenseNumber"
+                    name="documents.licenseNumber"
+                    value={profileData.documents.licenseNumber}
                     onChange={handleProfileChange}
                     disabled={!isEditing}
                     className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                      !isEditing ? 'bg-gray-50 text-gray-500' : errors.licenseNumber ? 'border-red-300' : 'border-gray-300'
+                      !isEditing ? 'bg-gray-50 text-gray-500' : errors['documents.licenseNumber'] ? 'border-red-300' : 'border-gray-300'
                     }`}
                   />
-                  {errors.licenseNumber && <p className="mt-1 text-sm text-red-600">{errors.licenseNumber}</p>}
+                  {errors['documents.licenseNumber'] && <p className="mt-1 text-sm text-red-600">{errors['documents.licenseNumber']}</p>}
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Availability Tab */}
-        {activeTab === 'availability' && (
-          <div className="bg-white shadow rounded-lg">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-medium text-gray-900">Working Hours</h2>
-                <div className="flex space-x-3">
-                  {isEditing ? (
-                    <>
-                      <button
-                        onClick={handleCancelEdit}
-                        className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSaveProfile}
-                        disabled={isSaving}
-                        className={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 ${
-                          isSaving
-                            ? 'bg-orange-400 cursor-not-allowed'
-                            : 'bg-orange-600 hover:bg-orange-700'
-                        }`}
-                      >
-                        {isSaving ? 'Saving...' : 'Save Changes'}
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      className="bg-orange-600 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-                    >
-                      Edit Availability
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="px-6 py-4">
-              <div className="space-y-4">
-                {days.map((day) => (
-                  <div key={day.key} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id={`availability.${day.key}_enabled`}
-                        name={`availability.${day.key}_enabled`}
-                        checked={profileData.availability[day.key]?.enabled || false}
-                        onChange={handleProfileChange}
-                        disabled={!isEditing}
-                        className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded disabled:opacity-50"
-                      />
-                      <label htmlFor={`availability.${day.key}_enabled`} className="ml-3 text-sm font-medium text-gray-700 min-w-[80px]">
-                        {day.label}
-                      </label>
-                    </div>
-
-                    {profileData.availability[day.key]?.enabled && (
-                      <div className="flex items-center space-x-3">
-                        <div>
-                          <label htmlFor={`availability.${day.key}_start`} className="sr-only">Start time</label>
-                          <input
-                            type="time"
-                            id={`availability.${day.key}_start`}
-                            name={`availability.${day.key}_start`}
-                            value={profileData.availability[day.key]?.start || '09:00'}
-                            onChange={handleProfileChange}
-                            disabled={!isEditing}
-                            className={`px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                              !isEditing ? 'bg-gray-50 text-gray-500' : 'border-gray-300'
-                            }`}
-                          />
-                        </div>
-                        <span className="text-gray-500">to</span>
-                        <div>
-                          <label htmlFor={`availability.${day.key}_end`} className="sr-only">End time</label>
-                          <input
-                            type="time"
-                            id={`availability.${day.key}_end`}
-                            name={`availability.${day.key}_end`}
-                            value={profileData.availability[day.key]?.end || '18:00'}
-                            onChange={handleProfileChange}
-                            disabled={!isEditing}
-                            className={`px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                              !isEditing ? 'bg-gray-50 text-gray-500' : 'border-gray-300'
-                            }`}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
               </div>
             </div>
           </div>
@@ -780,7 +777,7 @@ const DeliveryProfile = () => {
         {activeTab === 'security' && (
           <div className="bg-white shadow rounded-lg">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-medium text-gray-900">Change Password</h2>
+              <h3 className="text-lg font-medium text-gray-900">Change Password</h3>
             </div>
 
             <form onSubmit={handleChangePassword} className="px-6 py-4 space-y-6">
@@ -862,7 +859,7 @@ const DeliveryProfile = () => {
           </div>
         )}
       </div>
-    </DeliveryLayout>
+    </div>
   );
 };
 
