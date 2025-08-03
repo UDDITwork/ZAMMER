@@ -38,6 +38,18 @@ import ViewProducts from './pages/seller/ViewProducts';
 import EditProfile from './pages/seller/EditProfile';
 import Orders from './pages/seller/Orders';
 
+// Delivery Agent Auth Pages
+import DeliveryAgentLogin from './pages/auth/DeliveryAgentLogin';
+import DeliveryAgentRegister from './pages/auth/DeliveryAgentRegister';
+
+// Delivery Agent Dashboard Pages
+import DeliveryDashboard from './pages/delivery/DeliveryDashboard';
+import AvailableOrders from './pages/delivery/AvailableOrders';
+import DeliveryHistory from './pages/delivery/DeliveryHistory';
+import DeliveryProfile from './pages/delivery/DeliveryProfile';
+import OrderDelivery from './pages/delivery/OrderDelivery';
+import OrderPickup from './pages/delivery/OrderPickup';
+
 // User Auth Pages
 import UserLogin from './pages/auth/UserLogin';
 import UserRegister from './pages/auth/UserRegister';
@@ -141,6 +153,18 @@ function App() {
             <Route path="/seller/products/edit/:id" element={<Navigate replace to="/seller/edit-product/:id" />} />
             <Route path="/seller/products" element={<Navigate replace to="/seller/view-products" />} />
             <Route path="/seller/profile" element={<Navigate replace to="/seller/edit-profile" />} />
+            
+            {/* Delivery Agent Auth Routes */}
+            <Route path="/delivery/login" element={<DeliveryAgentLogin />} />
+            <Route path="/delivery/register" element={<DeliveryAgentRegister />} />
+            
+            {/* Delivery Agent Dashboard Routes */}
+            <Route path="/delivery/dashboard" element={<DeliveryDashboard />} />
+            <Route path="/delivery/orders/available" element={<AvailableOrders />} />
+            <Route path="/delivery/history" element={<DeliveryHistory />} />
+            <Route path="/delivery/profile" element={<DeliveryProfile />} />
+            <Route path="/delivery/orders/:id/pickup" element={<OrderPickup />} />
+            <Route path="/delivery/orders/:id/deliver" element={<OrderDelivery />} />
             
             {/* User Auth Routes */}
             <Route path="/user/login" element={<UserLogin />} />

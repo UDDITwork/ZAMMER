@@ -1,159 +1,175 @@
-// frontend/src/pages/auth/DeliveryAgentLogin.js - Delivery Agent Authentication
+// frontend/src/pages/auth/DeliveryAgentLogin.js - Fixed Login
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useDelivery } from '../../contexts/DeliveryContext';
+import { toast } from 'react-toastify';
+import { AuthContext } from '../../contexts/AuthContext';
+
+// 🚚 DELIVERY AGENT LOGIN LOGGING
+const logDeliveryLogin = (action, data, type = 'info') => {
+  const timestamp = new Date().toISOString();
+  const logColor = type === 'error' ? '\x1b[31m' : type === 'success' ? '\x1b[32m' : '\x1b[36m';
+  const resetColor = '\x1b[0m';
+  
+  console.log(`${logColor}🚚 [DELIVERY-LOGIN] ${timestamp} | ${action} | ${JSON.stringify(data)}${resetColor}`);
+};
+
+const logDeliveryLoginError = (action, error, additionalData = {}) => {
+  const timestamp = new Date().toISOString();
+  console.error(`\x1b[31m🚚 [DELIVERY-LOGIN-ERROR] ${timestamp} | ${action} | Error: ${error.message} | Stack: ${error.stack} | Data: ${JSON.stringify(additionalData)}\x1b[0m`);
+};
 
 const DeliveryAgentLogin = () => {
-  const navigate = useNavigate();
-  const { login, isAuthenticated, loading } = useDelivery();
-
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { loginDeliveryAgent } = useContext(AuthContext); // ✅ FIXED: Use delivery agent function
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/delivery/dashboard');
-    }
-  }, [isAuthenticated, navigate]);
+  // 🚚 LOGIN PAGE LOADED
+  React.useEffect(() => {
+    logDeliveryLogin('LOGIN_PAGE_LOADED', { 
+      hasStoredToken: !!localStorage.getItem('deliveryAgentToken'),
+      userAgent: navigator.userAgent,
+      timestamp: new Date().toISOString()
+    });
+  }, []);
 
-  // Handle form input changes
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
+    setFormData({
+      ...formData,
       [name]: value
-    }));
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
+    });
+
+    // 🚚 LOG FORM FIELD CHANGES
+    logDeliveryLogin('FORM_FIELD_CHANGED', { 
+      field: name, 
+      hasValue: !!value,
+      valueLength: value.length
+    });
   };
 
-  // Validate form
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-
-    if (!formData.password.trim()) {
-      newErrors.password = 'Password is required';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const startTime = Date.now();
     
-    if (!validateForm()) {
-      return;
-    }
+    logDeliveryLogin('LOGIN_ATTEMPT_STARTED', { 
+      email: formData.email,
+      hasPassword: !!formData.password,
+      passwordLength: formData.password.length
+    });
 
-    setIsSubmitting(true);
-    
+    setLoading(true);
+
     try {
-      const result = await login({
-        email: formData.email.trim(),
-        password: formData.password
+      logDeliveryLogin('API_CALL_STARTED', { 
+        endpoint: '/api/delivery/login',
+        method: 'POST'
       });
 
-      if (result.success) {
-        navigate('/delivery/dashboard');
+      const response = await fetch('http://localhost:5001/api/delivery/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+      const processingTime = Date.now() - startTime;
+
+      if (data.success) {
+        // ✅ FIXED: Use delivery agent login function from context
+        try {
+          await loginDeliveryAgent(data.data);
+
+          logDeliveryLogin('LOGIN_SUCCESS', { 
+            agentId: data.data._id,
+            email: data.data.email,
+            processingTime: `${processingTime}ms`,
+            tokenStored: !!data.data.token,
+            authContextUpdated: true
+          }, 'success');
+
+          toast.success('Login successful!');
+          navigate('/delivery/dashboard');
+        } catch (authError) {
+          logDeliveryLoginError('LOGIN_AUTH_FAILED', authError, {
+            email: formData.email
+          });
+          toast.error('Login successful but context update failed. Please try again.');
+        }
       } else {
-        setErrors({ 
-          submit: result.message || 'Login failed. Please try again.' 
+        logDeliveryLoginError('LOGIN_FAILED', new Error(data.message || 'Login failed'), {
+          email: formData.email,
+          processingTime: `${processingTime}ms`,
+          responseStatus: response.status,
+          errorMessage: data.message,
+          errors: data.errors || []
         });
+
+        // ✅ FIXED: Show validation errors properly
+        if (data.errors && Array.isArray(data.errors)) {
+          data.errors.forEach(error => {
+            toast.error(`${error.path}: ${error.msg}`);
+          });
+        } else {
+          toast.error(data.message || 'Login failed');
+        }
       }
     } catch (error) {
-      setErrors({ 
-        submit: 'An unexpected error occurred. Please try again.' 
+      const processingTime = Date.now() - startTime;
+      
+      logDeliveryLoginError('LOGIN_ERROR', error, { 
+        email: formData.email,
+        processingTime: `${processingTime}ms`,
+        errorType: error.name,
+        errorMessage: error.message
       });
+
+      console.error('Login error:', error);
+      toast.error('Something went wrong. Please try again.');
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
+      logDeliveryLogin('LOGIN_ATTEMPT_COMPLETED', { 
+        processingTime: `${Date.now() - startTime}ms`
+      });
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500"></div>
-      </div>
-    );
-  }
+  // 🚚 LOG NAVIGATION ATTEMPTS
+  const handleNavigation = (path) => {
+    logDeliveryLogin('NAVIGATION_ATTEMPT', { 
+      from: '/delivery/login',
+      to: path,
+      timestamp: new Date().toISOString()
+    });
+  };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        {/* Logo */}
-        <div className="flex justify-center">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h1 className="text-2xl font-bold text-gray-900">ZAMMER</h1>
-              <p className="text-sm text-gray-500">Delivery Agent Portal</p>
-            </div>
-          </div>
+        <div className="text-center">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            🚚 Delivery Agent Login
+          </h2>
+          <p className="text-gray-600">
+            Access your delivery dashboard
+          </p>
         </div>
-
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Sign in to your agent account
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Or{' '}
-          <Link
-            to="/delivery/register"
-            className="font-medium text-orange-600 hover:text-orange-500"
-          >
-            create a new delivery agent account
-          </Link>
-        </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {/* Error Alert */}
-          {errors.submit && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm">{errors.submit}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
           <form className="space-y-6" onSubmit={handleSubmit}>
-            {/* Email Input */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
+                Email Address
               </label>
-              <div className="mt-1 relative">
+              <div className="mt-1">
                 <input
                   id="email"
                   name="email"
@@ -162,28 +178,17 @@ const DeliveryAgentLogin = () => {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className={`appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                    errors.email ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                  placeholder="Enter your email address"
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Enter your email"
                 />
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                  </svg>
-                </div>
               </div>
-              {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-              )}
             </div>
 
-            {/* Password Input */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
               </label>
-              <div className="mt-1 relative">
+              <div className="mt-1">
                 <input
                   id="password"
                   name="password"
@@ -192,88 +197,68 @@ const DeliveryAgentLogin = () => {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className={`appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                    errors.password ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500"
                   placeholder="Enter your password"
                 />
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
               </div>
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-              )}
             </div>
 
-            {/* Submit Button */}
             <div>
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 ${
-                  isSubmitting
-                    ? 'bg-orange-400 cursor-not-allowed'
-                    : 'bg-orange-600 hover:bg-orange-700'
-                }`}
+                disabled={loading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => {
+                  logDeliveryLogin('LOGIN_BUTTON_CLICKED', { 
+                    email: formData.email,
+                    hasPassword: !!formData.password,
+                    loading: loading
+                  });
+                }}
               >
-                {isSubmitting ? (
+                {loading ? (
                   <div className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                     Signing in...
                   </div>
                 ) : (
-                  'Sign in'
+                  'Sign In'
                 )}
               </button>
             </div>
           </form>
 
-          {/* Additional Links */}
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Need help?</span>
+                <span className="px-2 bg-white text-gray-500">New to ZAMMER?</span>
               </div>
             </div>
 
             <div className="mt-6 text-center">
               <Link
-                to="/delivery/forgot-password"
-                className="text-sm text-orange-600 hover:text-orange-500"
+                to="/delivery/register"
+                className="font-medium text-orange-600 hover:text-orange-500"
+                onClick={() => handleNavigation('/delivery/register')}
               >
-                Forgot your password?
+                Register as Delivery Agent
               </Link>
             </div>
           </div>
 
-          {/* Back to Main Site */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <div className="text-center">
-              <Link
-                to="/"
-                className="text-sm text-gray-600 hover:text-gray-500"
-              >
-                ← Back to ZAMMER Marketplace
-              </Link>
-            </div>
+          <div className="mt-6 text-center">
+            <Link
+              to="/"
+              className="text-sm text-gray-500 hover:text-gray-700"
+              onClick={() => handleNavigation('/')}
+            >
+              ← Back to Home
+            </Link>
           </div>
         </div>
-      </div>
-
-      {/* Footer */}
-      <div className="mt-8 text-center">
-        <p className="text-xs text-gray-500">
-          © 2024 ZAMMER. All rights reserved.
-        </p>
       </div>
     </div>
   );

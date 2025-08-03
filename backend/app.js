@@ -262,6 +262,8 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/shops', shopRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/delivery', deliveryRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // ─────────────────────────────────────────────
 // FIXED: Serve React static assets from frontend/build

@@ -20,7 +20,7 @@ const {
   toggleAvailability,
   getDeliveryHistory,
   logoutDeliveryAgent
-} = require('../controllers/deliveryAgentContoller');
+} = require('../controllers/deliveryAgentController');
 
 // Import middleware
 const { protectDeliveryAgent } = require('../middleware/authMiddleware');
@@ -45,8 +45,24 @@ const registrationValidation = [
     .isMobilePhone('en-IN')
     .withMessage('Please provide a valid Indian mobile number'),
   body('vehicleType')
-    .isIn(['bike', 'scooter', 'bicycle', 'car'])
-    .withMessage('Vehicle type must be bike, scooter, bicycle, or car'),
+    .custom((value) => {
+      // ✅ FIXED: Accept all common frontend vehicle type variations
+      const validTypes = [
+        // Frontend common values
+        'Bike', 'bike', 'Bicycle', 'bicycle',
+        'Motorcycle', 'motorcycle', 'Motorbike', 'motorbike',
+        'Scooter', 'scooter', 
+        'Car', 'car',
+        'Van', 'van',
+        'Truck', 'truck'
+      ];
+      
+      if (!validTypes.includes(value)) {
+        throw new Error('Vehicle type must be Bike, Motorcycle, Scooter, Car, Van, or Truck');
+      }
+      return true;
+    })
+    .withMessage('Vehicle type must be Bike, Motorcycle, Scooter, Car, Van, or Truck'),
   body('vehicleRegistration')
     .notEmpty()
     .withMessage('Vehicle registration number is required'),

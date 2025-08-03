@@ -1,778 +1,753 @@
- // frontend/src/services/deliveryService.js - Delivery Agent Frontend Service
-
-import api from './api';
-
-// Enhanced logging for development
-const logDelivery = (action, data, type = 'info') => {
-  if (process.env.NODE_ENV === 'development') {
-    const colors = {
-      info: '#2196F3',
-      success: '#4CAF50',
-      warning: '#FF9800',
-      error: '#F44336'
-    };
-    
-    console.log(
-      `%c[DELIVERY-SERVICE] ${action}`,
-      `color: ${colors[type]}; font-weight: bold;`,
-      data
-    );
-  }
-};
-
-// Error handler for delivery operations
-const handleDeliveryError = (error, operation) => {
-  logDelivery(`${operation} Error`, error, 'error');
+// 🚚 DELIVERY SERVICE - COMPREHENSIVE LOGGING
+// services/deliveryService.js 
+// 🚚 DELIVERY SERVICE LOGGING UTILITIES
+const logDeliveryService = (action, data, type = 'info') => {
+  const timestamp = new Date().toISOString();
+  const logColor = type === 'error' ? '\x1b[31m' : type === 'success' ? '\x1b[32m' : '\x1b[36m';
+  const resetColor = '\x1b[0m';
   
-  if (error.response) {
-    const { status, data } = error.response;
-    
-    switch (status) {
-      case 400:
-        return {
-          success: false,
-          message: data.message || 'Invalid request',
-          errorCode: 'INVALID_REQUEST',
-          errors: data.errors || []
-        };
-      case 401:
-        return {
-          success: false,
-          message: 'Please login as delivery agent',
-          errorCode: 'UNAUTHORIZED',
-          requiresAuth: true
-        };
-      case 403:
-        return {
-          success: false,
-          message: data.message || 'Access forbidden',
-          errorCode: 'FORBIDDEN'
-        };
-      case 404:
-        return {
-          success: false,
-          message: data.message || 'Resource not found',
-          errorCode: 'NOT_FOUND'
-        };
-      case 409:
-        return {
-          success: false,
-          message: data.message || 'Conflict occurred',
-          errorCode: 'CONFLICT'
-        };
-      case 500:
-        return {
-          success: false,
-          message: 'Server error. Please try again.',
-          errorCode: 'SERVER_ERROR'
-        };
-      default:
-        return {
-          success: false,
-          message: data.message || 'Operation failed',
-          errorCode: 'API_ERROR'
-        };
+  console.log(`${logColor}🚚 [DELIVERY-SERVICE] ${timestamp} | ${action} | ${JSON.stringify(data)}${resetColor}`);
+};
+
+const logDeliveryServiceError = (action, error, additionalData = {}) => {
+  const timestamp = new Date().toISOString();
+  console.error(`\x1b[31m🚚 [DELIVERY-SERVICE-ERROR] ${timestamp} | ${action} | Error: ${error.message} | Stack: ${error.stack} | Data: ${JSON.stringify(additionalData)}\x1b[0m`);
+};
+
+const logDelivery = (action, data, type = 'info') => {
+  const timestamp = new Date().toISOString();
+  const logColor = type === 'error' ? '\x1b[31m' : type === 'success' ? '\x1b[32m' : '\x1b[36m';
+  const resetColor = '\x1b[0m';
+  
+  console.log(`${logColor}🚚 [DELIVERY-SERVICE] ${timestamp} | ${action} | ${JSON.stringify(data)}${resetColor}`);
+};
+
+const handleDeliveryError = (error, operation) => {
+  const errorInfo = {
+    message: error.message,
+    status: error.status || 'unknown',
+    operation,
+    timestamp: new Date().toISOString(),
+    url: error.url || 'unknown',
+    method: error.method || 'unknown'
+  };
+
+  logDeliveryServiceError(operation, error, errorInfo);
+
+  // Log to browser console for debugging
+  console.error(`🚚 Delivery Service Error in ${operation}:`, error);
+  
+  return {
+    success: false,
+    message: error.message || 'An error occurred',
+    error: process.env.NODE_ENV === 'development' ? error : 'Internal error'
+  };
+};
+
+// 🚚 API BASE CONFIGURATION
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('deliveryAgentToken');
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+};
+
+const makeApiCall = async (endpoint, options = {}) => {
+  const startTime = Date.now();
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  logDeliveryService('API_CALL_STARTED', { 
+    url, 
+    method: options.method || 'GET',
+    hasAuth: !!localStorage.getItem('deliveryAgentToken')
+  });
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...getAuthHeaders(),
+        ...options.headers
+      }
+    });
+
+    const processingTime = Date.now() - startTime;
+    const responseData = await response.json();
+
+    if (response.ok) {
+      logDeliveryService('API_CALL_SUCCESS', { 
+        url, 
+        status: response.status,
+        processingTime: `${processingTime}ms`,
+        dataKeys: Object.keys(responseData)
+      }, 'success');
+      return responseData;
+    } else {
+      logDeliveryServiceError('API_CALL_FAILED', new Error(responseData.message || 'API call failed'), {
+        url,
+        status: response.status,
+        processingTime: `${processingTime}ms`,
+        responseData
+      });
+      throw new Error(responseData.message || `HTTP ${response.status}`);
     }
-  } else if (error.request) {
-    return {
-      success: false,
-      message: 'Network error. Please check your connection.',
-      errorCode: 'NETWORK_ERROR'
-    };
-  } else {
-    return {
-      success: false,
-      message: error.message || 'An unexpected error occurred',
-      errorCode: 'UNKNOWN_ERROR'
-    };
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+    logDeliveryServiceError('API_CALL_ERROR', error, {
+      url,
+      processingTime: `${processingTime}ms`
+    });
+    throw error;
   }
 };
 
-// Delivery Service Class
+// 🚚 DELIVERY SERVICE CLASS
 class DeliveryService {
   constructor() {
-    this.locationWatcher = null;
-    this.locationUpdateInterval = null;
+    logDeliveryService('SERVICE_INITIALIZED', { 
+      apiBaseUrl: API_BASE_URL,
+      hasToken: !!localStorage.getItem('deliveryAgentToken')
+    });
   }
 
-  // 🎯 AUTHENTICATION METHODS
-
-  // Register delivery agent
+  // 🚚 REGISTER DELIVERY AGENT
   async registerDeliveryAgent(agentData) {
+    const startTime = Date.now();
+    
     try {
-      logDelivery('Registering Delivery Agent', {
-        name: agentData.name,
+      logDeliveryService('REGISTRATION_STARTED', { 
         email: agentData.email,
-        vehicleType: agentData.vehicleType
-      }, 'info');
-
-      const response = await api.post('/delivery/register', {
         name: agentData.name,
-        email: agentData.email,
-        password: agentData.password,
-        phone: agentData.phone,
-        address: agentData.address,
-        vehicleType: agentData.vehicleType,
-        vehicleModel: agentData.vehicleModel,
-        vehicleRegistration: agentData.vehicleRegistration,
-        licenseNumber: agentData.licenseNumber,
-        workingAreas: agentData.workingAreas || [],
-        emergencyContact: agentData.emergencyContact
+        hasVehicleDetails: !!agentData.vehicleType
       });
 
-      logDelivery('Delivery Agent Registered', {
-        agentId: response.data.data._id,
-        agentName: response.data.data.name
-      }, 'success');
+      const response = await makeApiCall('/delivery/register', {
+        method: 'POST',
+        body: JSON.stringify(agentData)
+      });
 
-      // Store delivery agent credentials
-      localStorage.setItem('deliveryToken', response.data.data.token);
-      localStorage.setItem('deliveryData', JSON.stringify(response.data.data));
+      if (response.success) {
+        // Store authentication data
+        localStorage.setItem('deliveryAgentToken', response.data.token);
+        localStorage.setItem('deliveryAgentData', JSON.stringify(response.data));
 
-      return response.data;
+        const processingTime = Date.now() - startTime;
+        logDeliveryService('REGISTRATION_SUCCESS', { 
+          agentId: response.data._id,
+          email: response.data.email,
+          processingTime: `${processingTime}ms`,
+          tokenStored: !!response.data.token
+        }, 'success');
+
+        return response;
+      } else {
+        throw new Error(response.message || 'Registration failed');
+      }
     } catch (error) {
-      return handleDeliveryError(error, 'Register Delivery Agent');
+      const processingTime = Date.now() - startTime;
+      logDeliveryServiceError('REGISTRATION_FAILED', error, { 
+        agentData: { email: agentData.email, name: agentData.name },
+        processingTime: `${processingTime}ms`
+      });
+      throw error;
     }
   }
 
-  // Login delivery agent
+  // 🚚 LOGIN DELIVERY AGENT
   async loginDeliveryAgent(credentials) {
+    const startTime = Date.now();
+    
     try {
-      logDelivery('Logging in Delivery Agent', {
-        email: credentials.email
-      }, 'info');
-
-      const response = await api.post('/delivery/login', {
+      logDeliveryService('LOGIN_STARTED', { 
         email: credentials.email,
-        password: credentials.password
+        hasPassword: !!credentials.password
       });
 
-      logDelivery('Delivery Agent Login Success', {
-        agentId: response.data.data._id,
-        agentName: response.data.data.name,
-        isOnline: response.data.data.isOnline
-      }, 'success');
+      const response = await makeApiCall('/delivery/login', {
+        method: 'POST',
+        body: JSON.stringify(credentials)
+      });
 
-      // Store delivery agent credentials
-      localStorage.setItem('deliveryToken', response.data.data.token);
-      localStorage.setItem('deliveryData', JSON.stringify(response.data.data));
+      if (response.success) {
+        // Store authentication data
+        localStorage.setItem('deliveryAgentToken', response.data.token);
+        localStorage.setItem('deliveryAgentData', JSON.stringify(response.data));
 
-      return response.data;
+        const processingTime = Date.now() - startTime;
+        logDeliveryService('LOGIN_SUCCESS', { 
+          agentId: response.data._id,
+          email: response.data.email,
+          processingTime: `${processingTime}ms`,
+          tokenStored: !!response.data.token
+        }, 'success');
+
+        return response;
+      } else {
+        throw new Error(response.message || 'Login failed');
+      }
     } catch (error) {
-      return handleDeliveryError(error, 'Login Delivery Agent');
+      const processingTime = Date.now() - startTime;
+      logDeliveryServiceError('LOGIN_FAILED', error, { 
+        credentials: { email: credentials.email },
+        processingTime: `${processingTime}ms`
+      });
+      throw error;
     }
   }
 
-  // Logout delivery agent
+  // 🚚 LOGOUT DELIVERY AGENT
   async logoutDeliveryAgent() {
     try {
-      logDelivery('Logging out Delivery Agent', null, 'info');
+      logDeliveryService('LOGOUT_STARTED', { 
+        hasToken: !!localStorage.getItem('deliveryAgentToken')
+      });
 
-      await api.post('/delivery/logout');
+      // Clear stored data
+      localStorage.removeItem('deliveryAgentToken');
+      localStorage.removeItem('deliveryAgentData');
 
-      // Clear stored credentials
-      localStorage.removeItem('deliveryToken');
-      localStorage.removeItem('deliveryData');
+      logDeliveryService('LOGOUT_SUCCESS', { 
+        dataCleared: true
+      }, 'success');
 
-      // Stop location tracking
-      this.stopLocationTracking();
-
-      logDelivery('Delivery Agent Logout Success', null, 'success');
-
-      return {
-        success: true,
-        message: 'Logged out successfully'
-      };
+      return { success: true, message: 'Logged out successfully' };
     } catch (error) {
-      // Clear credentials even if API call fails
-      localStorage.removeItem('deliveryToken');
-      localStorage.removeItem('deliveryData');
-      this.stopLocationTracking();
-
-      return handleDeliveryError(error, 'Logout Delivery Agent');
+      logDeliveryServiceError('LOGOUT_FAILED', error);
+      throw error;
     }
   }
 
-  // 🎯 PROFILE METHODS
-
-  // Get delivery agent profile
+  // 🚚 GET PROFILE
   async getProfile() {
     try {
-      logDelivery('Fetching Profile', null, 'info');
+      logDeliveryService('PROFILE_REQUEST_STARTED');
 
-      const response = await api.get('/delivery/profile');
+      const response = await makeApiCall('/delivery/profile');
 
-      logDelivery('Profile Fetched', {
-        agentId: response.data.data._id,
-        profileCompletion: response.data.data.profileCompletion
-      }, 'success');
-
-      return response.data;
+      if (response.success) {
+        logDeliveryService('PROFILE_RETRIEVED', { 
+          agentId: response.data._id,
+          email: response.data.email
+        }, 'success');
+        return response;
+      } else {
+        throw new Error(response.message || 'Failed to get profile');
+      }
     } catch (error) {
-      return handleDeliveryError(error, 'Get Profile');
+      logDeliveryServiceError('PROFILE_RETRIEVAL_FAILED', error);
+      throw error;
     }
   }
 
-  // Update delivery agent profile
+  // 🚚 UPDATE PROFILE
   async updateProfile(profileData) {
+    const startTime = Date.now();
+    
     try {
-      logDelivery('Updating Profile', {
+      logDeliveryService('PROFILE_UPDATE_STARTED', { 
         updateFields: Object.keys(profileData)
-      }, 'info');
+      });
 
-      const response = await api.put('/delivery/profile', profileData);
+      const response = await makeApiCall('/delivery/profile', {
+        method: 'PUT',
+        body: JSON.stringify(profileData)
+      });
 
-      logDelivery('Profile Updated', {
-        agentId: response.data.data._id,
-        profileCompletion: response.data.data.profileCompletion
-      }, 'success');
-
-      // Update stored data
-      const storedData = JSON.parse(localStorage.getItem('deliveryData') || '{}');
-      const updatedData = { ...storedData, ...response.data.data };
-      localStorage.setItem('deliveryData', JSON.stringify(updatedData));
-
-      return response.data;
+      if (response.success) {
+        const processingTime = Date.now() - startTime;
+        logDeliveryService('PROFILE_UPDATE_SUCCESS', { 
+          agentId: response.data._id,
+          processingTime: `${processingTime}ms`
+        }, 'success');
+        return response;
+      } else {
+        throw new Error(response.message || 'Failed to update profile');
+      }
     } catch (error) {
-      return handleDeliveryError(error, 'Update Profile');
+      const processingTime = Date.now() - startTime;
+      logDeliveryServiceError('PROFILE_UPDATE_FAILED', error, { 
+        processingTime: `${processingTime}ms`
+      });
+      throw error;
     }
   }
 
-  // 🎯 ORDER MANAGEMENT METHODS
-
-  // Get available orders
+  // 🚚 GET AVAILABLE ORDERS
   async getAvailableOrders() {
     try {
-      logDelivery('Fetching Available Orders', null, 'info');
+      logDeliveryService('AVAILABLE_ORDERS_REQUEST_STARTED');
 
-      const response = await api.get('/delivery/orders/available');
+      const response = await makeApiCall('/delivery/orders/available');
 
-      logDelivery('Available Orders Fetched', {
-        orderCount: response.data.count
-      }, 'success');
-
-      return response.data;
+      if (response.success) {
+        logDeliveryService('AVAILABLE_ORDERS_RETRIEVED', { 
+          orderCount: response.data.length
+        }, 'success');
+        return response;
+      } else {
+        throw new Error(response.message || 'Failed to get available orders');
+      }
     } catch (error) {
-      return handleDeliveryError(error, 'Get Available Orders');
+      logDeliveryServiceError('AVAILABLE_ORDERS_FAILED', error);
+      throw error;
     }
   }
 
-  // Get assigned orders
+  // 🚚 GET ASSIGNED ORDERS
   async getAssignedOrders() {
     try {
-      logDelivery('Fetching Assigned Orders', null, 'info');
+      logDeliveryService('ASSIGNED_ORDERS_REQUEST_STARTED');
 
-      const response = await api.get('/delivery/orders/assigned');
+      const response = await makeApiCall('/delivery/orders/assigned');
 
-      logDelivery('Assigned Orders Fetched', {
-        orderCount: response.data.count
-      }, 'success');
-
-      return response.data;
+      if (response.success) {
+        logDeliveryService('ASSIGNED_ORDERS_RETRIEVED', { 
+          orderCount: response.data.length
+        }, 'success');
+        return response;
+      } else {
+        throw new Error(response.message || 'Failed to get assigned orders');
+      }
     } catch (error) {
-      return handleDeliveryError(error, 'Get Assigned Orders');
+      logDeliveryServiceError('ASSIGNED_ORDERS_FAILED', error);
+      throw error;
     }
   }
 
-  // Accept order
+  // 🚚 ACCEPT ORDER
   async acceptOrder(orderId) {
+    const startTime = Date.now();
+    
     try {
-      logDelivery('Accepting Order', { orderId }, 'info');
+      logDeliveryService('ORDER_ACCEPT_STARTED', { orderId });
 
-      const response = await api.put(`/delivery/orders/${orderId}/accept`);
+      const response = await makeApiCall(`/delivery/orders/${orderId}/accept`, {
+        method: 'POST'
+      });
 
-      logDelivery('Order Accepted', {
-        orderId,
-        orderNumber: response.data.data.orderNumber
-      }, 'success');
-
-      return response.data;
+      if (response.success) {
+        const processingTime = Date.now() - startTime;
+        logDeliveryService('ORDER_ACCEPT_SUCCESS', { 
+          orderId,
+          processingTime: `${processingTime}ms`
+        }, 'success');
+        return response;
+      } else {
+        throw new Error(response.message || 'Failed to accept order');
+      }
     } catch (error) {
-      return handleDeliveryError(error, 'Accept Order');
+      const processingTime = Date.now() - startTime;
+      logDeliveryServiceError('ORDER_ACCEPT_FAILED', error, { 
+        orderId,
+        processingTime: `${processingTime}ms`
+      });
+      throw error;
     }
   }
 
-  // Complete pickup
+  // 🚚 COMPLETE PICKUP
   async completePickup(orderId, pickupData) {
+    const startTime = Date.now();
+    
     try {
-      logDelivery('Completing Pickup', {
+      logDeliveryService('PICKUP_COMPLETE_STARTED', { 
         orderId,
-        orderIdVerification: pickupData.orderIdVerification
-      }, 'info');
-
-      const response = await api.put(`/delivery/orders/${orderId}/pickup`, {
-        orderIdVerification: pickupData.orderIdVerification,
-        pickupNotes: pickupData.pickupNotes || '',
-        location: pickupData.location
+        hasPickupData: !!pickupData
       });
 
-      logDelivery('Pickup Completed', {
-        orderId,
-        orderNumber: response.data.data.orderNumber
-      }, 'success');
+      const response = await makeApiCall(`/delivery/orders/${orderId}/pickup`, {
+        method: 'PUT',
+        body: JSON.stringify(pickupData)
+      });
 
-      return response.data;
+      if (response.success) {
+        const processingTime = Date.now() - startTime;
+        logDeliveryService('PICKUP_COMPLETE_SUCCESS', { 
+          orderId,
+          processingTime: `${processingTime}ms`
+        }, 'success');
+        return response;
+      } else {
+        throw new Error(response.message || 'Failed to complete pickup');
+      }
     } catch (error) {
-      return handleDeliveryError(error, 'Complete Pickup');
+      const processingTime = Date.now() - startTime;
+      logDeliveryServiceError('PICKUP_COMPLETE_FAILED', error, { 
+        orderId,
+        processingTime: `${processingTime}ms`
+      });
+      throw error;
     }
   }
 
-  // Complete delivery
+  // 🚚 COMPLETE DELIVERY
   async completeDelivery(orderId, deliveryData) {
+    const startTime = Date.now();
+    
     try {
-      logDelivery('Completing Delivery', {
+      logDeliveryService('DELIVERY_COMPLETE_STARTED', { 
         orderId,
-        hasOTP: !!deliveryData.otp,
-        hasCOD: !!deliveryData.codPayment
-      }, 'info');
-
-      const response = await api.put(`/delivery/orders/${orderId}/deliver`, {
-        otp: deliveryData.otp,
-        deliveryNotes: deliveryData.deliveryNotes || '',
-        recipientName: deliveryData.recipientName || '',
-        location: deliveryData.location,
-        codPayment: deliveryData.codPayment
+        hasDeliveryData: !!deliveryData
       });
 
-      logDelivery('Delivery Completed', {
-        orderId,
-        orderNumber: response.data.data.orderNumber,
-        earnings: response.data.data.earnings
-      }, 'success');
+      const response = await makeApiCall(`/delivery/orders/${orderId}/deliver`, {
+        method: 'PUT',
+        body: JSON.stringify(deliveryData)
+      });
 
-      return response.data;
+      if (response.success) {
+        const processingTime = Date.now() - startTime;
+        logDeliveryService('DELIVERY_COMPLETE_SUCCESS', { 
+          orderId,
+          processingTime: `${processingTime}ms`
+        }, 'success');
+        return response;
+      } else {
+        throw new Error(response.message || 'Failed to complete delivery');
+      }
     } catch (error) {
-      return handleDeliveryError(error, 'Complete Delivery');
+      const processingTime = Date.now() - startTime;
+      logDeliveryServiceError('DELIVERY_COMPLETE_FAILED', error, { 
+        orderId,
+        processingTime: `${processingTime}ms`
+      });
+      throw error;
     }
   }
 
-  // 🎯 LOCATION & STATUS METHODS
-
-  // Update location
+  // 🚚 UPDATE LOCATION
   async updateLocation(latitude, longitude) {
     try {
-      const response = await api.put('/delivery/location', {
-        latitude,
-        longitude
+      logDeliveryService('LOCATION_UPDATE_STARTED', { latitude, longitude });
+
+      const response = await makeApiCall('/delivery/location', {
+        method: 'PUT',
+        body: JSON.stringify({ latitude, longitude })
       });
 
-      // Don't log every location update to avoid spam
-      if (Math.random() < 0.1) { // Log 10% of updates
-        logDelivery('Location Updated', {
-          coordinates: [longitude, latitude]
-        }, 'info');
+      if (response.success) {
+        logDeliveryService('LOCATION_UPDATE_SUCCESS', { 
+          coordinates: [latitude, longitude]
+        }, 'success');
+        return response;
+      } else {
+        throw new Error(response.message || 'Failed to update location');
       }
-
-      return response.data;
     } catch (error) {
-      return handleDeliveryError(error, 'Update Location');
+      logDeliveryServiceError('LOCATION_UPDATE_FAILED', error);
+      throw error;
     }
   }
 
-  // Toggle availability
+  // 🚚 TOGGLE AVAILABILITY
   async toggleAvailability() {
     try {
-      logDelivery('Toggling Availability', null, 'info');
+      logDeliveryService('AVAILABILITY_TOGGLE_STARTED');
 
-      const response = await api.put('/delivery/availability');
+      const response = await makeApiCall('/delivery/availability', {
+        method: 'PUT'
+      });
 
-      logDelivery('Availability Toggled', {
-        isAvailable: response.data.data.isAvailable,
-        isOnline: response.data.data.isOnline
-      }, 'success');
-
-      // Update stored data
-      const storedData = JSON.parse(localStorage.getItem('deliveryData') || '{}');
-      const updatedData = { 
-        ...storedData,
-        isAvailable: response.data.data.isAvailable,
-        isOnline: response.data.data.isOnline
-      };
-      localStorage.setItem('deliveryData', JSON.stringify(updatedData));
-
-      return response.data;
+      if (response.success) {
+        logDeliveryService('AVAILABILITY_TOGGLE_SUCCESS', { 
+          newStatus: response.data.isAvailable
+        }, 'success');
+        return response;
+      } else {
+        throw new Error(response.message || 'Failed to toggle availability');
+      }
     } catch (error) {
-      return handleDeliveryError(error, 'Toggle Availability');
+      logDeliveryServiceError('AVAILABILITY_TOGGLE_FAILED', error);
+      throw error;
     }
   }
 
-  // 🎯 STATISTICS & HISTORY METHODS
-
-  // Get delivery statistics
+  // 🚚 GET DELIVERY STATS
   async getDeliveryStats() {
     try {
-      logDelivery('Fetching Delivery Stats', null, 'info');
+      logDeliveryService('STATS_REQUEST_STARTED');
 
-      const response = await api.get('/delivery/stats');
+      const response = await makeApiCall('/delivery/stats');
 
-      logDelivery('Delivery Stats Fetched', {
-        todayDeliveries: response.data.data.todayDeliveries,
-        totalDeliveries: response.data.data.completedDeliveries,
-        totalEarnings: response.data.data.totalEarnings
-      }, 'success');
-
-      return response.data;
+      if (response.success) {
+        logDeliveryService('STATS_RETRIEVED', { 
+          totalDeliveries: response.data.totalDeliveries,
+          totalEarnings: response.data.totalEarnings
+        }, 'success');
+        return response;
+      } else {
+        throw new Error(response.message || 'Failed to get delivery statistics');
+      }
     } catch (error) {
-      return handleDeliveryError(error, 'Get Delivery Stats');
+      logDeliveryServiceError('STATS_RETRIEVAL_FAILED', error);
+      throw error;
     }
   }
 
-  // Get delivery history
+  // 🚚 GET DELIVERY HISTORY
   async getDeliveryHistory(page = 1, limit = 10) {
     try {
-      logDelivery('Fetching Delivery History', { page, limit }, 'info');
+      logDeliveryService('HISTORY_REQUEST_STARTED', { page, limit });
 
-      const response = await api.get(`/delivery/history?page=${page}&limit=${limit}`);
+      const response = await makeApiCall(`/delivery/history?page=${page}&limit=${limit}`);
 
-      logDelivery('Delivery History Fetched', {
-        count: response.data.count,
-        totalPages: response.data.totalPages
-      }, 'success');
-
-      return response.data;
+      if (response.success) {
+        logDeliveryService('HISTORY_RETRIEVED', { 
+          orderCount: response.data.orders.length,
+          totalOrders: response.data.totalOrders,
+          page
+        }, 'success');
+        return response;
+      } else {
+        throw new Error(response.message || 'Failed to get delivery history');
+      }
     } catch (error) {
-      return handleDeliveryError(error, 'Get Delivery History');
+      logDeliveryServiceError('HISTORY_RETRIEVAL_FAILED', error);
+      throw error;
     }
   }
 
-  // 🎯 LOCATION TRACKING METHODS
-
-  // Start location tracking
+  // 🚚 LOCATION TRACKING
   startLocationTracking(options = {}) {
-    try {
+    const { interval = 30000, enableHighAccuracy = true } = options;
+    
+    logDeliveryService('LOCATION_TRACKING_STARTED', { 
+      interval,
+      enableHighAccuracy
+    });
+
+    if (!navigator.geolocation) {
+      const error = new Error('Geolocation is not supported by this browser');
+      logDeliveryServiceError('LOCATION_TRACKING_NOT_SUPPORTED', error);
+      throw error;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        logDeliveryService('LOCATION_TRACKING_SUCCESS', { 
+          latitude, 
+          longitude,
+          accuracy: position.coords.accuracy
+        }, 'success');
+        
+        // Update location on server
+        this.updateLocation(latitude, longitude).catch(error => {
+          logDeliveryServiceError('LOCATION_UPDATE_FAILED', error);
+        });
+      },
+      (error) => {
+        logDeliveryServiceError('LOCATION_TRACKING_ERROR', error, {
+          errorCode: error.code,
+          errorMessage: this.getLocationErrorMessage(error.code)
+        });
+      },
+      {
+        enableHighAccuracy,
+        timeout: 10000,
+        maximumAge: 60000
+      }
+    );
+
+    logDeliveryService('LOCATION_TRACKING_WATCH_ID', { watchId });
+    return watchId;
+  }
+
+  stopLocationTracking(watchId) {
+    if (watchId) {
+      navigator.geolocation.clearWatch(watchId);
+      logDeliveryService('LOCATION_TRACKING_STOPPED', { watchId });
+    }
+  }
+
+  async getCurrentLocation() {
+    return new Promise((resolve, reject) => {
+      logDeliveryService('CURRENT_LOCATION_REQUEST_STARTED');
+
       if (!navigator.geolocation) {
-        logDelivery('Geolocation not supported', null, 'error');
-        return {
-          success: false,
-          message: 'Geolocation is not supported by this browser'
-        };
+        const error = new Error('Geolocation is not supported');
+        logDeliveryServiceError('CURRENT_LOCATION_NOT_SUPPORTED', error);
+        reject(error);
+        return;
       }
 
-      const defaultOptions = {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 30000,
-        updateInterval: 60000 // Update every minute
-      };
-
-      const trackingOptions = { ...defaultOptions, ...options };
-
-      logDelivery('Starting Location Tracking', {
-        updateInterval: trackingOptions.updateInterval,
-        enableHighAccuracy: trackingOptions.enableHighAccuracy
-      }, 'info');
-
-      // Start watching position
-      this.locationWatcher = navigator.geolocation.watchPosition(
+      navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          
-          // Update location on server
-          this.updateLocation(latitude, longitude).catch(error => {
-            logDelivery('Location Update Failed', error, 'error');
-          });
+          logDeliveryService('CURRENT_LOCATION_SUCCESS', { 
+            latitude, 
+            longitude,
+            accuracy: position.coords.accuracy
+          }, 'success');
+          resolve({ latitude, longitude });
         },
         (error) => {
-          logDelivery('Location Watch Error', {
-            code: error.code,
-            message: error.message
-          }, 'error');
+          logDeliveryServiceError('CURRENT_LOCATION_ERROR', error, {
+            errorCode: error.code,
+            errorMessage: this.getLocationErrorMessage(error.code)
+          });
+          reject(error);
         },
         {
-          enableHighAccuracy: trackingOptions.enableHighAccuracy,
-          timeout: trackingOptions.timeout,
-          maximumAge: trackingOptions.maximumAge
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 60000
         }
       );
-
-      // Set up interval for regular updates
-      this.locationUpdateInterval = setInterval(() => {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const { latitude, longitude } = position.coords;
-            this.updateLocation(latitude, longitude).catch(error => {
-              logDelivery('Scheduled Location Update Failed', error, 'error');
-            });
-          },
-          (error) => {
-            logDelivery('Scheduled Location Error', error, 'error');
-          }
-        );
-      }, trackingOptions.updateInterval);
-
-      return {
-        success: true,
-        message: 'Location tracking started'
-      };
-    } catch (error) {
-      logDelivery('Start Location Tracking Error', error, 'error');
-      return {
-        success: false,
-        message: error.message || 'Failed to start location tracking'
-      };
-    }
+    });
   }
 
-  // Stop location tracking
-  stopLocationTracking() {
-    try {
-      if (this.locationWatcher) {
-        navigator.geolocation.clearWatch(this.locationWatcher);
-        this.locationWatcher = null;
-      }
-
-      if (this.locationUpdateInterval) {
-        clearInterval(this.locationUpdateInterval);
-        this.locationUpdateInterval = null;
-      }
-
-      logDelivery('Location Tracking Stopped', null, 'info');
-
-      return {
-        success: true,
-        message: 'Location tracking stopped'
-      };
-    } catch (error) {
-      logDelivery('Stop Location Tracking Error', error, 'error');
-      return {
-        success: false,
-        message: error.message || 'Failed to stop location tracking'
-      };
-    }
-  }
-
-  // Get current location once
-  async getCurrentLocation() {
-    try {
-      if (!navigator.geolocation) {
-        throw new Error('Geolocation is not supported');
-      }
-
-      return new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const location = {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              accuracy: position.coords.accuracy,
-              timestamp: new Date(position.timestamp)
-            };
-
-            logDelivery('Current Location Obtained', {
-              coordinates: [location.longitude, location.latitude],
-              accuracy: location.accuracy
-            }, 'success');
-
-            resolve({
-              success: true,
-              data: location
-            });
-          },
-          (error) => {
-            logDelivery('Get Current Location Error', {
-              code: error.code,
-              message: error.message
-            }, 'error');
-
-            reject({
-              success: false,
-              message: this.getLocationErrorMessage(error.code),
-              errorCode: error.code
-            });
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 30000
-          }
-        );
-      });
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'Failed to get current location'
-      };
-    }
-  }
-
-  // Get location error message
   getLocationErrorMessage(errorCode) {
     switch (errorCode) {
       case 1:
-        return 'Location access denied. Please enable location permissions.';
+        return 'Permission denied';
       case 2:
-        return 'Location unavailable. Please check your GPS settings.';
+        return 'Position unavailable';
       case 3:
-        return 'Location request timed out. Please try again.';
+        return 'Timeout';
       default:
-        return 'Unknown location error occurred.';
+        return 'Unknown error';
     }
   }
 
-  // 🎯 UTILITY METHODS
-
-  // Check if agent is logged in
+  // 🚚 AUTHENTICATION HELPERS
   isLoggedIn() {
-    const token = localStorage.getItem('deliveryToken');
-    const data = localStorage.getItem('deliveryData');
-    return !!(token && data);
+    const token = localStorage.getItem('deliveryAgentToken');
+    const isLoggedIn = !!token;
+    
+    logDeliveryService('AUTH_CHECK', { 
+      isLoggedIn,
+      hasToken: !!token
+    });
+    
+    return isLoggedIn;
   }
 
-  // Get stored agent data
   getStoredAgentData() {
     try {
-      const data = localStorage.getItem('deliveryData');
-      return data ? JSON.parse(data) : null;
+      const data = localStorage.getItem('deliveryAgentData');
+      if (data) {
+        const parsedData = JSON.parse(data);
+        logDeliveryService('STORED_DATA_RETRIEVED', { 
+          agentId: parsedData._id,
+          email: parsedData.email
+        });
+        return parsedData;
+      }
+      return null;
     } catch (error) {
-      logDelivery('Get Stored Agent Data Error', error, 'error');
+      logDeliveryServiceError('STORED_DATA_PARSE_ERROR', error);
       return null;
     }
   }
 
-  // Format order for display
+  // 🚚 UTILITY METHODS
   formatOrderForAgent(order) {
     return {
       id: order._id,
-      orderNumber: order.orderNumber || 'Hidden until pickup',
+      orderNumber: order.orderNumber,
       status: order.status,
-      totalAmount: order.totalPrice,
-      deliveryFee: order.deliveryFees?.agentEarning || 0,
-      items: order.orderItems?.map(item => ({
-        name: item.name,
-        quantity: item.quantity,
-        image: item.image
-      })) || [],
-      customer: {
-        name: order.user?.name || 'Customer',
-        phone: order.user?.phone || ''
-      },
-      seller: {
-        name: order.seller?.name || order.seller?.firstName || 'Seller',
-        shopName: order.seller?.shopName || order.seller?.shop?.name || '',
-        address: order.seller?.address || order.seller?.shop?.address || '',
-        phone: order.seller?.phone || ''
-      },
-      deliveryAddress: order.shippingAddress,
-      estimatedDelivery: order.estimatedDelivery?.estimatedAt,
-      createdAt: order.createdAt,
-      deliveryAgent: order.deliveryAgent
+      totalAmount: order.totalAmount,
+      deliveryAddress: order.deliveryAddress,
+      pickupAddress: order.pickupAddress,
+      customer: order.user,
+      seller: order.seller,
+      items: order.items,
+      deliveryFees: order.deliveryFees,
+      paymentMethod: order.paymentMethod,
+      createdAt: order.createdAt
     };
   }
 
-  // Format delivery stats for display
   formatStatsForDisplay(stats) {
     return {
-      today: {
-        deliveries: stats.todayDeliveries || 0,
-        earnings: 0 // Calculate from today's deliveries if needed
-      },
-      total: {
-        deliveries: stats.completedDeliveries || 0,
-        pickups: stats.completedPickups || 0,
-        earnings: stats.totalEarnings || 0,
-        assigned: stats.assignedOrders || 0
-      },
-      performance: {
-        rating: stats.averageRating || 0,
-        totalRatings: stats.totalRatings || 0,
-        profileCompletion: stats.profileCompletion || 0
-      },
-      current: {
-        pending: stats.pendingOrders || 0
-      }
+      totalDeliveries: stats.totalDeliveries || 0,
+      completedDeliveries: stats.completedDeliveries || 0,
+      pendingDeliveries: stats.pendingDeliveries || 0,
+      totalEarnings: stats.totalEarnings || 0,
+      averageRating: stats.averageRating || 0,
+      thisWeek: stats.thisWeek || { deliveries: 0, earnings: 0 },
+      thisMonth: stats.thisMonth || { deliveries: 0, earnings: 0 }
     };
   }
 
-  // Validate order ID format
   validateOrderId(orderIdVerification, actualOrderNumber) {
-    if (!orderIdVerification || !actualOrderNumber) {
-      return {
-        isValid: false,
-        message: 'Order ID is required'
-      };
-    }
-
-    if (orderIdVerification.trim() !== actualOrderNumber.trim()) {
-      return {
-        isValid: false,
-        message: 'Order ID does not match. Please check and try again.'
-      };
-    }
-
-    return {
-      isValid: true,
-      message: 'Order ID verified successfully'
-    };
+    const isValid = orderIdVerification === actualOrderNumber;
+    
+    logDeliveryService('ORDER_ID_VALIDATION', { 
+      provided: orderIdVerification,
+      actual: actualOrderNumber,
+      isValid
+    });
+    
+    return isValid;
   }
 
-  // Validate OTP format
   validateOTP(otp) {
-    if (!otp) {
-      return {
-        isValid: false,
-        message: 'OTP is required'
-      };
-    }
-
-    if (!/^\d{4,6}$/.test(otp)) {
-      return {
-        isValid: false,
-        message: 'OTP must be 4-6 digits'
-      };
-    }
-
-    return {
-      isValid: true,
-      message: 'OTP format is valid'
-    };
+    const isValid = otp && otp.length === 6 && /^\d{6}$/.test(otp);
+    
+    logDeliveryService('OTP_VALIDATION', { 
+      hasOTP: !!otp,
+      otpLength: otp?.length,
+      isValid
+    });
+    
+    return isValid;
   }
 
-  // Health check
+  // 🚚 HEALTH CHECK
   async healthCheck() {
     try {
-      const response = await api.get('/delivery/health');
-      return response.data;
+      logDeliveryService('HEALTH_CHECK_STARTED');
+
+      const response = await makeApiCall('/health');
+
+      logDeliveryService('HEALTH_CHECK_SUCCESS', { 
+        status: response.status,
+        uptime: response.uptime
+      }, 'success');
+
+      return response;
     } catch (error) {
-      return {
-        success: false,
-        message: 'Delivery service unavailable'
-      };
+      logDeliveryServiceError('HEALTH_CHECK_FAILED', error);
+      throw error;
     }
   }
 
-  // Clear all stored data (for debugging)
+  // 🚚 CLEAR STORED DATA
   clearStoredData() {
-    localStorage.removeItem('deliveryToken');
-    localStorage.removeItem('deliveryData');
-    this.stopLocationTracking();
-    logDelivery('All Stored Data Cleared', null, 'warning');
-  }
-
-  // Debug function (development only)
-  debug() {
-    if (process.env.NODE_ENV === 'development') {
-      const debugInfo = {
-        isLoggedIn: this.isLoggedIn(),
-        storedData: this.getStoredAgentData(),
-        isTrackingLocation: !!(this.locationWatcher || this.locationUpdateInterval),
-        localStorage: {
-          deliveryToken: localStorage.getItem('deliveryToken') ? 'present' : 'missing',
-          deliveryData: localStorage.getItem('deliveryData') ? 'present' : 'missing'
-        }
-      };
-
-      logDelivery('Debug Info', debugInfo, 'info');
-      return debugInfo;
+    try {
+      localStorage.removeItem('deliveryAgentToken');
+      localStorage.removeItem('deliveryAgentData');
+      
+      logDeliveryService('STORED_DATA_CLEARED', { 
+        dataCleared: true
+      }, 'success');
+    } catch (error) {
+      logDeliveryServiceError('STORED_DATA_CLEAR_FAILED', error);
     }
   }
+
+  // 🚚 DEBUG METHOD
+  debug() {
+    const debugInfo = {
+      isLoggedIn: this.isLoggedIn(),
+      hasToken: !!localStorage.getItem('deliveryAgentToken'),
+      hasStoredData: !!localStorage.getItem('deliveryAgentData'),
+      apiBaseUrl: API_BASE_URL,
+      userAgent: navigator.userAgent,
+      geolocationSupported: !!navigator.geolocation
+    };
+
+    logDeliveryService('DEBUG_INFO', debugInfo);
+    return debugInfo;
+  }
 }
 
-// Create singleton instance
+// 🚚 CREATE AND EXPORT SERVICE INSTANCE
 const deliveryService = new DeliveryService();
-
-// Make debug available globally in development
-if (process.env.NODE_ENV === 'development') {
-  window.debugDelivery = () => deliveryService.debug();
-}
 
 export default deliveryService;
