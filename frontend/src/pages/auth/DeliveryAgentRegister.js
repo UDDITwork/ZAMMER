@@ -1,767 +1,454 @@
 // frontend/src/pages/auth/DeliveryAgentRegister.js - Delivery Agent Registration
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useDelivery } from '../../contexts/DeliveryContext';
+import { toast } from 'react-toastify';
+import { AuthContext } from '../../contexts/AuthContext';
+import deliveryService from '../../services/deliveryService';
+
+// 🚚 DELIVERY AGENT REGISTRATION LOGGING
+const logDeliveryRegister = (action, data, type = 'info') => {
+  const timestamp = new Date().toISOString();
+  const logColor = type === 'error' ? '\x1b[31m' : type === 'success' ? '\x1b[32m' : '\x1b[36m';
+  const resetColor = '\x1b[0m';
+  
+  console.log(`${logColor}🚚 [DELIVERY-REGISTER] ${timestamp} | ${action} | ${JSON.stringify(data)}${resetColor}`);
+};
+
+const logDeliveryRegisterError = (action, error, additionalData = {}) => {
+  const timestamp = new Date().toISOString();
+  console.error(`\x1b[31m🚚 [DELIVERY-REGISTER-ERROR] ${timestamp} | ${action} | Error: ${error.message} | Stack: ${error.stack} | Data: ${JSON.stringify(additionalData)}\x1b[0m`);
+};
 
 const DeliveryAgentRegister = () => {
-  const navigate = useNavigate();
-  const { register, isAuthenticated, loading } = useDelivery();
-
-  const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
-    // Personal Information
     name: '',
     email: '',
     password: '',
-    confirmPassword: '',
     phone: '',
-    
-    // Address Information
-    address: {
-      street: '',
-      city: '',
-      state: '',
-      postalCode: '',
-      country: 'India'
-    },
-    
-    // Vehicle Information
+    address: '',
     vehicleType: '',
     vehicleModel: '',
     vehicleRegistration: '',
     licenseNumber: '',
-    
-    // Additional Information
-    emergencyContact: {
-      name: '',
-      phone: '',
-      relationship: ''
-    },
-    workingAreas: [],
-    
-    // Agreement
-    agreeToTerms: false
+    workingAreas: '',
+    emergencyContact: ''
   });
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { userAuth, setUserAuth } = useContext(AuthContext);
 
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // 🚚 REGISTRATION PAGE LOADED
+  React.useEffect(() => {
+    logDeliveryRegister('REGISTRATION_PAGE_LOADED', { 
+      hasStoredToken: !!localStorage.getItem('deliveryAgentToken'),
+      userAgent: navigator.userAgent,
+      timestamp: new Date().toISOString()
+    });
+  }, []);
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/delivery/dashboard');
-    }
-  }, [isAuthenticated, navigate]);
-
-  // Handle form input changes
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    
-    if (name.includes('.')) {
-      // Handle nested objects
-      const [parent, child] = name.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent],
-          [child]: type === 'checkbox' ? checked : value
-        }
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: type === 'checkbox' ? checked : value
-      }));
-    }
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: value
+    });
+
+    // 🚚 LOG FORM FIELD CHANGES
+    logDeliveryRegister('FORM_FIELD_CHANGED', { 
+      field: name, 
+      hasValue: !!value,
+      valueLength: value.length,
+      isPassword: name === 'password'
+    });
   };
 
-  // Vehicle types
-  const vehicleTypes = [
-    { value: 'bike', label: 'Motorcycle/Bike' },
-    { value: 'scooter', label: 'Scooter' },
-    { value: 'bicycle', label: 'Bicycle' },
-    { value: 'car', label: 'Car' }
-  ];
-
-  // Validate current step
-  const validateStep = (step) => {
-    const newErrors = {};
-
-    if (step === 1) {
-      // Personal Information
-      if (!formData.name.trim()) {
-        newErrors.name = 'Name is required';
-      }
-
-      if (!formData.email.trim()) {
-        newErrors.email = 'Email is required';
-      } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-        newErrors.email = 'Please enter a valid email address';
-      }
-
-      if (!formData.password) {
-        newErrors.password = 'Password is required';
-      } else if (formData.password.length < 6) {
-        newErrors.password = 'Password must be at least 6 characters';
-      }
-
-      if (!formData.confirmPassword) {
-        newErrors.confirmPassword = 'Please confirm your password';
-      } else if (formData.password !== formData.confirmPassword) {
-        newErrors.confirmPassword = 'Passwords do not match';
-      }
-
-      if (!formData.phone.trim()) {
-        newErrors.phone = 'Phone number is required';
-      } else if (!/^[6-9]\d{9}$/.test(formData.phone)) {
-        newErrors.phone = 'Please enter a valid Indian mobile number';
-      }
-    }
-
-    if (step === 2) {
-      // Address Information
-      if (!formData.address.street.trim()) {
-        newErrors['address.street'] = 'Street address is required';
-      }
-      if (!formData.address.city.trim()) {
-        newErrors['address.city'] = 'City is required';
-      }
-      if (!formData.address.state.trim()) {
-        newErrors['address.state'] = 'State is required';
-      }
-      if (!formData.address.postalCode.trim()) {
-        newErrors['address.postalCode'] = 'Postal code is required';
-      }
-    }
-
-    if (step === 3) {
-      // Vehicle Information
-      if (!formData.vehicleType) {
-        newErrors.vehicleType = 'Vehicle type is required';
-      }
-      if (!formData.vehicleModel.trim()) {
-        newErrors.vehicleModel = 'Vehicle model is required';
-      }
-      if (!formData.vehicleRegistration.trim()) {
-        newErrors.vehicleRegistration = 'Vehicle registration is required';
-      }
-      if (!formData.licenseNumber.trim()) {
-        newErrors.licenseNumber = 'License number is required';
-      }
-    }
-
-    if (step === 4) {
-      // Final step
-      if (!formData.agreeToTerms) {
-        newErrors.agreeToTerms = 'You must agree to the terms and conditions';
-      }
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // Handle next step
-  const handleNext = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep(prev => prev + 1);
-    }
-  };
-
-  // Handle previous step
-  const handlePrevious = () => {
-    setCurrentStep(prev => prev - 1);
-  };
-
-  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const startTime = Date.now();
     
-    if (!validateStep(currentStep)) {
-      return;
-    }
+    logDeliveryRegister('REGISTRATION_ATTEMPT_STARTED', { 
+      email: formData.email,
+      name: formData.name,
+      hasPassword: !!formData.password,
+      hasVehicleDetails: !!formData.vehicleType,
+      hasLicense: !!formData.licenseNumber,
+      formFields: Object.keys(formData).filter(key => formData[key])
+    });
 
-    setIsSubmitting(true);
-    
+    setLoading(true);
+
     try {
-      // Prepare registration data
-      const registrationData = {
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        password: formData.password,
-        phone: formData.phone.trim(),
-        address: `${formData.address.street}, ${formData.address.city}, ${formData.address.state} ${formData.address.postalCode}`,
-        vehicleType: formData.vehicleType,
-        vehicleModel: formData.vehicleModel.trim(),
-        vehicleRegistration: formData.vehicleRegistration.trim(),
-        licenseNumber: formData.licenseNumber.trim(),
-        emergencyContact: formData.emergencyContact.name ? formData.emergencyContact : null,
-        workingAreas: formData.workingAreas
-      };
+      logDeliveryRegister('API_CALL_STARTED', { 
+        endpoint: '/api/delivery/register',
+        method: 'POST',
+        dataFields: Object.keys(formData)
+      });
 
-      const result = await register(registrationData);
+      const response = await fetch('http://localhost:5001/api/delivery/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
 
-      if (result.success) {
+      const data = await response.json();
+      const processingTime = Date.now() - startTime;
+
+      if (data.success) {
+        // Store token and user data
+        localStorage.setItem('deliveryAgentToken', data.data.token);
+        localStorage.setItem('deliveryAgentData', JSON.stringify(data.data));
+        
+        setUserAuth({
+          ...userAuth,
+          isDeliveryAgent: true,
+          deliveryAgent: data.data,
+          isAuthenticated: true
+        });
+
+        logDeliveryRegister('REGISTRATION_SUCCESS', { 
+          agentId: data.data._id,
+          email: data.data.email,
+          name: data.data.name,
+          processingTime: `${processingTime}ms`,
+          tokenStored: !!data.data.token,
+          authContextUpdated: true,
+          hasVehicleDetails: !!data.data.vehicleDetails,
+          hasLicense: !!data.data.licenseNumber
+        }, 'success');
+
+        toast.success('Registration successful! Welcome to ZAMMER Delivery!');
         navigate('/delivery/dashboard');
       } else {
-        setErrors({ 
-          submit: result.message || 'Registration failed. Please try again.' 
+        logDeliveryRegisterError('REGISTRATION_FAILED', new Error(data.message || 'Registration failed'), {
+          email: formData.email,
+          name: formData.name,
+          processingTime: `${processingTime}ms`,
+          responseStatus: response.status,
+          errorMessage: data.message
         });
+
+        toast.error(data.message || 'Registration failed');
       }
     } catch (error) {
-      setErrors({ 
-        submit: 'An unexpected error occurred. Please try again.' 
+      const processingTime = Date.now() - startTime;
+      
+      logDeliveryRegisterError('REGISTRATION_ERROR', error, { 
+        email: formData.email,
+        name: formData.name,
+        processingTime: `${processingTime}ms`,
+        errorType: error.name,
+        errorMessage: error.message
       });
+
+      console.error('Registration error:', error);
+      toast.error('Something went wrong. Please try again.');
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
+      logDeliveryRegister('REGISTRATION_ATTEMPT_COMPLETED', { 
+        success: false,
+        processingTime: `${Date.now() - startTime}ms`
+      });
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500"></div>
-      </div>
-    );
-  }
+  // 🚚 LOG NAVIGATION ATTEMPTS
+  const handleNavigation = (path) => {
+    logDeliveryRegister('NAVIGATION_ATTEMPT', { 
+      from: '/delivery/register',
+      to: path,
+      timestamp: new Date().toISOString()
+    });
+  };
+
+  // 🚚 LOG FORM VALIDATION
+  const validateForm = () => {
+    const requiredFields = ['name', 'email', 'password', 'phone', 'vehicleType', 'vehicleRegistration', 'licenseNumber'];
+    const missingFields = requiredFields.filter(field => !formData[field]);
+    
+    if (missingFields.length > 0) {
+      logDeliveryRegister('FORM_VALIDATION_FAILED', { 
+        missingFields,
+        totalFields: requiredFields.length,
+        filledFields: requiredFields.length - missingFields.length
+      });
+      return false;
+    }
+
+    logDeliveryRegister('FORM_VALIDATION_PASSED', { 
+      totalFields: requiredFields.length,
+      allFieldsFilled: true
+    });
+    return true;
+  };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        {/* Logo */}
-        <div className="flex justify-center">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h1 className="text-2xl font-bold text-gray-900">ZAMMER</h1>
-              <p className="text-sm text-gray-500">Delivery Agent Portal</p>
-            </div>
-          </div>
+        <div className="text-center">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            🚚 Join ZAMMER Delivery
+          </h2>
+          <p className="text-gray-600">
+            Register as a delivery agent and start earning
+          </p>
         </div>
-
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Become a delivery agent
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Already have an account?{' '}
-          <Link
-            to="/delivery/login"
-            className="font-medium text-orange-600 hover:text-orange-500"
-          >
-            Sign in here
-          </Link>
-        </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-2xl">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {/* Progress Steps */}
-          <div className="mb-8">
-            <nav aria-label="Progress">
-              <ol className="flex items-center justify-between">
-                {[1, 2, 3, 4].map((step) => (
-                  <li key={step} className="relative">
-                    <div className="flex items-center">
-                      <div
-                        className={`relative flex h-8 w-8 items-center justify-center rounded-full ${
-                          step < currentStep
-                            ? 'bg-green-600'
-                            : step === currentStep
-                            ? 'bg-orange-600'
-                            : 'bg-gray-300'
-                        }`}
-                      >
-                        {step < currentStep ? (
-                          <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        ) : (
-                          <span className={`text-sm font-medium ${
-                            step === currentStep ? 'text-white' : 'text-gray-500'
-                          }`}>
-                            {step}
-                          </span>
-                        )}
-                      </div>
-                      {step < 4 && (
-                        <div className={`ml-4 h-0.5 w-16 ${
-                          step < currentStep ? 'bg-green-600' : 'bg-gray-300'
-                        }`} />
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </nav>
-            <div className="mt-4 text-center">
-              <p className="text-sm text-gray-600">
-                Step {currentStep} of 4: {
-                  currentStep === 1 ? 'Personal Information' :
-                  currentStep === 2 ? 'Address Details' :
-                  currentStep === 3 ? 'Vehicle Information' :
-                  'Final Details'
-                }
-              </p>
-            </div>
-          </div>
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            {/* Personal Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                  Full Name *
+                </label>
+                <input
+                  id="name"
+                  name="name"
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Enter your full name"
+                />
+              </div>
 
-          {/* Error Alert */}
-          {errors.submit && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm">{errors.submit}</p>
-                </div>
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  Email Address *
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Enter your email"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password *
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Create a password"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                  Phone Number *
+                </label>
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  required
+                  value={formData.phone}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Enter your phone number"
+                />
               </div>
             </div>
-          )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Step 1: Personal Information */}
-            {currentStep === 1 && (
-              <div className="space-y-6">
-                <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                    Full Name
-                  </label>
-                  <input
-                    id="name"
-                    name="name"
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={handleChange}
-                    className={`mt-1 appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                      errors.name ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="Enter your full name"
-                  />
-                  {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
-                </div>
+            {/* Address */}
+            <div>
+              <label htmlFor="address" className="block text-sm font-medium text-gray-700">
+                Address *
+              </label>
+              <textarea
+                id="address"
+                name="address"
+                rows="3"
+                required
+                value={formData.address}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                placeholder="Enter your complete address"
+              />
+            </div>
 
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                    Email Address
-                  </label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={formData.email}
-                    onChange={handleChange}
-                    className={`mt-1 appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                      errors.email ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="Enter your email address"
-                  />
-                  {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
-                </div>
-
-                <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                    Phone Number
-                  </label>
-                  <input
-                    id="phone"
-                    name="phone"
-                    type="tel"
-                    required
-                    value={formData.phone}
-                    onChange={handleChange}
-                    className={`mt-1 appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                      errors.phone ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="Enter your 10-digit mobile number"
-                  />
-                  {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
-                </div>
-
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                    Password
-                  </label>
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    value={formData.password}
-                    onChange={handleChange}
-                    className={`mt-1 appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                      errors.password ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="Create a password (min 6 characters)"
-                  />
-                  {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
-                </div>
-
-                <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                    Confirm Password
-                  </label>
-                  <input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    className={`mt-1 appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                      errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="Confirm your password"
-                  />
-                  {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
-                </div>
-              </div>
-            )}
-
-            {/* Step 2: Address Information */}
-            {currentStep === 2 && (
-              <div className="space-y-6">
-                <div>
-                  <label htmlFor="address.street" className="block text-sm font-medium text-gray-700">
-                    Street Address
-                  </label>
-                  <input
-                    id="address.street"
-                    name="address.street"
-                    type="text"
-                    required
-                    value={formData.address.street}
-                    onChange={handleChange}
-                    className={`mt-1 appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                      errors['address.street'] ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="Enter your street address"
-                  />
-                  {errors['address.street'] && <p className="mt-1 text-sm text-red-600">{errors['address.street']}</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="address.city" className="block text-sm font-medium text-gray-700">
-                      City
-                    </label>
-                    <input
-                      id="address.city"
-                      name="address.city"
-                      type="text"
-                      required
-                      value={formData.address.city}
-                      onChange={handleChange}
-                      className={`mt-1 appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                        errors['address.city'] ? 'border-red-300' : 'border-gray-300'
-                      }`}
-                      placeholder="City"
-                    />
-                    {errors['address.city'] && <p className="mt-1 text-sm text-red-600">{errors['address.city']}</p>}
-                  </div>
-
-                  <div>
-                    <label htmlFor="address.state" className="block text-sm font-medium text-gray-700">
-                      State
-                    </label>
-                    <input
-                      id="address.state"
-                      name="address.state"
-                      type="text"
-                      required
-                      value={formData.address.state}
-                      onChange={handleChange}
-                      className={`mt-1 appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                        errors['address.state'] ? 'border-red-300' : 'border-gray-300'
-                      }`}
-                      placeholder="State"
-                    />
-                    {errors['address.state'] && <p className="mt-1 text-sm text-red-600">{errors['address.state']}</p>}
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="address.postalCode" className="block text-sm font-medium text-gray-700">
-                    Postal Code
-                  </label>
-                  <input
-                    id="address.postalCode"
-                    name="address.postalCode"
-                    type="text"
-                    required
-                    value={formData.address.postalCode}
-                    onChange={handleChange}
-                    className={`mt-1 appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                      errors['address.postalCode'] ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="Enter postal code"
-                  />
-                  {errors['address.postalCode'] && <p className="mt-1 text-sm text-red-600">{errors['address.postalCode']}</p>}
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Vehicle Information */}
-            {currentStep === 3 && (
-              <div className="space-y-6">
-                <div>
-                  <label htmlFor="vehicleType" className="block text-sm font-medium text-gray-700">
-                    Vehicle Type
-                  </label>
-                  <select
-                    id="vehicleType"
-                    name="vehicleType"
-                    required
-                    value={formData.vehicleType}
-                    onChange={handleChange}
-                    className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                      errors.vehicleType ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                  >
-                    <option value="">Select your vehicle type</option>
-                    {vehicleTypes.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.vehicleType && <p className="mt-1 text-sm text-red-600">{errors.vehicleType}</p>}
-                </div>
-
-                <div>
-                  <label htmlFor="vehicleModel" className="block text-sm font-medium text-gray-700">
-                    Vehicle Model
-                  </label>
-                  <input
-                    id="vehicleModel"
-                    name="vehicleModel"
-                    type="text"
-                    required
-                    value={formData.vehicleModel}
-                    onChange={handleChange}
-                    className={`mt-1 appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                      errors.vehicleModel ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="Enter vehicle model (e.g., Honda Activa, Royal Enfield)"
-                  />
-                  {errors.vehicleModel && <p className="mt-1 text-sm text-red-600">{errors.vehicleModel}</p>}
-                </div>
-
-                <div>
-                  <label htmlFor="vehicleRegistration" className="block text-sm font-medium text-gray-700">
-                    Vehicle Registration Number
-                  </label>
-                  <input
-                    id="vehicleRegistration"
-                    name="vehicleRegistration"
-                    type="text"
-                    required
-                    value={formData.vehicleRegistration}
-                    onChange={handleChange}
-                    className={`mt-1 appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                      errors.vehicleRegistration ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="Enter vehicle registration number"
-                  />
-                  {errors.vehicleRegistration && <p className="mt-1 text-sm text-red-600">{errors.vehicleRegistration}</p>}
-                </div>
-
-                <div>
-                  <label htmlFor="licenseNumber" className="block text-sm font-medium text-gray-700">
-                    Driving License Number
-                  </label>
-                  <input
-                    id="licenseNumber"
-                    name="licenseNumber"
-                    type="text"
-                    required
-                    value={formData.licenseNumber}
-                    onChange={handleChange}
-                    className={`mt-1 appearance-none block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm ${
-                      errors.licenseNumber ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="Enter your driving license number"
-                  />
-                  {errors.licenseNumber && <p className="mt-1 text-sm text-red-600">{errors.licenseNumber}</p>}
-                </div>
-              </div>
-            )}
-
-            {/* Step 4: Final Details */}
-            {currentStep === 4 && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Emergency Contact (Optional)</h3>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="emergencyContact.name" className="block text-sm font-medium text-gray-700">
-                        Contact Name
-                      </label>
-                      <input
-                        id="emergencyContact.name"
-                        name="emergencyContact.name"
-                        type="text"
-                        value={formData.emergencyContact.name}
-                        onChange={handleChange}
-                        className="mt-1 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                        placeholder="Emergency contact name"
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="emergencyContact.phone" className="block text-sm font-medium text-gray-700">
-                        Contact Phone
-                      </label>
-                      <input
-                        id="emergencyContact.phone"
-                        name="emergencyContact.phone"
-                        type="tel"
-                        value={formData.emergencyContact.phone}
-                        onChange={handleChange}
-                        className="mt-1 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                        placeholder="Emergency contact phone"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-4">
-                    <label htmlFor="emergencyContact.relationship" className="block text-sm font-medium text-gray-700">
-                      Relationship
-                    </label>
-                    <input
-                      id="emergencyContact.relationship"
-                      name="emergencyContact.relationship"
-                      type="text"
-                      value={formData.emergencyContact.relationship}
-                      onChange={handleChange}
-                      className="mt-1 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                      placeholder="Relationship (e.g., Parent, Spouse, Sibling)"
-                    />
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-200 pt-6">
-                  <div className="flex items-start">
-                    <div className="flex items-center h-5">
-                      <input
-                        id="agreeToTerms"
-                        name="agreeToTerms"
-                        type="checkbox"
-                        checked={formData.agreeToTerms}
-                        onChange={handleChange}
-                        className="focus:ring-orange-500 h-4 w-4 text-orange-600 border-gray-300 rounded"
-                      />
-                    </div>
-                    <div className="ml-3 text-sm">
-                      <label htmlFor="agreeToTerms" className="font-medium text-gray-700">
-                        I agree to the Terms and Conditions
-                      </label>
-                      <p className="text-gray-500">
-                        By checking this box, you agree to our{' '}
-                        <Link to="/terms" className="text-orange-600 hover:text-orange-500">
-                          Terms of Service
-                        </Link>{' '}
-                        and{' '}
-                        <Link to="/privacy" className="text-orange-600 hover:text-orange-500">
-                          Privacy Policy
-                        </Link>
-                        .
-                      </p>
-                    </div>
-                  </div>
-                  {errors.agreeToTerms && <p className="mt-1 text-sm text-red-600">{errors.agreeToTerms}</p>}
-                </div>
-              </div>
-            )}
-
-            {/* Navigation Buttons */}
-            <div className="flex justify-between">
-              {currentStep > 1 && (
-                <button
-                  type="button"
-                  onClick={handlePrevious}
-                  className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+            {/* Vehicle Information */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label htmlFor="vehicleType" className="block text-sm font-medium text-gray-700">
+                  Vehicle Type *
+                </label>
+                <select
+                  id="vehicleType"
+                  name="vehicleType"
+                  required
+                  value={formData.vehicleType}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
                 >
-                  Previous
-                </button>
-              )}
+                  <option value="">Select vehicle type</option>
+                  <option value="Bike">Bike</option>
+                  <option value="Scooter">Scooter</option>
+                  <option value="Car">Car</option>
+                  <option value="Van">Van</option>
+                  <option value="Truck">Truck</option>
+                </select>
+              </div>
 
-              <div className="flex-1"></div>
+              <div>
+                <label htmlFor="vehicleModel" className="block text-sm font-medium text-gray-700">
+                  Vehicle Model *
+                </label>
+                <input
+                  id="vehicleModel"
+                  name="vehicleModel"
+                  type="text"
+                  required
+                  value={formData.vehicleModel}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="e.g., Honda Activa, Swift"
+                />
+              </div>
 
-              {currentStep < 4 ? (
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  className="bg-orange-600 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-                >
-                  Next
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className={`py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 ${
-                    isSubmitting
-                      ? 'bg-orange-400 cursor-not-allowed'
-                      : 'bg-orange-600 hover:bg-orange-700'
-                  }`}
-                >
-                  {isSubmitting ? (
-                    <div className="flex items-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Creating Account...
-                    </div>
-                  ) : (
-                    'Create Account'
-                  )}
-                </button>
-              )}
+              <div>
+                <label htmlFor="vehicleRegistration" className="block text-sm font-medium text-gray-700">
+                  Registration Number *
+                </label>
+                <input
+                  id="vehicleRegistration"
+                  name="vehicleRegistration"
+                  type="text"
+                  required
+                  value={formData.vehicleRegistration}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="e.g., MH12AB1234"
+                />
+              </div>
+            </div>
+
+            {/* License and Working Areas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label htmlFor="licenseNumber" className="block text-sm font-medium text-gray-700">
+                  License Number *
+                </label>
+                <input
+                  id="licenseNumber"
+                  name="licenseNumber"
+                  type="text"
+                  required
+                  value={formData.licenseNumber}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Enter your license number"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="workingAreas" className="block text-sm font-medium text-gray-700">
+                  Preferred Working Areas
+                </label>
+                <input
+                  id="workingAreas"
+                  name="workingAreas"
+                  type="text"
+                  value={formData.workingAreas}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="e.g., Andheri, Bandra, Dadar"
+                />
+              </div>
+            </div>
+
+            {/* Emergency Contact */}
+            <div>
+              <label htmlFor="emergencyContact" className="block text-sm font-medium text-gray-700">
+                Emergency Contact
+              </label>
+              <input
+                id="emergencyContact"
+                name="emergencyContact"
+                type="text"
+                value={formData.emergencyContact}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                placeholder="Name and phone number of emergency contact"
+              />
+            </div>
+
+            <div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => {
+                  logDeliveryRegister('REGISTER_BUTTON_CLICKED', { 
+                    email: formData.email,
+                    name: formData.name,
+                    hasPassword: !!formData.password,
+                    hasVehicleDetails: !!formData.vehicleType,
+                    loading: loading,
+                    formValid: validateForm()
+                  });
+                }}
+              >
+                {loading ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Creating account...
+                  </div>
+                ) : (
+                  'Create Account'
+                )}
+              </button>
             </div>
           </form>
 
-          {/* Back to Main Site */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <div className="text-center">
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Already have an account?</span>
+              </div>
+            </div>
+
+            <div className="mt-6 text-center">
               <Link
-                to="/"
-                className="text-sm text-gray-600 hover:text-gray-500"
+                to="/delivery/login"
+                className="font-medium text-orange-600 hover:text-orange-500"
+                onClick={() => handleNavigation('/delivery/login')}
               >
-                ← Back to ZAMMER Marketplace
+                Sign in to your account
               </Link>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Footer */}
-      <div className="mt-8 text-center">
-        <p className="text-xs text-gray-500">
-          © 2024 ZAMMER. All rights reserved.
-        </p>
+          <div className="mt-6 text-center">
+            <Link
+              to="/"
+              className="text-sm text-gray-500 hover:text-gray-700"
+              onClick={() => handleNavigation('/')}
+            >
+              ← Back to Home
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );
