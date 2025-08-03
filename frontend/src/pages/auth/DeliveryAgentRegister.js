@@ -1,10 +1,9 @@
-// frontend/src/pages/auth/DeliveryAgentRegister.js - Delivery Agent Registration
+// frontend/src/pages/auth/DeliveryAgentRegister.js - FIXED VERSION
 
 import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { AuthContext } from '../../contexts/AuthContext';
-import deliveryService from '../../services/deliveryService';
 
 // 🚚 DELIVERY AGENT REGISTRATION LOGGING
 const logDeliveryRegister = (action, data, type = 'info') => {
@@ -36,7 +35,9 @@ const DeliveryAgentRegister = () => {
   });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { userAuth, setUserAuth } = useContext(AuthContext);
+  
+  // ✅ FIXED: Use delivery agent context function
+  const { loginDeliveryAgent } = useContext(AuthContext);
 
   // 🚚 REGISTRATION PAGE LOADED
   React.useEffect(() => {
@@ -97,40 +98,49 @@ const DeliveryAgentRegister = () => {
       const processingTime = Date.now() - startTime;
 
       if (data.success) {
-        // Store token and user data
-        localStorage.setItem('deliveryAgentToken', data.data.token);
-        localStorage.setItem('deliveryAgentData', JSON.stringify(data.data));
-        
-        setUserAuth({
-          ...userAuth,
-          isDeliveryAgent: true,
-          deliveryAgent: data.data,
-          isAuthenticated: true
-        });
+        // ✅ FIXED: Use proper delivery agent login function
+        try {
+          await loginDeliveryAgent(data.data);
 
-        logDeliveryRegister('REGISTRATION_SUCCESS', { 
-          agentId: data.data._id,
-          email: data.data.email,
-          name: data.data.name,
-          processingTime: `${processingTime}ms`,
-          tokenStored: !!data.data.token,
-          authContextUpdated: true,
-          hasVehicleDetails: !!data.data.vehicleDetails,
-          hasLicense: !!data.data.licenseNumber
-        }, 'success');
+          logDeliveryRegister('REGISTRATION_SUCCESS', { 
+            agentId: data.data._id,
+            email: data.data.email,
+            name: data.data.name,
+            processingTime: `${processingTime}ms`,
+            tokenStored: !!data.data.token,
+            authContextUpdated: true,
+            hasVehicleDetails: !!data.data.vehicleDetails,
+            hasLicense: !!data.data.licenseNumber
+          }, 'success');
 
-        toast.success('Registration successful! Welcome to ZAMMER Delivery!');
-        navigate('/delivery/dashboard');
+          toast.success('Registration successful! Welcome to ZAMMER Delivery!');
+          navigate('/delivery/dashboard');
+        } catch (authError) {
+          logDeliveryRegisterError('REGISTRATION_AUTH_FAILED', authError, {
+            email: formData.email,
+            name: formData.name
+          });
+          toast.error('Registration successful but login failed. Please try logging in.');
+          navigate('/delivery/login');
+        }
       } else {
         logDeliveryRegisterError('REGISTRATION_FAILED', new Error(data.message || 'Registration failed'), {
           email: formData.email,
           name: formData.name,
           processingTime: `${processingTime}ms`,
           responseStatus: response.status,
-          errorMessage: data.message
+          errorMessage: data.message,
+          errors: data.errors || []
         });
 
-        toast.error(data.message || 'Registration failed');
+        // ✅ FIXED: Show validation errors properly
+        if (data.errors && Array.isArray(data.errors)) {
+          data.errors.forEach(error => {
+            toast.error(`${error.path}: ${error.msg}`);
+          });
+        } else {
+          toast.error(data.message || 'Registration failed');
+        }
       }
     } catch (error) {
       const processingTime = Date.now() - startTime;
@@ -148,7 +158,6 @@ const DeliveryAgentRegister = () => {
     } finally {
       setLoading(false);
       logDeliveryRegister('REGISTRATION_ATTEMPT_COMPLETED', { 
-        success: false,
         processingTime: `${Date.now() - startTime}ms`
       });
     }
@@ -299,11 +308,11 @@ const DeliveryAgentRegister = () => {
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
                 >
                   <option value="">Select vehicle type</option>
-                  <option value="Bike">Bike</option>
+                  <option value="Bicycle">Bicycle</option>
+                  <option value="Motorcycle">Motorcycle</option>
                   <option value="Scooter">Scooter</option>
                   <option value="Car">Car</option>
                   <option value="Van">Van</option>
-                  <option value="Truck">Truck</option>
                 </select>
               </div>
 

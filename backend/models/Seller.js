@@ -126,8 +126,18 @@ const sellerSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
-// Index for geolocation queries
+// Enhanced geospatial indexes for production
 sellerSchema.index({ "shop.location": "2dsphere" });
+sellerSchema.index({ "shop.name": 1 });
+sellerSchema.index({ "shop.category": 1 });
+sellerSchema.index({ isVerified: 1 });
+
+// Compound index for better query performance
+sellerSchema.index({ 
+  "shop.location": "2dsphere", 
+  "shop.name": 1, 
+  isVerified: 1 
+});
 
 // Hash password before saving
 sellerSchema.pre('save', async function(next) {

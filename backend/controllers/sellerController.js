@@ -1,3 +1,4 @@
+//backend/controllers/sellerController.js 
 const Seller = require('../models/Seller');
 const { generateToken } = require('../utils/jwtToken');
 const { validationResult } = require('express-validator');
@@ -347,9 +348,32 @@ exports.updateSellerProfile = async (req, res) => {
       if (req.body.shop.workingDays) seller.shop.workingDays = req.body.shop.workingDays;
       if (req.body.shop.description) seller.shop.description = req.body.shop.description;
       
-      // 🎯 ADDED: Handle location updates
+      // 🎯 ENHANCED: Handle location updates with validation
       if (req.body.shop.location) {
-        seller.shop.location = req.body.shop.location;
+        const locationService = require('../utils/locationUtils');
+        
+        // If coordinates are provided, validate them
+        if (req.body.shop.location.coordinates && 
+            Array.isArray(req.body.shop.location.coordinates) && 
+            req.body.shop.location.coordinates.length === 2) {
+          
+          const [lng, lat] = req.body.shop.location.coordinates;
+          const validation = locationService.validateCoordinates(lng, lat);
+          
+          if (validation.isValid) {
+            seller.shop.location = {
+              type: 'Point',
+              coordinates: [validation.longitude, validation.latitude]
+            };
+            console.log('✅ Shop location updated:', validation);
+          } else {
+            console.warn('⚠️ Invalid coordinates provided:', validation.error);
+            // Keep existing location if new one is invalid
+          }
+        } else {
+          // Handle address-based location (you can extend this)
+          seller.shop.location = req.body.shop.location;
+        }
       }
     }
 

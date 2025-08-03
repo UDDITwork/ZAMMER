@@ -48,21 +48,20 @@ const registrationValidation = [
     .custom((value) => {
       // ✅ FIXED: Accept all common frontend vehicle type variations
       const validTypes = [
-        // Frontend common values
-        'Bike', 'bike', 'Bicycle', 'bicycle',
-        'Motorcycle', 'motorcycle', 'Motorbike', 'motorbike',
+        // Frontend values (now updated to match model enum)
+        'Bicycle', 'bicycle',
+        'Motorcycle', 'motorcycle',
         'Scooter', 'scooter', 
         'Car', 'car',
-        'Van', 'van',
-        'Truck', 'truck'
+        'Van', 'van'
       ];
       
       if (!validTypes.includes(value)) {
-        throw new Error('Vehicle type must be Bike, Motorcycle, Scooter, Car, Van, or Truck');
+        throw new Error('Vehicle type must be Bicycle, Motorcycle, Scooter, Car, or Van');
       }
       return true;
     })
-    .withMessage('Vehicle type must be Bike, Motorcycle, Scooter, Car, Van, or Truck'),
+    .withMessage('Vehicle type must be Bicycle, Motorcycle, Scooter, Car, or Van'),
   body('vehicleRegistration')
     .notEmpty()
     .withMessage('Vehicle registration number is required'),
