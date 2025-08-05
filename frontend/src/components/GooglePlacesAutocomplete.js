@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-
+// frontend/src/components/GooglePlacesAutocomplete.js 
 const GooglePlacesAutocomplete = ({
   value = '',
   onChange,
