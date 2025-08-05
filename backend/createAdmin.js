@@ -1,37 +1,106 @@
-require('dotenv').config();
+// backend/createAdmin.js - Create Admin User Script
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+const Admin = require('./models/Admin');
+require('dotenv').config();
 
 const createAdmin = async () => {
   try {
-    // Wait for connection
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log('Connected to MongoDB');
+    console.log('🔧 Connecting to MongoDB...');
+    console.log('🔍 Environment check:');
+    console.log('   NODE_ENV:', process.env.NODE_ENV || 'not set');
+    console.log('   MONGODB_URI exists:', !!process.env.MONGODB_URI);
     
-    const hashedPassword = await bcrypt.hash('admin123', 10);
+    // Use the same connection string from your .env file
+    const mongoUri = process.env.MONGODB_URI;
     
-    await mongoose.connection.db.collection('admins').insertOne({
-      name: "Super Admin",
-      email: "admin@zammer.com", 
-      password: hashedPassword,
-      role: "super_admin",
+    if (!mongoUri) {
+      throw new Error('MONGODB_URI not found in environment variables. Please check your .env file.');
+    }
+    
+    // Log connection attempt (hide password)
+    const safeUri = mongoUri.replace(/:([^:@]+)@/, ':****@');
+    console.log('🔗 Connecting to:', safeUri);
+    
+    await mongoose.connect(mongoUri);
+    
+    console.log('✅ Connected to MongoDB successfully');
+
+    // Check if admin already exists
+    const existingAdmin = await Admin.findOne({ email: 'admin@zammer.com' });
+    
+    if (existingAdmin) {
+      console.log('⚠️ Admin user already exists with email: admin@zammer.com');
+      console.log('📧 Admin Details:', {
+        id: existingAdmin._id,
+        name: existingAdmin.name,
+        email: existingAdmin.email,
+        role: existingAdmin.role,
+        isActive: existingAdmin.isActive,
+        createdAt: existingAdmin.createdAt
+      });
+      
+      // Update password to ensure it's correct
+      console.log('🔄 Updating password for existing admin...');
+      existingAdmin.password = 'admin123';
+      await existingAdmin.save();
+      console.log('✅ Password updated successfully');
+      
+      console.log('\n🔑 Login Credentials:');
+      console.log('   Email: admin@zammer.com');
+      console.log('   Password: admin123');
+      console.log('🌐 Login at: http://localhost:3000/admin/login');
+      
+      process.exit(0);
+    }
+
+    // Create new admin user
+    const adminData = {
+      name: 'ZAMMER Admin',
+      email: 'admin@zammer.com',
+      password: 'admin123', // This will be hashed by the pre-save middleware
+      role: 'super_admin',
       permissions: {
         canViewSellers: true,
         canViewUsers: true,
         canManageProducts: true,
         canManageOrders: true
       },
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      isActive: true
+    };
+
+    console.log('🔧 Creating new admin user...');
+    const admin = new Admin(adminData);
+    await admin.save();
+
+    console.log('✅ Admin user created successfully!');
+    console.log('📧 Admin Details:', {
+      id: admin._id,
+      name: admin.name,
+      email: admin.email,
+      role: admin.role,
+      permissions: admin.permissions,
+      isActive: admin.isActive,
+      createdAt: admin.createdAt
     });
     
-    console.log('✅ Admin created successfully');
-    process.exit(0);
+    console.log('\n🔑 Login Credentials:');
+    console.log('   Email: admin@zammer.com');
+    console.log('   Password: admin123');
+    console.log('🌐 Login at: http://localhost:3000/admin/login');
+
   } catch (error) {
-    console.error('❌ Error:', error);
-    process.exit(1);
+    console.error('❌ Error creating admin:', error.message);
+    console.error('Full error:', error);
+  } finally {
+    try {
+      await mongoose.connection.close();
+      console.log('🔌 Database connection closed');
+    } catch (closeError) {
+      console.error('❌ Error closing database connection:', closeError.message);
+    }
+    process.exit(0);
   }
 };
 
+// Run the script
 createAdmin();
