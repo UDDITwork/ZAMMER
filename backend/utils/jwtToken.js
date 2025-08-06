@@ -1,3 +1,4 @@
+//backend/utils/jwtToken.js
 const jwt = require('jsonwebtoken');
 
 // 🔑 ENHANCED JWT TOKEN UTILITY WITH ROLE SUPPORT

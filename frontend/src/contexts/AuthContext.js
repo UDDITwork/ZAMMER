@@ -497,6 +497,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // 🔧 NEW: Login admin function
+  // 🔧 FIXED: Login admin function with immediate token sync
   const loginAdmin = async (data) => {
     try {
       debugLog('🔧 ADMIN LOGIN STARTED', {
@@ -515,27 +516,84 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Invalid token format received from server');
       }
 
+      // 🎯 CRITICAL FIX: Clear any existing admin tokens FIRST
+      debugLog('🧹 CLEARING OLD ADMIN TOKENS...', null, 'admin');
+      safeRemoveItem('adminToken');
+      safeRemoveItem('adminData');
+      
+      // Force clear React state immediately
+      setAdminAuth({
+        isAuthenticated: false,
+        admin: null,
+        token: null,
+      });
+
+      // 🎯 CRITICAL FIX: Wait a moment for state to clear
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Store new tokens
+      debugLog('💾 STORING NEW ADMIN CREDENTIALS...', {
+        tokenLength: data.token.length,
+        adminName: data.name,
+        adminRole: data.role
+      }, 'admin');
+
       const tokenStored = safeSetItem('adminToken', data.token);
       const dataStored = safeSetItem('adminData', JSON.stringify(data));
       
       if (!tokenStored || !dataStored) {
         throw new Error('Failed to store admin authentication data');
       }
-      
+
+      // 🎯 CRITICAL FIX: Update React state immediately
       setAdminAuth({
         isAuthenticated: true,
         admin: data,
         token: data.token,
       });
 
+      // 🎯 CRITICAL FIX: Force update localStorage one more time to ensure consistency
+      localStorage.setItem('adminToken', data.token);
+      localStorage.setItem('adminData', JSON.stringify(data));
+
       debugLog('✅ ADMIN LOGIN COMPLETED', {
         adminId: data._id,
         adminName: data.name,
         adminEmail: data.email,
-        adminRole: data.role
+        adminRole: data.role,
+        tokenInState: !!data.token,
+        tokenInStorage: !!localStorage.getItem('adminToken')
       }, 'admin');
+
+      // 🎯 CRITICAL FIX: Verify tokens are properly stored
+      const verifyToken = localStorage.getItem('adminToken');
+      const verifyData = localStorage.getItem('adminData');
+      
+      debugLog('🔍 ADMIN LOGIN VERIFICATION', {
+        tokenStored: !!verifyToken,
+        dataStored: !!verifyData,
+        tokensMatch: verifyToken === data.token,
+        tokenLength: verifyToken?.length
+      }, 'admin');
+
+      if (!verifyToken || verifyToken !== data.token) {
+        throw new Error('Token verification failed - storage issue');
+      }
+
+      return data; // Return the data for any additional processing
+      
     } catch (error) {
       debugLog('❌ ADMIN LOGIN FAILED', { error: error.message }, 'error');
+      
+      // Clean up on failure
+      safeRemoveItem('adminToken');
+      safeRemoveItem('adminData');
+      setAdminAuth({
+        isAuthenticated: false,
+        admin: null,
+        token: null,
+      });
+      
       throw error;
     }
   };

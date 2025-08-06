@@ -1,47 +1,120 @@
-//frontend/src/services/adminService.js 
+//frontend/src/services/adminService.js - Enhanced with detailed logging
 import api from './api';
 
-// Enhanced debugging
+// Enhanced debugging with colors and timestamps
 const debugLog = (message, data = null, type = 'info') => {
   if (process.env.NODE_ENV === 'development') {
+    const timestamp = new Date().toISOString();
     const colors = {
       info: '#2196F3',
       success: '#4CAF50', 
       warning: '#FF9800',
-      error: '#F44336'
+      error: '#F44336',
+      request: '#9C27B0',
+      response: '#00BCD4'
     };
     
     console.log(
-      `%c[AdminService] ${message}`,
+      `%c[AdminService] ${timestamp} - ${message}`,
       `color: ${colors[type]}; font-weight: bold;`,
       data
     );
   }
 };
 
-// Admin login
+// Admin login with comprehensive logging
 export const loginAdmin = async (credentials) => {
   try {
-    debugLog('🔐 Admin login attempt', { email: credentials.email });
+    debugLog('🔐 STARTING ADMIN LOGIN PROCESS', {
+      email: credentials.email,
+      hasPassword: !!credentials.password,
+      passwordLength: credentials.password?.length || 0,
+      timestamp: new Date().toISOString()
+    }, 'request');
+
+    debugLog('📡 PREPARING API REQUEST', {
+      endpoint: '/admin/login',
+      method: 'POST',
+      baseURL: api.defaults.baseURL,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }, 'info');
     
-    const response = await api.post('/admin/login', credentials);
+    const requestData = {
+      email: credentials.email,
+      password: credentials.password
+    };
+
+    debugLog('📤 SENDING REQUEST TO BACKEND', {
+      url: `${api.defaults.baseURL}/admin/login`,
+      data: {
+        email: requestData.email,
+        passwordProvided: !!requestData.password
+      }
+    }, 'request');
+
+    const response = await api.post('/admin/login', requestData);
     
-    debugLog('✅ Admin login successful', {
-      success: response.data.success,
-      adminName: response.data.data?.name,
-      adminRole: response.data.data?.role,
-      hasToken: !!response.data.data?.token
-    }, 'success');
+    debugLog('📥 RECEIVED RESPONSE FROM BACKEND', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+      dataExists: !!response.data,
+      success: response.data?.success,
+      hasToken: !!response.data?.data?.token,
+      adminName: response.data?.data?.name,
+      adminRole: response.data?.data?.role,
+      responseKeys: response.data ? Object.keys(response.data) : [],
+      dataKeys: response.data?.data ? Object.keys(response.data.data) : []
+    }, 'response');
+
+    if (response.data?.success && response.data?.data) {
+      debugLog('✅ ADMIN LOGIN API SUCCESS', {
+        adminId: response.data.data._id,
+        adminName: response.data.data.name,
+        adminEmail: response.data.data.email,
+        adminRole: response.data.data.role,
+        hasToken: !!response.data.data.token,
+        tokenLength: response.data.data.token?.length || 0,
+        permissions: response.data.data.permissions
+      }, 'success');
+    } else {
+      debugLog('⚠️ UNEXPECTED RESPONSE FORMAT', {
+        success: response.data?.success,
+        hasData: !!response.data?.data,
+        responseStructure: response.data ? Object.keys(response.data) : 'no data'
+      }, 'warning');
+    }
 
     return response.data;
+    
   } catch (error) {
-    debugLog('❌ Admin login failed', {
+    debugLog('❌ ADMIN LOGIN API ERROR', {
+      errorType: error.constructor.name,
+      message: error.message,
+      hasResponse: !!error.response,
       status: error.response?.status,
-      message: error.response?.data?.message || error.message,
-      errors: error.response?.data?.errors
+      statusText: error.response?.statusText,
+      responseData: error.response?.data,
+      responseHeaders: error.response?.headers,
+      hasRequest: !!error.request,
+      requestConfig: error.config ? {
+        url: error.config.url,
+        method: error.config.method,
+        baseURL: error.config.baseURL,
+        timeout: error.config.timeout
+      } : null,
+      networkError: !error.response && !error.request,
+      stack: error.stack
     }, 'error');
     
-    throw error.response?.data || { success: false, message: 'Network error' };
+    // Re-throw with preserved error structure
+    throw error.response?.data || { 
+      success: false, 
+      message: error.message || 'Network error',
+      originalError: error.constructor.name
+    };
   }
 };
 
@@ -181,4 +254,4 @@ const adminService = {
   getUserProfile
 };
 
-export default adminService; 
+export default adminService;

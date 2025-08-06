@@ -191,6 +191,39 @@ app.use((req, res, next) => {
   next();
 });
 
+// ADMIN-SPECIFIC REQUEST LOGGING MIDDLEWARE
+app.use('/api/admin', (req, res, next) => {
+  const timestamp = new Date().toISOString();
+  const logColor = '\x1b[35m'; // Magenta for admin requests
+  const resetColor = '\x1b[0m';
+  
+  console.log(`${logColor}🔧 [ADMIN-REQUEST] ${timestamp}${resetColor}`);
+  console.log(`${logColor}   Method: ${req.method}${resetColor}`);
+  console.log(`${logColor}   URL: ${req.originalUrl}${resetColor}`);
+  console.log(`${logColor}   Headers: ${JSON.stringify({
+    'Content-Type': req.get('Content-Type'),
+    'Authorization': req.get('Authorization') ? 'Bearer ***' : 'None',
+    'Origin': req.get('Origin'),
+    'User-Agent': req.get('User-Agent')?.substring(0, 50) + '...'
+  }, null, 2)}${resetColor}`);
+  console.log(`${logColor}   Body: ${JSON.stringify(req.body, null, 2)}${resetColor}`);
+  console.log(`${logColor}   Query: ${JSON.stringify(req.query, null, 2)}${resetColor}`);
+  console.log(`${logColor}   Params: ${JSON.stringify(req.params, null, 2)}${resetColor}`);
+  console.log('🔧' + '═'.repeat(79));
+  
+  // Log the response when it's sent
+  const originalSend = res.send;
+  res.send = function(data) {
+    console.log(`${logColor}🔧 [ADMIN-RESPONSE] ${timestamp}${resetColor}`);
+    console.log(`${logColor}   Status: ${res.statusCode}${resetColor}`);
+    console.log(`${logColor}   Response: ${typeof data === 'string' ? data.substring(0, 500) + (data.length > 500 ? '...' : '') : JSON.stringify(data, null, 2)}${resetColor}`);
+    console.log('🔧' + '═'.repeat(79));
+    originalSend.call(this, data);
+  };
+  
+  next();
+});
+
 // ENHANCED: CORS configuration for perfect tracking
 const corsOptions = {
   origin: getAllowedOrigins(),
