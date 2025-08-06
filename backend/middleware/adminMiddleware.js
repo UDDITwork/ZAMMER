@@ -37,13 +37,21 @@ exports.protectAdmin = async (req, res, next) => {
 
     console.log('🔍 [AdminAuth] Token found, verifying...');
 
+    // 🎯 CRITICAL FIX: Use same secret logic as token generation
+    const jwtSecret = process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET;
+    console.log('🔧 [AdminAuth] Using JWT secret for verification (length:', jwtSecret?.length, ')');
+
     // Verify token
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      decoded = jwt.verify(token, jwtSecret);
       console.log('✅ [AdminAuth] Token verification successful:', { adminId: decoded.id });
     } catch (jwtError) {
-      logAuthError('AdminAuth', jwtError, { tokenLength: token.length });
+      logAuthError('AdminAuth', jwtError, { 
+        tokenLength: token.length,
+        secretUsed: jwtSecret ? 'present' : 'missing',
+        secretLength: jwtSecret?.length
+      });
       
       let message = 'Invalid admin token';
       if (jwtError.name === 'TokenExpiredError') {
@@ -146,4 +154,4 @@ exports.checkPermission = (permission) => {
       });
     }
   };
-}; 
+};

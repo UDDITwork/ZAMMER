@@ -17,15 +17,15 @@ const AdminLogin = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { adminLogin, admin } = useAuth();
+  const { loginAdmin , adminAuth } = useAuth();
 
   // Redirect if already logged in
   useEffect(() => {
-    if (admin) {
+    if (adminAuth.admin) {
       const redirectTo = location.state?.from?.pathname || '/admin/dashboard';
       navigate(redirectTo, { replace: true });
     }
-  }, [admin, navigate, location]);
+  }, [adminAuth.admin, navigate, location]);
 
   // Handle input changes
   const handleInputChange = (e) => {
@@ -69,20 +69,46 @@ const AdminLogin = () => {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('🔧 Form submitted');
 
     if (!validateForm()) {
+      console.log('❌ Form validation failed');
       return;
     }
 
+    console.log('✅ Form validation passed');
     setLoading(true);
 
     try {
-      const result = await adminLogin({
-        email: formData.email,
-        password: formData.password
+      console.log('🔧 Step 1: Calling AdminService API');
+      
+      // STEP 1: Call API service to get response
+      const apiResponse = await fetch('http://localhost:5001/api/admin/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password
+        })
       });
 
-      if (result.success) {
+      console.log('🔧 Step 2: API Response received', {
+        status: apiResponse.status,
+        ok: apiResponse.ok
+      });
+
+      const apiData = await apiResponse.json();
+      console.log('🔧 Step 3: API Data parsed', apiData);
+
+      if (apiData.success && apiData.data) {
+        console.log('🔧 Step 4: Calling AuthContext loginAdmin');
+        
+        // STEP 2: Store in AuthContext
+        await loginAdmin(apiData.data);
+        
+        console.log('✅ Login successful');
         toast.success('Login successful!');
         
         // Save remember me preference
@@ -96,25 +122,17 @@ const AdminLogin = () => {
 
         // Redirect to intended page or dashboard
         const redirectTo = location.state?.from?.pathname || '/admin/dashboard';
+        console.log('🔧 Redirecting to:', redirectTo);
         navigate(redirectTo, { replace: true });
       } else {
-        toast.error(result.message || 'Login failed');
-        
-        // Set specific field errors if provided
-        if (result.errors) {
-          const fieldErrors = {};
-          result.errors.forEach(error => {
-            if (error.field) {
-              fieldErrors[error.field] = error.message;
-            }
-          });
-          setErrors(fieldErrors);
-        }
+        console.log('❌ Login failed - API response:', apiData);
+        toast.error(apiData?.message || 'Login failed');
       }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('💥 Login error:', error);
       toast.error('An unexpected error occurred. Please try again.');
     } finally {
+      console.log('🔧 Setting loading to false');
       setLoading(false);
     }
   };

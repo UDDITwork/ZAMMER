@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { useAuth } from '../../contexts/AuthContext';
 import AdminLayout from '../../components/layouts/AdminLayout';
 import adminService from '../../services/adminService';
 
@@ -8,26 +9,112 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [authCheckComplete, setAuthCheckComplete] = useState(false);
 
+  // 🔒 SECURITY: Get auth context and navigation
+  const { adminAuth } = useAuth();
+  const navigate = useNavigate();
+
+  // 🔒 CRITICAL: Authentication protection - Check FIRST before anything else
   useEffect(() => {
-    fetchDashboardStats();
-  }, []);
+    console.log('🔒 [ADMIN-DASHBOARD] Authentication check started...', {
+      isAuthenticated: adminAuth.isAuthenticated,
+      hasAdmin: !!adminAuth.admin,
+      hasToken: !!adminAuth.token,
+      adminName: adminAuth.admin?.name
+    });
+
+    // Check if admin is authenticated
+    if (!adminAuth.isAuthenticated || !adminAuth.admin || !adminAuth.token) {
+      console.log('❌ [ADMIN-DASHBOARD] Unauthorized access detected! Redirecting to login...');
+      toast.error('Please login to access admin dashboard');
+      navigate('/admin/login', { replace: true });
+      return;
+    }
+
+    console.log('✅ [ADMIN-DASHBOARD] Authentication verified for admin:', adminAuth.admin.name);
+    setAuthCheckComplete(true);
+  }, [adminAuth.isAuthenticated, adminAuth.admin, adminAuth.token, navigate]);
+
+  // 🔒 ONLY fetch data AFTER authentication is verified
+  useEffect(() => {
+    if (authCheckComplete && adminAuth.isAuthenticated) {
+      fetchDashboardStats();
+    }
+  }, [authCheckComplete, adminAuth.isAuthenticated]);
+
+  // 🔍 DEBUG: Track component state changes
+  useEffect(() => {
+    console.log('🔍 [AdminDashboard] Component state debug:', {
+      authCheckComplete,
+      isAuthenticated: adminAuth.isAuthenticated,
+      hasAdmin: !!adminAuth.admin,
+      hasToken: !!adminAuth.token,
+      loading,
+      error,
+      stats
+    });
+  }, [authCheckComplete, adminAuth.isAuthenticated, adminAuth.admin, adminAuth.token, loading, error, stats]);
+
+  // 🔒 SECURITY: Show loading if auth check not complete
+  if (!authCheckComplete) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verifying admin access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 🔒 SECURITY: Double check - Don't render if not authenticated
+  if (!adminAuth.isAuthenticated || !adminAuth.admin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="bg-red-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Access Denied</h3>
+          <p className="text-gray-600 mb-4">You need admin privileges to access this page</p>
+          <button
+            onClick={() => navigate('/admin/login')}
+            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md transition-colors"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const fetchDashboardStats = async () => {
     try {
       setLoading(true);
-      console.log('📊 Fetching dashboard statistics...');
+      console.log('📊 [ADMIN-DASHBOARD] Fetching dashboard statistics for admin:', adminAuth.admin.name);
       
       const response = await adminService.getDashboardStats();
       
       if (response.success) {
         setStats(response.data);
-        console.log('✅ Dashboard stats loaded:', response.data);
+        console.log('✅ [ADMIN-DASHBOARD] Dashboard stats loaded:', response.data);
       } else {
         throw new Error(response.message || 'Failed to fetch dashboard stats');
       }
     } catch (error) {
-      console.error('❌ Dashboard stats error:', error);
+      console.error('❌ [ADMIN-DASHBOARD] Dashboard stats error:', error);
+      
+      // Check if it's an auth error
+      if (error.response?.status === 401) {
+        console.log('🔒 [ADMIN-DASHBOARD] Authentication expired, redirecting to login...');
+        toast.error('Session expired. Please login again.');
+        navigate('/admin/login', { replace: true });
+        return;
+      }
+      
       setError(error.message || 'Failed to load dashboard data');
       toast.error('Failed to load dashboard data');
     } finally {
@@ -140,11 +227,14 @@ const AdminDashboard = () => {
   return (
     <AdminLayout>
       <div className="space-y-8">
-        {/* Header */}
+        {/* Header with Welcome Message */}
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-600">Welcome to the Zammer Admin Panel</p>
+            <p className="text-gray-600">
+              Welcome back, <span className="font-medium text-orange-600">{adminAuth.admin?.name}</span>! 
+              Here's your Zammer platform overview.
+            </p>
           </div>
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -296,4 +386,4 @@ const AdminDashboard = () => {
   );
 };
 
-export default AdminDashboard; 
+export default AdminDashboard;

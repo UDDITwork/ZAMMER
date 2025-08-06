@@ -2,7 +2,7 @@ const Admin = require('../models/Admin');
 const Seller = require('../models/Seller');
 const User = require('../models/User');
 const Product = require('../models/Product');
-const { generateToken } = require('../utils/jwtToken');
+const { generateAdminToken } = require('../utils/jwtToken');
 const { validationResult } = require('express-validator');
 
 // Enhanced logging function
@@ -58,7 +58,7 @@ exports.loginAdmin = async (req, res) => {
     await admin.save();
 
     // Generate JWT token
-    const token = generateToken(admin._id);
+    const token = generateAdminToken(admin._id);
 
     adminLog('Admin Login Success', 'SUCCESS', { 
       adminId: admin._id, 
