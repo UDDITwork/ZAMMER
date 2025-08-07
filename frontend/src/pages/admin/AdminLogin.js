@@ -1,10 +1,10 @@
-// frontend/src/pages/admin/AdminLogin.js - Admin Authentication Page
+// frontend/src/pages/admin/AdminLogin.js - FIXED VERSION
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
-import { loginAdmin } from '../../services/adminService';
+import { loginAdmin as loginAdminAPI } from '../../services/adminService'; // 🎯 FIXED: Renamed to avoid conflict
 
 const AdminLogin = () => {
   const [formData, setFormData] = useState({
@@ -18,7 +18,7 @@ const AdminLogin = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { loginAdmin , adminAuth } = useAuth();
+  const { loginAdmin: loginAdminContext, adminAuth } = useAuth(); // 🎯 FIXED: Renamed for clarity
 
   // Redirect if already logged in
   useEffect(() => {
@@ -83,8 +83,8 @@ const AdminLogin = () => {
     try {
       console.log('🔧 Step 1: Calling AdminService API');
       
-      // STEP 1: Call API service to get response
-      const apiData = await loginAdmin({
+      // 🎯 FIXED: Now correctly calls the API service
+      const apiData = await loginAdminAPI({
         email: formData.email,
         password: formData.password
       });
@@ -94,8 +94,8 @@ const AdminLogin = () => {
       if (apiData.success && apiData.data) {
         console.log('🔧 Step 3: Calling AuthContext loginAdmin');
         
-        // STEP 2: Store in AuthContext
-        await loginAdmin(apiData.data);
+        // 🎯 FIXED: Now correctly calls the context function
+        await loginAdminContext(apiData.data);
         
         console.log('✅ Login successful');
         toast.success('Login successful!');
@@ -119,7 +119,23 @@ const AdminLogin = () => {
       }
     } catch (error) {
       console.error('💥 Login error:', error);
-      toast.error('An unexpected error occurred. Please try again.');
+      
+      // Enhanced error handling
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+      
+      if (error.response?.status === 401) {
+        errorMessage = 'Invalid email or password';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'Access denied. Admin privileges required.';
+      } else if (error.response?.status === 429) {
+        errorMessage = 'Too many login attempts. Please try again later.';
+      } else if (error.message === 'Network Error' || !error.response) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       console.log('🔧 Setting loading to false');
       setLoading(false);
@@ -174,6 +190,13 @@ const AdminLogin = () => {
           <p className="mt-2 text-sm text-gray-600">
             Sign in to access the admin dashboard
           </p>
+
+          {/* Environment indicator */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+              Development Mode
+            </div>
+          )}
         </div>
 
         {/* Login Form */}
@@ -310,7 +333,7 @@ const AdminLogin = () => {
 
             {/* Demo Login */}
             {process.env.NODE_ENV === 'development' && (
-              <div className="mt-4">
+              <div className="mt-4 space-y-2">
                 <button
                   type="button"
                   onClick={handleDemoLogin}
@@ -321,6 +344,12 @@ const AdminLogin = () => {
                   </svg>
                   Demo Login
                 </button>
+
+                {/* Debug info for development */}
+                <div className="mt-2 p-2 bg-gray-100 rounded text-xs text-gray-600">
+                  <div><strong>Environment:</strong> {process.env.NODE_ENV}</div>
+                  <div><strong>API URL:</strong> {process.env.REACT_APP_API_URL_PROD || process.env.REACT_APP_API_URL || 'default'}</div>
+                </div>
               </div>
             )}
           </form>
