@@ -28,29 +28,29 @@ class SocketService {
     this.maxReconnectAttempts = 5;
     this.reconnectInterval = 5000;
     this.eventListeners = new Map();
-    this.userType = null; // 'seller' or 'buyer'
+    this.userType = null; // 'seller', 'buyer', or 'delivery'
     this.userId = null;
   }
 
-  // Get the server URL
+  // UNIVERSAL Server URL - Environment Variable Based
   getServerUrl() {
     // Production environment
     if (process.env.NODE_ENV === 'production') {
-      // Check if we're on Google App Engine
-      if (window.location.hostname.includes('appspot.com')) {
-        return process.env.REACT_APP_API_URL_PROD?.replace('/api', '') || 'https://onyx-osprey-462815-i9.uc.r.appspot.com';
-      }
+      // Try production-specific variables first
+      const prodSocketUrl = process.env.REACT_APP_SOCKET_URL_PROD;
+      const prodApiUrl = process.env.REACT_APP_API_URL_PROD?.replace('/api', '');
+      const generalSocketUrl = process.env.REACT_APP_SOCKET_URL;
+      const generalApiUrl = process.env.REACT_APP_API_URL?.replace('/api', '');
       
-      // Use production API URL
-      return process.env.REACT_APP_API_URL_PROD?.replace('/api', '') || 'https://onyx-osprey-462815-i9.uc.r.appspot.com';
+      // Return first available URL
+      return prodSocketUrl || prodApiUrl || generalSocketUrl || generalApiUrl || 'http://localhost:5001';
     }
     
     // Development environment
-    if (process.env.REACT_APP_API_URL) {
-      return process.env.REACT_APP_API_URL.replace('/api', '');
-    }
+    const devSocketUrl = process.env.REACT_APP_SOCKET_URL;
+    const devApiUrl = process.env.REACT_APP_API_URL?.replace('/api', '');
     
-    return 'http://localhost:5001';
+    return devSocketUrl || devApiUrl || 'http://localhost:5001';
   }
 
   // 🎯 FIXED: Initialize Socket.io connection - NOW RETURNS A PROMISE
@@ -58,7 +58,10 @@ class SocketService {
     return new Promise((resolve, reject) => {
       try {
         const serverUrl = this.getServerUrl();
-        debugLog('🔌 Initializing Socket.io connection', { serverUrl }, 'socket');
+        debugLog('🔌 Initializing Socket.io connection', { 
+          serverUrl,
+          environment: process.env.NODE_ENV 
+        }, 'socket');
 
         // If already connected, resolve immediately
         if (this.socket && this.isConnected) {
@@ -74,12 +77,13 @@ class SocketService {
         }
 
         this.socket = io(serverUrl, {
-          withCredentials: true,
+          withCredentials: false, // Changed to false for better compatibility
           transports: ['websocket', 'polling'],
           timeout: 10000,
           reconnection: true,
           reconnectionAttempts: this.maxReconnectAttempts,
-          reconnectionDelay: this.reconnectInterval
+          reconnectionDelay: this.reconnectInterval,
+          forceNew: true
         });
 
         // Set up event handlers with Promise resolution
@@ -105,7 +109,8 @@ class SocketService {
       this.reconnectAttempts = 0;
       debugLog('✅ Socket connected successfully', {
         socketId: this.socket.id,
-        isConnected: this.isConnected
+        isConnected: this.isConnected,
+        serverUrl: this.getServerUrl()
       }, 'success');
       
       // Resolve the Promise
@@ -118,7 +123,8 @@ class SocketService {
       debugLog('❌ Socket connection error', {
         error: error.message,
         type: error.type,
-        description: error.description
+        description: error.description,
+        serverUrl: this.getServerUrl()
       }, 'error');
       
       // Reject the Promise
@@ -165,6 +171,8 @@ class SocketService {
           this.joinSellerRoom(this.userId);
         } else if (this.userType === 'buyer') {
           this.joinBuyerRoom(this.userId);
+        } else if (this.userType === 'delivery') {
+          this.joinDeliveryRoom(this.userId);
         }
       }
     });
@@ -180,6 +188,11 @@ class SocketService {
     // Handle pong response for connection testing
     this.socket.on('pong', (data) => {
       debugLog('🏓 Pong received', data, 'socket');
+    });
+
+    // Handle server errors
+    this.socket.on('error', (error) => {
+      debugLog('🚨 Socket server error', error, 'error');
     });
   }
 
@@ -207,6 +220,11 @@ class SocketService {
       debugLog('✅ Buyer room joined successfully', data, 'success');
     });
 
+    // Listen for errors
+    this.socket.on('error', (error) => {
+      debugLog('❌ Buyer room join error', { error, userId }, 'error');
+    });
+
     return true;
   }
 
@@ -227,6 +245,38 @@ class SocketService {
     // Listen for join confirmation
     this.socket.on('seller-joined', (data) => {
       debugLog('✅ Seller room joined successfully', data, 'success');
+    });
+
+    // Listen for errors
+    this.socket.on('error', (error) => {
+      debugLog('❌ Seller room join error', { error, sellerId }, 'error');
+    });
+
+    return true;
+  }
+
+  // 🎯 NEW: Join delivery agent room for notifications
+  joinDeliveryRoom(agentId) {
+    if (!this.socket || !this.isConnected) {
+      debugLog('❌ Cannot join delivery room - socket not connected', { agentId }, 'error');
+      return false;
+    }
+
+    debugLog('🚚 Joining delivery room', { agentId }, 'socket');
+    
+    this.userType = 'delivery';
+    this.userId = agentId;
+    
+    this.socket.emit('delivery-join', agentId);
+    
+    // Listen for join confirmation
+    this.socket.on('delivery-joined', (data) => {
+      debugLog('✅ Delivery room joined successfully', data, 'success');
+    });
+
+    // Listen for errors
+    this.socket.on('error', (error) => {
+      debugLog('❌ Delivery room join error', { error, agentId }, 'error');
     });
 
     return true;
@@ -309,6 +359,30 @@ class SocketService {
     this.eventListeners.set('order-status-updated', callback);
   }
 
+  // 🎯 NEW: Listen for delivery notifications (for delivery agents)
+  onDeliveryAssignment(callback) {
+    if (!this.socket) {
+      debugLog('❌ Cannot listen for delivery assignments - socket not initialized', null, 'error');
+      return;
+    }
+
+    debugLog('👂 Setting up delivery assignment listener', null, 'socket');
+    
+    this.socket.on('delivery-assigned', (data) => {
+      debugLog('🚚 Delivery assignment received', {
+        orderId: data.data?.orderId,
+        orderNumber: data.data?.orderNumber
+      }, 'success');
+      
+      if (callback && typeof callback === 'function') {
+        callback(data);
+      }
+    });
+
+    // Store the listener for cleanup
+    this.eventListeners.set('delivery-assigned', callback);
+  }
+
   // 🎯 NEW: Listen for invoice ready notifications
   onInvoiceReady(callback) {
     if (!this.socket) {
@@ -359,7 +433,7 @@ class SocketService {
     }
 
     debugLog('🏓 Sending ping', null, 'socket');
-    this.socket.emit('ping');
+    this.socket.emit('ping', { timestamp: Date.now() });
     return true;
   }
 
@@ -371,19 +445,24 @@ class SocketService {
       reconnectAttempts: this.reconnectAttempts,
       hasSocket: !!this.socket,
       userType: this.userType,
-      userId: this.userId
+      userId: this.userId,
+      serverUrl: this.getServerUrl(),
+      environment: process.env.NODE_ENV
     };
   }
 
   // 🎯 UPDATED: Auto-connect based on authentication - NOW RETURNS A PROMISE
   autoConnect() {
     return new Promise((resolve, reject) => {
-      // Check if user is authenticated
+      // Check authentication tokens
       const userToken = localStorage.getItem('userToken');
       const userData = localStorage.getItem('userData');
       const sellerToken = localStorage.getItem('sellerToken');
       const sellerData = localStorage.getItem('sellerData');
+      const deliveryToken = localStorage.getItem('deliveryAgentToken');
+      const deliveryData = localStorage.getItem('deliveryAgentData');
 
+      // Try user authentication first
       if (userToken && userData) {
         try {
           const user = JSON.parse(userData);
@@ -402,10 +481,11 @@ class SocketService {
           return;
         } catch (error) {
           debugLog('❌ Invalid user data', error, 'error');
-          reject(error);
-          return;
         }
-      } else if (sellerToken && sellerData) {
+      }
+      
+      // Try seller authentication
+      if (sellerToken && sellerData) {
         try {
           const seller = JSON.parse(sellerData);
           debugLog('🔄 Auto-connecting as seller', { sellerId: seller._id, sellerName: seller.firstName }, 'socket');
@@ -423,8 +503,28 @@ class SocketService {
           return;
         } catch (error) {
           debugLog('❌ Invalid seller data', error, 'error');
-          reject(error);
+        }
+      }
+
+      // Try delivery agent authentication
+      if (deliveryToken && deliveryData) {
+        try {
+          const agent = JSON.parse(deliveryData);
+          debugLog('🔄 Auto-connecting as delivery agent', { agentId: agent._id, agentName: agent.name }, 'socket');
+          
+          if (!this.isConnected) {
+            this.connect().then(() => {
+              this.joinDeliveryRoom(agent._id);
+              resolve({ type: 'delivery', agent });
+            }).catch(reject);
+          } else {
+            this.joinDeliveryRoom(agent._id);
+            resolve({ type: 'delivery', agent });
+          }
+          
           return;
+        } catch (error) {
+          debugLog('❌ Invalid delivery agent data', error, 'error');
         }
       }
 
@@ -456,6 +556,61 @@ class SocketService {
     this.disconnect();
     return this.connect();
   }
+
+  // 🎯 NEW: Health check method
+  async healthCheck() {
+    try {
+      if (!this.isConnected) {
+        return { 
+          healthy: false, 
+          message: 'Socket not connected',
+          serverUrl: this.getServerUrl()
+        };
+      }
+
+      return new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          resolve({ 
+            healthy: false, 
+            message: 'Health check timeout',
+            serverUrl: this.getServerUrl()
+          });
+        }, 5000);
+
+        this.socket.once('pong', () => {
+          clearTimeout(timeout);
+          resolve({ 
+            healthy: true, 
+            message: 'Socket connection healthy',
+            serverUrl: this.getServerUrl(),
+            socketId: this.socket.id
+          });
+        });
+
+        this.socket.emit('ping', { timestamp: Date.now() });
+      });
+    } catch (error) {
+      return { 
+        healthy: false, 
+        message: error.message,
+        serverUrl: this.getServerUrl()
+      };
+    }
+  }
+
+  // 🎯 NEW: Environment info
+  getEnvironmentInfo() {
+    return {
+      nodeEnv: process.env.NODE_ENV,
+      serverUrl: this.getServerUrl(),
+      availableEnvVars: {
+        hasApiUrl: !!process.env.REACT_APP_API_URL,
+        hasApiUrlProd: !!process.env.REACT_APP_API_URL_PROD,
+        hasSocketUrl: !!process.env.REACT_APP_SOCKET_URL,
+        hasSocketUrlProd: !!process.env.REACT_APP_SOCKET_URL_PROD
+      }
+    };
+  }
 }
 
 // Create and export singleton instance
@@ -471,8 +626,11 @@ if (process.env.NODE_ENV === 'development') {
       'window.socketService.autoConnect() - Auto-connect based on auth (returns Promise)',
       'window.socketService.joinBuyerRoom(userId) - Join buyer room',
       'window.socketService.joinSellerRoom(sellerId) - Join seller room',
+      'window.socketService.joinDeliveryRoom(agentId) - Join delivery room',
       'window.socketService.ping() - Test connection',
       'window.socketService.getConnectionStatus() - Check status',
+      'window.socketService.healthCheck() - Health check (returns Promise)',
+      'window.socketService.getEnvironmentInfo() - Environment info',
       'window.socketService.disconnect() - Disconnect'
     ]
   }, 'socket');
