@@ -3,18 +3,19 @@ import axios from 'axios';
 
 // Dynamic API URL based on environment
 const getApiUrl = () => {
-  // If running on App Engine (production)
-  if (window.location.hostname.includes('appspot.com')) {
-    return 'https://onyx-osprey-462815-i9.uc.r.appspot.com/api';
+  // Production environment
+  if (process.env.NODE_ENV === 'production') {
+    // Check if we're on Google App Engine
+    if (window.location.hostname.includes('appspot.com')) {
+      return process.env.REACT_APP_API_URL_PROD || 'https://onyx-osprey-462815-i9.uc.r.appspot.com/api';
+    }
+    
+    // Use production API URL
+    return process.env.REACT_APP_API_URL_PROD || 'https://onyx-osprey-462815-i9.uc.r.appspot.com/api';
   }
   
-  // Always use local backend in development
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'http://localhost:5001/api';
-  }
-  
-  // Fallback to environment variable (for custom deployments)
-  return process.env.REACT_APP_API_URL || 'https://onyx-osprey-462815-i9.uc.r.appspot.com/api';
+  // Development environment
+  return process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 };
 
 const API_URL = getApiUrl();

@@ -63,7 +63,7 @@ const SellerRegister = () => {
 
       console.log('🏪 Attempting seller registration...');
       const response = await axios.post(
-        `${process.env.REACT_APP_API_URL || "http://localhost:5000/api"}/sellers/register`,
+        `${process.env.REACT_APP_API_URL || "http://localhost:5001/api"}/sellers/register`,
         payload
       );
 

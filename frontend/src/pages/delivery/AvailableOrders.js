@@ -40,7 +40,7 @@ const AvailableOrders = () => {
 
       console.log('🚚 [AVAILABLE-ORDERS] Fetching available orders...');
 
-      const response = await fetch('http://localhost:5001/api/delivery/orders/available', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/orders/available`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -83,7 +83,7 @@ const AvailableOrders = () => {
       
       console.log('🚚 [AVAILABLE-ORDERS] Accepting order:', orderId);
       
-      const response = await fetch(`http://localhost:5001/api/delivery/orders/${orderId}/accept`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/orders/${orderId}/accept`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -116,7 +116,7 @@ const AvailableOrders = () => {
     try {
       const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
       
-      const response = await fetch('http://localhost:5001/api/delivery/availability', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/availability`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,

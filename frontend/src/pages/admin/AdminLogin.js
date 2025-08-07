@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
+import { loginAdmin } from '../../services/adminService';
 
 const AdminLogin = () => {
   const [formData, setFormData] = useState({
@@ -83,27 +84,15 @@ const AdminLogin = () => {
       console.log('🔧 Step 1: Calling AdminService API');
       
       // STEP 1: Call API service to get response
-      const apiResponse = await fetch('http://localhost:5001/api/admin/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password
-        })
+      const apiData = await loginAdmin({
+        email: formData.email,
+        password: formData.password
       });
 
-      console.log('🔧 Step 2: API Response received', {
-        status: apiResponse.status,
-        ok: apiResponse.ok
-      });
-
-      const apiData = await apiResponse.json();
-      console.log('🔧 Step 3: API Data parsed', apiData);
+      console.log('🔧 Step 2: API Response received', apiData);
 
       if (apiData.success && apiData.data) {
-        console.log('🔧 Step 4: Calling AuthContext loginAdmin');
+        console.log('🔧 Step 3: Calling AuthContext loginAdmin');
         
         // STEP 2: Store in AuthContext
         await loginAdmin(apiData.data);

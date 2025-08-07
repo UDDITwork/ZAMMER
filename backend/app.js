@@ -32,9 +32,14 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 const PORT = process.env.PORT || 5001; // FIXED: Use 5001 for localhost development
 
 // 🎯 DYNAMIC: Set Frontend URL based on environment
-const FRONTEND_URL = NODE_ENV === 'production' 
-  ? 'https://zammer2.uc.r.appspot.com'
-  : 'http://localhost:3000';
+const getFrontendUrl = () => {
+  if (process.env.NODE_ENV === 'production') {
+    return process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com';
+  }
+  return process.env.FRONTEND_URL_LOCAL || 'http://localhost:3000';
+};
+
+const FRONTEND_URL = getFrontendUrl();
 
 // 🎯 PRODUCTION: Define allowed origins for CORS
 const getAllowedOrigins = () => {

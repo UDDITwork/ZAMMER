@@ -34,15 +34,23 @@ class SocketService {
 
   // Get the server URL
   getServerUrl() {
+    // Production environment
+    if (process.env.NODE_ENV === 'production') {
+      // Check if we're on Google App Engine
+      if (window.location.hostname.includes('appspot.com')) {
+        return process.env.REACT_APP_API_URL_PROD?.replace('/api', '') || 'https://onyx-osprey-462815-i9.uc.r.appspot.com';
+      }
+      
+      // Use production API URL
+      return process.env.REACT_APP_API_URL_PROD?.replace('/api', '') || 'https://onyx-osprey-462815-i9.uc.r.appspot.com';
+    }
+    
+    // Development environment
     if (process.env.REACT_APP_API_URL) {
       return process.env.REACT_APP_API_URL.replace('/api', '');
     }
     
-    if (process.env.NODE_ENV === 'development') {
-      return 'http://localhost:5000';
-    }
-    
-    return 'http://localhost:5000';
+    return 'http://localhost:5001';
   }
 
   // 🎯 FIXED: Initialize Socket.io connection - NOW RETURNS A PROMISE

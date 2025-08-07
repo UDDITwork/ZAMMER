@@ -70,7 +70,7 @@ const DeliveryAgentLogin = () => {
         method: 'POST'
       });
 
-      const response = await fetch('http://localhost:5001/api/delivery/login', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

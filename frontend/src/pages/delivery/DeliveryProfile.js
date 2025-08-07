@@ -68,7 +68,7 @@ const DeliveryProfile = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:5001/api/delivery/profile', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/profile`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -250,7 +250,7 @@ const DeliveryProfile = () => {
     try {
       const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
       
-      const response = await fetch('http://localhost:5001/api/delivery/profile', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/profile`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -292,7 +292,7 @@ const DeliveryProfile = () => {
     try {
       const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
       
-      const response = await fetch('http://localhost:5001/api/delivery/change-password', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/change-password`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -7,7 +7,15 @@ const express = require('express');
 // Environment variables
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const PORT = Number(process.env.PORT) || 5001; // FIXED: Use 5001 for localhost development
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+// Dynamic frontend URL based on environment
+const getFrontendUrl = () => {
+  if (process.env.NODE_ENV === 'production') {
+    return process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com';
+  }
+  return process.env.FRONTEND_URL_LOCAL || 'http://localhost:3000';
+};
+
+const FRONTEND_URL = getFrontendUrl();
 
 console.log(`
 🚀 ===============================
@@ -34,13 +42,14 @@ try {
   // 🎯 PRODUCTION: Get allowed origins for Socket.IO
   const getAllowedOrigins = () => {
     const origins = [
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'https://localhost:3000'
+          'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://localhost:3000',
+    'https://zammer2.uc.r.appspot.com'
     ];
     
     // Add production frontend URL
-    if (FRONTEND_URL && FRONTEND_URL !== 'http://localhost:3000') {
+    if (FRONTEND_URL && !FRONTEND_URL.includes('localhost')) {
       origins.push(FRONTEND_URL);
     }
     
