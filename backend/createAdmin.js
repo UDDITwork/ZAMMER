@@ -48,7 +48,15 @@ const createAdmin = async () => {
       console.log('\n🔑 Login Credentials:');
       console.log('   Email: admin@zammer.com');
       console.log('   Password: admin123');
-      console.log('🌐 Login at: http://localhost:3000/admin/login');
+      // Dynamic frontend URL based on environment
+      const getFrontendUrl = () => {
+        if (process.env.NODE_ENV === 'production') {
+          return process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com';
+        }
+        return process.env.FRONTEND_URL_LOCAL || 'http://localhost:3000';
+      };
+      
+      console.log('🌐 Login at:', `${getFrontendUrl()}/admin/login`);
       
       process.exit(0);
     }
@@ -86,7 +94,7 @@ const createAdmin = async () => {
     console.log('\n🔑 Login Credentials:');
     console.log('   Email: admin@zammer.com');
     console.log('   Password: admin123');
-    console.log('🌐 Login at: http://localhost:3000/admin/login');
+    console.log('🌐 Login at:', `${getFrontendUrl()}/admin/login`);
 
   } catch (error) {
     console.error('❌ Error creating admin:', error.message);

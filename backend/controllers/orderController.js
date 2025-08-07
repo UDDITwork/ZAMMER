@@ -247,7 +247,15 @@ const sendEmailNotification = async (userEmail, orderData, eventType) => {
 
 // Helper function to generate email content
 const getEmailContent = (orderData, eventType) => {
-  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      // Dynamic frontend URL based on environment
+    const getFrontendUrl = () => {
+      if (process.env.NODE_ENV === 'production') {
+        return process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com';
+      }
+      return process.env.FRONTEND_URL_LOCAL || 'http://localhost:3000';
+    };
+    
+    const baseUrl = getFrontendUrl();
   
   switch (eventType) {
     case 'order-created':

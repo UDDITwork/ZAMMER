@@ -86,7 +86,7 @@ const DeliveryAgentRegister = () => {
         dataFields: Object.keys(formData)
       });
 
-      const response = await fetch('http://localhost:5001/api/delivery/register', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

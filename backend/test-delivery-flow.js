@@ -2,7 +2,15 @@
 
 const axios = require('axios');
 
-const API_BASE_URL = 'http://localhost:5001/api';
+// Dynamic API URL based on environment
+const getApiUrl = () => {
+  if (process.env.NODE_ENV === 'production') {
+    return process.env.BACKEND_URL_PROD || 'https://onyx-osprey-462815-i9.uc.r.appspot.com/api';
+  }
+  return process.env.BACKEND_URL_LOCAL || 'http://localhost:5001/api';
+};
+
+const API_BASE_URL = getApiUrl();
 
 // Test delivery agent registration
 const testDeliveryAgentRegistration = async () => {

@@ -30,18 +30,28 @@ const smepayConfig = {
     
     // Callback URLs (dynamic based on environment)
     getCallbackURL: () => {
-      const baseURL = process.env.NODE_ENV === 'production' 
-        ? 'https://zammer2.uc.r.appspot.com'
-        : 'http://localhost:3000';
+      // Dynamic frontend URL based on environment
+      const getFrontendUrl = () => {
+        if (process.env.NODE_ENV === 'production') {
+          return process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com';
+        }
+        return process.env.FRONTEND_URL_LOCAL || 'http://localhost:3000';
+      };
       
+      const baseURL = getFrontendUrl();
       return `${baseURL}/payment/callback`;
     },
     
     getWebhookURL: () => {
-      const baseURL = process.env.NODE_ENV === 'production'
-        ? 'https://onyx-osprey-462815-i9.uc.r.appspot.com'
-        : 'http://localhost:5001';
+      // Dynamic backend URL based on environment
+      const getBackendUrl = () => {
+        if (process.env.NODE_ENV === 'production') {
+          return process.env.BACKEND_URL_PROD || 'https://onyx-osprey-462815-i9.uc.r.appspot.com';
+        }
+        return process.env.BACKEND_URL_LOCAL || 'http://localhost:5001';
+      };
       
+      const baseURL = getBackendUrl();
       return `${baseURL}/api/payments/webhook`;
     },
     
