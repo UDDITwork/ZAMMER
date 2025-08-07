@@ -1,17 +1,13 @@
-// frontend/src/services/api.js - FIXED VERSION
+// frontend/src/services/api.js - UNIVERSAL VERSION
 import axios from 'axios';
 
-// Dynamic API URL based on environment
+// UNIVERSAL API URL - Based purely on environment variables
 const getApiUrl = () => {
   // Production environment
   if (process.env.NODE_ENV === 'production') {
-    // Check if we're on Google App Engine
-    if (window.location.hostname.includes('appspot.com')) {
-      return process.env.REACT_APP_API_URL_PROD || 'https://onyx-osprey-462815-i9.uc.r.appspot.com/api';
-    }
-    
-    // Use production API URL
-    return process.env.REACT_APP_API_URL_PROD || 'https://onyx-osprey-462815-i9.uc.r.appspot.com/api';
+    return process.env.REACT_APP_API_URL_PROD || 
+           process.env.REACT_APP_API_URL || 
+           'http://localhost:5001/api';
   }
   
   // Development environment
@@ -20,7 +16,7 @@ const getApiUrl = () => {
 
 const API_URL = getApiUrl();
 
-console.log('🌐 API URL:', API_URL);
+console.log('🌐 Universal API URL:', API_URL);
 
 // Create axios instance with dynamic base URL
 const api = axios.create({
@@ -32,10 +28,10 @@ const api = axios.create({
   },
 });
 
-// 🔧 ENHANCED: Request interceptor with PROPER admin token handling
+// 🔧 UNIVERSAL: Request interceptor with token handling
 api.interceptors.request.use(
   (config) => {
-    // 🎯 FIX: Get tokens from localStorage with proper validation
+    // Get tokens from localStorage
     const userToken = localStorage.getItem('userToken');
     const sellerToken = localStorage.getItem('sellerToken');
     const adminToken = localStorage.getItem('adminToken');
@@ -44,55 +40,32 @@ api.interceptors.request.use(
     let usedToken = null;
     let tokenSource = null;
     
-    // 🔧 ENHANCED: Check URL path to determine which token to prioritize
+    // Route-based token selection
     const urlPath = config.url || '';
     const isAdminRoute = urlPath.includes('/admin/');
     const isSellerRoute = urlPath.includes('/seller/');
     const isDeliveryRoute = urlPath.includes('/delivery/');
     const isUserRoute = !isAdminRoute && !isSellerRoute && !isDeliveryRoute;
 
-    // 🎯 CRITICAL FIX: Prioritize admin token for admin routes
+    // Priority-based token assignment
     if (isAdminRoute && adminToken) {
-      // 🎯 ENHANCED: Force fresh token fetch from localStorage
-      const freshAdminToken = localStorage.getItem('adminToken');
-      if (freshAdminToken) {
-        // Double-verify token is fresh
-        try {
-          const tokenPayload = JSON.parse(atob(freshAdminToken.split('.')[1]));
-          const tokenAge = Date.now() - (tokenPayload.iat * 1000);
-          console.log('🔍 [API] Admin token age:', tokenAge, 'ms');
-        } catch (e) {
-          console.log('🔍 [API] Could not decode admin token age');
-        }
-        
-        config.headers.Authorization = `Bearer ${freshAdminToken}`;
-        usedToken = freshAdminToken;
-        tokenSource = 'adminToken (fresh from storage)';
-        console.log('🔐 [API] Using FRESH ADMIN token for admin route');
-      } else {
-        // Fallback to original token
-        config.headers.Authorization = `Bearer ${adminToken}`;
-        usedToken = adminToken;
-        tokenSource = 'adminToken';
-        console.log('🔐 [API] Using ADMIN token for admin route');
-      }
+      config.headers.Authorization = `Bearer ${adminToken}`;
+      usedToken = adminToken;
+      tokenSource = 'adminToken';
     } else if (isSellerRoute && sellerToken) {
       config.headers.Authorization = `Bearer ${sellerToken}`;
       usedToken = sellerToken;
       tokenSource = 'sellerToken';
-      console.log('🔐 [API] Using SELLER token for seller route');
     } else if (isDeliveryRoute && deliveryAgentToken) {
       config.headers.Authorization = `Bearer ${deliveryAgentToken}`;
       usedToken = deliveryAgentToken;
       tokenSource = 'deliveryAgentToken';
-      console.log('🔐 [API] Using DELIVERY token for delivery route');
     } else if (isUserRoute && userToken) {
       config.headers.Authorization = `Bearer ${userToken}`;
       usedToken = userToken;
       tokenSource = 'userToken';
-      console.log('🔐 [API] Using USER token for user route');
     } else {
-      // 🔧 FALLBACK: Use any available token in priority order
+      // Fallback: Use any available token in priority order
       if (adminToken) {
         config.headers.Authorization = `Bearer ${adminToken}`;
         usedToken = adminToken;
@@ -112,32 +85,13 @@ api.interceptors.request.use(
       }
     }
 
-    // 🔍 ENHANCED DEBUG: Detailed token logging for development
+    // Debug logging in development
     if (process.env.NODE_ENV === 'development') {
       console.log(`🌐 [API-REQUEST] ${config.method?.toUpperCase()} ${config.url}`);
-      console.log(`🔍 [API-DEBUG] Route Analysis:`, {
-        urlPath,
-        isAdminRoute,
-        isSellerRoute,
-        isDeliveryRoute,
-        isUserRoute
-      });
-      console.log(`🔍 [API-DEBUG] Available Tokens:`, {
-        hasUserToken: !!userToken,
-        hasSellerToken: !!sellerToken,
-        hasAdminToken: !!adminToken,
-        hasDeliveryToken: !!deliveryAgentToken
-      });
-      
       if (usedToken) {
-        console.log(`🔑 [API] Using ${tokenSource}:`, {
-          tokenStart: usedToken.substring(0, 20) + '...',
-          tokenEnd: '...' + usedToken.slice(-8),
-          tokenLength: usedToken.length,
-          isValid: usedToken.split('.').length === 3 // Basic JWT structure check
-        });
+        console.log(`🔑 [API] Using ${tokenSource}`);
       } else {
-        console.warn('⚠️ [API] No token found - making unauthenticated request');
+        console.warn('⚠️ [API] No token - unauthenticated request');
       }
     }
 
@@ -149,10 +103,9 @@ api.interceptors.request.use(
   }
 );
 
-// 🔧 ENHANCED: Response interceptor with better error handling
+// Response interceptor with enhanced error handling
 api.interceptors.response.use(
   (response) => {
-    // Log successful responses in development
     if (process.env.NODE_ENV === 'development') {
       console.log(`✅ [API-RESPONSE] ${response.config.method?.toUpperCase()} ${response.config.url}`, {
         status: response.status,
@@ -162,14 +115,14 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('🚨 [API-ERROR] Response Error:', {
+    console.error('🚨 [API-ERROR]:', {
       url: error.config?.url,
       method: error.config?.method,
       status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data
+      message: error.response?.data?.message
     });
     
+    // Handle 401 errors
     if (error.response?.status === 401) {
       const errorData = error.response.data;
       const isTokenError = errorData?.code && [
@@ -183,24 +136,25 @@ api.interceptors.response.use(
       ].includes(errorData.code);
 
       if (isTokenError) {
-        console.log('🔑 [API] Token error detected, clearing auth data...');
+        console.log('🔑 [API] Token error - clearing auth data');
         
-        // 🎯 FIX: Clear ALL auth data on token errors
-        ['userToken', 'userData', 'sellerToken', 'sellerData', 'adminToken', 'adminData', 'deliveryAgentToken', 'deliveryAgentData'].forEach(key => {
+        // Clear all auth data
+        ['userToken', 'userData', 'sellerToken', 'sellerData', 
+         'adminToken', 'adminData', 'deliveryAgentToken', 'deliveryAgentData'].forEach(key => {
           localStorage.removeItem(key);
         });
         
-        // 🎯 FIX: Smart redirect based on current route
+        // Smart redirect based on current route
         const currentPath = window.location.pathname;
         const isCurrentlyOnLoginPage = currentPath.includes('/login');
         
         if (!isCurrentlyOnLoginPage) {
-          console.log('🔄 [API] Redirecting to appropriate login page...');
-          
           if (currentPath.includes('/admin/')) {
             window.location.href = '/admin/login';
           } else if (currentPath.includes('/seller/')) {
             window.location.href = '/seller/login';
+          } else if (currentPath.includes('/delivery/')) {
+            window.location.href = '/delivery/login';
           } else {
             window.location.href = '/user/login';
           }
@@ -212,7 +166,7 @@ api.interceptors.response.use(
   }
 );
 
-// 🔧 ENHANCED: Export additional utility functions for debugging
+// Utility functions
 export const getStoredTokens = () => {
   return {
     userToken: localStorage.getItem('userToken'),
@@ -223,16 +177,18 @@ export const getStoredTokens = () => {
 };
 
 export const clearAllTokens = () => {
-  ['userToken', 'userData', 'sellerToken', 'sellerData', 'adminToken', 'adminData', 'deliveryAgentToken', 'deliveryAgentData'].forEach(key => {
+  ['userToken', 'userData', 'sellerToken', 'sellerData', 
+   'adminToken', 'adminData', 'deliveryAgentToken', 'deliveryAgentData'].forEach(key => {
     localStorage.removeItem(key);
   });
   console.log('🧹 [API] All tokens cleared');
 };
 
-// Make debug functions available in development
+// Debug functions in development
 if (process.env.NODE_ENV === 'development') {
   window.getStoredTokens = getStoredTokens;
   window.clearAllTokens = clearAllTokens;
+  window.API_URL = API_URL;
 }
 
 export default api;
