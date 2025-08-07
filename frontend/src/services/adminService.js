@@ -1,4 +1,5 @@
-//frontend/src/services/adminService.js - Enhanced with detailed logging
+// frontend/src/services/adminService.js - ENHANCED DEBUGGING VERSION
+
 import api from './api';
 
 // Enhanced debugging with colors and timestamps
@@ -56,39 +57,97 @@ export const loginAdmin = async (credentials) => {
 
     const response = await api.post('/admin/login', requestData);
     
-    debugLog('📥 RECEIVED RESPONSE FROM BACKEND', {
+    debugLog('📥 RECEIVED RAW RESPONSE FROM BACKEND', {
       status: response.status,
       statusText: response.statusText,
       headers: response.headers,
       dataExists: !!response.data,
-      success: response.data?.success,
-      hasToken: !!response.data?.data?.token,
-      adminName: response.data?.data?.name,
-      adminRole: response.data?.data?.role,
       responseKeys: response.data ? Object.keys(response.data) : [],
-      dataKeys: response.data?.data ? Object.keys(response.data.data) : []
+      fullResponseData: response.data // 🎯 LOG FULL RESPONSE
     }, 'response');
 
+    // 🎯 DETAILED RESPONSE ANALYSIS
+    if (response.data) {
+      debugLog('🔍 ANALYZING RESPONSE STRUCTURE', {
+        success: response.data.success,
+        hasData: !!response.data.data,
+        dataType: typeof response.data.data,
+        dataKeys: response.data.data ? Object.keys(response.data.data) : null,
+        hasToken: !!(response.data.data && response.data.data.token),
+        hasMessage: !!response.data.message,
+        message: response.data.message,
+        // 🎯 CHECK ALL POSSIBLE TOKEN LOCATIONS
+        tokenLocations: {
+          'data.data.token': !!(response.data.data && response.data.data.token),
+          'data.token': !!response.data.token,
+          'data.accessToken': !!response.data.accessToken,
+          'data.data.accessToken': !!(response.data.data && response.data.data.accessToken)
+        }
+      }, 'info');
+
+      // 🎯 DETAILED TOKEN ANALYSIS
+      if (response.data.data) {
+        const adminData = response.data.data;
+        debugLog('🔍 ADMIN DATA STRUCTURE', {
+          adminId: adminData._id,
+          adminName: adminData.name,
+          adminEmail: adminData.email,
+          adminRole: adminData.role,
+          hasToken: !!adminData.token,
+          tokenLength: adminData.token?.length || 0,
+          tokenStart: adminData.token ? adminData.token.substring(0, 20) + '...' : 'NO TOKEN',
+          permissions: adminData.permissions,
+          allKeys: Object.keys(adminData)
+        }, 'info');
+      }
+    }
+
+    // 🎯 VALIDATE RESPONSE STRUCTURE
     if (response.data?.success && response.data?.data) {
+      // Check for token in different possible locations
+      const adminData = response.data.data;
+      const token = adminData.token || adminData.accessToken || response.data.token;
+      
+      if (!token) {
+        debugLog('❌ TOKEN MISSING FROM RESPONSE', {
+          responseStructure: response.data,
+          adminData: adminData,
+          availableKeys: Object.keys(adminData || {}),
+          message: 'Backend returned success but no token found'
+        }, 'error');
+        
+        throw new Error('Invalid admin login data - missing token');
+      }
+
       debugLog('✅ ADMIN LOGIN API SUCCESS', {
-        adminId: response.data.data._id,
-        adminName: response.data.data.name,
-        adminEmail: response.data.data.email,
-        adminRole: response.data.data.role,
-        hasToken: !!response.data.data.token,
-        tokenLength: response.data.data.token?.length || 0,
-        permissions: response.data.data.permissions
+        adminId: adminData._id,
+        adminName: adminData.name,
+        adminEmail: adminData.email,
+        adminRole: adminData.role,
+        hasToken: !!token,
+        tokenLength: token?.length || 0,
+        permissions: adminData.permissions
       }, 'success');
+
+      // Return the data with token guaranteed
+      return {
+        ...response.data,
+        data: {
+          ...adminData,
+          token: token // Ensure token is present
+        }
+      };
     } else {
       debugLog('⚠️ UNEXPECTED RESPONSE FORMAT', {
         success: response.data?.success,
         hasData: !!response.data?.data,
-        responseStructure: response.data ? Object.keys(response.data) : 'no data'
+        responseStructure: response.data ? Object.keys(response.data) : 'no data',
+        fullResponse: response.data
       }, 'warning');
+      
+      throw new Error(response.data?.message || 'Login failed - unexpected response format');
     }
 
-    return response.data;
-    
   } catch (error) {
     debugLog('❌ ADMIN LOGIN API ERROR', {
       errorType: error.constructor.name,
@@ -115,6 +174,25 @@ export const loginAdmin = async (credentials) => {
       message: error.message || 'Network error',
       originalError: error.constructor.name
     };
+  }
+};
+
+// 🎯 NEW: Test admin endpoint
+export const testAdminEndpoint = async () => {
+  try {
+    debugLog('🧪 TESTING ADMIN ENDPOINT');
+    
+    const response = await api.get('/admin/test');
+    
+    debugLog('✅ ADMIN ENDPOINT TEST SUCCESS', response.data);
+    return response.data;
+  } catch (error) {
+    debugLog('❌ ADMIN ENDPOINT TEST FAILED', {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message
+    }, 'error');
+    
+    throw error.response?.data || { success: false, message: 'Test endpoint failed' };
   }
 };
 
@@ -247,6 +325,7 @@ export const getUserProfile = async (userId) => {
 // Default export
 const adminService = {
   loginAdmin,
+  testAdminEndpoint,
   getDashboardStats,
   getAllSellers,
   getSellerProfile,
