@@ -66,8 +66,71 @@ const OrderSchema = new mongoose.Schema({
     // 🆕 SMEPay specific fields
     smepay_transaction_id: { type: String },
     smepay_order_slug: { type: String },
-    smepay_ref_id: { type: String }
+    smepay_ref_id: { type: String },
+    gateway: { type: String, enum: ['paypal', 'smepay', 'cod'], default: 'cod' }
   },
+
+  // 🆕 SMEPay Order Integration
+  smepayOrderSlug: {
+    type: String,
+    default: null
+  },
+
+  // Payment Gateway
+  paymentGateway: {
+    type: String,
+    enum: ['paypal', 'smepay', 'cod', 'card'],
+    default: 'cod'
+  },
+
+  // Payment Status (separate from order status)
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'processing', 'completed', 'failed', 'cancelled', 'refunded'],
+    default: 'pending'
+  },
+
+  // Payment Attempts History
+  paymentAttempts: [{
+    gateway: {
+      type: String,
+      enum: ['smepay', 'paypal', 'card'],
+      required: true
+    },
+    orderSlug: {
+      type: String,
+      default: null
+    },
+    amount: {
+      type: Number,
+      required: true
+    },
+    status: {
+      type: String,
+      enum: ['initiated', 'processing', 'completed', 'failed', 'cancelled'],
+      default: 'initiated'
+    },
+    refId: {
+      type: String,
+      default: null
+    },
+    transactionId: {
+      type: String,
+      default: null
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    },
+    completedAt: {
+      type: Date,
+      default: null
+    },
+    errorMessage: {
+      type: String,
+      default: null
+    }
+  }],
   taxPrice: {
     type: Number,
     required: true,
@@ -669,6 +732,65 @@ OrderSchema.methods.approveForDelivery = function(adminId) {
   return this.save();
 };
 
+// 🆕 Method to add payment attempt
+OrderSchema.methods.addPaymentAttempt = function(attemptData) {
+  if (!this.paymentAttempts) {
+    this.paymentAttempts = [];
+  }
+  
+  this.paymentAttempts.push({
+    gateway: attemptData.gateway,
+    orderSlug: attemptData.orderSlug || null,
+    amount: attemptData.amount,
+    status: 'initiated',
+    refId: attemptData.refId || null,
+    createdAt: new Date()
+  });
+  
+  return this.save();
+};
+
+// 🆕 Method to update payment attempt status
+OrderSchema.methods.updatePaymentAttempt = function(orderSlug, status, updateData = {}) {
+  const attempt = this.paymentAttempts.find(
+    att => att.orderSlug === orderSlug && att.status !== 'completed'
+  );
+  
+  if (attempt) {
+    attempt.status = status;
+    if (status === 'completed') {
+      attempt.completedAt = new Date();
+      attempt.transactionId = updateData.transactionId || null;
+      
+      // Update main order payment fields
+      this.isPaid = true;
+      this.paidAt = new Date();
+      this.paymentStatus = 'completed';
+      this.paymentResult = {
+        ...this.paymentResult,
+        gateway: attempt.gateway,
+        smepay_transaction_id: updateData.transactionId,
+        smepay_order_slug: orderSlug,
+        smepay_ref_id: attempt.refId,
+        status: 'completed'
+      };
+    } else if (status === 'failed') {
+      attempt.errorMessage = updateData.errorMessage || null;
+      this.paymentStatus = 'failed';
+    }
+  }
+  
+  return this.save();
+};
+
+// 🆕 Method to check if order has active SMEPay attempt
+OrderSchema.methods.hasActiveSMEPayAttempt = function() {
+  return this.paymentAttempts.some(
+    attempt => attempt.gateway === 'smepay' && 
+               ['initiated', 'processing'].includes(attempt.status)
+  );
+};
+
 // Existing method to get cancellation display text
 OrderSchema.methods.getCancellationText = function() {
   if (this.status !== 'Cancelled' || !this.cancellationDetails.cancelledBy) {
@@ -741,6 +863,15 @@ OrderSchema.statics.findOrdersReadyForAssignment = function() {
     status: { $nin: ['Cancelled', 'Delivered'] }
   }).populate('user seller')
     .sort({ createdAt: 1 }); // FIFO basis
+};
+
+// 🆕 Static method to find orders with pending SMEPay payments
+OrderSchema.statics.findPendingSMEPayOrders = function() {
+  return this.find({
+    paymentGateway: 'smepay',
+    paymentStatus: { $in: ['pending', 'processing'] },
+    status: { $ne: 'Cancelled' }
+  }).populate('user seller');
 };
 
 module.exports = mongoose.model('Order', OrderSchema);

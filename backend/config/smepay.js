@@ -1,304 +1,171 @@
-// backend/config/smepay.js - SMEPay API Configuration - UNIVERSAL VERSION
+// backend/config/smepay.js - SMEPay Configuration
 
 const smepayConfig = {
-  // Base Configuration - Environment Variable Based
+  // Base URL for SMEPay API
   baseURL: process.env.SMEPAY_BASE_URL || 'https://apps.typof.in/api/external',
   
-  // Credentials from environment
+  // Client credentials
   clientId: process.env.SMEPAY_CLIENT_ID,
   clientSecret: process.env.SMEPAY_CLIENT_SECRET,
   
   // Webhook configuration
-  webhookSecret: process.env.SMEPAY_WEBHOOK_SECRET,
+  webhookSecret: process.env.SMEPAY_WEBHOOK_SECRET || 'smepay_webhook_secret_key',
   
-  // API Endpoints
+  // API endpoints
   endpoints: {
-    auth: '/auth',
-    createOrder: '/create-order', 
-    validateOrder: '/validate-order',
-    generateQR: '/generate-qr',
-    checkQRStatus: '/check-qr-status'
+    auth: '/login',
+    createOrder: '/order',
+    validateOrder: '/validate',
+    generateQR: '/qrcode',
+    checkQRStatus: '/qrstatus'
   },
   
-  // Default settings
+  // Default configuration
   defaults: {
-    currency: 'INR',
     timeout: 30000, // 30 seconds
+    currency: 'INR',
     retryAttempts: 3,
-    retryDelay: 1000 // 1 second
+    retryDelay: 1000
   },
   
-  // 🎯 UNIVERSAL: Dynamic Frontend URL - Environment Variable Based
-  getFrontendUrl: () => {
-    if (process.env.NODE_ENV === 'production') {
-      // Try production-specific variables first, then fallback
-      return process.env.FRONTEND_URL_PROD || 
-             process.env.FRONTEND_URL || 
-             process.env.PUBLIC_URL ||
-             'http://localhost:3000';
-    }
-    
-    // Development environment
-    return process.env.FRONTEND_URL_LOCAL || 
-           process.env.FRONTEND_URL || 
-           process.env.PUBLIC_URL ||
-           'http://localhost:3000';
-  },
-  
-  // 🎯 UNIVERSAL: Dynamic Backend URL - Environment Variable Based
-  getBackendUrl: () => {
-    if (process.env.NODE_ENV === 'production') {
-      // Try production-specific variables first, then fallback
-      return process.env.BACKEND_URL_PROD || 
-             process.env.BACKEND_URL || 
-             process.env.API_BASE_URL ||
-             process.env.SERVER_URL ||
-             'http://localhost:5001';
-    }
-    
-    // Development environment
-    return process.env.BACKEND_URL_LOCAL || 
-           process.env.BACKEND_URL || 
-           process.env.API_BASE_URL ||
-           process.env.SERVER_URL ||
-           'http://localhost:5001';
-  },
-  
-  // Callback URLs (dynamic based on environment)
+  // Callback URL generator
   getCallbackURL: () => {
-    const baseURL = smepayConfig.getFrontendUrl();
-    return `${baseURL}/payment/callback`;
+    const frontendUrl = process.env.NODE_ENV === 'production' 
+      ? process.env.FRONTEND_URL_PROD || process.env.FRONTEND_URL
+      : process.env.FRONTEND_URL_LOCAL || process.env.FRONTEND_URL || 'http://localhost:3000';
+    
+    return `${frontendUrl}/payment/callback`;
   },
   
-  getWebhookURL: () => {
-    const baseURL = smepayConfig.getBackendUrl();
-    return `${baseURL}/api/payments/webhook`;
+  // Rate limiting configuration
+  rateLimit: {
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 100,
+    skipSuccessful: true
   },
   
-  // 🎯 NEW: Get Success/Failure URLs
-  getSuccessURL: () => {
-    const baseURL = smepayConfig.getFrontendUrl();
-    return `${baseURL}/payment/success`;
+  // Phone number validation for Indian numbers
+  validatePhoneNumber: (phone) => {
+    if (!phone) throw new Error('Phone number is required');
+    
+    // Remove any non-digit characters
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    // Check if it's a valid Indian mobile number
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      throw new Error('Invalid Indian mobile number format');
+    }
+    
+    // Add country code if not present
+    return cleanPhone.startsWith('91') ? `+${cleanPhone}` : `+91${cleanPhone}`;
   },
   
-  getFailureURL: () => {
-    const baseURL = smepayConfig.getFrontendUrl();
-    return `${baseURL}/payment/failure`;
+  // Rate limiting check
+  checkRateLimit: (phoneNumber) => {
+    // In a production environment, you'd implement Redis-based rate limiting
+    // For now, we'll do a simple in-memory check
+    const now = Date.now();
+    const windowMs = smepayConfig.rateLimit.windowMs;
+    
+    if (!global.smepayRateLimit) {
+      global.smepayRateLimit = new Map();
+    }
+    
+    const key = phoneNumber;
+    const requests = global.smepayRateLimit.get(key) || [];
+    
+    // Clean old requests outside the window
+    const validRequests = requests.filter(time => now - time < windowMs);
+    
+    if (validRequests.length >= smepayConfig.rateLimit.maxRequests) {
+      throw new Error(`Rate limit exceeded. Maximum ${smepayConfig.rateLimit.maxRequests} requests per minute.`);
+    }
+    
+    // Add current request
+    validRequests.push(now);
+    global.smepayRateLimit.set(key, validRequests);
   },
   
-  getCancelURL: () => {
-    const baseURL = smepayConfig.getFrontendUrl();
-    return `${baseURL}/payment/cancel`;
+  // Message templates for different purposes
+  messageTemplates: {
+    delivery: {
+      english: 'Your delivery OTP is {otp}. Share this with the delivery agent to confirm receipt. Valid for 10 minutes. -Zammer',
+      hindi: 'आपका डिलीवरी OTP {otp} है। डिलीवरी एजेंट के साथ साझा करें। 10 मिनट के लिए वैध। -Zammer'
+    },
+    pickup: {
+      english: 'Pickup OTP: {otp}. Share with delivery agent for order collection. Valid for 15 minutes. -Zammer',
+      hindi: 'पिकअप OTP: {otp}। डिलीवरी एजेंट के साथ साझा करें। 15 मिनट वैध। -Zammer'
+    },
+    payment: {
+      english: 'Payment verification OTP: {otp}. Do not share with anyone. Valid for 5 minutes. -Zammer',
+      hindi: 'भुगतान OTP: {otp}। किसी के साथ साझा न करें। 5 मिनट वैध। -Zammer'
+    }
   },
   
-  // 🎯 ENHANCED: Validation helpers with better error messages
+  // Get message template
+  getMessageTemplate: (purpose, language = 'english') => {
+    return smepayConfig.messageTemplates[purpose]?.[language] || 
+           smepayConfig.messageTemplates[purpose]?.english || 
+           'Your OTP is {otp}. Valid for 10 minutes. -Zammer';
+  },
+  
+  // Format message with OTP
+  formatMessage: (template, otp) => {
+    return template.replace('{otp}', otp);
+  },
+  
+  // Test mode configuration
+  testMode: {
+    enabled: process.env.NODE_ENV === 'development' || process.env.SMEPAY_TEST_MODE === 'true',
+    testOTP: '123456',
+    simulateDelay: 2000, // 2 seconds
+    simulateFailureRate: 0.05 // 5% failure rate for testing
+  },
+  
+  // Validation helpers
   validateConfig: () => {
-    const required = ['clientId', 'clientSecret'];
-    const missing = required.filter(key => !smepayConfig[key]);
+    const errors = [];
     
-    if (missing.length > 0) {
-      const errorMsg = `Missing SMEPay configuration: ${missing.join(', ')}. Please set environment variables: ${missing.map(key => `SMEPAY_${key.toUpperCase()}`).join(', ')}`;
-      throw new Error(errorMsg);
+    if (!smepayConfig.clientId) {
+      errors.push('SMEPAY_CLIENT_ID is required');
     }
     
-    // Validate URLs
-    try {
-      const frontendUrl = smepayConfig.getFrontendUrl();
-      const backendUrl = smepayConfig.getBackendUrl();
-      
-      if (!frontendUrl.startsWith('http')) {
-        throw new Error(`Invalid frontend URL: ${frontendUrl}. Must start with http:// or https://`);
-      }
-      
-      if (!backendUrl.startsWith('http')) {
-        throw new Error(`Invalid backend URL: ${backendUrl}. Must start with http:// or https://`);
-      }
-    } catch (error) {
-      throw new Error(`URL validation failed: ${error.message}`);
+    if (!smepayConfig.clientSecret) {
+      errors.push('SMEPAY_CLIENT_SECRET is required');
     }
     
-    return true;
-  },
-  
-  // 🎯 NEW: Get configuration summary for debugging
-  getConfigSummary: () => {
-    return {
-      environment: process.env.NODE_ENV || 'development',
-      baseURL: smepayConfig.baseURL,
-      hasClientId: !!smepayConfig.clientId,
-      hasClientSecret: !!smepayConfig.clientSecret,
-      hasWebhookSecret: !!smepayConfig.webhookSecret,
-      frontendUrl: smepayConfig.getFrontendUrl(),
-      backendUrl: smepayConfig.getBackendUrl(),
-      callbackUrl: smepayConfig.getCallbackURL(),
-      webhookUrl: smepayConfig.getWebhookURL(),
-      urls: {
-        success: smepayConfig.getSuccessURL(),
-        failure: smepayConfig.getFailureURL(),
-        cancel: smepayConfig.getCancelURL()
-      },
-      availableEnvVars: {
-        // Frontend URLs
-        hasFrontendUrlProd: !!process.env.FRONTEND_URL_PROD,
-        hasFrontendUrl: !!process.env.FRONTEND_URL,
-        hasFrontendUrlLocal: !!process.env.FRONTEND_URL_LOCAL,
-        hasPublicUrl: !!process.env.PUBLIC_URL,
-        
-        // Backend URLs
-        hasBackendUrlProd: !!process.env.BACKEND_URL_PROD,
-        hasBackendUrl: !!process.env.BACKEND_URL,
-        hasBackendUrlLocal: !!process.env.BACKEND_URL_LOCAL,
-        hasApiBaseUrl: !!process.env.API_BASE_URL,
-        hasServerUrl: !!process.env.SERVER_URL,
-        
-        // SMEPay credentials
-        hasSmepayClientId: !!process.env.SMEPAY_CLIENT_ID,
-        hasSmepayClientSecret: !!process.env.SMEPAY_CLIENT_SECRET,
-        hasSmepayWebhookSecret: !!process.env.SMEPAY_WEBHOOK_SECRET,
-        hasSmepayBaseUrl: !!process.env.SMEPAY_BASE_URL
-      }
-    };
-  },
-  
-  // Logging configuration
-  enableLogging: process.env.NODE_ENV === 'development' || process.env.SMEPAY_ENABLE_LOGGING === 'true',
-  
-  // Enhanced error codes and messages
-  errorCodes: {
-    INVALID_CREDENTIALS: 'Invalid client credentials',
-    ORDER_CREATION_FAILED: 'Failed to create order with SMEPay',
-    PAYMENT_VALIDATION_FAILED: 'Payment validation failed',
-    NETWORK_ERROR: 'Network error communicating with SMEPay',
-    TIMEOUT_ERROR: 'Request to SMEPay timed out',
-    WEBHOOK_VERIFICATION_FAILED: 'Webhook signature verification failed',
-    CONFIGURATION_ERROR: 'SMEPay configuration error',
-    URL_VALIDATION_ERROR: 'URL validation error',
-    ENVIRONMENT_ERROR: 'Environment variable error'
-  },
-  
-  // Status mappings
-  statusMappings: {
-    // SMEPay statuses to internal statuses
-    'paid': 'success',
-    'unpaid': 'pending',
-    'failed': 'failed',
-    'cancelled': 'cancelled',
-    'expired': 'expired',
-    'processing': 'processing',
-    'refunded': 'refunded',
-    'partially_refunded': 'partially_refunded'
-  },
-  
-  // Payment method mappings
-  paymentMethods: {
-    'SMEPay': 'SMEPay',
-    'UPI': 'UPI',
-    'Card': 'Card',
-    'NetBanking': 'NetBanking',
-    'Wallet': 'Wallet',
-    'BNPL': 'BNPL' // Buy Now Pay Later
-  },
-  
-  // 🎯 NEW: Environment-specific settings
-  getEnvironmentSettings: () => {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    
-    return {
-      isProduction,
-      isDevelopment,
-      enableSSL: isProduction,
-      enableDebugLogs: isDevelopment || process.env.SMEPAY_DEBUG === 'true',
-      enableWebhookValidation: isProduction || process.env.SMEPAY_VALIDATE_WEBHOOKS === 'true',
-      timeout: parseInt(process.env.SMEPAY_TIMEOUT) || smepayConfig.defaults.timeout,
-      retryAttempts: parseInt(process.env.SMEPAY_RETRY_ATTEMPTS) || smepayConfig.defaults.retryAttempts,
-      retryDelay: parseInt(process.env.SMEPAY_RETRY_DELAY) || smepayConfig.defaults.retryDelay
-    };
-  },
-  
-  // 🎯 NEW: URL utilities
-  urlUtils: {
-    // Ensure URL has protocol
-    ensureProtocol: (url) => {
-      if (!url) return url;
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        return url;
-      }
-      // Default to https for production, http for development
-      const protocol = process.env.NODE_ENV === 'production' ? 'https://' : 'http://';
-      return `${protocol}${url}`;
-    },
-    
-    // Remove trailing slash
-    removeTrailingSlash: (url) => {
-      if (!url) return url;
-      return url.replace(/\/$/, '');
-    },
-    
-    // Combine base URL with path
-    combinePath: (baseUrl, path) => {
-      if (!baseUrl || !path) return baseUrl || path;
-      const cleanBase = smepayConfig.urlUtils.removeTrailingSlash(baseUrl);
-      const cleanPath = path.startsWith('/') ? path : `/${path}`;
-      return `${cleanBase}${cleanPath}`;
+    if (!smepayConfig.baseURL) {
+      errors.push('SMEPAY_BASE_URL is required');
     }
+    
+    if (errors.length > 0) {
+      console.error('❌ SMEPay Configuration Errors:', errors);
+      return { valid: false, errors };
+    }
+    
+    console.log('✅ SMEPay Configuration Valid');
+    return { valid: true, errors: [] };
   },
   
-  // 🎯 NEW: Health check
-  healthCheck: () => {
-    try {
-      smepayConfig.validateConfig();
-      const summary = smepayConfig.getConfigSummary();
-      
-      return {
-        healthy: true,
-        message: 'SMEPay configuration is valid',
-        timestamp: new Date().toISOString(),
-        config: summary
-      };
-    } catch (error) {
-      return {
-        healthy: false,
-        message: `SMEPay configuration error: ${error.message}`,
-        timestamp: new Date().toISOString(),
-        error: error.message
-      };
+  // Debug logging
+  logConfig: () => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔧 SMEPay Configuration:', {
+        baseURL: smepayConfig.baseURL,
+        clientId: smepayConfig.clientId ? `${smepayConfig.clientId.substring(0, 20)}...` : 'NOT_SET',
+        hasClientSecret: !!smepayConfig.clientSecret,
+        testMode: smepayConfig.testMode.enabled,
+        callbackURL: smepayConfig.getCallbackURL(),
+        endpoints: smepayConfig.endpoints
+      });
     }
   }
 };
 
-// 🎯 ENHANCED: Validation on module load with better error handling
-try {
-  smepayConfig.validateConfig();
-  
-  if (smepayConfig.enableLogging) {
-    console.log('✅ SMEPay configuration validated successfully');
-    console.log('🔧 SMEPay Config Summary:', {
-      environment: process.env.NODE_ENV,
-      frontendUrl: smepayConfig.getFrontendUrl(),
-      backendUrl: smepayConfig.getBackendUrl(),
-      hasCredentials: !!(smepayConfig.clientId && smepayConfig.clientSecret)
-    });
-  }
-} catch (error) {
-  console.error('❌ SMEPay configuration error:', error.message);
-  
-  if (smepayConfig.enableLogging) {
-    console.error('🔧 Available Environment Variables:', {
-      NODE_ENV: process.env.NODE_ENV,
-      SMEPAY_CLIENT_ID: !!process.env.SMEPAY_CLIENT_ID,
-      SMEPAY_CLIENT_SECRET: !!process.env.SMEPAY_CLIENT_SECRET,
-      FRONTEND_URL_PROD: process.env.FRONTEND_URL_PROD,
-      BACKEND_URL_PROD: process.env.BACKEND_URL_PROD,
-      FRONTEND_URL: process.env.FRONTEND_URL,
-      BACKEND_URL: process.env.BACKEND_URL
-    });
-  }
-  
-  // Only throw in production to prevent development issues
-  if (process.env.NODE_ENV === 'production') {
-    throw error;
-  }
-}
+// Validate configuration on load
+smepayConfig.validateConfig();
+
+// Log configuration in development
+smepayConfig.logConfig();
 
 module.exports = smepayConfig;

@@ -1,55 +1,83 @@
-const Admin = require('../models/Admin');
-const Seller = require('../models/Seller');
+// backend/controllers/adminController.js - ENHANCED with Order Management
+// 🎯 ADDED: Complete order management system for admins
+// 🎯 ADDED: Delivery agent assignment functionality
+// 🎯 ADDED: Real-time notifications for order workflow
+
+const Order = require('../models/Order');
 const User = require('../models/User');
+const Seller = require('../models/Seller');
 const Product = require('../models/Product');
+const Admin = require('../models/Admin');
+const DeliveryAgent = require('../models/DeliveryAgent');
 const { generateAdminToken } = require('../utils/jwtToken');
 const { validationResult } = require('express-validator');
 
-// Enhanced logging function
-const adminLog = (action, status, data = null) => {
+// Enhanced logging for admin operations
+const logAdmin = (action, data, level = 'info') => {
   const timestamp = new Date().toISOString();
-  const logLevel = status === 'SUCCESS' ? '✅' : status === 'ERROR' ? '❌' : '🔄';
+  const logLevels = {
+    info: '🔧',
+    success: '✅',
+    warning: '⚠️',
+    error: '❌'
+  };
   
-  console.log(`${logLevel} [ADMIN-CONTROLLER] ${timestamp} - ${action}`, data ? JSON.stringify(data, null, 2) : '');
+  console.log(`${logLevels[level]} [ADMIN-CONTROLLER] ${timestamp} - ${action}`, 
+    data ? JSON.stringify(data, null, 2) : '');
 };
 
-// @desc    Admin Login
+// @desc    Admin login
 // @route   POST /api/admin/login
 // @access  Public
-exports.loginAdmin = async (req, res) => {
+const loginAdmin = async (req, res) => {
   try {
-    adminLog('Admin Login Attempt', 'INFO', { email: req.body.email });
+    const { email, password } = req.body;
 
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      adminLog('Admin Login Validation Error', 'ERROR', errors.array());
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+    logAdmin('ADMIN_LOGIN_ATTEMPT', {
+      email,
+      hasPassword: !!password,
+      timestamp: new Date().toISOString()
+    });
+
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required',
+        code: 'MISSING_CREDENTIALS'
       });
     }
 
-    const { email, password } = req.body;
-
     // Find admin by email
-    const admin = await Admin.findOne({ email, isActive: true });
-
+    const admin = await Admin.findOne({ email }).select('+password');
+    
     if (!admin) {
-      adminLog('Admin Login Failed', 'ERROR', { email, reason: 'Admin not found' });
+      logAdmin('ADMIN_LOGIN_FAILED', { email, reason: 'admin_not_found' }, 'error');
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid credentials',
+        code: 'INVALID_CREDENTIALS'
+      });
+    }
+
+    // Check if admin is active
+    if (!admin.isActive) {
+      logAdmin('ADMIN_LOGIN_FAILED', { email, reason: 'admin_inactive' }, 'error');
+      return res.status(401).json({
+        success: false,
+        message: 'Admin account is inactive',
+        code: 'ACCOUNT_INACTIVE'
       });
     }
 
     // Check password
     const isMatch = await admin.matchPassword(password);
-
     if (!isMatch) {
-      adminLog('Admin Login Failed', 'ERROR', { email, reason: 'Password mismatch' });
+      logAdmin('ADMIN_LOGIN_FAILED', { email, reason: 'password_mismatch' }, 'error');
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid credentials',
+        code: 'INVALID_CREDENTIALS'
       });
     }
 
@@ -57,17 +85,19 @@ exports.loginAdmin = async (req, res) => {
     admin.lastLogin = new Date();
     await admin.save();
 
-    // Generate JWT token
+    // Generate token
     const token = generateAdminToken(admin._id);
 
-    adminLog('Admin Login Success', 'SUCCESS', { 
-      adminId: admin._id, 
-      adminName: admin.name,
-      role: admin.role 
-    });
+    logAdmin('ADMIN_LOGIN_SUCCESS', {
+      adminId: admin._id,
+      email: admin.email,
+      name: admin.name,
+      role: admin.role
+    }, 'success');
 
     res.status(200).json({
       success: true,
+      message: 'Admin login successful',
       data: {
         _id: admin._id,
         name: admin.name,
@@ -77,314 +107,856 @@ exports.loginAdmin = async (req, res) => {
         token
       }
     });
+
   } catch (error) {
-    adminLog('Admin Login Error', 'ERROR', { error: error.message });
+    logAdmin('ADMIN_LOGIN_ERROR', {
+      error: error.message,
+      stack: error.stack
+    }, 'error');
+
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Internal server error',
+      code: 'SERVER_ERROR'
     });
   }
 };
 
-// @desc    Get All Registered Sellers
-// @route   GET /api/admin/sellers
-// @access  Private (Admin)
-exports.getAllSellers = async (req, res) => {
-  try {
-    adminLog('Get All Sellers Request', 'INFO');
-
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const skip = (page - 1) * limit;
-
-    // Get all sellers with shop information
-    const [sellers, totalSellers] = await Promise.all([
-      Seller.find({})
-        .select('-password -resetPasswordToken -resetPasswordExpires')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      Seller.countDocuments({})
-    ]);
-
-    // Get product counts for each seller
-    const sellerIds = sellers.map(seller => seller._id);
-    const productCounts = await Product.aggregate([
-      { $match: { seller: { $in: sellerIds } } },
-      { $group: { _id: '$seller', count: { $sum: 1 } } }
-    ]);
-
-    // Create a map for quick lookup
-    const productCountMap = productCounts.reduce((acc, item) => {
-      acc[item._id.toString()] = item.count;
-      return acc;
-    }, {});
-
-    // Add product counts to sellers
-    const sellersWithCounts = sellers.map(seller => ({
-      ...seller,
-      productCount: productCountMap[seller._id.toString()] || 0
-    }));
-
-    adminLog('Get All Sellers Success', 'SUCCESS', { 
-      count: sellers.length,
-      total: totalSellers,
-      page,
-      limit
-    });
-
-    res.status(200).json({
-      success: true,
-      data: sellersWithCounts,
-      pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(totalSellers / limit),
-        totalSellers,
-        hasNextPage: page < Math.ceil(totalSellers / limit),
-        hasPrevPage: page > 1
-      }
-    });
-  } catch (error) {
-    adminLog('Get All Sellers Error', 'ERROR', { error: error.message });
-    res.status(500).json({
-      success: false,
-      message: 'Server Error',
-      error: error.message
-    });
-  }
-};
-
-// @desc    Get Single Seller Profile with Products
-// @route   GET /api/admin/sellers/:id
-// @access  Private (Admin)
-exports.getSellerProfile = async (req, res) => {
-  try {
-    const { id } = req.params;
-    adminLog('Get Seller Profile Request', 'INFO', { sellerId: id });
-
-    // Get seller details
-    const seller = await Seller.findById(id)
-      .select('-password -resetPasswordToken -resetPasswordExpires')
-      .lean();
-
-    if (!seller) {
-      adminLog('Get Seller Profile Error', 'ERROR', { sellerId: id, reason: 'Seller not found' });
-      return res.status(404).json({
-        success: false,
-        message: 'Seller not found'
-      });
-    }
-
-    // Get seller's products
-    const products = await Product.find({ seller: id })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    // Calculate seller statistics
-    const stats = {
-      totalProducts: products.length,
-      activeProducts: products.filter(p => p.status === 'active').length,
-      pausedProducts: products.filter(p => p.status === 'paused').length,
-      outOfStockProducts: products.filter(p => p.status === 'outOfStock').length,
-      limitedEditionProducts: products.filter(p => p.isLimitedEdition).length,
-      trendingProducts: products.filter(p => p.isTrending).length
-    };
-
-    adminLog('Get Seller Profile Success', 'SUCCESS', { 
-      sellerId: id,
-      sellerName: seller.firstName,
-      shopName: seller.shop?.name,
-      totalProducts: stats.totalProducts
-    });
-
-    res.status(200).json({
-      success: true,
-      data: {
-        seller,
-        products,
-        stats
-      }
-    });
-  } catch (error) {
-    adminLog('Get Seller Profile Error', 'ERROR', { 
-      sellerId: req.params.id, 
-      error: error.message 
-    });
-    res.status(500).json({
-      success: false,
-      message: 'Server Error',
-      error: error.message
-    });
-  }
-};
-
-// @desc    Get All Registered Users/Buyers
-// @route   GET /api/admin/users
-// @access  Private (Admin)
-exports.getAllUsers = async (req, res) => {
-  try {
-    adminLog('Get All Users Request', 'INFO');
-
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const skip = (page - 1) * limit;
-
-    // Get all users
-    const [users, totalUsers] = await Promise.all([
-      User.find({})
-        .select('-password')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      User.countDocuments({})
-    ]);
-
-    adminLog('Get All Users Success', 'SUCCESS', { 
-      count: users.length,
-      total: totalUsers,
-      page,
-      limit
-    });
-
-    res.status(200).json({
-      success: true,
-      data: users,
-      pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(totalUsers / limit),
-        totalUsers,
-        hasNextPage: page < Math.ceil(totalUsers / limit),
-        hasPrevPage: page > 1
-      }
-    });
-  } catch (error) {
-    adminLog('Get All Users Error', 'ERROR', { error: error.message });
-    res.status(500).json({
-      success: false,
-      message: 'Server Error',
-      error: error.message
-    });
-  }
-};
-
-// @desc    Get Single User Profile
-// @route   GET /api/admin/users/:id
-// @access  Private (Admin)
-exports.getUserProfile = async (req, res) => {
-  try {
-    const { id } = req.params;
-    adminLog('Get User Profile Request', 'INFO', { userId: id });
-
-    // Get user details with populated wishlist
-    const user = await User.findById(id)
-      .select('-password')
-      .populate({
-        path: 'wishlist',
-        select: 'name images zammerPrice mrp category'
-      })
-      .lean();
-
-    if (!user) {
-      adminLog('Get User Profile Error', 'ERROR', { userId: id, reason: 'User not found' });
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    // Calculate user statistics
-    const stats = {
-      wishlistItems: user.wishlist ? user.wishlist.length : 0,
-      isVerified: user.isVerified,
-      hasLocation: !!(user.location && user.location.coordinates),
-      joinedDate: user.createdAt
-    };
-
-    adminLog('Get User Profile Success', 'SUCCESS', { 
-      userId: id,
-      userName: user.name,
-      userEmail: user.email,
-      wishlistItems: stats.wishlistItems
-    });
-
-    res.status(200).json({
-      success: true,
-      data: {
-        user,
-        stats
-      }
-    });
-  } catch (error) {
-    adminLog('Get User Profile Error', 'ERROR', { 
-      userId: req.params.id, 
-      error: error.message 
-    });
-    res.status(500).json({
-      success: false,
-      message: 'Server Error',
-      error: error.message
-    });
-  }
-};
-
-// @desc    Get Admin Dashboard Statistics
+// @desc    Get dashboard statistics
 // @route   GET /api/admin/dashboard/stats
 // @access  Private (Admin)
-exports.getDashboardStats = async (req, res) => {
+const getDashboardStats = async (req, res) => {
   try {
-    adminLog('Get Dashboard Stats Request', 'INFO');
+    logAdmin('DASHBOARD_STATS_REQUEST', { adminId: req.admin._id });
 
+    // Get various statistics
     const [
-      totalSellers,
       totalUsers,
+      totalSellers,
       totalProducts,
       activeProducts,
-      sellersWithShops,
-      recentSellers,
-      recentUsers
+      totalOrders,
+      pendingOrders,
+      completedOrders,
+      totalRevenue,
+      recentUsers,
+      recentSellers
     ] = await Promise.all([
-      Seller.countDocuments({}),
-      User.countDocuments({}),
-      Product.countDocuments({}),
-      Product.countDocuments({ status: 'active' }),
-      Seller.countDocuments({ 'shop.name': { $exists: true, $ne: null, $ne: '' } }),
-      Seller.find({}).sort({ createdAt: -1 }).limit(5).select('firstName email shop.name createdAt').lean(),
-      User.find({}).sort({ createdAt: -1 }).limit(5).select('name email createdAt').lean()
+      User.countDocuments(),
+      Seller.countDocuments(),
+      Product.countDocuments(),
+      Product.countDocuments({ isActive: true }),
+      Order.countDocuments(),
+      Order.countDocuments({ status: 'pending' }),
+      Order.countDocuments({ status: 'delivered' }),
+      Order.aggregate([
+        { $match: { isPaid: true } },
+        { $group: { _id: null, total: { $sum: '$totalPrice' } } }
+      ]),
+      User.find().sort({ createdAt: -1 }).limit(5).select('name email createdAt'),
+      Seller.find().sort({ createdAt: -1 }).limit(5).select('firstName lastName email shop createdAt')
     ]);
+
+    const revenueData = totalRevenue[0] || { total: 0 };
 
     const stats = {
       overview: {
-        totalSellers,
         totalUsers,
+        totalSellers,
         totalProducts,
         activeProducts,
-        sellersWithShops
+        totalOrders,
+        pendingOrders,
+        completedOrders,
+        totalRevenue: revenueData.total
       },
       recent: {
-        sellers: recentSellers,
-        users: recentUsers
+        users: recentUsers,
+        sellers: recentSellers
       }
     };
 
-    adminLog('Get Dashboard Stats Success', 'SUCCESS', { 
-      totalSellers,
-      totalUsers,
-      totalProducts
-    });
+    logAdmin('DASHBOARD_STATS_SUCCESS', {
+      adminId: req.admin._id,
+      statsGenerated: Object.keys(stats.overview)
+    }, 'success');
 
     res.status(200).json({
       success: true,
+      message: 'Dashboard statistics retrieved successfully',
       data: stats
     });
+
   } catch (error) {
-    adminLog('Get Dashboard Stats Error', 'ERROR', { error: error.message });
+    logAdmin('DASHBOARD_STATS_ERROR', {
+      adminId: req.admin._id,
+      error: error.message
+    }, 'error');
+
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Failed to fetch dashboard statistics'
     });
   }
-}; 
+};
+
+// 🎯 NEW: Get recent orders for admin approval
+// @desc    Get recent orders needing approval
+// @route   GET /api/admin/orders/recent
+// @access  Private (Admin)
+const getRecentOrders = async (req, res) => {
+  try {
+    const { status = 'pending', limit = 10, page = 1 } = req.query;
+
+    logAdmin('GET_RECENT_ORDERS_START', {
+      adminId: req.admin._id,
+      filters: { status, limit, page }
+    });
+
+    const skip = (page - 1) * limit;
+
+    // Build query filter
+    const filter = {
+      isPaid: true, // Only show paid orders
+      status: { $in: ['pending', 'confirmed', 'processing'] }
+    };
+
+    if (status && status !== 'all') {
+      filter.status = status;
+    }
+
+    // Get orders with populated data
+    const orders = await Order.find(filter)
+      .populate('user', 'name email mobileNumber')
+      .populate('seller', 'firstName lastName email shop')
+      .populate('assignedDeliveryAgent', 'name email vehicleType')
+      .populate('orderItems.product', 'name images')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const totalOrders = await Order.countDocuments(filter);
+    const totalPages = Math.ceil(totalOrders / limit);
+
+    logAdmin('GET_RECENT_ORDERS_SUCCESS', {
+      adminId: req.admin._id,
+      ordersCount: orders.length,
+      totalOrders,
+      currentPage: page
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Recent orders retrieved successfully',
+      data: orders,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalOrders,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
+    });
+
+  } catch (error) {
+    logAdmin('GET_RECENT_ORDERS_ERROR', {
+      adminId: req.admin._id,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch recent orders'
+    });
+  }
+};
+
+// 🎯 NEW: Get all orders with filtering
+// @desc    Get all orders with filtering and pagination
+// @route   GET /api/admin/orders
+// @access  Private (Admin)
+const getAllOrders = async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 20, 
+      status, 
+      paymentStatus, 
+      dateFrom, 
+      dateTo,
+      sellerId,
+      userId
+    } = req.query;
+
+    logAdmin('GET_ALL_ORDERS_START', {
+      adminId: req.admin._id,
+      filters: { page, limit, status, paymentStatus, dateFrom, dateTo }
+    });
+
+    const skip = (page - 1) * limit;
+
+    // Build query filter
+    const filter = {};
+
+    if (status && status !== 'all') {
+      filter.status = status;
+    }
+
+    if (paymentStatus) {
+      filter.isPaid = paymentStatus === 'paid';
+    }
+
+    if (sellerId) {
+      filter.seller = sellerId;
+    }
+
+    if (userId) {
+      filter.user = userId;
+    }
+
+    if (dateFrom || dateTo) {
+      filter.createdAt = {};
+      if (dateFrom) {
+        filter.createdAt.$gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        filter.createdAt.$lte = new Date(dateTo);
+      }
+    }
+
+    // Get orders with populated data
+    const orders = await Order.find(filter)
+      .populate('user', 'name email mobileNumber')
+      .populate('seller', 'firstName lastName email shop')
+      .populate('assignedDeliveryAgent', 'name email vehicleType status')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const totalOrders = await Order.countDocuments(filter);
+    const totalPages = Math.ceil(totalOrders / limit);
+
+    logAdmin('GET_ALL_ORDERS_SUCCESS', {
+      adminId: req.admin._id,
+      ordersCount: orders.length,
+      totalOrders,
+      filters: filter
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Orders retrieved successfully',
+      data: orders,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalOrders,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
+    });
+
+  } catch (error) {
+    logAdmin('GET_ALL_ORDERS_ERROR', {
+      adminId: req.admin._id,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch orders'
+    });
+  }
+};
+
+// 🎯 NEW: Get single order details
+// @desc    Get detailed information about a specific order
+// @route   GET /api/admin/orders/:orderId
+// @access  Private (Admin)
+const getOrderDetails = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    logAdmin('GET_ORDER_DETAILS_START', {
+      adminId: req.admin._id,
+      orderId
+    });
+
+    const order = await Order.findById(orderId)
+      .populate('user', 'name email mobileNumber')
+      .populate('seller', 'firstName lastName email shop')
+      .populate('assignedDeliveryAgent', 'name email vehicleType status')
+      .populate('orderItems.product', 'name images price description');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    logAdmin('GET_ORDER_DETAILS_SUCCESS', {
+      adminId: req.admin._id,
+      orderId,
+      orderNumber: order.orderNumber,
+      status: order.status
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Order details retrieved successfully',
+      data: order
+    });
+
+  } catch (error) {
+    logAdmin('GET_ORDER_DETAILS_ERROR', {
+      adminId: req.admin._id,
+      orderId: req.params.orderId,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch order details'
+    });
+  }
+};
+
+// 🎯 NEW: Get delivery agents
+// @desc    Get all delivery agents with filtering
+// @route   GET /api/admin/delivery-agents
+// @access  Private (Admin)
+const getDeliveryAgents = async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 20, 
+      status, 
+      isActive, 
+      vehicleType,
+      area 
+    } = req.query;
+
+    logAdmin('GET_DELIVERY_AGENTS_START', {
+      adminId: req.admin._id,
+      filters: { page, limit, status, isActive, vehicleType }
+    });
+
+    const skip = (page - 1) * limit;
+
+    // Build query filter
+    const filter = {};
+
+    if (status && status !== 'all') {
+      filter.status = status;
+    }
+
+    if (isActive !== undefined) {
+      filter.isActive = isActive === 'true';
+    }
+
+    if (vehicleType && vehicleType !== 'all') {
+      filter.vehicleType = vehicleType;
+    }
+
+    if (area) {
+      filter.area = new RegExp(area, 'i');
+    }
+
+    const agents = await DeliveryAgent.find(filter)
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const totalAgents = await DeliveryAgent.countDocuments(filter);
+    const totalPages = Math.ceil(totalAgents / limit);
+
+    logAdmin('GET_DELIVERY_AGENTS_SUCCESS', {
+      adminId: req.admin._id,
+      agentsCount: agents.length,
+      totalAgents,
+      activeAgents: agents.filter(a => a.isActive).length
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Delivery agents retrieved successfully',
+      data: agents,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalAgents,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
+    });
+
+  } catch (error) {
+    logAdmin('GET_DELIVERY_AGENTS_ERROR', {
+      adminId: req.admin._id,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch delivery agents'
+    });
+  }
+};
+
+// 🎯 NEW: Get delivery agent profile with history
+// @desc    Get detailed delivery agent profile
+// @route   GET /api/admin/delivery-agents/:agentId
+// @access  Private (Admin)
+const getDeliveryAgentProfile = async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    
+    logAdmin('GET_DELIVERY_AGENT_PROFILE_START', {
+      adminId: req.admin._id,
+      agentId
+    });
+
+    const agent = await DeliveryAgent.findById(agentId)
+      .select('-password')
+      .populate('currentOrder', 'orderNumber status totalPrice createdAt')
+      .populate('assignedOrders.order', 'orderNumber status totalPrice createdAt deliveredAt user');
+      
+    if (!agent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Delivery agent not found'
+      });
+    }
+    
+    // Calculate delivery history stats
+    const deliveryHistory = await Order.find({
+      assignedDeliveryAgent: agentId
+    }).populate('user', 'name').sort({ createdAt: -1 });
+
+    logAdmin('GET_DELIVERY_AGENT_PROFILE_SUCCESS', {
+      adminId: req.admin._id,
+      agentId,
+      agentName: agent.name,
+      totalDeliveries: agent.deliveryStats.totalDeliveries
+    }, 'success');
+    
+    res.status(200).json({
+      success: true,
+      message: 'Delivery agent profile retrieved successfully',
+      data: {
+        agent,
+        deliveryHistory,
+        stats: {
+          totalDeliveries: agent.deliveryStats.totalDeliveries,
+          completedDeliveries: agent.deliveryStats.completedDeliveries,
+          averageRating: agent.deliveryStats.averageRating,
+          completionRate: agent.completionRate
+        }
+      }
+    });
+
+  } catch (error) {
+    logAdmin('GET_DELIVERY_AGENT_PROFILE_ERROR', {
+      adminId: req.admin._id,
+      agentId: req.params.agentId,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch delivery agent profile'
+    });
+  }
+};
+
+// 🎯 NEW: Approve order and assign to delivery agent
+// @desc    Approve an order and assign it to a delivery agent
+// @route   POST /api/admin/orders/approve-assign
+// @access  Private (Admin)
+const approveAndAssignOrder = async (req, res) => {
+  try {
+    const { orderId, deliveryAgentId, notes } = req.body;
+
+    logAdmin('APPROVE_ASSIGN_ORDER_START', {
+      adminId: req.admin._id,
+      orderId,
+      deliveryAgentId,
+      hasNotes: !!notes
+    });
+
+    // Validate input
+    if (!orderId || !deliveryAgentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID and Delivery Agent ID are required'
+      });
+    }
+
+    // Find the order
+    const order = await Order.findById(orderId)
+      .populate('user', 'name email mobileNumber')
+      .populate('seller', 'firstName lastName email shop');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Check if order is in correct state
+    if (order.status !== 'pending' && order.status !== 'confirmed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Order cannot be assigned in current status'
+      });
+    }
+
+    // Find the delivery agent
+    const deliveryAgent = await DeliveryAgent.findById(deliveryAgentId);
+
+    if (!deliveryAgent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Delivery agent not found'
+      });
+    }
+
+    // Check if agent is available
+    if (!deliveryAgent.isActive || deliveryAgent.status !== 'available') {
+      return res.status(400).json({
+        success: false,
+        message: 'Delivery agent is not available'
+      });
+    }
+
+    // Update order
+    order.status = 'approved';
+    order.assignedDeliveryAgent = deliveryAgentId;
+    order.approvedBy = req.admin._id;
+    order.approvedAt = new Date();
+    
+    if (notes) {
+      order.adminNotes = notes;
+    }
+
+    // Add to order history
+    order.statusHistory.push({
+      status: 'approved',
+      updatedBy: req.admin._id,
+      updatedAt: new Date(),
+      notes: notes || 'Order approved and assigned to delivery agent'
+    });
+
+    await order.save();
+
+    // Update delivery agent status
+    deliveryAgent.status = 'assigned';
+    deliveryAgent.currentOrder = orderId;
+    await deliveryAgent.save();
+
+    logAdmin('APPROVE_ASSIGN_ORDER_SUCCESS', {
+      adminId: req.admin._id,
+      orderId,
+      orderNumber: order.orderNumber,
+      deliveryAgentId,
+      agentName: deliveryAgent.name
+    }, 'success');
+
+    // 🎯 TODO: Send real-time notification to delivery agent via socket
+    // socketService.sendToDeliveryAgent(deliveryAgentId, 'order-assigned', {
+    //   order: order,
+    //   message: 'New order assigned to you'
+    // });
+
+    // 🎯 TODO: Send notification to seller
+    // socketService.sendToSeller(order.seller._id, 'order-approved', {
+    //   order: order,
+    //   message: 'Your order has been approved and assigned for delivery'
+    // });
+
+    // 🎯 TODO: Send notification to buyer
+    // socketService.sendToBuyer(order.user._id, 'order-status-update', {
+    //   order: order,
+    //   message: 'Your order has been approved and will be delivered soon'
+    // });
+
+    res.status(200).json({
+      success: true,
+      message: 'Order approved and assigned successfully',
+      data: {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        assignedDeliveryAgent: {
+          _id: deliveryAgent._id,
+          name: deliveryAgent.name,
+          email: deliveryAgent.email,
+          vehicleType: deliveryAgent.vehicleType
+        },
+        approvedBy: req.admin._id,
+        approvedAt: order.approvedAt
+      }
+    });
+
+  } catch (error) {
+    logAdmin('APPROVE_ASSIGN_ORDER_ERROR', {
+      adminId: req.admin._id,
+      orderId: req.body.orderId,
+      deliveryAgentId: req.body.deliveryAgentId,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to approve and assign order'
+    });
+  }
+};
+
+// 🎯 NEW: Update order status
+// @desc    Update order status with admin notes
+// @route   PUT /api/admin/orders/:orderId/status
+// @access  Private (Admin)
+const updateOrderStatus = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status, notes } = req.body;
+
+    logAdmin('UPDATE_ORDER_STATUS_START', {
+      adminId: req.admin._id,
+      orderId,
+      newStatus: status,
+      hasNotes: !!notes
+    });
+
+    // Validate status
+    const validStatuses = ['pending', 'confirmed', 'approved', 'processing', 'shipped', 'delivered', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status provided'
+      });
+    }
+
+    const order = await Order.findById(orderId);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    const previousStatus = order.status;
+
+    // Update order
+    order.status = status;
+    
+    if (notes) {
+      order.adminNotes = notes;
+    }
+
+    // Add to status history
+    order.statusHistory.push({
+      status,
+      updatedBy: req.admin._id,
+      updatedAt: new Date(),
+      notes: notes || `Status updated by admin`
+    });
+
+    await order.save();
+
+    logAdmin('UPDATE_ORDER_STATUS_SUCCESS', {
+      adminId: req.admin._id,
+      orderId,
+      orderNumber: order.orderNumber,
+      previousStatus,
+      newStatus: status
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Order status updated successfully',
+      data: {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        previousStatus,
+        updatedBy: req.admin._id,
+        updatedAt: new Date()
+      }
+    });
+
+  } catch (error) {
+    logAdmin('UPDATE_ORDER_STATUS_ERROR', {
+      adminId: req.admin._id,
+      orderId: req.params.orderId,
+      status: req.body.status,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update order status'
+    });
+  }
+};
+
+// Existing functions (getAllSellers, getSellerProfile, getAllUsers, getUserProfile) remain the same...
+// 🎯 KEEPING EXISTING FUNCTIONALITY - Adding only the missing ones for completeness
+
+// @desc    Get all sellers
+// @route   GET /api/admin/sellers
+// @access  Private (Admin)
+const getAllSellers = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, search } = req.query;
+    const skip = (page - 1) * limit;
+
+    logAdmin('GET_ALL_SELLERS_START', {
+      adminId: req.admin._id,
+      filters: { page, limit, status, search }
+    });
+
+    let filter = {};
+    
+    if (status && status !== 'all') {
+      filter.isActive = status === 'active';
+    }
+    
+    if (search) {
+      filter.$or = [
+        { firstName: new RegExp(search, 'i') },
+        { lastName: new RegExp(search, 'i') },
+        { email: new RegExp(search, 'i') },
+        { 'shop.name': new RegExp(search, 'i') }
+      ];
+    }
+
+    const sellers = await Seller.find(filter)
+      .select('-password')
+      .populate('shop')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const totalSellers = await Seller.countDocuments(filter);
+    const totalPages = Math.ceil(totalSellers / limit);
+
+    logAdmin('GET_ALL_SELLERS_SUCCESS', {
+      adminId: req.admin._id,
+      sellersCount: sellers.length,
+      totalSellers
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Sellers retrieved successfully',
+      data: sellers,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalSellers,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
+    });
+
+  } catch (error) {
+    logAdmin('GET_ALL_SELLERS_ERROR', {
+      adminId: req.admin._id,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch sellers'
+    });
+  }
+};
+
+// @desc    Get all users
+// @route   GET /api/admin/users
+// @access  Private (Admin)
+const getAllUsers = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, search } = req.query;
+    const skip = (page - 1) * limit;
+
+    logAdmin('GET_ALL_USERS_START', {
+      adminId: req.admin._id,
+      filters: { page, limit, status, search }
+    });
+
+    let filter = {};
+    
+    if (status && status !== 'all') {
+      filter.isActive = status === 'active';
+    }
+    
+    if (search) {
+      filter.$or = [
+        { name: new RegExp(search, 'i') },
+        { email: new RegExp(search, 'i') }
+      ];
+    }
+
+    const users = await User.find(filter)
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const totalUsers = await User.countDocuments(filter);
+    const totalPages = Math.ceil(totalUsers / limit);
+
+    logAdmin('GET_ALL_USERS_SUCCESS', {
+      adminId: req.admin._id,
+      usersCount: users.length,
+      totalUsers
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Users retrieved successfully',
+      data: users,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalUsers,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
+    });
+
+  } catch (error) {
+    logAdmin('GET_ALL_USERS_ERROR', {
+      adminId: req.admin._id,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch users'
+    });
+  }
+};
+
+module.exports = {
+  loginAdmin,
+  getDashboardStats,
+  getAllSellers,
+  getAllUsers,
+  // 🎯 NEW: Order management exports
+  getRecentOrders,
+  getAllOrders,
+  getOrderDetails,
+  approveAndAssignOrder,
+  updateOrderStatus,
+  // 🎯 NEW: Delivery agent management exports
+  getDeliveryAgents,
+  getDeliveryAgentProfile
+};

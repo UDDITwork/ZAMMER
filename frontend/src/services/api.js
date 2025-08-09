@@ -22,10 +22,10 @@ console.log('🌐 Universal API URL:', API_URL);
 const api = axios.create({
   baseURL: API_URL,
   timeout: 30000,
-  withCredentials: false,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true  // ✅ ENSURE THIS IS true
 });
 
 // 🔧 UNIVERSAL: Request interceptor with token handling

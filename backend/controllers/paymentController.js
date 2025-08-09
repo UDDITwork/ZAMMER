@@ -1,70 +1,51 @@
-// backend/controllers/paymentController.js - SMEPay Integration Controller
+// backend/controllers/paymentController.js - COMPLETE SMEPay Integration Controller
 
 const Order = require('../models/Order');
-const User = require('../models/User');
 const smepayService = require('../services/smepayService');
-const { validationResult } = require('express-validator');
+const smepayConfig = require('../config/smepay');
 
-// Enhanced terminal logging for payment operations
-const terminalLog = (action, status, data = null) => {
+// Enhanced logging
+const logPayment = (action, data, level = 'info') => {
   const timestamp = new Date().toISOString();
-  const logLevel = status === 'SUCCESS' ? '✅' : status === 'ERROR' ? '❌' : '🔄';
+  const logLevels = {
+    info: '💳',
+    success: '✅',
+    warning: '⚠️',
+    error: '❌'
+  };
   
-  console.log(`${logLevel} [PAYMENT-CONTROLLER] ${timestamp} - ${action}`, data ? JSON.stringify(data, null, 2) : '');
-  
-  // Additional structured logging for production monitoring
-  if (process.env.NODE_ENV === 'production') {
-    console.log(JSON.stringify({
-      timestamp,
-      service: 'paymentController',
-      action,
-      status,
-      data
-    }));
-  }
+  console.log(`${logLevels[level]} [PAYMENT-CONTROLLER] ${timestamp} - ${action}`, 
+    data ? JSON.stringify(data, null, 2) : '');
 };
 
 // @desc    Create SMEPay payment order
 // @route   POST /api/payments/smepay/create-order
 // @access  Private (User)
-exports.createSMEPayOrder = async (req, res) => {
+const createSMEPayOrder = async (req, res) => {
   try {
-    terminalLog('SMEPAY_CREATE_ORDER_START', 'PROCESSING', {
-      userId: req.user._id,
-      userEmail: req.user.email,
-      requestBody: req.body
+    const { orderId, amount, callbackUrl } = req.body;
+    const userId = req.user._id;
+
+    logPayment('CREATE_SMEPAY_ORDER_START', {
+      orderId,
+      amount,
+      userId: userId.toString(),
+      callbackUrl
     });
 
-    console.log(`
-💳 ===============================
-   CREATING SMEPAY ORDER
-===============================
-👤 User: ${req.user.name} (${req.user.email})
-📦 Order ID: ${req.body.orderId}
-💰 Amount: ₹${req.body.amount}
-🕐 Time: ${new Date().toLocaleString()}
-===============================`);
-
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      terminalLog('SMEPAY_VALIDATION_ERROR', 'ERROR', errors.array());
-      console.log('❌ Validation errors:', errors.array());
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+    // Validate request
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID is required'
       });
     }
 
-    const { orderId, amount, callbackUrl } = req.body;
-
-    // Validate that order exists and belongs to user
+    // Find the order
     const order = await Order.findById(orderId).populate('user');
+    
     if (!order) {
-      terminalLog('ORDER_VALIDATION_ERROR', 'ERROR', {
-        orderId,
-        reason: 'order_not_found'
-      });
-      console.log(`❌ Order not found: ${orderId}`);
+      logPayment('ORDER_NOT_FOUND', { orderId }, 'error');
       return res.status(404).json({
         success: false,
         message: 'Order not found'
@@ -72,107 +53,92 @@ exports.createSMEPayOrder = async (req, res) => {
     }
 
     // Check if user owns this order
-    if (order.user._id.toString() !== req.user._id.toString()) {
-      terminalLog('ORDER_OWNERSHIP_ERROR', 'ERROR', {
+    if (order.user._id.toString() !== userId.toString()) {
+      logPayment('UNAUTHORIZED_ORDER_ACCESS', {
         orderId,
         orderUserId: order.user._id.toString(),
-        requestUserId: req.user._id.toString()
-      });
-      console.log(`❌ Order ownership mismatch: ${orderId}`);
+        requestUserId: userId.toString()
+      }, 'error');
+      
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to pay for this order'
+        message: 'You can only create payments for your own orders'
       });
     }
 
-    // Check if order is already paid
+    // Check if order is in correct state for payment
     if (order.isPaid) {
-      terminalLog('ORDER_ALREADY_PAID', 'ERROR', {
-        orderId,
-        orderNumber: order.orderNumber,
-        paidAt: order.paidAt
-      });
-      console.log(`❌ Order already paid: ${order.orderNumber}`);
       return res.status(400).json({
         success: false,
         message: 'Order is already paid'
       });
     }
 
-    // Validate amount matches order total
-    if (parseFloat(amount) !== parseFloat(order.totalPrice)) {
-      terminalLog('AMOUNT_MISMATCH_ERROR', 'ERROR', {
-        requestedAmount: amount,
-        orderAmount: order.totalPrice,
-        orderId
-      });
-      console.log(`❌ Amount mismatch: ${amount} vs ${order.totalPrice}`);
-      return res.status(400).json({
-        success: false,
-        message: 'Payment amount does not match order total'
-      });
-    }
+    // Use order total price if amount not provided
+    const paymentAmount = amount || order.totalPrice;
 
     // Prepare SMEPay order data
     const smepayOrderData = {
-      orderId: order.orderNumber, // Use order number instead of MongoDB ID
-      amount: order.totalPrice,
-      callbackUrl: callbackUrl || `${process.env.FRONTEND_URL}/payment/callback`,
+      orderId: order._id.toString(),
+      amount: paymentAmount,
       customerDetails: {
         email: order.user.email,
-        mobile: order.user.mobileNumber || '',
+        mobile: order.user.mobileNumber,
         name: order.user.name
-      }
+      },
+      callbackUrl: callbackUrl || smepayConfig.getCallbackURL()
     };
 
-    terminalLog('SMEPAY_ORDER_DATA_PREPARED', 'PROCESSING', {
-      orderNumber: smepayOrderData.orderId,
-      amount: smepayOrderData.amount,
-      customerEmail: smepayOrderData.customerDetails.email
+    logPayment('CALLING_SMEPAY_SERVICE', {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      amount: paymentAmount,
+      customerEmail: order.user.email
     });
 
-    // Create order with SMEPay
+    // Create SMEPay order
     const smepayResult = await smepayService.createOrder(smepayOrderData);
 
     if (!smepayResult.success) {
-      terminalLog('SMEPAY_CREATE_ORDER_FAILED', 'ERROR', {
+      logPayment('SMEPAY_ORDER_CREATION_FAILED', {
         orderId,
         error: smepayResult.error,
         details: smepayResult.details
-      });
-      console.log(`❌ SMEPay order creation failed: ${smepayResult.error}`);
-      return res.status(500).json({
+      }, 'error');
+
+      return res.status(400).json({
         success: false,
-        message: 'Failed to create payment order',
-        error: smepayResult.error
+        message: smepayResult.error || 'Failed to create SMEPay order',
+        details: smepayResult.details
       });
     }
 
     // Update order with SMEPay details
-    order.paymentResult = {
-      ...order.paymentResult,
-      smepay_order_slug: smepayResult.orderSlug
-    };
-    await order.save();
-
-    terminalLog('SMEPAY_CREATE_ORDER_SUCCESS', 'SUCCESS', {
-      orderId,
-      orderNumber: order.orderNumber,
-      smepayOrderSlug: smepayResult.orderSlug,
-      amount: order.totalPrice
+    order.smepayOrderSlug = smepayResult.orderSlug;
+    order.paymentStatus = 'pending';
+    order.paymentGateway = 'smepay';
+    
+    // Add payment attempt to order history
+    if (!order.paymentAttempts) {
+      order.paymentAttempts = [];
+    }
+    
+    order.paymentAttempts.push({
+      gateway: 'smepay',
+      orderSlug: smepayResult.orderSlug,
+      amount: paymentAmount,
+      status: 'initiated',
+      createdAt: new Date()
     });
 
-    console.log(`
-✅ ===============================
-   SMEPAY ORDER CREATED!
-===============================
-📦 Order: ${order.orderNumber}
-💳 SMEPay Slug: ${smepayResult.orderSlug}
-💰 Amount: ₹${order.totalPrice}
-👤 Customer: ${order.user.name}
-📧 Email: ${order.user.email}
-🔗 Payment URL: Ready for frontend
-===============================`);
+    await order.save();
+
+    logPayment('SMEPAY_ORDER_CREATED_SUCCESS', {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      smepayOrderSlug: smepayResult.orderSlug,
+      amount: paymentAmount
+    }, 'success');
 
     res.status(200).json({
       success: true,
@@ -181,120 +147,83 @@ exports.createSMEPayOrder = async (req, res) => {
         orderId: order._id,
         orderNumber: order.orderNumber,
         smepayOrderSlug: smepayResult.orderSlug,
-        amount: order.totalPrice,
-        customerDetails: smepayOrderData.customerDetails,
-        message: smepayResult.message
+        amount: paymentAmount,
+        callbackUrl: smepayOrderData.callbackUrl,
+        smepayData: smepayResult.data
       }
     });
 
   } catch (error) {
-    terminalLog('SMEPAY_CREATE_ORDER_ERROR', 'ERROR', {
-      userId: req.user?._id,
+    logPayment('CREATE_SMEPAY_ORDER_ERROR', {
       error: error.message,
       stack: error.stack
-    });
-    
-    console.log(`
-❌ ===============================
-   SMEPAY ORDER CREATION FAILED!
-===============================
-👤 User: ${req.user?.name}
-🚨 Error: ${error.message}
-⏱️  Time: ${new Date().toLocaleString()}
-===============================`);
-    
-    console.error('❌ Create SMEPay Order Error:', error);
+    }, 'error');
+
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Internal server error while creating SMEPay order',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-// @desc    Generate QR code for SMEPay order
+// @desc    Generate QR code for SMEPay payment
 // @route   POST /api/payments/smepay/generate-qr
 // @access  Private (User)
-exports.generateSMEPayQR = async (req, res) => {
+const generateSMEPayQR = async (req, res) => {
   try {
-    terminalLog('SMEPAY_GENERATE_QR_START', 'PROCESSING', {
-      userId: req.user._id,
-      requestBody: req.body
-    });
-
-    console.log(`🔳 Generating QR code for SMEPay order...`);
-
     const { orderId } = req.body;
+    const userId = req.user._id;
 
-    // Validate that order exists and belongs to user
-    const order = await Order.findById(orderId).populate('user');
+    logPayment('GENERATE_SMEPAY_QR_START', { orderId, userId: userId.toString() });
+
+    // Find the order
+    const order = await Order.findById(orderId);
+    
     if (!order) {
-      terminalLog('QR_ORDER_VALIDATION_ERROR', 'ERROR', {
-        orderId,
-        reason: 'order_not_found'
-      });
       return res.status(404).json({
         success: false,
         message: 'Order not found'
       });
     }
 
-    // Check if user owns this order
-    if (order.user._id.toString() !== req.user._id.toString()) {
-      terminalLog('QR_ORDER_OWNERSHIP_ERROR', 'ERROR', {
-        orderId,
-        orderUserId: order.user._id.toString(),
-        requestUserId: req.user._id.toString()
-      });
+    // Check ownership
+    if (order.user.toString() !== userId.toString()) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to generate QR for this order'
+        message: 'Unauthorized access to order'
       });
     }
 
     // Check if order has SMEPay slug
-    if (!order.paymentResult?.smepay_order_slug) {
-      terminalLog('QR_SMEPAY_SLUG_MISSING', 'ERROR', {
-        orderId,
-        orderNumber: order.orderNumber
-      });
+    if (!order.smepayOrderSlug) {
       return res.status(400).json({
         success: false,
-        message: 'SMEPay order not created yet. Please create payment order first.'
+        message: 'Order is not prepared for SMEPay payment. Please create payment order first.'
       });
     }
 
     // Generate QR code
-    const qrResult = await smepayService.generateQR(order.paymentResult.smepay_order_slug);
+    const qrResult = await smepayService.generateQR(order.smepayOrderSlug);
 
     if (!qrResult.success) {
-      terminalLog('SMEPAY_GENERATE_QR_FAILED', 'ERROR', {
+      logPayment('QR_GENERATION_FAILED', {
         orderId,
-        orderSlug: order.paymentResult.smepay_order_slug,
         error: qrResult.error
-      });
-      return res.status(500).json({
+      }, 'error');
+
+      return res.status(400).json({
         success: false,
-        message: 'Failed to generate QR code',
-        error: qrResult.error
+        message: qrResult.error || 'Failed to generate QR code'
       });
     }
 
-    // Update order with QR reference ID
-    order.paymentResult = {
-      ...order.paymentResult,
-      smepay_ref_id: qrResult.refId
-    };
-    await order.save();
-
-    terminalLog('SMEPAY_GENERATE_QR_SUCCESS', 'SUCCESS', {
+    logPayment('QR_GENERATED_SUCCESS', {
       orderId,
-      orderNumber: order.orderNumber,
-      refId: qrResult.refId,
-      hasQRCode: !!qrResult.qrCode
-    });
-
-    console.log(`✅ QR code generated for order ${order.orderNumber}`);
+      orderSlug: order.smepayOrderSlug,
+      hasQRCode: !!qrResult.qrCode,
+      refId: qrResult.refId
+    }, 'success');
 
     res.status(200).json({
       success: true,
@@ -305,20 +234,17 @@ exports.generateSMEPayQR = async (req, res) => {
         qrCode: qrResult.qrCode,
         upiLinks: qrResult.upiLinks,
         refId: qrResult.refId,
-        amount: order.totalPrice
+        orderSlug: order.smepayOrderSlug
       }
     });
 
   } catch (error) {
-    terminalLog('SMEPAY_GENERATE_QR_ERROR', 'ERROR', {
-      userId: req.user?._id,
-      error: error.message
-    });
-    console.error('❌ Generate SMEPay QR Error:', error);
+    logPayment('GENERATE_QR_ERROR', { error: error.message }, 'error');
+
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Internal server error while generating QR code',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -326,140 +252,100 @@ exports.generateSMEPayQR = async (req, res) => {
 // @desc    Check SMEPay QR payment status
 // @route   POST /api/payments/smepay/check-qr-status
 // @access  Private (User)
-exports.checkSMEPayQRStatus = async (req, res) => {
+const checkSMEPayQRStatus = async (req, res) => {
   try {
-    terminalLog('SMEPAY_CHECK_QR_STATUS_START', 'PROCESSING', {
-      userId: req.user._id,
-      requestBody: req.body
-    });
-
     const { orderId } = req.body;
+    const userId = req.user._id;
 
-    // Validate that order exists and belongs to user
-    const order = await Order.findById(orderId).populate('user seller');
+    logPayment('CHECK_QR_STATUS_START', { orderId, userId: userId.toString() });
+
+    // Find the order
+    const order = await Order.findById(orderId);
+    
     if (!order) {
-      terminalLog('QR_STATUS_ORDER_NOT_FOUND', 'ERROR', { orderId });
       return res.status(404).json({
         success: false,
         message: 'Order not found'
       });
     }
 
-    // Check if user owns this order
-    if (order.user._id.toString() !== req.user._id.toString()) {
-      terminalLog('QR_STATUS_UNAUTHORIZED', 'ERROR', {
-        orderId,
-        orderUserId: order.user._id.toString(),
-        requestUserId: req.user._id.toString()
-      });
+    // Check ownership
+    if (order.user.toString() !== userId.toString()) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to check status for this order'
+        message: 'Unauthorized access to order'
       });
     }
 
-    // Check if order has required SMEPay data
-    if (!order.paymentResult?.smepay_order_slug || !order.paymentResult?.smepay_ref_id) {
-      terminalLog('QR_STATUS_MISSING_DATA', 'ERROR', {
-        orderId,
-        hasSlug: !!order.paymentResult?.smepay_order_slug,
-        hasRefId: !!order.paymentResult?.smepay_ref_id
-      });
+    if (!order.smepayOrderSlug) {
       return res.status(400).json({
         success: false,
-        message: 'Payment data incomplete. Please regenerate QR code.'
+        message: 'No SMEPay payment found for this order'
       });
     }
 
-    // Check payment status with SMEPay
+    // Get the latest payment attempt
+    const latestAttempt = order.paymentAttempts?.find(
+      attempt => attempt.gateway === 'smepay' && attempt.orderSlug === order.smepayOrderSlug
+    );
+
+    if (!latestAttempt) {
+      return res.status(400).json({
+        success: false,
+        message: 'No payment attempt found'
+      });
+    }
+
+    // Check status with SMEPay
     const statusResult = await smepayService.checkQRStatus({
-      slug: order.paymentResult.smepay_order_slug,
-      refId: order.paymentResult.smepay_ref_id
+      slug: order.smepayOrderSlug,
+      refId: latestAttempt.refId || 'default_ref'
     });
 
     if (!statusResult.success) {
-      terminalLog('SMEPAY_CHECK_QR_STATUS_FAILED', 'ERROR', {
+      logPayment('STATUS_CHECK_FAILED', {
         orderId,
         error: statusResult.error
-      });
-      return res.status(500).json({
+      }, 'error');
+
+      return res.status(400).json({
         success: false,
-        message: 'Failed to check payment status',
-        error: statusResult.error
+        message: statusResult.error || 'Failed to check payment status'
       });
     }
 
-    // If payment is successful, update order
+    // Update order if payment is successful
     if (statusResult.isPaymentSuccessful && !order.isPaid) {
-      terminalLog('PAYMENT_SUCCESS_DETECTED', 'SUCCESS', {
-        orderId,
-        orderNumber: order.orderNumber,
-        paymentStatus: statusResult.paymentStatus
-      });
-
-      // Update order payment status
       order.isPaid = true;
       order.paidAt = new Date();
-      order.paymentMethod = 'SMEPay';
+      order.paymentStatus = 'completed';
       order.paymentResult = {
-        ...order.paymentResult,
-        status: 'completed',
-        smepay_transaction_id: statusResult.data?.transaction_id || '',
-        update_time: new Date().toISOString()
+        gateway: 'smepay',
+        transactionId: statusResult.data.transactionId || statusResult.data.order_id,
+        paidAt: new Date(),
+        paymentMethod: 'UPI/QR'
       };
 
-      // Update order status to Processing (paid orders move to processing)
-      order.status = 'Processing';
-      
+      // Update payment attempt
+      latestAttempt.status = 'completed';
+      latestAttempt.completedAt = new Date();
+      latestAttempt.transactionId = statusResult.data.transactionId;
+
       await order.save();
 
-      console.log(`
-🎉 ===============================
-   PAYMENT SUCCESSFUL!
-===============================
-📦 Order: ${order.orderNumber}
-💳 Transaction ID: ${statusResult.data?.transaction_id || 'N/A'}
-💰 Amount: ₹${order.totalPrice}
-👤 Customer: ${order.user.name}
-🏪 Seller: ${order.seller.firstName}
-📅 Paid At: ${order.paidAt.toLocaleString()}
-===============================`);
-
-      // Emit real-time notification to seller
-      if (global.emitToSeller) {
-        global.emitToSeller(order.seller._id, 'payment-completed', {
-          _id: order._id,
-          orderNumber: order.orderNumber,
-          status: order.status,
-          isPaid: order.isPaid,
-          paidAt: order.paidAt,
-          totalPrice: order.totalPrice,
-          user: order.user,
-          paymentMethod: order.paymentMethod
-        });
-      }
-
-      // Emit notification to buyer
-      if (global.emitToBuyer) {
-        global.emitToBuyer(order.user._id, 'payment-successful', {
-          _id: order._id,
-          orderNumber: order.orderNumber,
-          status: order.status,
-          isPaid: order.isPaid,
-          paidAt: order.paidAt,
-          totalPrice: order.totalPrice,
-          paymentMethod: order.paymentMethod
-        });
-      }
+      logPayment('PAYMENT_COMPLETED', {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        transactionId: statusResult.data.transactionId,
+        amount: order.totalPrice
+      }, 'success');
     }
 
-    terminalLog('SMEPAY_CHECK_QR_STATUS_SUCCESS', 'SUCCESS', {
+    logPayment('STATUS_CHECK_SUCCESS', {
       orderId,
-      orderNumber: order.orderNumber,
-      paymentStatus: statusResult.paymentStatus,
-      isPaymentSuccessful: statusResult.isPaymentSuccessful,
-      orderUpdated: statusResult.isPaymentSuccessful && !order.isPaid
-    });
+      paymentStatus: statusResult.data.paymentStatus,
+      isPaymentSuccessful: statusResult.isPaymentSuccessful
+    }, 'success');
 
     res.status(200).json({
       success: true,
@@ -467,407 +353,292 @@ exports.checkSMEPayQRStatus = async (req, res) => {
       data: {
         orderId: order._id,
         orderNumber: order.orderNumber,
-        paymentStatus: statusResult.paymentStatus,
+        paymentStatus: statusResult.data.paymentStatus,
         isPaymentSuccessful: statusResult.isPaymentSuccessful,
         isPaid: order.isPaid,
-        paidAt: order.paidAt,
-        orderStatus: order.status,
-        transactionId: order.paymentResult?.smepay_transaction_id || null
+        smepayData: statusResult.data
       }
     });
 
   } catch (error) {
-    terminalLog('SMEPAY_CHECK_QR_STATUS_ERROR', 'ERROR', {
-      userId: req.user?._id,
-      error: error.message
-    });
-    console.error('❌ Check SMEPay QR Status Error:', error);
+    logPayment('CHECK_STATUS_ERROR', { error: error.message }, 'error');
+
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Internal server error while checking payment status',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-// @desc    Validate SMEPay order payment
+// @desc    Validate SMEPay payment order
 // @route   POST /api/payments/smepay/validate-order
 // @access  Private (User)
-exports.validateSMEPayOrder = async (req, res) => {
+const validateSMEPayOrder = async (req, res) => {
   try {
-    terminalLog('SMEPAY_VALIDATE_ORDER_START', 'PROCESSING', {
-      userId: req.user._id,
-      requestBody: req.body
-    });
-
     const { orderId } = req.body;
+    const userId = req.user._id;
 
-    // Validate that order exists and belongs to user
-    const order = await Order.findById(orderId).populate('user seller');
+    logPayment('VALIDATE_ORDER_START', { orderId, userId: userId.toString() });
+
+    // Find the order
+    const order = await Order.findById(orderId);
+    
     if (!order) {
-      terminalLog('VALIDATE_ORDER_NOT_FOUND', 'ERROR', { orderId });
       return res.status(404).json({
         success: false,
         message: 'Order not found'
       });
     }
 
-    // Check if user owns this order
-    if (order.user._id.toString() !== req.user._id.toString()) {
-      terminalLog('VALIDATE_ORDER_UNAUTHORIZED', 'ERROR', {
-        orderId,
-        orderUserId: order.user._id.toString(),
-        requestUserId: req.user._id.toString()
-      });
+    // Check ownership
+    if (order.user.toString() !== userId.toString()) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to validate this order'
+        message: 'Unauthorized access to order'
       });
     }
 
-    // Check if order has SMEPay slug
-    if (!order.paymentResult?.smepay_order_slug) {
-      terminalLog('VALIDATE_ORDER_NO_SLUG', 'ERROR', {
-        orderId,
-        orderNumber: order.orderNumber
-      });
+    if (!order.smepayOrderSlug) {
       return res.status(400).json({
         success: false,
-        message: 'SMEPay order not created yet'
+        message: 'No SMEPay payment found for this order'
       });
     }
 
-    // Validate order with SMEPay
-    const validationResult = await smepayService.validateOrder({
-      slug: order.paymentResult.smepay_order_slug,
+    // Validate with SMEPay
+    const validateResult = await smepayService.validateOrder({
+      slug: order.smepayOrderSlug,
       amount: order.totalPrice
     });
 
-    if (!validationResult.success) {
-      terminalLog('SMEPAY_VALIDATE_ORDER_FAILED', 'ERROR', {
+    if (!validateResult.success) {
+      logPayment('ORDER_VALIDATION_FAILED', {
         orderId,
-        error: validationResult.error
-      });
-      return res.status(500).json({
+        error: validateResult.error
+      }, 'error');
+
+      return res.status(400).json({
         success: false,
-        message: 'Failed to validate order payment',
-        error: validationResult.error
+        message: validateResult.error || 'Failed to validate order'
       });
     }
 
-    // If payment is successful and order not yet marked as paid
-    if (validationResult.isPaymentSuccessful && !order.isPaid) {
-      // Update order payment status
+    // Update order if payment is successful
+    if (validateResult.isPaymentSuccessful && !order.isPaid) {
       order.isPaid = true;
       order.paidAt = new Date();
-      order.paymentMethod = 'SMEPay';
+      order.paymentStatus = 'completed';
       order.paymentResult = {
-        ...order.paymentResult,
-        status: 'completed',
-        update_time: new Date().toISOString()
+        gateway: 'smepay',
+        transactionId: validateResult.data.transactionId || 'smepay_' + Date.now(),
+        paidAt: new Date(),
+        paymentMethod: 'SMEPay'
       };
 
-      // Update order status to Processing
-      order.status = 'Processing';
-      
       await order.save();
 
-      terminalLog('PAYMENT_VALIDATION_SUCCESS', 'SUCCESS', {
-        orderId,
+      logPayment('PAYMENT_VALIDATED_AND_COMPLETED', {
+        orderId: order._id,
         orderNumber: order.orderNumber,
-        paymentStatus: validationResult.paymentStatus
-      });
-
-      console.log(`✅ Payment validated and order updated: ${order.orderNumber}`);
+        paymentStatus: validateResult.data.paymentStatus
+      }, 'success');
     }
 
     res.status(200).json({
       success: true,
-      message: 'Order payment validated successfully',
+      message: 'Order validation completed',
       data: {
         orderId: order._id,
         orderNumber: order.orderNumber,
-        paymentStatus: validationResult.paymentStatus,
-        isPaymentSuccessful: validationResult.isPaymentSuccessful,
+        isPaymentSuccessful: validateResult.isPaymentSuccessful,
+        paymentStatus: validateResult.data.paymentStatus,
         isPaid: order.isPaid,
-        paidAt: order.paidAt,
-        orderStatus: order.status
+        smepayData: validateResult.data
       }
     });
 
   } catch (error) {
-    terminalLog('SMEPAY_VALIDATE_ORDER_ERROR', 'ERROR', {
-      userId: req.user?._id,
-      error: error.message
-    });
-    console.error('❌ Validate SMEPay Order Error:', error);
+    logPayment('VALIDATE_ORDER_ERROR', { error: error.message }, 'error');
+
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Internal server error while validating order',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
 // @desc    Handle SMEPay webhook callback
 // @route   POST /api/payments/smepay/webhook
-// @access  Public (webhook)
-exports.handleSMEPayWebhook = async (req, res) => {
+// @access  Public (Called by SMEPay)
+const handleSMEPayWebhook = async (req, res) => {
   try {
-    terminalLog('SMEPAY_WEBHOOK_RECEIVED', 'PROCESSING', {
-      headers: req.headers,
-      body: req.body
+    const webhookPayload = req.body;
+    const signature = req.headers['x-smepay-signature'];
+
+    logPayment('WEBHOOK_RECEIVED', {
+      hasPayload: !!webhookPayload,
+      hasSignature: !!signature,
+      payloadKeys: webhookPayload ? Object.keys(webhookPayload) : []
     });
 
-    console.log(`
-📡 ===============================
-   SMEPAY WEBHOOK RECEIVED
-===============================
-🔗 URL: ${req.originalUrl}
-📝 Method: ${req.method}
-📊 Body Size: ${JSON.stringify(req.body).length} bytes
-🕐 Time: ${new Date().toLocaleString()}
-===============================`);
-
-    const webhookSignature = req.headers['x-smepay-signature'] || req.headers['smepay-signature'];
-    
-    // Process webhook with SMEPay service
-    const webhookResult = await smepayService.processWebhook(req.body, webhookSignature);
+    // Process webhook
+    const webhookResult = await smepayService.processWebhook(webhookPayload, signature);
 
     if (!webhookResult.success) {
-      terminalLog('SMEPAY_WEBHOOK_PROCESSING_FAILED', 'ERROR', {
-        error: webhookResult.error,
-        body: req.body
-      });
+      logPayment('WEBHOOK_PROCESSING_FAILED', {
+        error: webhookResult.error
+      }, 'error');
+
       return res.status(400).json({
         success: false,
-        message: 'Webhook processing failed',
-        error: webhookResult.error
+        message: 'Webhook processing failed'
       });
     }
 
-    const { eventType, orderId, paymentStatus, transactionId } = webhookResult.data;
+    const { data } = webhookResult;
 
-    // Find order by order number (orderId in webhook is order number)
-    const order = await Order.findOne({ orderNumber: orderId }).populate('user seller');
+    // Find the order by ID
+    const order = await Order.findById(data.orderId);
 
     if (!order) {
-      terminalLog('WEBHOOK_ORDER_NOT_FOUND', 'ERROR', {
-        orderNumber: orderId,
-        eventType,
-        paymentStatus
-      });
+      logPayment('WEBHOOK_ORDER_NOT_FOUND', { orderId: data.orderId }, 'warning');
       return res.status(404).json({
         success: false,
-        message: 'Order not found for webhook'
+        message: 'Order not found'
       });
     }
 
-    // Process payment update based on event
-    if (eventType === 'payment_update' && paymentStatus === 'paid' && !order.isPaid) {
-      // Update order payment status
+    // Update order based on webhook data
+    if (data.paymentStatus === 'paid' && !order.isPaid) {
       order.isPaid = true;
       order.paidAt = new Date();
-      order.paymentMethod = 'SMEPay';
+      order.paymentStatus = 'completed';
       order.paymentResult = {
-        ...order.paymentResult,
-        status: 'completed',
-        smepay_transaction_id: transactionId || '',
-        update_time: new Date().toISOString()
+        gateway: 'smepay',
+        transactionId: data.transactionId || 'webhook_' + Date.now(),
+        paidAt: new Date(),
+        paymentMethod: 'SMEPay Webhook',
+        webhookData: data
       };
 
-      // Update order status to Processing
-      order.status = 'Processing';
-      
       await order.save();
 
-      terminalLog('WEBHOOK_PAYMENT_SUCCESS', 'SUCCESS', {
+      logPayment('WEBHOOK_PAYMENT_COMPLETED', {
+        orderId: order._id,
         orderNumber: order.orderNumber,
-        transactionId,
-        eventType,
-        amount: order.totalPrice
-      });
-
-      console.log(`
-🎉 ===============================
-   WEBHOOK PAYMENT SUCCESS!
-===============================
-📦 Order: ${order.orderNumber}
-💳 Transaction: ${transactionId}
-💰 Amount: ₹${order.totalPrice}
-👤 Customer: ${order.user.name}
-📧 Email: ${order.user.email}
-===============================`);
-
-      // Emit real-time notifications
-      if (global.emitToSeller) {
-        global.emitToSeller(order.seller._id, 'payment-completed', {
-          _id: order._id,
-          orderNumber: order.orderNumber,
-          status: order.status,
-          isPaid: order.isPaid,
-          paidAt: order.paidAt,
-          totalPrice: order.totalPrice,
-          user: order.user,
-          paymentMethod: order.paymentMethod,
-          transactionId
-        });
-      }
-
-      if (global.emitToBuyer) {
-        global.emitToBuyer(order.user._id, 'payment-successful', {
-          _id: order._id,
-          orderNumber: order.orderNumber,
-          status: order.status,
-          isPaid: order.isPaid,
-          paidAt: order.paidAt,
-          totalPrice: order.totalPrice,
-          paymentMethod: order.paymentMethod,
-          transactionId
-        });
-      }
+        transactionId: data.transactionId,
+        paymentStatus: data.paymentStatus
+      }, 'success');
     }
 
-    terminalLog('SMEPAY_WEBHOOK_PROCESSED', 'SUCCESS', {
-      orderNumber: order.orderNumber,
-      eventType,
-      paymentStatus,
-      orderUpdated: paymentStatus === 'paid' && !order.isPaid
-    });
-
-    // Return success response to SMEPay
+    // Send success response to SMEPay
     res.status(200).json({
       success: true,
-      message: 'Webhook processed successfully',
-      orderId: order.orderNumber,
-      processed: true
+      message: 'Webhook processed successfully'
     });
 
   } catch (error) {
-    terminalLog('SMEPAY_WEBHOOK_ERROR', 'ERROR', {
-      error: error.message,
-      stack: error.stack,
-      body: req.body
-    });
-    
-    console.log(`
-❌ ===============================
-   WEBHOOK PROCESSING FAILED!
-===============================
-🚨 Error: ${error.message}
-⏱️  Time: ${new Date().toLocaleString()}
-===============================`);
-    
-    console.error('❌ SMEPay Webhook Error:', error);
+    logPayment('WEBHOOK_ERROR', { error: error.message }, 'error');
+
     res.status(500).json({
       success: false,
-      message: 'Webhook processing error',
-      error: error.message
+      message: 'Internal server error while processing webhook'
     });
   }
 };
 
-// @desc    Get payment methods and configuration
+// @desc    Get available payment methods
 // @route   GET /api/payments/methods
 // @access  Public
-exports.getPaymentMethods = async (req, res) => {
+const getPaymentMethods = async (req, res) => {
   try {
-    terminalLog('GET_PAYMENT_METHODS', 'PROCESSING');
-
     const paymentMethods = [
       {
         id: 'smepay',
         name: 'SMEPay',
-        description: 'Secure UPI payments via SMEPay',
-        icon: '/icons/smepay.png',
+        description: 'Secure UPI and card payments',
         enabled: true,
-        features: ['UPI', 'QR Code', 'Real-time verification']
+        types: ['UPI', 'Card', 'Net Banking']
       },
       {
         id: 'cod',
         name: 'Cash on Delivery',
-        description: 'Pay when your order is delivered',
-        icon: '/icons/cod.png',
+        description: 'Pay when you receive your order',
         enabled: true,
-        features: ['Cash', 'UPI at delivery', 'No advance payment']
+        types: ['Cash']
       }
     ];
 
-    terminalLog('GET_PAYMENT_METHODS_SUCCESS', 'SUCCESS', {
-      methodCount: paymentMethods.length
-    });
-
     res.status(200).json({
       success: true,
+      message: 'Payment methods retrieved successfully',
       data: paymentMethods
     });
 
   } catch (error) {
-    terminalLog('GET_PAYMENT_METHODS_ERROR', 'ERROR', {
-      error: error.message
-    });
-    console.error('❌ Get Payment Methods Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Failed to get payment methods'
     });
   }
 };
 
-// @desc    Get payment history for user
+// @desc    Get user payment history
 // @route   GET /api/payments/history
 // @access  Private (User)
-exports.getPaymentHistory = async (req, res) => {
+const getPaymentHistory = async (req, res) => {
   try {
-    terminalLog('GET_PAYMENT_HISTORY_START', 'PROCESSING', {
-      userId: req.user._id
-    });
-
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 10;
+    const userId = req.user._id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    // Get paid orders for the user
-    const orders = await Order.find({ 
-      user: req.user._id,
-      isPaid: true 
+    // Find orders with payments for this user
+    const orders = await Order.find({
+      user: userId,
+      isPaid: true
     })
-    .select('orderNumber totalPrice paymentMethod paymentResult isPaid paidAt status')
+    .select('orderNumber totalPrice paymentMethod paymentResult paidAt createdAt')
     .sort({ paidAt: -1 })
     .skip(skip)
     .limit(limit);
 
-    const totalPayments = await Order.countDocuments({ 
-      user: req.user._id,
-      isPaid: true 
+    const totalOrders = await Order.countDocuments({
+      user: userId,
+      isPaid: true
     });
 
-    terminalLog('GET_PAYMENT_HISTORY_SUCCESS', 'SUCCESS', {
-      userId: req.user._id,
-      paymentCount: orders.length,
-      totalPayments,
-      page
-    });
+    const totalPages = Math.ceil(totalOrders / limit);
 
     res.status(200).json({
       success: true,
-      count: orders.length,
-      totalPages: Math.ceil(totalPayments / limit),
-      currentPage: page,
-      data: orders
+      message: 'Payment history retrieved successfully',
+      data: orders,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalOrders,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
     });
 
   } catch (error) {
-    terminalLog('GET_PAYMENT_HISTORY_ERROR', 'ERROR', {
-      userId: req.user?._id,
-      error: error.message
-    });
-    console.error('❌ Get Payment History Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Failed to get payment history'
     });
   }
-}; 
+};
+
+module.exports = {
+  createSMEPayOrder,
+  generateSMEPayQR,
+  checkSMEPayQRStatus,
+  validateSMEPayOrder,
+  handleSMEPayWebhook,
+  getPaymentMethods,
+  getPaymentHistory
+};

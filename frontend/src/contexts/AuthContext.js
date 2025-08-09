@@ -1,10 +1,12 @@
-//frontend/src/contexts/AuthContext.js
+// frontend/src/contexts/AuthContext.js - ENHANCED with Comprehensive Logging
+
 import React, { createContext, useState, useEffect } from 'react';
 import { getCurrentLocation } from '../utils/locationUtils';
 
-// Enhanced debugging with colors
+// 🎯 ENHANCED DEBUGGING with detailed colors and timestamps
 const debugLog = (message, data = null, type = 'info') => {
   if (process.env.NODE_ENV === 'development') {
+    const timestamp = new Date().toISOString();
     const colors = {
       info: '#2196F3',
       success: '#4CAF50', 
@@ -12,33 +14,59 @@ const debugLog = (message, data = null, type = 'info') => {
       error: '#F44336',
       storage: '#9C27B0',
       delivery: '#FF5722',
-      admin: '#673AB7' // New color for admin logs
+      admin: '#673AB7',
+      critical: '#E91E63'
     };
     
     console.log(
-      `%c[AuthContext] ${message}`,
-      `color: ${colors[type]}; font-weight: bold;`,
+      `%c[AuthContext] ${timestamp} - ${message}`,
+      `color: ${colors[type]}; font-weight: bold; background: rgba(0,0,0,0.1); padding: 2px 6px;`,
       data
     );
+
+    // 🎯 CRITICAL ACTIONS - Also show alerts in development
+    if (type === 'critical') {
+      console.warn(`🚨 CRITICAL AUTH ACTION: ${message}`, data);
+    }
   }
 };
 
 // Simple JWT validation - only check basic structure
 const isValidJWTStructure = (token) => {
-  if (!token || typeof token !== 'string') return false;
+  if (!token || typeof token !== 'string') {
+    debugLog('JWT validation failed: Invalid token type', { 
+      token: token ? 'present' : 'missing',
+      type: typeof token 
+    }, 'warning');
+    return false;
+  }
   
   try {
     // JWT should have 3 parts separated by dots
     const parts = token.split('.');
-    if (parts.length !== 3) return false;
+    if (parts.length !== 3) {
+      debugLog('JWT validation failed: Invalid parts count', { 
+        partsCount: parts.length,
+        tokenPreview: token.substring(0, 30) + '...'
+      }, 'warning');
+      return false;
+    }
     
     // Each part should be base64-like (basic check)
     for (let part of parts) {
-      if (!part || part.length === 0) return false;
+      if (!part || part.length === 0) {
+        debugLog('JWT validation failed: Empty part found', null, 'warning');
+        return false;
+      }
     }
     
+    debugLog('JWT validation successful', { 
+      tokenLength: token.length,
+      partsCount: parts.length 
+    }, 'success');
     return true;
   } catch (error) {
+    debugLog('JWT validation error', { error: error.message }, 'error');
     return false;
   }
 };
@@ -65,7 +93,6 @@ export const AuthProvider = ({ children }) => {
     token: null,
   });
 
-  // 🚚 NEW: Delivery Agent Authentication State
   const [deliveryAgentAuth, setDeliveryAgentAuth] = useState({
     isAuthenticated: false,
     deliveryAgent: null,
@@ -75,14 +102,21 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState(null);
 
-  // Safe localStorage operations
+  // 🎯 ENHANCED: Safe localStorage operations with detailed logging
   const safeSetItem = (key, value) => {
     try {
       localStorage.setItem(key, value);
-      debugLog(`💾 STORED: ${key}`, { success: true, length: value?.length }, 'storage');
+      debugLog(`STORAGE SET: ${key}`, { 
+        success: true, 
+        valueLength: value?.length,
+        timestamp: new Date().toISOString()
+      }, 'storage');
       return true;
     } catch (error) {
-      debugLog(`❌ STORAGE ERROR: ${key}`, { error: error.message }, 'error');
+      debugLog(`STORAGE SET ERROR: ${key}`, { 
+        error: error.message,
+        valueLength: value?.length 
+      }, 'error');
       return false;
     }
   };
@@ -90,13 +124,14 @@ export const AuthProvider = ({ children }) => {
   const safeGetItem = (key) => {
     try {
       const value = localStorage.getItem(key);
-      debugLog(`📖 RETRIEVED: ${key}`, { 
+      debugLog(`STORAGE GET: ${key}`, { 
         hasValue: !!value,
-        length: value?.length || 0 
+        valueLength: value?.length || 0,
+        preview: value ? value.substring(0, 30) + '...' : 'null'
       }, 'storage');
       return value;
     } catch (error) {
-      debugLog(`❌ RETRIEVAL ERROR: ${key}`, { error: error.message }, 'error');
+      debugLog(`STORAGE GET ERROR: ${key}`, { error: error.message }, 'error');
       return null;
     }
   };
@@ -104,127 +139,190 @@ export const AuthProvider = ({ children }) => {
   const safeRemoveItem = (key) => {
     try {
       localStorage.removeItem(key);
-      debugLog(`🗑️ REMOVED: ${key}`, { success: true }, 'storage');
+      debugLog(`STORAGE REMOVE: ${key}`, { success: true }, 'storage');
       return true;
     } catch (error) {
-      debugLog(`❌ REMOVAL ERROR: ${key}`, { error: error.message }, 'error');
+      debugLog(`STORAGE REMOVE ERROR: ${key}`, { error: error.message }, 'error');
       return false;
     }
   };
 
+  // 🎯 CRITICAL: Initialize auth state with enhanced logging
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        debugLog('🚀 INITIALIZING AUTH STATE...', null, 'info');
+        debugLog('AUTH INITIALIZATION STARTED', {
+          timestamp: new Date().toISOString(),
+          userAgent: navigator.userAgent,
+          url: window.location.href
+        }, 'critical');
         
-        // 🎯 FIX: Batch localStorage operations including admin and delivery agent
-        const [
-          sellerToken, sellerData, 
-          userToken, userData,
-          adminToken, adminData,
-          deliveryToken, deliveryData
-        ] = [
-          safeGetItem('sellerToken'),
-          safeGetItem('sellerData'),
-          safeGetItem('userToken'),
-          safeGetItem('userData'),
-          safeGetItem('adminToken'),
-          safeGetItem('adminData'),
-          safeGetItem('deliveryAgentToken'),
-          safeGetItem('deliveryAgentData')
-        ];
+        // 🎯 ENHANCED: Batch localStorage operations with detailed checks
+        const storageData = {
+          sellerToken: safeGetItem('sellerToken'),
+          sellerData: safeGetItem('sellerData'),
+          userToken: safeGetItem('userToken'),
+          userData: safeGetItem('userData'),
+          adminToken: safeGetItem('adminToken'),
+          adminData: safeGetItem('adminData'),
+          deliveryToken: safeGetItem('deliveryAgentToken'),
+          deliveryData: safeGetItem('deliveryAgentData')
+        };
 
-        debugLog('🔍 STORAGE CHECK', {
-          sellerToken: !!sellerToken,
-          sellerData: !!sellerData,
-          userToken: !!userToken,
-          userData: !!userData,
-          adminToken: !!adminToken,
-          adminData: !!adminData,
-          deliveryToken: !!deliveryToken,
-          deliveryData: !!deliveryData
+        debugLog('STORAGE SCAN COMPLETE', {
+          foundTokens: Object.keys(storageData).filter(key => key.includes('Token') && storageData[key]),
+          foundData: Object.keys(storageData).filter(key => key.includes('Data') && storageData[key]),
+          allKeys: Object.keys(storageData),
+          storageDetails: Object.keys(storageData).reduce((acc, key) => {
+            acc[key] = !!storageData[key];
+            return acc;
+          }, {})
         }, 'info');
 
-        // Check seller auth
-        if (sellerToken && sellerData && isValidJWTStructure(sellerToken)) {
+        // 🎯 ENHANCED: Check seller auth with detailed validation
+        if (storageData.sellerToken && storageData.sellerData && isValidJWTStructure(storageData.sellerToken)) {
           try {
-            const parsedSellerData = JSON.parse(sellerData);
-            debugLog('✅ FOUND VALID SELLER AUTH', {
+            const parsedSellerData = JSON.parse(storageData.sellerData);
+            debugLog('SELLER AUTH FOUND', {
               sellerName: parsedSellerData?.firstName,
-              sellerId: parsedSellerData?._id
+              sellerId: parsedSellerData?._id,
+              tokenLength: storageData.sellerToken.length
             }, 'success');
             
             setSellerAuth({
               isAuthenticated: true,
               seller: parsedSellerData,
-              token: sellerToken,
+              token: storageData.sellerToken,
             });
           } catch (error) {
-            debugLog('❌ CORRUPTED SELLER DATA', { error: error.message }, 'error');
+            debugLog('SELLER DATA CORRUPTION', { error: error.message }, 'error');
             safeRemoveItem('sellerToken');
             safeRemoveItem('sellerData');
           }
         }
 
-        // Check user auth
-        debugLog('🔍 USER AUTH CHECK', {
-          hasUserToken: !!userToken,
-          hasUserData: !!userData,
-          tokenValid: userToken ? isValidJWTStructure(userToken) : false
+        // 🎯 ENHANCED: Check user auth with comprehensive validation
+        debugLog('USER AUTH VALIDATION', {
+          hasUserToken: !!storageData.userToken,
+          hasUserData: !!storageData.userData,
+          tokenValid: storageData.userToken ? isValidJWTStructure(storageData.userToken) : false,
+          tokenLength: storageData.userToken?.length || 0
         }, 'info');
 
-        if (userToken && userData && isValidJWTStructure(userToken)) {
+        if (storageData.userToken && storageData.userData && isValidJWTStructure(storageData.userToken)) {
           try {
-            const parsedUserData = JSON.parse(userData);
+            const parsedUserData = JSON.parse(storageData.userData);
             
             if (parsedUserData && parsedUserData._id && parsedUserData.name) {
-              debugLog('✅ FOUND VALID USER AUTH', {
+              debugLog('USER AUTH RESTORED', {
                 userName: parsedUserData?.name,
                 userId: parsedUserData?._id,
-                userEmail: parsedUserData?.email
+                userEmail: parsedUserData?.email,
+                hasLocation: !!parsedUserData?.location
               }, 'success');
               
               setUserAuth({
                 isAuthenticated: true,
                 user: parsedUserData,
-                token: userToken,
+                token: storageData.userToken,
               });
             } else {
-              debugLog('❌ INVALID USER DATA STRUCTURE', { 
+              debugLog('USER DATA INVALID STRUCTURE', { 
                 hasId: !!parsedUserData?._id,
-                hasName: !!parsedUserData?.name 
+                hasName: !!parsedUserData?.name,
+                dataKeys: parsedUserData ? Object.keys(parsedUserData) : []
               }, 'error');
               safeRemoveItem('userToken');
               safeRemoveItem('userData');
             }
           } catch (error) {
-            debugLog('❌ CORRUPTED USER DATA', { error: error.message }, 'error');
+            debugLog('USER DATA PARSE ERROR', { error: error.message }, 'error');
             safeRemoveItem('userToken');
             safeRemoveItem('userData');
           }
-        } else if (userToken || userData) {
-          debugLog('🧹 Cleaning incomplete user auth data', {
-            hasToken: !!userToken,
-            hasData: !!userData,
-            tokenValid: userToken ? isValidJWTStructure(userToken) : false
+        } else if (storageData.userToken || storageData.userData) {
+          debugLog('INCOMPLETE USER AUTH DATA CLEANUP', {
+            hasToken: !!storageData.userToken,
+            hasData: !!storageData.userData,
+            tokenValid: storageData.userToken ? isValidJWTStructure(storageData.userToken) : false
           }, 'warning');
           safeRemoveItem('userToken');
           safeRemoveItem('userData');
         }
 
-        // 🚚 Check delivery agent auth
-        debugLog('🚚 DELIVERY AGENT AUTH CHECK', {
-          hasDeliveryToken: !!deliveryToken,
-          hasDeliveryData: !!deliveryData,
-          tokenValid: deliveryToken ? isValidJWTStructure(deliveryToken) : false
+        // 🎯 CRITICAL: Admin auth check with detailed logging
+        debugLog('ADMIN AUTH VALIDATION', {
+          hasAdminToken: !!storageData.adminToken,
+          hasAdminData: !!storageData.adminData,
+          tokenValid: storageData.adminToken ? isValidJWTStructure(storageData.adminToken) : false,
+          tokenLength: storageData.adminToken?.length || 0,
+          currentUrl: window.location.pathname
+        }, 'admin');
+
+        if (storageData.adminToken && storageData.adminData && isValidJWTStructure(storageData.adminToken)) {
+          try {
+            const parsedAdminData = JSON.parse(storageData.adminData);
+            
+            if (parsedAdminData && parsedAdminData._id && parsedAdminData.name) {
+              debugLog('ADMIN AUTH RESTORED', {
+                adminName: parsedAdminData?.name,
+                adminId: parsedAdminData?._id,
+                adminEmail: parsedAdminData?.email,
+                adminRole: parsedAdminData?.role,
+                tokenLength: storageData.adminToken.length,
+                hasPermissions: !!parsedAdminData?.permissions
+              }, 'admin');
+              
+              setAdminAuth({
+                isAuthenticated: true,
+                admin: parsedAdminData,
+                token: storageData.adminToken,
+              });
+
+              debugLog('ADMIN TOKEN VERIFICATION', {
+                tokenInState: true,
+                tokenInStorage: !!localStorage.getItem('adminToken'),
+                tokensMatch: localStorage.getItem('adminToken') === storageData.adminToken,
+                currentPath: window.location.pathname
+              }, 'admin');
+
+            } else {
+              debugLog('ADMIN DATA INVALID STRUCTURE', { 
+                hasId: !!parsedAdminData?._id,
+                hasName: !!parsedAdminData?.name,
+                dataKeys: parsedAdminData ? Object.keys(parsedAdminData) : []
+              }, 'error');
+              safeRemoveItem('adminToken');
+              safeRemoveItem('adminData');
+            }
+          } catch (error) {
+            debugLog('ADMIN DATA PARSE ERROR', { error: error.message }, 'error');
+            safeRemoveItem('adminToken');
+            safeRemoveItem('adminData');
+          }
+        } else if (storageData.adminToken || storageData.adminData) {
+          debugLog('INCOMPLETE ADMIN AUTH DATA CLEANUP', {
+            hasToken: !!storageData.adminToken,
+            hasData: !!storageData.adminData,
+            tokenValid: storageData.adminToken ? isValidJWTStructure(storageData.adminToken) : false
+          }, 'warning');
+          safeRemoveItem('adminToken');
+          safeRemoveItem('adminData');
+        }
+
+        // 🎯 ENHANCED: Check delivery agent auth
+        debugLog('DELIVERY AGENT AUTH VALIDATION', {
+          hasDeliveryToken: !!storageData.deliveryToken,
+          hasDeliveryData: !!storageData.deliveryData,
+          tokenValid: storageData.deliveryToken ? isValidJWTStructure(storageData.deliveryToken) : false
         }, 'delivery');
 
-        if (deliveryToken && deliveryData && isValidJWTStructure(deliveryToken)) {
+        if (storageData.deliveryToken && storageData.deliveryData && isValidJWTStructure(storageData.deliveryToken)) {
           try {
-            const parsedDeliveryData = JSON.parse(deliveryData);
+            const parsedDeliveryData = JSON.parse(storageData.deliveryData);
             
             if (parsedDeliveryData && parsedDeliveryData._id && parsedDeliveryData.name) {
-              debugLog('✅ FOUND VALID DELIVERY AGENT AUTH', {
+              debugLog('DELIVERY AGENT AUTH RESTORED', {
                 agentName: parsedDeliveryData?.name,
                 agentId: parsedDeliveryData?._id,
                 agentEmail: parsedDeliveryData?.email,
@@ -234,10 +332,10 @@ export const AuthProvider = ({ children }) => {
               setDeliveryAgentAuth({
                 isAuthenticated: true,
                 deliveryAgent: parsedDeliveryData,
-                token: deliveryToken,
+                token: storageData.deliveryToken,
               });
             } else {
-              debugLog('❌ INVALID DELIVERY AGENT DATA STRUCTURE', { 
+              debugLog('DELIVERY AGENT DATA INVALID', { 
                 hasId: !!parsedDeliveryData?._id,
                 hasName: !!parsedDeliveryData?.name 
               }, 'error');
@@ -245,76 +343,32 @@ export const AuthProvider = ({ children }) => {
               safeRemoveItem('deliveryAgentData');
             }
           } catch (error) {
-            debugLog('❌ CORRUPTED DELIVERY AGENT DATA', { error: error.message }, 'error');
+            debugLog('DELIVERY AGENT DATA PARSE ERROR', { error: error.message }, 'error');
             safeRemoveItem('deliveryAgentToken');
             safeRemoveItem('deliveryAgentData');
           }
-        } else if (deliveryToken || deliveryData) {
-          debugLog('🧹 Cleaning incomplete delivery agent auth data', {
-            hasToken: !!deliveryToken,
-            hasData: !!deliveryData,
-            tokenValid: deliveryToken ? isValidJWTStructure(deliveryToken) : false
+        } else if (storageData.deliveryToken || storageData.deliveryData) {
+          debugLog('INCOMPLETE DELIVERY AGENT AUTH CLEANUP', {
+            hasToken: !!storageData.deliveryToken,
+            hasData: !!storageData.deliveryData
           }, 'warning');
           safeRemoveItem('deliveryAgentToken');
           safeRemoveItem('deliveryAgentData');
         }
 
-        // 🔧 NEW: Check admin auth
-        debugLog('🔧 ADMIN AUTH CHECK', {
-          hasAdminToken: !!adminToken,
-          hasAdminData: !!adminData,
-          tokenValid: adminToken ? isValidJWTStructure(adminToken) : false
-        }, 'admin');
-
-        if (adminToken && adminData && isValidJWTStructure(adminToken)) {
-          try {
-            const parsedAdminData = JSON.parse(adminData);
-            
-            if (parsedAdminData && parsedAdminData._id && parsedAdminData.name) {
-              debugLog('✅ FOUND VALID ADMIN AUTH', {
-                adminName: parsedAdminData?.name,
-                adminId: parsedAdminData?._id,
-                adminEmail: parsedAdminData?.email,
-                adminRole: parsedAdminData?.role
-              }, 'admin');
-              
-              setAdminAuth({
-                isAuthenticated: true,
-                admin: parsedAdminData,
-                token: adminToken,
-              });
-            } else {
-              debugLog('❌ INVALID ADMIN DATA STRUCTURE', { 
-                hasId: !!parsedAdminData?._id,
-                hasName: !!parsedAdminData?.name 
-              }, 'error');
-              safeRemoveItem('adminToken');
-              safeRemoveItem('adminData');
-            }
-          } catch (error) {
-            debugLog('❌ CORRUPTED ADMIN DATA', { error: error.message }, 'error');
-            safeRemoveItem('adminToken');
-            safeRemoveItem('adminData');
-          }
-        } else if (adminToken || adminData) {
-          debugLog('🧹 Cleaning incomplete admin auth data', {
-            hasToken: !!adminToken,
-            hasData: !!adminData,
-            tokenValid: adminToken ? isValidJWTStructure(adminToken) : false
-          }, 'warning');
-          safeRemoveItem('adminToken');
-          safeRemoveItem('adminData');
-        }
-
-        debugLog('🏁 AUTH INITIALIZATION COMPLETED', {
-          userAuthenticated: !!(userToken && userData),
-          sellerAuthenticated: !!(sellerToken && sellerData),
-          adminAuthenticated: !!(adminToken && adminData),
-          deliveryAgentAuthenticated: !!(deliveryToken && deliveryData)
-        }, 'success');
+        debugLog('AUTH INITIALIZATION COMPLETED', {
+          userAuthenticated: !!(storageData.userToken && storageData.userData),
+          sellerAuthenticated: !!(storageData.sellerToken && storageData.sellerData),
+          adminAuthenticated: !!(storageData.adminToken && storageData.adminData),
+          deliveryAgentAuthenticated: !!(storageData.deliveryToken && storageData.deliveryData),
+          totalTime: Date.now() - startTime
+        }, 'critical');
         
       } catch (error) {
-        debugLog('💥 CRITICAL AUTH INIT ERROR', { error: error.message }, 'error');
+        debugLog('CRITICAL AUTH INIT ERROR', { 
+          error: error.message,
+          stack: error.stack 
+        }, 'critical');
         setInitError(error.message);
         
         // Clear all auth data on critical error
@@ -326,8 +380,9 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
+    const startTime = Date.now();
     const initTimeout = setTimeout(() => {
-      debugLog('⏰ AUTH INIT TIMEOUT - Force completing', null, 'warning');
+      debugLog('AUTH INIT TIMEOUT FORCED', { timeoutDuration: 5000 }, 'critical');
       setLoading(false);
     }, 5000);
 
@@ -340,9 +395,9 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  // Monitor auth state changes for debugging
+  // 🎯 ENHANCED: Monitor auth state changes with detailed logging
   useEffect(() => {
-    debugLog('🔄 AUTH STATE CHANGED', {
+    debugLog('AUTH STATE CHANGE DETECTED', {
       userAuth: {
         isAuthenticated: userAuth.isAuthenticated,
         hasUser: !!userAuth.user,
@@ -355,77 +410,63 @@ export const AuthProvider = ({ children }) => {
         hasToken: !!sellerAuth.token,
         sellerName: sellerAuth.seller?.firstName
       },
+      adminAuth: {
+        isAuthenticated: adminAuth.isAuthenticated,
+        hasAdmin: !!adminAuth.admin,
+        hasToken: !!adminAuth.token,
+        adminName: adminAuth.admin?.name
+      },
       deliveryAgentAuth: {
         isAuthenticated: deliveryAgentAuth.isAuthenticated,
         hasAgent: !!deliveryAgentAuth.deliveryAgent,
         hasToken: !!deliveryAgentAuth.token,
         agentName: deliveryAgentAuth.deliveryAgent?.name
       },
-      adminAuth: {
-        isAuthenticated: adminAuth.isAuthenticated,
-        hasAdmin: !!adminAuth.admin,
-        hasToken: !!adminAuth.token,
-        adminName: adminAuth.admin?.name
-      }
+      timestamp: new Date().toISOString()
     }, 'info');
   }, [
     userAuth.isAuthenticated, userAuth.user, userAuth.token, 
     sellerAuth.isAuthenticated, sellerAuth.seller, sellerAuth.token,
-    deliveryAgentAuth.isAuthenticated, deliveryAgentAuth.deliveryAgent, deliveryAgentAuth.token,
-    adminAuth.isAuthenticated, adminAuth.admin, adminAuth.token
+    adminAuth.isAuthenticated, adminAuth.admin, adminAuth.token,
+    deliveryAgentAuth.isAuthenticated, deliveryAgentAuth.deliveryAgent, deliveryAgentAuth.token
   ]);
 
-  // Enhanced login user function
+  // 🎯 ENHANCED: Login functions with comprehensive logging
   const loginUser = async (data) => {
     try {
-      debugLog('🔑 USER LOGIN STARTED', {
+      debugLog('USER LOGIN INITIATED', {
         hasData: !!data,
         userName: data?.name,
         userEmail: data?.email,
-        hasToken: !!data?.token
-      }, 'info');
+        hasToken: !!data?.token,
+        timestamp: new Date().toISOString()
+      }, 'critical');
 
-      if (!data) {
-        throw new Error('No login data provided');
-      }
-
-      if (!data.token) {
-        debugLog('❌ LOGIN DATA MISSING TOKEN', {
-          providedKeys: Object.keys(data)
-        }, 'error');
+      if (!data || !data.token) {
         throw new Error('Invalid user login data - missing token');
       }
 
       if (!isValidJWTStructure(data.token)) {
-        debugLog('❌ INVALID TOKEN STRUCTURE', {
-          tokenLength: data.token.length,
-          tokenPreview: data.token.substring(0, 30) + '...'
-        }, 'error');
         throw new Error('Invalid token format received from server');
       }
 
       // Try to get user's location
       try {
-        debugLog('📍 ATTEMPTING TO GET USER LOCATION...', null, 'info');
+        debugLog('ATTEMPTING LOCATION ACCESS', null, 'info');
         const location = await getCurrentLocation();
         if (location && data) {
-          data.location = {
-            ...data.location,
-            coordinates: location.coordinates
-          };
-          debugLog('✅ USER LOCATION OBTAINED', {
-            coordinates: location.coordinates
-          }, 'success');
+          data.location = { ...data.location, coordinates: location.coordinates };
+          debugLog('LOCATION OBTAINED', { coordinates: location.coordinates }, 'success');
         }
       } catch (error) {
-        debugLog('⚠️ LOCATION ACCESS DENIED', { error: error.message }, 'warning');
+        debugLog('LOCATION ACCESS DENIED', { error: error.message }, 'warning');
       }
       
-      debugLog('💾 STORING USER CREDENTIALS...', {
+      debugLog('STORING USER CREDENTIALS', {
         tokenLength: data.token.length,
         userName: data.name,
         userEmail: data.email
-      }, 'info');
+      }, 'storage');
       
       const tokenStored = safeSetItem('userToken', data.token);
       const dataStored = safeSetItem('userData', JSON.stringify(data));
@@ -440,29 +481,131 @@ export const AuthProvider = ({ children }) => {
         token: data.token,
       });
 
-      debugLog('✅ USER LOGIN COMPLETED SUCCESSFULLY', {
+      debugLog('USER LOGIN COMPLETED', {
         userName: data.name,
         userId: data._id,
         isAuthenticated: true
-      }, 'success');
+      }, 'critical');
       
     } catch (error) {
-      debugLog('💥 USER LOGIN FAILED', {
+      debugLog('USER LOGIN FAILED', {
         error: error.message,
         providedData: data ? Object.keys(data) : 'none'
-      }, 'error');
+      }, 'critical');
       
       safeRemoveItem('userToken');
       safeRemoveItem('userData');
+      throw error;
+    }
+  };
+
+  // 🎯 CRITICAL: Enhanced admin login with detailed token tracking
+  const loginAdmin = async (data) => {
+    try {
+      debugLog('ADMIN LOGIN INITIATED', {
+        hasData: !!data,
+        adminName: data?.name,
+        adminEmail: data?.email,
+        hasToken: !!data?.token,
+        adminRole: data?.role,
+        timestamp: new Date().toISOString(),
+        currentUrl: window.location.pathname
+      }, 'critical');
+
+      if (!data || !data.token) {
+        throw new Error('Invalid admin login data - missing token');
+      }
+
+      if (!isValidJWTStructure(data.token)) {
+        throw new Error('Invalid token format received from server');
+      }
+
+      // 🎯 CRITICAL: Clear any existing admin tokens FIRST
+      debugLog('CLEARING OLD ADMIN TOKENS', null, 'admin');
+      safeRemoveItem('adminToken');
+      safeRemoveItem('adminData');
+      
+      // Force clear React state immediately
+      setAdminAuth({
+        isAuthenticated: false,
+        admin: null,
+        token: null,
+      });
+
+      // 🎯 CRITICAL: Wait for state to clear
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Store new tokens with verification
+      debugLog('STORING NEW ADMIN CREDENTIALS', {
+        tokenLength: data.token.length,
+        adminName: data.name,
+        adminRole: data.role
+      }, 'admin');
+
+      const tokenStored = safeSetItem('adminToken', data.token);
+      const dataStored = safeSetItem('adminData', JSON.stringify(data));
+      
+      if (!tokenStored || !dataStored) {
+        throw new Error('Failed to store admin authentication data');
+      }
+
+      // 🎯 CRITICAL: Update React state immediately
+      setAdminAuth({
+        isAuthenticated: true,
+        admin: data,
+        token: data.token,
+      });
+
+      // 🎯 CRITICAL: Double-verify storage
+      const verifyToken = localStorage.getItem('adminToken');
+      const verifyData = localStorage.getItem('adminData');
+      
+      debugLog('ADMIN LOGIN VERIFICATION', {
+        tokenStored: !!verifyToken,
+        dataStored: !!verifyData,
+        tokensMatch: verifyToken === data.token,
+        tokenLength: verifyToken?.length,
+        stateUpdated: true
+      }, 'admin');
+
+      if (!verifyToken || verifyToken !== data.token) {
+        throw new Error('Token verification failed - storage issue');
+      }
+
+      debugLog('ADMIN LOGIN COMPLETED SUCCESSFULLY', {
+        adminId: data._id,
+        adminName: data.name,
+        adminEmail: data.email,
+        adminRole: data.role,
+        tokenInState: !!data.token,
+        tokenInStorage: !!localStorage.getItem('adminToken')
+      }, 'critical');
+
+      return data;
+      
+    } catch (error) {
+      debugLog('ADMIN LOGIN FAILED', { 
+        error: error.message,
+        stack: error.stack 
+      }, 'critical');
+      
+      // Clean up on failure
+      safeRemoveItem('adminToken');
+      safeRemoveItem('adminData');
+      setAdminAuth({
+        isAuthenticated: false,
+        admin: null,
+        token: null,
+      });
       
       throw error;
     }
   };
 
-  // Login seller
+  // 🎯 ENHANCED: Login seller with logging
   const loginSeller = (data) => {
     try {
-      debugLog('🏪 SELLER LOGIN STARTED', {
+      debugLog('SELLER LOGIN INITIATED', {
         hasData: !!data,
         sellerName: data?.firstName,
         hasToken: !!data?.token
@@ -489,119 +632,17 @@ export const AuthProvider = ({ children }) => {
         token: data.token,
       });
 
-      debugLog('✅ SELLER LOGIN COMPLETED', null, 'success');
+      debugLog('SELLER LOGIN COMPLETED', null, 'success');
     } catch (error) {
-      debugLog('❌ SELLER LOGIN FAILED', { error: error.message }, 'error');
+      debugLog('SELLER LOGIN FAILED', { error: error.message }, 'error');
       throw error;
     }
   };
 
-  // 🔧 NEW: Login admin function
-  // 🔧 FIXED: Login admin function with immediate token sync
-  const loginAdmin = async (data) => {
-    try {
-      debugLog('🔧 ADMIN LOGIN STARTED', {
-        hasData: !!data,
-        adminName: data?.name,
-        adminEmail: data?.email,
-        hasToken: !!data?.token,
-        adminRole: data?.role
-      }, 'admin');
-
-      if (!data || !data.token) {
-        throw new Error('Invalid admin login data - missing token');
-      }
-
-      if (!isValidJWTStructure(data.token)) {
-        throw new Error('Invalid token format received from server');
-      }
-
-      // 🎯 CRITICAL FIX: Clear any existing admin tokens FIRST
-      debugLog('🧹 CLEARING OLD ADMIN TOKENS...', null, 'admin');
-      safeRemoveItem('adminToken');
-      safeRemoveItem('adminData');
-      
-      // Force clear React state immediately
-      setAdminAuth({
-        isAuthenticated: false,
-        admin: null,
-        token: null,
-      });
-
-      // 🎯 CRITICAL FIX: Wait a moment for state to clear
-      await new Promise(resolve => setTimeout(resolve, 50));
-
-      // Store new tokens
-      debugLog('💾 STORING NEW ADMIN CREDENTIALS...', {
-        tokenLength: data.token.length,
-        adminName: data.name,
-        adminRole: data.role
-      }, 'admin');
-
-      const tokenStored = safeSetItem('adminToken', data.token);
-      const dataStored = safeSetItem('adminData', JSON.stringify(data));
-      
-      if (!tokenStored || !dataStored) {
-        throw new Error('Failed to store admin authentication data');
-      }
-
-      // 🎯 CRITICAL FIX: Update React state immediately
-      setAdminAuth({
-        isAuthenticated: true,
-        admin: data,
-        token: data.token,
-      });
-
-      // 🎯 CRITICAL FIX: Force update localStorage one more time to ensure consistency
-      localStorage.setItem('adminToken', data.token);
-      localStorage.setItem('adminData', JSON.stringify(data));
-
-      debugLog('✅ ADMIN LOGIN COMPLETED', {
-        adminId: data._id,
-        adminName: data.name,
-        adminEmail: data.email,
-        adminRole: data.role,
-        tokenInState: !!data.token,
-        tokenInStorage: !!localStorage.getItem('adminToken')
-      }, 'admin');
-
-      // 🎯 CRITICAL FIX: Verify tokens are properly stored
-      const verifyToken = localStorage.getItem('adminToken');
-      const verifyData = localStorage.getItem('adminData');
-      
-      debugLog('🔍 ADMIN LOGIN VERIFICATION', {
-        tokenStored: !!verifyToken,
-        dataStored: !!verifyData,
-        tokensMatch: verifyToken === data.token,
-        tokenLength: verifyToken?.length
-      }, 'admin');
-
-      if (!verifyToken || verifyToken !== data.token) {
-        throw new Error('Token verification failed - storage issue');
-      }
-
-      return data; // Return the data for any additional processing
-      
-    } catch (error) {
-      debugLog('❌ ADMIN LOGIN FAILED', { error: error.message }, 'error');
-      
-      // Clean up on failure
-      safeRemoveItem('adminToken');
-      safeRemoveItem('adminData');
-      setAdminAuth({
-        isAuthenticated: false,
-        admin: null,
-        token: null,
-      });
-      
-      throw error;
-    }
-  };
-
-  // 🚚 Login delivery agent
+  // 🎯 ENHANCED: Login delivery agent with logging
   const loginDeliveryAgent = (data) => {
     try {
-      debugLog('🚚 DELIVERY AGENT LOGIN STARTED', {
+      debugLog('DELIVERY AGENT LOGIN INITIATED', {
         hasData: !!data,
         agentName: data?.name,
         agentEmail: data?.email,
@@ -630,21 +671,24 @@ export const AuthProvider = ({ children }) => {
         token: data.token,
       });
 
-      debugLog('✅ DELIVERY AGENT LOGIN COMPLETED', {
+      debugLog('DELIVERY AGENT LOGIN COMPLETED', {
         agentId: data._id,
         agentName: data.name,
         agentEmail: data.email
       }, 'delivery');
     } catch (error) {
-      debugLog('❌ DELIVERY AGENT LOGIN FAILED', { error: error.message }, 'error');
+      debugLog('DELIVERY AGENT LOGIN FAILED', { error: error.message }, 'error');
       throw error;
     }
   };
 
-  // Logout user
+  // 🎯 ENHANCED: Logout functions with logging
   const logoutUser = () => {
     try {
-      debugLog('🚪 USER LOGOUT STARTED', null, 'info');
+      debugLog('USER LOGOUT INITIATED', {
+        userName: userAuth.user?.name,
+        userId: userAuth.user?._id
+      }, 'warning');
       
       safeRemoveItem('userToken');
       safeRemoveItem('userData');
@@ -655,16 +699,18 @@ export const AuthProvider = ({ children }) => {
         token: null,
       });
 
-      debugLog('✅ USER LOGOUT COMPLETED', null, 'success');
+      debugLog('USER LOGOUT COMPLETED', null, 'success');
     } catch (error) {
-      debugLog('❌ USER LOGOUT ERROR', { error: error.message }, 'error');
+      debugLog('USER LOGOUT ERROR', { error: error.message }, 'error');
     }
   };
 
-  // Logout seller
   const logoutSeller = () => {
     try {
-      debugLog('🚪 SELLER LOGOUT STARTED', null, 'info');
+      debugLog('SELLER LOGOUT INITIATED', {
+        sellerName: sellerAuth.seller?.firstName,
+        sellerId: sellerAuth.seller?._id
+      }, 'warning');
       
       safeRemoveItem('sellerToken');
       safeRemoveItem('sellerData');
@@ -675,16 +721,19 @@ export const AuthProvider = ({ children }) => {
         token: null,
       });
 
-      debugLog('✅ SELLER LOGOUT COMPLETED', null, 'success');
+      debugLog('SELLER LOGOUT COMPLETED', null, 'success');
     } catch (error) {
-      debugLog('❌ SELLER LOGOUT ERROR', { error: error.message }, 'error');
+      debugLog('SELLER LOGOUT ERROR', { error: error.message }, 'error');
     }
   };
 
-  // 🔧 NEW: Logout admin
   const logoutAdmin = () => {
     try {
-      debugLog('🔧 ADMIN LOGOUT STARTED', null, 'admin');
+      debugLog('ADMIN LOGOUT INITIATED', {
+        adminName: adminAuth.admin?.name,
+        adminId: adminAuth.admin?._id,
+        currentUrl: window.location.pathname
+      }, 'critical');
       
       safeRemoveItem('adminToken');
       safeRemoveItem('adminData');
@@ -695,16 +744,18 @@ export const AuthProvider = ({ children }) => {
         token: null,
       });
 
-      debugLog('✅ ADMIN LOGOUT COMPLETED', null, 'admin');
+      debugLog('ADMIN LOGOUT COMPLETED', null, 'critical');
     } catch (error) {
-      debugLog('❌ ADMIN LOGOUT ERROR', { error: error.message }, 'error');
+      debugLog('ADMIN LOGOUT ERROR', { error: error.message }, 'critical');
     }
   };
 
-  // 🚚 Logout delivery agent
   const logoutDeliveryAgent = () => {
     try {
-      debugLog('🚚 DELIVERY AGENT LOGOUT STARTED', null, 'delivery');
+      debugLog('DELIVERY AGENT LOGOUT INITIATED', {
+        agentName: deliveryAgentAuth.deliveryAgent?.name,
+        agentId: deliveryAgentAuth.deliveryAgent?._id
+      }, 'delivery');
       
       safeRemoveItem('deliveryAgentToken');
       safeRemoveItem('deliveryAgentData');
@@ -715,23 +766,23 @@ export const AuthProvider = ({ children }) => {
         token: null,
       });
 
-      debugLog('✅ DELIVERY AGENT LOGOUT COMPLETED', null, 'delivery');
+      debugLog('DELIVERY AGENT LOGOUT COMPLETED', null, 'delivery');
     } catch (error) {
-      debugLog('❌ DELIVERY AGENT LOGOUT ERROR', { error: error.message }, 'error');
+      debugLog('DELIVERY AGENT LOGOUT ERROR', { error: error.message }, 'error');
     }
   };
 
-  // Handle authentication errors
+  // 🎯 ENHANCED: Handle authentication errors
   const handleAuthError = (error) => {
     try {
       if (!error?.response) {
-        debugLog('Non-response error', error);
+        debugLog('Non-response auth error', error);
         return false;
       }
       
       const { status, data } = error.response;
       
-      debugLog('🚫 HANDLING AUTH ERROR', {
+      debugLog('HANDLING AUTH ERROR', {
         status,
         errorMessage: data?.message,
         code: data?.code,
@@ -743,14 +794,15 @@ export const AuthProvider = ({ children }) => {
                           data?.code === 'TOKEN_EXPIRED' || 
                           data?.code === 'MALFORMED_TOKEN' ||
                           data?.code === 'USER_NOT_FOUND' ||
+                          data?.code === 'ADMIN_NOT_FOUND' ||
                           data?.forceLogout === true ||
                           data?.message?.toLowerCase().includes('token');
         
         if (isJWTError) {
-          debugLog('🔑 JWT/AUTH ERROR DETECTED - CLEANING ALL AUTH', {
+          debugLog('JWT/AUTH ERROR DETECTED - CLEANING ALL AUTH', {
             code: data?.code,
             forceLogout: data?.forceLogout
-          }, 'warning');
+          }, 'critical');
           
           // Clear all auth data
           safeRemoveItem('userToken');
@@ -762,29 +814,13 @@ export const AuthProvider = ({ children }) => {
           safeRemoveItem('deliveryAgentToken');
           safeRemoveItem('deliveryAgentData');
           
-          setUserAuth({
-            isAuthenticated: false,
-            user: null,
-            token: null,
-          });
-          setSellerAuth({
-            isAuthenticated: false,
-            seller: null,
-            token: null,
-          });
-          setAdminAuth({
-            isAuthenticated: false,
-            admin: null,
-            token: null,
-          });
-          setDeliveryAgentAuth({
-            isAuthenticated: false,
-            deliveryAgent: null,
-            token: null,
-          });
+          setUserAuth({ isAuthenticated: false, user: null, token: null });
+          setSellerAuth({ isAuthenticated: false, seller: null, token: null });
+          setAdminAuth({ isAuthenticated: false, admin: null, token: null });
+          setDeliveryAgentAuth({ isAuthenticated: false, deliveryAgent: null, token: null });
           
           if (data?.forceLogout) {
-            debugLog('🔄 FORCE LOGOUT - Refreshing page', null, 'warning');
+            debugLog('FORCE LOGOUT - Redirecting', null, 'critical');
             setTimeout(() => {
               window.location.href = '/user/login';
             }, 1000);
@@ -796,14 +832,16 @@ export const AuthProvider = ({ children }) => {
       
       return false;
     } catch (handleError) {
-      debugLog('❌ ERROR IN AUTH ERROR HANDLER', { error: handleError.message }, 'error');
+      debugLog('ERROR IN AUTH ERROR HANDLER', { error: handleError.message }, 'error');
       return false;
     }
   };
 
-  // Debug function
+  // 🎯 ENHANCED: Debug function with comprehensive state
   const debugAuth = () => {
     const currentState = {
+      timestamp: new Date().toISOString(),
+      url: window.location.href,
       userAuth: {
         isAuthenticated: userAuth.isAuthenticated,
         hasUser: !!userAuth.user,
@@ -818,19 +856,20 @@ export const AuthProvider = ({ children }) => {
         sellerName: sellerAuth.seller?.firstName,
         tokenLength: sellerAuth.token?.length || 0
       },
+      adminAuth: {
+        isAuthenticated: adminAuth.isAuthenticated,
+        hasAdmin: !!adminAuth.admin,
+        hasToken: !!adminAuth.token,
+        adminName: adminAuth.admin?.name,
+        adminRole: adminAuth.admin?.role,
+        tokenLength: adminAuth.token?.length || 0
+      },
       deliveryAgentAuth: {
         isAuthenticated: deliveryAgentAuth.isAuthenticated,
         hasAgent: !!deliveryAgentAuth.deliveryAgent,
         hasToken: !!deliveryAgentAuth.token,
         agentName: deliveryAgentAuth.deliveryAgent?.name,
         tokenLength: deliveryAgentAuth.token?.length || 0
-      },
-      adminAuth: {
-        isAuthenticated: adminAuth.isAuthenticated,
-        hasAdmin: !!adminAuth.admin,
-        hasToken: !!adminAuth.token,
-        adminName: adminAuth.admin?.name,
-        tokenLength: adminAuth.token?.length || 0
       },
       localStorage: {
         userToken: safeGetItem('userToken') ? 'present' : 'missing',
@@ -841,19 +880,26 @@ export const AuthProvider = ({ children }) => {
         adminData: safeGetItem('adminData') ? 'present' : 'missing',
         deliveryAgentToken: safeGetItem('deliveryAgentToken') ? 'present' : 'missing',
         deliveryAgentData: safeGetItem('deliveryAgentData') ? 'present' : 'missing'
+      },
+      environment: {
+        nodeEnv: process.env.NODE_ENV,
+        isDevelopment: process.env.NODE_ENV === 'development'
       }
     };
     
-    debugLog('🔧 MANUAL AUTH DEBUG', currentState, 'info');
+    debugLog('MANUAL AUTH DEBUG REQUESTED', currentState, 'critical');
     return currentState;
   };
 
   // Update user data in context and localStorage
   const updateUser = (userData) => {
     try {
-      debugLog('🔄 Updating user data in context and storage...', { userData: userData ? { id: userData._id, name: userData.name, hasLocation: !!userData.location } : null }, 'info');
+      debugLog('UPDATING USER DATA', { 
+        userData: userData ? { id: userData._id, name: userData.name, hasLocation: !!userData.location } : null 
+      }, 'info');
+      
       if (!userData || !userData._id) {
-        debugLog('❌ updateUser called with invalid data', { userData }, 'error');
+        debugLog('UPDATE USER FAILED - Invalid data', { userData }, 'error');
         return;
       }
 
@@ -869,22 +915,25 @@ export const AuthProvider = ({ children }) => {
           isAuthenticated: true,
           token: dataToStore.token || prevAuth.token
         }));
-        debugLog('✅ User data updated successfully', { userId: userData._id, userName: userData.name }, 'success');
+        debugLog('USER DATA UPDATED SUCCESSFULLY', { userId: userData._id, userName: userData.name }, 'success');
       } else {
-        debugLog('❌ Failed to store updated user data', null, 'error');
+        debugLog('FAILED TO STORE UPDATED USER DATA', null, 'error');
       }
 
     } catch (error) {
-      debugLog('💥 Error updating user data:', { error: error.message }, 'error');
+      debugLog('ERROR UPDATING USER DATA', { error: error.message }, 'error');
     }
   };
 
-  // 🚚 Update delivery agent data
+  // Update delivery agent data
   const updateDeliveryAgent = (agentData) => {
     try {
-      debugLog('🚚 Updating delivery agent data in context and storage...', { agentData: agentData ? { id: agentData._id, name: agentData.name } : null }, 'delivery');
+      debugLog('UPDATING DELIVERY AGENT DATA', { 
+        agentData: agentData ? { id: agentData._id, name: agentData.name } : null 
+      }, 'delivery');
+      
       if (!agentData || !agentData._id) {
-        debugLog('❌ updateDeliveryAgent called with invalid data', { agentData }, 'error');
+        debugLog('UPDATE DELIVERY AGENT FAILED - Invalid data', { agentData }, 'error');
         return;
       }
 
@@ -900,22 +949,25 @@ export const AuthProvider = ({ children }) => {
           isAuthenticated: true,
           token: dataToStore.token || prevAuth.token
         }));
-        debugLog('✅ Delivery agent data updated successfully', { agentId: agentData._id, agentName: agentData.name }, 'delivery');
+        debugLog('DELIVERY AGENT DATA UPDATED SUCCESSFULLY', { agentId: agentData._id, agentName: agentData.name }, 'delivery');
       } else {
-        debugLog('❌ Failed to store updated delivery agent data', null, 'error');
+        debugLog('FAILED TO STORE UPDATED DELIVERY AGENT DATA', null, 'error');
       }
 
     } catch (error) {
-      debugLog('💥 Error updating delivery agent data:', { error: error.message }, 'error');
+      debugLog('ERROR UPDATING DELIVERY AGENT DATA', { error: error.message }, 'error');
     }
   };
 
-  // 🔧 NEW: Update admin data
+  // Update admin data
   const updateAdmin = (adminData) => {
     try {
-      debugLog('🔧 Updating admin data in context and storage...', { adminData: adminData ? { id: adminData._id, name: adminData.name } : null }, 'admin');
+      debugLog('UPDATING ADMIN DATA', { 
+        adminData: adminData ? { id: adminData._id, name: adminData.name } : null 
+      }, 'admin');
+      
       if (!adminData || !adminData._id) {
-        debugLog('❌ updateAdmin called with invalid data', { adminData }, 'error');
+        debugLog('UPDATE ADMIN FAILED - Invalid data', { adminData }, 'error');
         return;
       }
 
@@ -931,13 +983,13 @@ export const AuthProvider = ({ children }) => {
           isAuthenticated: true,
           token: dataToStore.token || prevAuth.token
         }));
-        debugLog('✅ Admin data updated successfully', { adminId: adminData._id, adminName: adminData.name }, 'admin');
+        debugLog('ADMIN DATA UPDATED SUCCESSFULLY', { adminId: adminData._id, adminName: adminData.name }, 'admin');
       } else {
-        debugLog('❌ Failed to store updated admin data', null, 'error');
+        debugLog('FAILED TO STORE UPDATED ADMIN DATA', null, 'error');
       }
 
     } catch (error) {
-      debugLog('💥 Error updating admin data:', { error: error.message }, 'error');
+      debugLog('ERROR UPDATING ADMIN DATA', { error: error.message }, 'error');
     }
   };
 
@@ -956,8 +1008,8 @@ export const AuthProvider = ({ children }) => {
     logoutSeller,
     loginUser,
     logoutUser,
-    loginAdmin, // 🔧 NEW: Admin login function
-    logoutAdmin, // 🔧 NEW: Admin logout function
+    loginAdmin,
+    logoutAdmin,
     loginDeliveryAgent,
     logoutDeliveryAgent,
     handleAuthError,
@@ -970,7 +1022,7 @@ export const AuthProvider = ({ children }) => {
     debugAuth,
     updateUser,
     updateDeliveryAgent,
-    updateAdmin, // 🔧 NEW: Update admin function
+    updateAdmin,
     
     // Debug helpers (only in development)
     ...(process.env.NODE_ENV === 'development' && {
@@ -989,9 +1041,22 @@ export const AuthProvider = ({ children }) => {
   // Make debug functions available globally in development
   if (process.env.NODE_ENV === 'development') {
     window.debugAuth = debugAuth;
+    window.clearAllTokens = () => {
+      debugLog('CLEARING ALL TOKENS FROM DEBUG', null, 'critical');
+      ['userToken', 'userData', 'sellerToken', 'sellerData', 'adminToken', 'adminData', 'deliveryAgentToken', 'deliveryAgentData'].forEach(key => {
+        safeRemoveItem(key);
+      });
+      setUserAuth({ isAuthenticated: false, user: null, token: null });
+      setSellerAuth({ isAuthenticated: false, seller: null, token: null });
+      setAdminAuth({ isAuthenticated: false, admin: null, token: null });
+      setDeliveryAgentAuth({ isAuthenticated: false, deliveryAgent: null, token: null });
+    };
     
     debugLog('🔧 AUTH DEBUG MODE ENABLED', {
-      availableFunctions: ['window.debugAuth() - Check complete auth state']
+      availableFunctions: [
+        'window.debugAuth() - Check complete auth state',
+        'window.clearAllTokens() - Clear all authentication data'
+      ]
     }, 'info');
   }
 

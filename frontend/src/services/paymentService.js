@@ -1,4 +1,4 @@
-// frontend/src/services/paymentService.js - SMEPay Integration Service
+// frontend/src/services/paymentService.js - COMPLETE SMEPay Frontend Integration
 
 import api from './api';
 
@@ -85,6 +85,7 @@ const handlePaymentError = (error, operation) => {
 class PaymentService {
   constructor() {
     this.smepayLoaded = false;
+    this.pollingIntervals = new Map();
     this.initializeSMEPay();
   }
 
@@ -118,7 +119,7 @@ class PaymentService {
   }
 
   // Wait for SMEPay to load
-  async waitForSMEPay(timeout = 10000) {
+  async waitForSMEPay(timeout = 15000) {
     return new Promise((resolve, reject) => {
       if (this.smepayLoaded && window.smepayCheckout) {
         resolve(true);
@@ -167,10 +168,40 @@ class PaymentService {
     }
   }
 
-  // Launch SMEPay widget for payment
-  async launchSMEPayWidget(orderSlug, callbacks = {}) {
+  // 🎯 NEW: Complete payment flow with real SMEPay integration
+  async processRealSMEPayPayment(orderId) {
     try {
-      logPayment('Launching SMEPay Widget', { orderSlug }, 'info');
+      logPayment('Starting Real SMEPay Payment Flow', { orderId }, 'info');
+
+      // Step 1: Create SMEPay order
+      const createResult = await this.createSMEPayOrder({
+        orderId: orderId,
+        amount: null // Amount will be fetched from order
+      });
+
+      if (!createResult.success) {
+        return createResult;
+      }
+
+      const { smepayOrderSlug, callbackUrl } = createResult.data;
+
+      logPayment('SMEPay Order Created, Opening Payment Widget', {
+        orderSlug: smepayOrderSlug,
+        callbackUrl
+      }, 'info');
+
+      // Step 2: Open SMEPay payment widget
+      return await this.openSMEPayWidget(smepayOrderSlug, orderId);
+
+    } catch (error) {
+      return handlePaymentError(error, 'Process Real SMEPay Payment');
+    }
+  }
+
+  // 🎯 NEW: Open SMEPay widget with proper callback handling
+  async openSMEPayWidget(orderSlug, orderId) {
+    try {
+      logPayment('Opening SMEPay Widget', { orderSlug, orderId }, 'info');
 
       // Ensure SMEPay is loaded
       await this.waitForSMEPay();
@@ -180,46 +211,63 @@ class PaymentService {
       }
 
       return new Promise((resolve, reject) => {
+        // Show loading state
+        const loadingOverlay = this.showPaymentLoading();
+
         window.smepayCheckout({
           slug: orderSlug,
-          onSuccess: (data) => {
-            logPayment('SMEPay Payment Success', data, 'success');
-            
-            if (callbacks.onSuccess) {
-              callbacks.onSuccess(data);
-            }
+          onSuccess: async (data) => {
+            try {
+              logPayment('SMEPay Payment Widget Success', data, 'success');
+              loadingOverlay.remove();
 
-            // Handle success - redirect to callback URL
-            const callbackUrl = data.callback_url;
-            const orderId = data.order_id;
-            
-            if (callbackUrl && orderId) {
-              const redirectUrl = `${callbackUrl}?order_id=${encodeURIComponent(orderId)}`;
-              logPayment('Redirecting to callback', { redirectUrl }, 'info');
-              window.location.href = redirectUrl;
-            }
+              // Start polling for payment confirmation
+              const confirmationResult = await this.pollPaymentConfirmation(orderId);
+              
+              resolve({
+                success: true,
+                data: {
+                  ...data,
+                  confirmationResult
+                },
+                message: 'Payment completed successfully'
+              });
 
-            resolve({
-              success: true,
-              data: data,
-              message: 'Payment completed successfully'
-            });
+            } catch (confirmError) {
+              logPayment('Payment Confirmation Error', confirmError, 'error');
+              loadingOverlay.remove();
+              
+              resolve({
+                success: false,
+                message: 'Payment may have succeeded but confirmation failed. Please check your order status.',
+                errorCode: 'CONFIRMATION_ERROR'
+              });
+            }
           },
           onFailure: (error) => {
-            logPayment('SMEPay Payment Failed', error, 'error');
+            logPayment('SMEPay Payment Widget Failed', error, 'error');
+            loadingOverlay.remove();
             
-            if (callbacks.onFailure) {
-              callbacks.onFailure(error);
-            }
-
             resolve({
               success: false,
               message: 'Payment was cancelled or failed',
-              errorCode: 'PAYMENT_CANCELLED'
+              errorCode: 'PAYMENT_CANCELLED',
+              error
+            });
+          },
+          onClose: () => {
+            logPayment('SMEPay Widget Closed', null, 'warning');
+            loadingOverlay.remove();
+            
+            resolve({
+              success: false,
+              message: 'Payment window was closed',
+              errorCode: 'PAYMENT_CLOSED'
             });
           }
         });
       });
+
     } catch (error) {
       logPayment('Widget Launch Error', error, 'error');
       return {
@@ -228,6 +276,93 @@ class PaymentService {
         errorCode: 'WIDGET_ERROR'
       };
     }
+  }
+
+  // 🎯 NEW: Show payment loading overlay
+  showPaymentLoading() {
+    const overlay = document.createElement('div');
+    overlay.id = 'smepay-loading-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      color: white;
+      font-family: system-ui, -apple-system, sans-serif;
+    `;
+    
+    overlay.innerHTML = `
+      <div style="text-align: center; padding: 2rem; background: white; border-radius: 1rem; color: #333; max-width: 400px; margin: 1rem;">
+        <div style="width: 60px; height: 60px; border: 4px solid #f3f3f3; border-top: 4px solid #ff6b35; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+        <h3 style="margin: 0 0 0.5rem; color: #333;">Processing Payment</h3>
+        <p style="margin: 0; color: #666; font-size: 14px;">Please complete your payment in the SMEPay window...</p>
+        <style>
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        </style>
+      </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  // 🎯 NEW: Poll payment confirmation
+  async pollPaymentConfirmation(orderId, maxAttempts = 20, interval = 3000) {
+    logPayment('Starting Payment Confirmation Polling', {
+      orderId,
+      maxAttempts,
+      interval
+    }, 'info');
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const statusResult = await this.checkPaymentStatus(orderId);
+
+        logPayment('Polling Status Check', {
+          attempt,
+          isPaymentSuccessful: statusResult.data?.isPaymentSuccessful,
+          paymentStatus: statusResult.data?.paymentStatus
+        }, 'info');
+
+        if (statusResult.success && statusResult.data?.isPaymentSuccessful) {
+          logPayment('Payment Confirmed via Polling', {
+            attempts: attempt,
+            orderId
+          }, 'success');
+          return statusResult;
+        }
+
+        if (statusResult.data?.paymentStatus === 'failed') {
+          throw new Error('Payment failed');
+        }
+
+        // Wait before next attempt
+        if (attempt < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, interval));
+        }
+
+      } catch (error) {
+        logPayment('Polling Attempt Failed', {
+          attempt,
+          error: error.message
+        }, 'warning');
+
+        if (attempt === maxAttempts) {
+          throw error;
+        }
+      }
+    }
+
+    throw new Error('Payment confirmation timed out');
   }
 
   // Generate QR code for payment
@@ -290,6 +425,48 @@ class PaymentService {
     }
   }
 
+  // Start payment status polling with cleanup
+  startPaymentPolling(orderId, callback, interval = 5000) {
+    if (this.pollingIntervals.has(orderId)) {
+      this.stopPaymentPolling(orderId);
+    }
+
+    const intervalId = setInterval(async () => {
+      try {
+        const result = await this.checkPaymentStatus(orderId);
+        callback(result);
+
+        if (result.success && result.data?.isPaymentSuccessful) {
+          this.stopPaymentPolling(orderId);
+        }
+      } catch (error) {
+        callback({ success: false, error: error.message });
+      }
+    }, interval);
+
+    this.pollingIntervals.set(orderId, intervalId);
+    return intervalId;
+  }
+
+  // Stop payment polling
+  stopPaymentPolling(orderId) {
+    const intervalId = this.pollingIntervals.get(orderId);
+    if (intervalId) {
+      clearInterval(intervalId);
+      this.pollingIntervals.delete(orderId);
+      logPayment('Stopped polling for order', { orderId }, 'info');
+    }
+  }
+
+  // Cleanup all polling intervals
+  cleanup() {
+    for (const [orderId, intervalId] of this.pollingIntervals.entries()) {
+      clearInterval(intervalId);
+      logPayment('Cleaned up polling for order', { orderId }, 'info');
+    }
+    this.pollingIntervals.clear();
+  }
+
   // Get available payment methods
   async getPaymentMethods() {
     try {
@@ -315,115 +492,13 @@ class PaymentService {
       const response = await api.get(`/payments/history?page=${page}&limit=${limit}`);
 
       logPayment('Payment History Fetched', {
-        count: response.data.count,
-        totalPages: response.data.totalPages
+        count: response.data.pagination?.totalOrders || 0,
+        totalPages: response.data.pagination?.totalPages || 0
       }, 'success');
 
       return response.data;
     } catch (error) {
       return handlePaymentError(error, 'Get Payment History');
-    }
-  }
-
-  // Complete payment flow for an order
-  async processOrderPayment(orderId, paymentMethod = 'smepay') {
-    try {
-      logPayment('Starting Complete Payment Flow', {
-        orderId,
-        paymentMethod
-      }, 'info');
-
-      if (paymentMethod === 'smepay') {
-        // Step 1: Create SMEPay order
-        const createResult = await this.createSMEPayOrder({
-          orderId: orderId,
-          amount: null // Amount will be fetched from order
-        });
-
-        if (!createResult.success) {
-          return createResult;
-        }
-
-        const orderSlug = createResult.data.smepayOrderSlug;
-
-        // Step 2: Launch payment widget
-        const paymentResult = await this.launchSMEPayWidget(orderSlug, {
-          onSuccess: (data) => {
-            logPayment('Payment Flow Success', data, 'success');
-          },
-          onFailure: (error) => {
-            logPayment('Payment Flow Failure', error, 'error');
-          }
-        });
-
-        return paymentResult;
-      } else {
-        return {
-          success: false,
-          message: 'Unsupported payment method',
-          errorCode: 'INVALID_PAYMENT_METHOD'
-        };
-      }
-    } catch (error) {
-      return handlePaymentError(error, 'Process Order Payment');
-    }
-  }
-
-  // Poll payment status until completion or timeout
-  async pollPaymentStatus(orderId, maxAttempts = 30, interval = 2000) {
-    try {
-      logPayment('Starting Payment Status Polling', {
-        orderId,
-        maxAttempts,
-        interval
-      }, 'info');
-
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        const statusResult = await this.checkPaymentStatus(orderId);
-
-        if (!statusResult.success) {
-          logPayment('Polling failed', statusResult, 'error');
-          return statusResult;
-        }
-
-        const { isPaymentSuccessful, paymentStatus } = statusResult.data;
-
-        logPayment('Polling Status', {
-          attempt,
-          paymentStatus,
-          isPaymentSuccessful
-        }, 'info');
-
-        if (isPaymentSuccessful) {
-          logPayment('Payment Completed via Polling', {
-            attempts: attempt,
-            paymentStatus
-          }, 'success');
-          return statusResult;
-        }
-
-        if (paymentStatus === 'failed' || paymentStatus === 'cancelled') {
-          return {
-            success: false,
-            message: `Payment ${paymentStatus}`,
-            errorCode: `PAYMENT_${paymentStatus.toUpperCase()}`
-          };
-        }
-
-        // Wait before next attempt
-        if (attempt < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, interval));
-        }
-      }
-
-      // Timeout reached
-      return {
-        success: false,
-        message: 'Payment status check timed out',
-        errorCode: 'POLLING_TIMEOUT'
-      };
-    } catch (error) {
-      return handlePaymentError(error, 'Poll Payment Status');
     }
   }
 
@@ -443,5 +518,12 @@ class PaymentService {
 
 // Create singleton instance
 const paymentService = new PaymentService();
+
+// Cleanup on page unload
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    paymentService.cleanup();
+  });
+}
 
 export default paymentService;
