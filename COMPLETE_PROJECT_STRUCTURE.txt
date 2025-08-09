@@ -1,0 +1,406 @@
+# ZAMMER MARKETPLACE - COMPLETE PROJECT STRUCTURE AND API DOCUMENTATION
+
+## PROJECT OVERVIEW
+- **Project Name**: ZAMMER Marketplace
+- **Version**: 1.0.0
+- **Type**: Full Stack E-commerce Application
+- **Tech Stack**: React.js Frontend + Node.js Backend + MongoDB
+- **Architecture**: Microservices with separate frontend/backend structure
+
+## ROOT LEVEL STRUCTURE
+```
+ZAMMER/
+├── package.json                    # Main project configuration
+├── node_modules/                   # Dependencies (massive directory - 1000+ packages)
+├── public/                         # Static assets and HTML template
+├── src/                           # React application source code
+└── smepay_api_docs.md             # API documentation (excluded as per request)
+```
+
+## FRONTEND STRUCTURE (src/)
+
+### 1. MAIN APPLICATION FILES
+```
+src/
+├── App.js                         # Main React application component
+├── App.css                        # Global application styles
+├── App.test.js                    # Application tests
+├── index.js                       # React application entry point
+├── index.css                      # Global CSS styles
+├── logo.svg                       # Application logo
+├── reportWebVitals.js             # Performance monitoring
+├── routes.js                      # Application routing configuration
+└── setupTests.js                  # Test environment setup
+```
+
+### 2. COMPONENTS DIRECTORY STRUCTURE
+```
+src/components/
+├── ErrorBoundary.js               # Error handling component
+├── GooglePlacesAutocomplete.js    # Google Places integration
+├── LandingNavbar.js               # Landing page navigation
+├── LandingPage.js                 # Main landing page component
+├── RealTimeOrderTracker.js        # Live order tracking component
+├── SimplePlacesTest.js            # Google Places testing component
+│
+├── admin/                         # Admin-specific components
+│   ├── DeliveryTracking.js        # Admin delivery tracking
+│   └── OrderManagaement.js        # Admin order management
+│
+├── common/                        # Shared/reusable components
+│   ├── MapView.js                 # Map display component
+│   └── StarRating.js              # Rating display component
+│
+├── delivery/                      # Delivery agent components
+│   ├── LocationTracker.js         # GPS location tracking
+│   ├── OrderCard.js               # Order display card
+│   └── OTPInput.js                # OTP verification input
+│
+├── layouts/                       # Application layout components
+│   ├── AdminLayout.js             # Admin dashboard layout
+│   ├── DeliveryLayout.js          # Delivery agent layout
+│   ├── SellerLayout.js            # Seller dashboard layout
+│   └── UserLayout.js              # User interface layout
+│
+└── user/                          # User-specific components
+    ├── FilterModal.js             # Product filtering modal
+    └── SocketTestComponent.js     # WebSocket testing component
+```
+
+### 3. CONTEXTS DIRECTORY
+```
+src/contexts/
+├── AuthContext.js                 # Authentication state management
+├── DeliveryContext.js             # Delivery tracking state
+└── OrderTrackingContext.js        # Order tracking state management
+```
+
+### 4. PAGES DIRECTORY STRUCTURE
+```
+src/pages/
+├── admin/                         # Administrator pages
+│   ├── AdminDashboard.js          # Main admin dashboard
+│   ├── AdminLogin.js              # Admin authentication
+│   ├── OrderDetails.js            # Detailed order view
+│   ├── ViewAllSellers.js          # Seller management
+│   ├── ViewAllUsers.js            # User management
+│   ├── ViewSellerProfile.js       # Individual seller details
+│   └── ViewUserProfile.js         # Individual user details
+│
+├── auth/                          # Authentication pages
+│   ├── DeliveryAgentLogin.js      # Delivery agent login
+│   ├── DeliveryAgentRegister.js   # Delivery agent registration
+│   ├── SellerForgotPassword.js    # Seller password recovery
+│   ├── SellerLogin.js             # Seller authentication
+│   ├── SellerRegister.js          # Seller registration
+│   ├── SellerResetPassword.js     # Seller password reset
+│   ├── UserForgotPassword.js      # User password recovery
+│   ├── UserLogin.js               # User authentication
+│   ├── UserRegister.js            # User registration
+│   └── UserResetPassword.js       # User password reset
+│
+├── delivery/                      # Delivery agent pages
+│   ├── AvailableOrders.js         # Available orders list
+│   ├── DeliveryDashboard.js       # Delivery agent dashboard
+│   ├── DeliveryHistory.js         # Completed deliveries
+│   ├── DeliveryProfile.js         # Agent profile management
+│   ├── OrderDelivery.js           # Order delivery process
+│   └── OrderPickup.js             # Order pickup process
+│
+├── policy/                        # Legal/policy pages
+│   ├── ContactPolicy.js           # Contact information policy
+│   ├── PrivacyPolicy.js           # Privacy policy
+│   ├── RefundPolicy.js            # Refund policy
+│   ├── ShippingPolicy.js          # Shipping policy
+│   └── TermsPolicy.js             # Terms of service
+│
+├── seller/                        # Seller management pages
+│   ├── AddProduct.js              # Product creation
+│   ├── Dashboard.js               # Seller dashboard
+│   ├── EditProduct.js             # Product editing
+│   ├── EditProfile.js             # Seller profile editing
+│   ├── Orders.js                  # Seller order management
+│   └── ViewProducts.js            # Product inventory view
+│
+└── user/                          # Customer-facing pages
+    ├── AboutPage.js               # About us page
+    ├── CartPage.js                # Shopping cart
+    ├── CategoryPage.js            # Product categories
+    ├── CheckoutPage.js            # Checkout process
+    ├── ContactPage.js             # Contact form
+    ├── Dashboard.js               # User dashboard
+    ├── HelpPage.js                # Help/FAQ page
+    ├── HomePage.js                # Main homepage
+    ├── LimitedEditionPage.js      # Special products
+    ├── MyOrdersPage.js            # User order history
+    ├── NearbyShopsPage.js         # Location-based shops
+    ├── OrderConfirmationPage.js   # Order confirmation
+    ├── PaymentPage.js             # Payment processing
+    ├── ProductDetailPage.js       # Individual product view
+    ├── ProductListPage.js         # Product listing
+    ├── RealTimeOrderTracker.js    # Live order tracking
+    ├── ShopDetailPage.js          # Individual shop view
+    ├── ShopOffersPage.js          # Shop promotions
+    ├── ShopPage.js                # Shop browsing
+    ├── TrendingPage.js            # Trending products
+    ├── UserProfile.js             # User profile management
+    └── WishlistPage.js            # User wishlist
+```
+
+### 5. SERVICES DIRECTORY (API LAYER)
+```
+src/services/
+├── adminService.js                # Admin-related API calls
+├── api.js                         # Main API configuration
+├── cartService.js                 # Shopping cart operations
+├── deliveryService.js             # Delivery management APIs
+├── fallbackApi.js                 # Fallback API handling
+├── orderService.js                # Order management APIs
+├── paymentService.js              # Payment processing APIs
+├── productService.js              # Product CRUD operations
+├── ratingService.js               # Rating/review APIs
+├── reviewService.js               # Product review APIs
+├── sellerService.js               # Seller management APIs
+├── shopService.js                 # Shop management APIs
+├── socketService.js               # WebSocket connections
+├── trackingService.js             # Order tracking APIs
+├── userService.js                 # User management APIs
+└── wishlistService.js             # Wishlist operations
+```
+
+### 6. UTILITIES DIRECTORY
+```
+src/utils/
+├── authUtils.js                   # Authentication utilities
+├── debugUtils.js                  # Debugging helpers
+├── emergencyCleanup.js            # Emergency cleanup functions
+├── flowMonitor.js                 # Application flow monitoring
+├── locationUtils.js               # Location/GPS utilities
+└── tokenCleanup.js                # Token management utilities
+```
+
+## PUBLIC ASSETS STRUCTURE
+```
+public/
+├── favicon.ico                    # Website favicon
+├── index.html                     # HTML template
+├── logo192.png                    # App logo (192px)
+├── logo512.png                    # App logo (512px)
+├── manifest.json                  # PWA manifest
+├── robots.txt                     # SEO robots file
+│
+└── placeholders/                  # Product placeholder images
+    ├── kids-boys.jpg              # Kids boys category
+    ├── kids-nightwear.jpg         # Kids nightwear
+    ├── kids-shirts.jpg            # Kids shirts
+    ├── kids-sleepwear.jpg         # Kids sleepwear
+    ├── kids-topwear.jpg           # Kids topwear
+    ├── kids-tshirts.jpg           # Kids t-shirts
+    ├── men-ethnic.jpg             # Men's ethnic wear
+    ├── men-jackets.jpg            # Men's jackets
+    ├── men-jeans.jpg              # Men's jeans
+    ├── men-shirt.jpg              # Men's shirts
+    ├── men-shirts.jpg             # Men's shirts (variant)
+    ├── men-sleepwear.jpg          # Men's sleepwear
+    ├── men-tees.jpg               # Men's t-shirts
+    ├── men-tops.jpg               # Men's tops
+    ├── men-topwear.jpg            # Men's topwear
+    ├── men-tshirts.jpg            # Men's t-shirts (variant)
+    ├── women-dresses.jpg          # Women's dresses
+    ├── women-jeans.jpg            # Women's jeans
+    ├── women-kurties.jpg          # Women's kurties
+    ├── women-lehenga.jpg          # Women's lehenga
+    ├── women-nightwear.jpg        # Women's nightwear
+    ├── women-rayon.jpg            # Women's rayon wear
+    ├── women-shrug.jpg            # Women's shrugs
+    ├── women-shrugs.jpg           # Women's shrugs (variant)
+    ├── women-tees.jpg             # Women's t-shirts
+    └── women-tops.jpg             # Women's tops
+```
+
+## API ENDPOINTS AND SERVICE CALLS
+
+### 1. Authentication APIs (authService.js)
+```javascript
+// User Authentication
+POST /api/auth/user/login          # User login
+POST /api/auth/user/register       # User registration
+POST /api/auth/user/forgot         # Forgot password
+POST /api/auth/user/reset          # Reset password
+POST /api/auth/user/logout         # User logout
+
+// Seller Authentication
+POST /api/auth/seller/login        # Seller login
+POST /api/auth/seller/register     # Seller registration
+POST /api/auth/seller/forgot       # Seller forgot password
+POST /api/auth/seller/reset        # Seller reset password
+
+// Delivery Agent Authentication
+POST /api/auth/delivery/login      # Delivery agent login
+POST /api/auth/delivery/register   # Delivery agent registration
+
+// Admin Authentication
+POST /api/auth/admin/login         # Admin login
+```
+
+### 2. User Management APIs (userService.js)
+```javascript
+GET /api/users/profile             # Get user profile
+PUT /api/users/profile             # Update user profile
+GET /api/users/orders              # Get user orders
+POST /api/users/address            # Add user address
+PUT /api/users/address/:id         # Update address
+DELETE /api/users/address/:id      # Delete address
+GET /api/users/wishlist            # Get user wishlist
+POST /api/users/wishlist           # Add to wishlist
+DELETE /api/users/wishlist/:id     # Remove from wishlist
+```
+
+### 3. Product Management APIs (productService.js)
+```javascript
+GET /api/products                  # Get all products
+GET /api/products/:id              # Get product by ID
+POST /api/products                 # Create new product (seller)
+PUT /api/products/:id              # Update product (seller)
+DELETE /api/products/:id           # Delete product (seller)
+GET /api/products/category/:cat    # Get products by category
+GET /api/products/search           # Search products
+GET /api/products/trending         # Get trending products
+GET /api/products/limited          # Get limited edition products
+```
+
+### 4. Order Management APIs (orderService.js)
+```javascript
+POST /api/orders                   # Create new order
+GET /api/orders/:id                # Get order details
+PUT /api/orders/:id/status         # Update order status
+GET /api/orders/user/:userId       # Get user orders
+GET /api/orders/seller/:sellerId   # Get seller orders
+GET /api/orders/delivery/:agentId  # Get delivery agent orders
+POST /api/orders/:id/cancel        # Cancel order
+GET /api/orders/:id/track          # Track order
+```
+
+### 5. Cart Management APIs (cartService.js)
+```javascript
+GET /api/cart                      # Get user cart
+POST /api/cart/add                 # Add item to cart
+PUT /api/cart/update/:itemId       # Update cart item quantity
+DELETE /api/cart/remove/:itemId    # Remove item from cart
+DELETE /api/cart/clear             # Clear entire cart
+```
+
+### 6. Payment APIs (paymentService.js)
+```javascript
+POST /api/payments/create          # Create payment intent
+POST /api/payments/confirm         # Confirm payment
+GET /api/payments/:id              # Get payment status
+POST /api/payments/refund          # Process refund
+```
+
+### 7. Shop Management APIs (shopService.js)
+```javascript
+GET /api/shops                     # Get all shops
+GET /api/shops/:id                 # Get shop details
+POST /api/shops                    # Create shop (seller)
+PUT /api/shops/:id                 # Update shop details
+GET /api/shops/nearby              # Get nearby shops
+GET /api/shops/:id/products        # Get shop products
+GET /api/shops/:id/offers          # Get shop offers
+```
+
+### 8. Delivery APIs (deliveryService.js)
+```javascript
+GET /api/delivery/available        # Get available orders
+POST /api/delivery/accept/:orderId # Accept order for delivery
+PUT /api/delivery/pickup/:orderId  # Mark order as picked up
+PUT /api/delivery/deliver/:orderId # Mark order as delivered
+GET /api/delivery/history          # Get delivery history
+PUT /api/delivery/location         # Update delivery agent location
+```
+
+### 9. Rating & Review APIs (ratingService.js, reviewService.js)
+```javascript
+POST /api/reviews                  # Add product review
+GET /api/reviews/product/:id       # Get product reviews
+PUT /api/reviews/:id               # Update review
+DELETE /api/reviews/:id            # Delete review
+POST /api/ratings                  # Add rating
+GET /api/ratings/product/:id       # Get product ratings
+```
+
+### 10. Admin APIs (adminService.js)
+```javascript
+GET /api/admin/dashboard           # Get admin dashboard data
+GET /api/admin/users               # Get all users
+GET /api/admin/sellers             # Get all sellers
+GET /api/admin/orders              # Get all orders
+PUT /api/admin/user/:id/status     # Update user status
+PUT /api/admin/seller/:id/status   # Update seller status
+GET /api/admin/analytics           # Get platform analytics
+```
+
+### 11. Tracking APIs (trackingService.js)
+```javascript
+GET /api/tracking/:orderId         # Get real-time order tracking
+POST /api/tracking/update          # Update tracking information
+GET /api/tracking/history/:orderId # Get tracking history
+```
+
+### 12. WebSocket Events (socketService.js)
+```javascript
+// Real-time events
+'order-status-update'              # Order status changed
+'delivery-location-update'         # Delivery agent location update
+'new-order-notification'           # New order notification
+'payment-status-update'            # Payment status update
+'chat-message'                     # Real-time messaging
+```
+
+## EXTERNAL API INTEGRATIONS
+```javascript
+// Google APIs
+Google Maps JavaScript API         # Map display and directions
+Google Places API                  # Address autocomplete
+Google Geocoding API              # Address to coordinates conversion
+
+// Payment Gateways
+SMEPay API                        # Primary payment processor
+Razorpay API                      # Backup payment gateway
+PayPal API                        # International payments
+
+// SMS/Communication
+Twilio API                        # SMS notifications
+Firebase Cloud Messaging         # Push notifications
+
+// Analytics
+Google Analytics                  # User behavior tracking
+```
+
+## PACKAGE DEPENDENCIES
+The project uses 1000+ npm packages including:
+- React 18+ (UI framework)
+- React Router (Routing)
+- Axios (HTTP client)
+- Socket.io (WebSocket communication)
+- Material-UI/MUI (UI components)
+- Google Maps React (Map integration)
+- Chart.js (Analytics charts)
+- Moment.js (Date handling)
+- Lodash (Utility functions)
+- Formik + Yup (Form handling)
+- And hundreds of other dependencies
+
+## ARCHITECTURE NOTES
+1. **Monorepo Structure**: Single repository with separate frontend/backend folders
+2. **Service Layer Pattern**: All API calls abstracted into service files
+3. **Context API**: React Context for state management
+4. **Component-Based Architecture**: Modular, reusable components
+5. **Role-Based Access**: Different layouts and pages for different user types
+6. **Real-Time Features**: WebSocket integration for live updates
+7. **PWA Ready**: Progressive Web App capabilities
+8. **Responsive Design**: Mobile-first responsive design
+9. **Error Boundaries**: Proper error handling throughout the app
+10. **Performance Optimized**: Code splitting and lazy loading implemented
+
+This marketplace application supports multiple user types (customers, sellers, delivery agents, admins) with comprehensive e-commerce functionality including real-time order tracking, payment processing, and location-based services.

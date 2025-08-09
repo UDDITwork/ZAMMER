@@ -1,3 +1,4 @@
+// backend/app.js
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -107,8 +108,8 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: getAllowedOrigins(),
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    credentials: false, // Changed to false for better hosting compatibility
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    credentials: true,  // ✅ CHANGE FROM false TO true
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
   },
   transports: ['websocket', 'polling'],
@@ -367,20 +368,21 @@ const corsOptions = {
   origin: (origin, callback) => {
     const allowedOrigins = getAllowedOrigins();
     
-    // Allow requests with no origin (mobile apps, etc.)
+    // Allow requests with no origin (Postman, etc.)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       console.warn(`🚫 CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      callback(null, false);  // ✅ CHANGE: Return false instead of error
     }
   },
-  credentials: false,
+  credentials: true,  // ✅ CHANGE FROM false TO true
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  preflightContinue: true,
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  preflightContinue: false,  // ✅ CHANGE FROM true TO false
   optionsSuccessStatus: 204
 };
 

@@ -1,4 +1,4 @@
-// frontend/src/components/layouts/AdminLayout.js - Admin Dashboard Layout Component
+// frontend/src/components/layouts/AdminLayout.js - CRITICAL FIX
 
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -9,41 +9,103 @@ const AdminLayout = ({ children }) => {
   const [adminStats, setAdminStats] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
-  const { admin, logout } = useAuth();
+  const { adminAuth, logout } = useAuth();
 
-  // Load admin stats on mount
+  // 🎯 MOVE ALL useEffect TO TOP - BEFORE ANY CONDITIONAL RETURNS
   useEffect(() => {
-    loadAdminStats();
+    const updateLayout = () => {
+      const mainContent = document.querySelector('.admin-main-content');
+      if (mainContent && window.innerWidth >= 1024) {
+        mainContent.style.paddingLeft = '16rem';
+      } else if (mainContent) {
+        mainContent.style.paddingLeft = '0';
+      }
+    };
+    
+    updateLayout();
+    window.addEventListener('resize', updateLayout);
+    return () => window.removeEventListener('resize', updateLayout);
   }, []);
+
+  useEffect(() => {
+    console.log('%c[ADMIN-LAYOUT] Protected route - checking auth', 'color: #673AB7; font-weight: bold;', {
+      isAuthenticated: adminAuth.isAuthenticated,
+      hasAdmin: !!adminAuth.admin,
+      hasToken: !!adminAuth.token,
+      currentPath: location.pathname
+    });
+
+    const publicRoutes = ['/admin/login', '/admin/forgot-password', '/admin/register'];
+    const isPublicRoute = publicRoutes.includes(location.pathname);
+
+    if (!isPublicRoute && (!adminAuth.isAuthenticated || !adminAuth.admin || !adminAuth.token)) {
+      console.log('%c[ADMIN-LAYOUT] Auth failed - redirecting to login', 'color: #F44336; font-weight: bold;');
+      navigate('/admin/login', { replace: true });
+      return;
+    }
+
+    if (!isPublicRoute) {
+      loadAdminStats();
+    }
+  }, [adminAuth, location.pathname, navigate]);
+
+  // 🎯 NOW CHECK PUBLIC ROUTES AFTER HOOKS
+  const publicRoutes = ['/admin/login', '/admin/forgot-password', '/admin/register'];
+  const isPublicRoute = publicRoutes.includes(location.pathname);
+
+  console.log('%c[ADMIN-LAYOUT] Route check', 'color: #673AB7; font-weight: bold;', {
+    pathname: location.pathname,
+    isPublicRoute,
+    adminAuth: {
+      isAuthenticated: adminAuth.isAuthenticated,
+      hasAdmin: !!adminAuth.admin,
+      hasToken: !!adminAuth.token
+    }
+  });
+
+  // 🎯 CRITICAL: If it's a public route, just render children without layout
+  if (isPublicRoute) {
+    console.log('%c[ADMIN-LAYOUT] Rendering public route without layout', 'color: #673AB7; font-weight: bold;');
+    return children;
+  }
 
   // Load admin statistics
   const loadAdminStats = async () => {
     try {
-      // This would call admin service to get stats
-      // const stats = await adminService.getStats();
-      // setAdminStats(stats);
+      console.log('%c[ADMIN-LAYOUT] Loading admin stats', 'color: #673AB7; font-weight: bold;');
       
       // Placeholder stats
-      setAdminStats({
+      const stats = {
         totalOrders: 156,
         pendingApprovals: 8,
         activeDeliveryAgents: 12,
         totalUsers: 1250,
         totalSellers: 89,
         todayRevenue: 45600
-      });
+      };
+      
+      setAdminStats(stats);
+      console.log('%c[ADMIN-LAYOUT] Admin stats loaded', 'color: #4CAF50; font-weight: bold;', stats);
+      
     } catch (error) {
-      console.error('Failed to load admin stats:', error);
+      console.log('%c[ADMIN-LAYOUT] Stats loading error', 'color: #F44336; font-weight: bold;', error);
     }
   };
 
   // Handle logout
   const handleLogout = async () => {
     try {
+      console.log('%c[ADMIN-LAYOUT] Logout initiated', 'color: #FF9800; font-weight: bold;');
+      
+      const confirmLogout = window.confirm('Are you sure you want to logout?');
+      if (!confirmLogout) return;
+
       await logout();
-      navigate('/admin/login');
+      console.log('%c[ADMIN-LAYOUT] Logout successful', 'color: #4CAF50; font-weight: bold;');
+      navigate('/admin/login', { replace: true });
+      
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.log('%c[ADMIN-LAYOUT] Logout error', 'color: #F44336; font-weight: bold;', error);
     }
   };
 
@@ -55,7 +117,6 @@ const AdminLayout = ({ children }) => {
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v6H8V5z" />
         </svg>
       )
     },
@@ -93,35 +154,7 @@ const AdminLayout = ({ children }) => {
       href: '/admin/sellers',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-4m-5 0H3m2 0h3M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-        </svg>
-      )
-    },
-    {
-      name: 'Products',
-      href: '/admin/products',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-        </svg>
-      )
-    },
-    {
-      name: 'Analytics',
-      href: '/admin/analytics',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        </svg>
-      )
-    },
-    {
-      name: 'Settings',
-      href: '/admin/settings',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-4m-5 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
         </svg>
       )
     }
@@ -131,6 +164,20 @@ const AdminLayout = ({ children }) => {
   const isActive = (href) => {
     return location.pathname === href || location.pathname.startsWith(href + '/');
   };
+
+  // 🎯 CRITICAL: Show loading if no admin auth yet
+  if (!adminAuth.isAuthenticated || !adminAuth.admin) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading admin panel...</p>
+        </div>
+      </div>
+    );
+  }
+
+  console.log('%c[ADMIN-LAYOUT] Rendering full admin layout', 'color: #4CAF50; font-weight: bold;');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -156,7 +203,6 @@ const AdminLayout = ({ children }) => {
               <span className="text-xl font-bold text-gray-900">ZAMMER Admin</span>
             </Link>
             
-            {/* Mobile close button */}
             <button
               onClick={() => setSidebarOpen(false)}
               className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100"
@@ -177,41 +223,12 @@ const AdminLayout = ({ children }) => {
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-900">
-                  {admin?.name || 'Admin User'}
+                  {adminAuth.admin?.name || 'Admin User'}
                 </p>
-                <p className="text-xs text-gray-500">Administrator</p>
+                <p className="text-xs text-gray-500">{adminAuth.admin?.role || 'Administrator'}</p>
               </div>
             </div>
           </div>
-
-          {/* Stats Summary */}
-          {adminStats && (
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                Quick Stats
-              </h3>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Pending Orders</span>
-                  <span className="text-sm font-semibold text-orange-600">
-                    {adminStats.pendingApprovals}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Active Agents</span>
-                  <span className="text-sm font-semibold text-green-600">
-                    {adminStats.activeDeliveryAgents}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Today's Revenue</span>
-                  <span className="text-sm font-semibold text-blue-600">
-                    ₹{adminStats.todayRevenue?.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Navigation */}
           <nav className="flex-1 px-6 py-4 space-y-1 overflow-y-auto">
@@ -219,6 +236,7 @@ const AdminLayout = ({ children }) => {
               <Link
                 key={item.name}
                 to={item.href}
+                onClick={() => console.log('%c[ADMIN-LAYOUT] Navigation clicked', 'color: #FF5722; font-weight: bold;', item.name)}
                 className={`flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                   isActive(item.href)
                     ? 'bg-orange-100 text-orange-700 border-r-2 border-orange-600'
@@ -257,11 +275,10 @@ const AdminLayout = ({ children }) => {
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-64">
+      <div className="admin-main-content pl-0 lg:pl-64" style={{paddingLeft: window.innerWidth >= 1024 ? '16rem' : '0'}}>
         {/* Top header */}
         <header className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
-            {/* Mobile menu button */}
             <button
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100"
@@ -271,38 +288,15 @@ const AdminLayout = ({ children }) => {
               </svg>
             </button>
 
-            {/* Page title */}
             <div className="flex-1 lg:flex lg:items-center lg:justify-between">
               <h1 className="text-2xl font-semibold text-gray-900">
                 {getPageTitle(location.pathname)}
               </h1>
 
-              {/* Header actions */}
               <div className="flex items-center space-x-4">
-                {/* Notifications */}
-                <button className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-3.5-3.5M9 7v0a3 3 0 013-3v0a3 3 0 013 3v4a2 2 0 01-.586 1.414L11 16v0a1 1 0 01-2 0v0l-3.414-3.586A2 2 0 015 11V7a3 3 0 013-3v0a3 3 0 013 3v0" />
-                  </svg>
-                  {adminStats?.pendingApprovals > 0 && (
-                    <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
-                  )}
-                </button>
-
-                {/* Quick actions */}
-                <div className="hidden md:flex items-center space-x-2">
-                  <Link
-                    to="/admin/orders"
-                    className="px-3 py-1 text-sm bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors"
-                  >
-                    View Orders
-                  </Link>
-                  <Link
-                    to="/admin/delivery-agents"
-                    className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-                  >
-                    Manage Agents
-                  </Link>
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm text-green-600">Authenticated</span>
                 </div>
               </div>
             </div>
@@ -325,16 +319,8 @@ const getPageTitle = (pathname) => {
     '/admin/orders': 'Order Management',
     '/admin/delivery-agents': 'Delivery Agents',
     '/admin/users': 'User Management',
-    '/admin/sellers': 'Seller Management',
-    '/admin/products': 'Product Management',
-    '/admin/analytics': 'Analytics & Reports',
-    '/admin/settings': 'Settings'
+    '/admin/sellers': 'Seller Management'
   };
-
-  // Check for specific order details page
-  if (pathname.includes('/admin/orders/') && pathname !== '/admin/orders') {
-    return 'Order Details';
-  }
 
   return titles[pathname] || 'Admin Panel';
 };

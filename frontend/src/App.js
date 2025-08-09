@@ -7,6 +7,9 @@ import { ROUTES } from './routes';
 // Auth Provider
 import { AuthProvider } from './contexts/AuthContext';
 
+// 🎯 ADDED: Import DeliveryProvider for delivery agent operations
+import { DeliveryProvider } from './contexts/DeliveryContext';
+
 // Import auth utilities for debugging
 import './utils/authUtils';
 
@@ -23,6 +26,10 @@ import ViewAllSellers from './pages/admin/ViewAllSellers';
 import ViewSellerProfile from './pages/admin/ViewSellerProfile';
 import ViewAllUsers from './pages/admin/ViewAllUsers';
 import ViewUserProfile from './pages/admin/ViewUserProfile';
+import DeliveryAgents from './pages/admin/DeliveryAgents';
+
+// Admin Layout
+import AdminLayout from './components/layouts/AdminLayout';
 
 // Seller Auth Pages
 import SellerLogin from './pages/auth/SellerLogin';
@@ -128,11 +135,16 @@ function App() {
             
             {/* Admin Routes */}
             <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            <Route path="/admin/sellers" element={<ViewAllSellers />} />
-            <Route path="/admin/sellers/:id" element={<ViewSellerProfile />} />
-            <Route path="/admin/users" element={<ViewAllUsers />} />
-            <Route path="/admin/users/:id" element={<ViewUserProfile />} />
+            <Route path="/admin/dashboard" element={<AdminLayout><AdminDashboard /></AdminLayout>} />
+            <Route path="/admin/delivery-agents" element={<AdminLayout><DeliveryAgents /></AdminLayout>} />
+            <Route path="/admin/users" element={<AdminLayout><ViewAllUsers /></AdminLayout>} />
+            <Route path="/admin/sellers" element={<AdminLayout><ViewAllSellers /></AdminLayout>} />
+            <Route path="/admin/sellers/:id" element={<AdminLayout><ViewSellerProfile /></AdminLayout>} />
+            <Route path="/admin/users/:id" element={<AdminLayout><ViewUserProfile /></AdminLayout>} />
+            
+            {/* 🆕 ADMIN ROUTE ALIASES - Point to main dashboard sections */}
+            <Route path="/admin/orders" element={<AdminLayout><AdminDashboard /></AdminLayout>} />
+            <Route path="/admin/analytics" element={<AdminLayout><AdminDashboard /></AdminLayout>} />
             
             {/* Seller Auth Routes */}
             <Route path="/seller/login" element={<SellerLogin />} />
@@ -154,17 +166,42 @@ function App() {
             <Route path="/seller/products" element={<Navigate replace to="/seller/view-products" />} />
             <Route path="/seller/profile" element={<Navigate replace to="/seller/edit-profile" />} />
             
-            {/* Delivery Agent Auth Routes */}
+            {/* 🎯 WRAPPED: Delivery Agent Routes with DeliveryProvider */}
+            {/* Delivery Agent Auth Routes - These don't need DeliveryProvider as they use AuthContext */}
             <Route path="/delivery/login" element={<DeliveryAgentLogin />} />
             <Route path="/delivery/register" element={<DeliveryAgentRegister />} />
             
-            {/* Delivery Agent Dashboard Routes */}
-            <Route path="/delivery/dashboard" element={<DeliveryDashboard />} />
-            <Route path="/delivery/orders/available" element={<AvailableOrders />} />
-            <Route path="/delivery/history" element={<DeliveryHistory />} />
-            <Route path="/delivery/profile" element={<DeliveryProfile />} />
-            <Route path="/delivery/orders/:id/pickup" element={<OrderPickup />} />
-            <Route path="/delivery/orders/:id/deliver" element={<OrderDelivery />} />
+            {/* 🎯 WRAPPED: Delivery Agent Dashboard Routes with DeliveryProvider */}
+            <Route path="/delivery/dashboard" element={
+              <DeliveryProvider>
+                <DeliveryDashboard />
+              </DeliveryProvider>
+            } />
+            <Route path="/delivery/orders/available" element={
+              <DeliveryProvider>
+                <AvailableOrders />
+              </DeliveryProvider>
+            } />
+            <Route path="/delivery/history" element={
+              <DeliveryProvider>
+                <DeliveryHistory />
+              </DeliveryProvider>
+            } />
+            <Route path="/delivery/profile" element={
+              <DeliveryProvider>
+                <DeliveryProfile />
+              </DeliveryProvider>
+            } />
+            <Route path="/delivery/orders/:id/pickup" element={
+              <DeliveryProvider>
+                <OrderPickup />
+              </DeliveryProvider>
+            } />
+            <Route path="/delivery/orders/:id/deliver" element={
+              <DeliveryProvider>
+                <OrderDelivery />
+              </DeliveryProvider>
+            } />
             
             {/* User Auth Routes */}
             <Route path="/user/login" element={<UserLogin />} />
