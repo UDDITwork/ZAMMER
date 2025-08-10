@@ -141,22 +141,47 @@ export const deleteProduct = async (id) => {
 // Get marketplace products
 export const getMarketplaceProducts = async (queryParams) => {
   try {
-    debugLog('🔍 Fetching marketplace products', { filters: queryParams });
+    console.log('🌐 ProductService: Making API call to /products/marketplace');
+    console.log('📤 ProductService: Request params:', queryParams);
     
     const response = await api.get('/products/marketplace', { params: queryParams });
     
-    debugLog('✅ Marketplace products fetched', {
-      count: response.data.data.length,
-      filters: queryParams
-    }, response.data.data.length === 0 ? 'warning' : 'success');
+    console.log('📥 ProductService: Raw response:', {
+      status: response.status,
+      hasData: !!response.data,
+      success: response.data?.success,
+      count: response.data?.count,
+      totalCount: response.data?.totalCount
+    });
     
-    return response.data;
+    if (response.data && response.data.success) {
+      console.log('✅ ProductService: Successful response');
+      return response.data;
+    } else {
+      console.error('❌ ProductService: API returned error:', response.data?.message);
+      return {
+        success: false,
+        message: response.data?.message || 'Failed to fetch products',
+        data: [],
+        count: 0,
+        totalCount: 0
+      };
+    }
   } catch (error) {
-    debugLog('❌ Get Marketplace Products Error', {
-      message: error.response?.data?.message || error.message,
-      filters: queryParams
-    }, 'error');
-    throw error.response?.data || error;
+    console.error('❌ ProductService: Network/API error:', {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      url: error.config?.url
+    });
+    
+    return {
+      success: false,
+      message: error.response?.data?.message || error.message || 'Network error while fetching products',
+      data: [],
+      count: 0,
+      totalCount: 0
+    };
   }
 };
 

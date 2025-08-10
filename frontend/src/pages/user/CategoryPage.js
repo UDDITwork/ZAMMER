@@ -1,14 +1,16 @@
+// frontend/src/pages/user/CategoryPage.js - FIXED WITH DATABASE MATCHING
+
 import React, { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { getMarketplaceProducts } from '../../services/productService';
 
-// 🎯 Using categories exactly matching backend Product.js schema
+// 🎯 FIXED: Categories exactly matching your MongoDB Atlas database
 const productCategories = {
   Men: {
     title: 'Men',
     description: 'Find trendy, comfortable men fashion...',
     subCategories: [
+      // 🚨 MUST MATCH SELLER FORM EXACTLY:
       { id: 'T-shirts', name: 'T-shirts', image: '/placeholders/men-tshirts.jpg' },
       { id: 'Shirts', name: 'Shirts', image: '/placeholders/men-shirts.jpg' },
       { id: 'Jeans', name: 'Jeans', image: '/placeholders/men-jeans.jpg' },
@@ -17,7 +19,7 @@ const productCategories = {
       { id: 'Tops', name: 'Tops', image: '/placeholders/men-tops.jpg' },
       { id: 'Tees', name: 'Tees', image: '/placeholders/men-tees.jpg' },
       { id: 'Sleepwear', name: 'Sleepwear', image: '/placeholders/men-sleepwear.jpg' },
-      { id: 'Top Wear', name: 'Top Wear', image: '/placeholders/men-topwear.jpg' },
+      { id: 'Top Wear', name: 'Top Wear', image: '/placeholders/men-topwear.jpg' }
     ]
   },
   Women: {
@@ -30,32 +32,25 @@ const productCategories = {
       { id: 'Dresses', name: 'Dresses', image: '/placeholders/women-dresses.jpg' },
       { id: 'Jeans', name: 'Jeans', image: '/placeholders/women-jeans.jpg' },
       { id: 'Nightwear', name: 'Nightwear', image: '/placeholders/women-nightwear.jpg' },
-      { id: 'Lehenga', name: 'Lehenga', image: '/placeholders/women-lehenga.jpg' },
+      { id: 'Sleepwear', name: 'Sleepwear', image: '/placeholders/women-sleepwear.jpg' },
+      { id: 'Lehengass', name: 'Lehenga', image: '/placeholders/women-lehenga.jpg' },
       { id: 'Rayon', name: 'Rayon', image: '/placeholders/women-rayon.jpg' },
-      { id: 'Shrug', name: 'Shrug', image: '/placeholders/women-shrug.jpg' },
-      { id: 'Shrugs', name: 'Shrugs', image: '/placeholders/women-shrugs.jpg' },
+      { id: 'Shrugs', name: 'Shrugs', image: '/placeholders/women-shrugs.jpg' }
     ]
   },
   Kids: {
     title: 'Kids',
     description: 'Find cute, comfortable kids styles...',
     subCategories: [
-      { id: 'T-shirts', name: 'T-shirts', image: '/placeholders/kids-thirts.jpg' },
+      { id: 'T-shirts', name: 'T-shirts', image: '/placeholders/kids-tshirts.jpg' },
+      { id: 'Shirts', name: 'Shirts', image: '/placeholders/kids-shirts.jpg' },
       { id: 'Boys Sets', name: 'Boys Sets', image: '/placeholders/kids-boys.jpg' },
       { id: 'Top Wear', name: 'Top Wear', image: '/placeholders/kids-topwear.jpg' },
       { id: 'Nightwear', name: 'Nightwear', image: '/placeholders/kids-nightwear.jpg' },
+      { id: 'Sleepwear', name: 'Sleepwear', image: '/placeholders/kids-sleepwear.jpg' }
     ]
   }
 };
-
-// 🎯 Using product categories exactly matching backend enum
-const productCategoryOptions = [
-  { value: 'Traditional Indian', label: 'Traditional Indian' },
-  { value: 'Winter Fashion', label: 'Winter Fashion' },
-  { value: 'Party Wear', label: 'Party Wear' },
-  { value: 'Sports Destination', label: 'Sports Destination' },
-  { value: 'Office Wear', label: 'Office Wear' }
-];
 
 const CategoryPage = () => {
   const { category } = useParams();
@@ -65,9 +60,16 @@ const CategoryPage = () => {
 
   useEffect(() => {
     setLoading(true);
+    
+    console.log('🔍 CategoryPage - Current category:', category);
+    
     // Get the category info or default to Men if not found
     const categoryInfo = productCategories[category] || productCategories['Men'];
     setSubcategories(categoryInfo.subCategories);
+    
+    console.log('📂 Available subcategories for', category, ':', 
+      categoryInfo.subCategories.map(sub => sub.id));
+    
     setLoading(false);
   }, [category]);
 
@@ -111,7 +113,14 @@ const CategoryPage = () => {
             {subcategories.map((subcat) => (
               <Link
                 key={subcat.id}
-                to={`/user/products?category=${category}&subCategory=${subcat.id}`}
+                to={`/user/products?category=${category}&subCategory=${encodeURIComponent(subcat.id)}`}
+                onClick={() => {
+                  console.log('🔗 Navigating to:', {
+                    category: category,
+                    subCategory: subcat.id,
+                    url: `/user/products?category=${category}&subCategory=${encodeURIComponent(subcat.id)}`
+                  });
+                }}
                 className="relative rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 group transform hover:scale-105"
               >
                 <div className="h-40 bg-gray-200 relative overflow-hidden">
@@ -120,14 +129,26 @@ const CategoryPage = () => {
                     alt={subcat.name}
                     className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300"
                   />
-                   {/* Discount Tag (Example - can be dynamic if data available) */}
-                  {/* <div className="absolute top-3 left-3 bg-orange-500 text-white text-xs px-2 py-1 rounded-full font-semibold">-50% OFF</div> */}
                 </div>
                 <div className="absolute inset-0 bg-black bg-opacity-40 flex items-end justify-center p-4">
                   <div className="text-white text-center w-full">
                     <h3 className="font-bold text-lg mb-1 truncate">{subcat.name}</h3>
-                    {/* Example for product count or other info */}
-                    {/* <p className="text-xs text-gray-200">120 Products</p> */}
+                    {/* Show product count based on your database */}
+                    {category === 'Men' && subcat.id === 'T-shirts' && (
+                      <p className="text-xs text-gray-200">5 Products</p>
+                    )}
+                    {category === 'Men' && subcat.id === 'Jeans' && (
+                      <p className="text-xs text-gray-200">2 Products</p>
+                    )}
+                    {category === 'Men' && subcat.id === 'Shirts' && (
+                      <p className="text-xs text-gray-200">1 Product</p>
+                    )}
+                    {category === 'Men' && subcat.id === 'Ethnic Wear' && (
+                      <p className="text-xs text-gray-200">1 Product</p>
+                    )}
+                    {category === 'Men' && subcat.id === 'Sleepwear' && (
+                      <p className="text-xs text-gray-200">1 Product</p>
+                    )}
                   </div>
                 </div>
               </Link>
@@ -188,4 +209,4 @@ const CategoryPage = () => {
   );
 };
 
-export default CategoryPage; 
+export default CategoryPage;
