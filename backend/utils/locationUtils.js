@@ -126,7 +126,7 @@ const calculateDistance = (coord1, coord2) => {
 };
 
 // 🎯 NEARBY SEARCH UTILITIES
-const createNearbyQuery = (userLocation, maxDistance = 50) => {
+const createNearbyQuery = (userLocation, maxDistance = 50000) => {
   try {
     const validation = validateCoordinates(userLocation.longitude, userLocation.latitude);
     

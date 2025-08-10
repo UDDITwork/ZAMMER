@@ -1,4 +1,5 @@
-// frontend/src/services/api.js - UNIVERSAL VERSION
+// File: /frontend/src/services/api.js
+
 import axios from 'axios';
 
 // UNIVERSAL API URL - Based purely on environment variables

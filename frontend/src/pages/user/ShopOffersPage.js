@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+// File: /frontend/src/pages/user/ShopOffersPage.js
+
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getMarketplaceProducts } from '../../services/productService';

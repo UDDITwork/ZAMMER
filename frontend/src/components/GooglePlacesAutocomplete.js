@@ -1,4 +1,6 @@
-import React, { useRef, useEffect, useState } from 'react';
+// File: /frontend/src/components/GooglePlacesAutocomplete.js
+
+import React, { useState, useEffect, useRef } from 'react';
 // frontend/src/components/GooglePlacesAutocomplete.js 
 const GooglePlacesAutocomplete = ({
   value = '',

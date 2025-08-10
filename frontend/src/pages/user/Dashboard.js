@@ -1,3 +1,5 @@
+// File: /frontend/src/pages/user/Dashboard.js
+
 import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';

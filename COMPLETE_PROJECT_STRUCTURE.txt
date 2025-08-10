@@ -81,7 +81,7 @@ src/pages/
 ├── admin/                         # Administrator pages
 │   ├── AdminDashboard.js          # Main admin dashboard
 │   ├── AdminLogin.js              # Admin authentication
-│   ├── OrderDetails.js            # Detailed order view
+│   ├── DeliveryAgents.js            # Detailed order view
 │   ├── ViewAllSellers.js          # Seller management
 │   ├── ViewAllUsers.js            # User management
 │   ├── ViewSellerProfile.js       # Individual seller details

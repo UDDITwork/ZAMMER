@@ -1,3 +1,5 @@
+// File: /frontend/src/pages/user/ShopPage.js
+
 import React, { useEffect, useState, useContext, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';

@@ -1,3 +1,5 @@
+// File: /backend/routes/userRoutes.js - COMPLETE with getNearbyShops route
+
 const express = require('express');
 const { body, check } = require('express-validator');
 const router = express.Router();
@@ -36,6 +38,12 @@ router.post(
   ],
   loginUser
 );
+
+// 🎯 MISSING ROUTE - Add this line to fix the nearby shops functionality
+// @desc    Get nearby shops based on location
+// @route   GET /api/users/nearby-shops?lat=&lng=&maxDistance=&limit=
+// @access  Public (optionally authenticated for saved location)
+router.get('/nearby-shops', optionalUserAuth, getNearbyShops);
 
 // Protected routes
 router.get('/profile', protectUser, getUserProfile);
