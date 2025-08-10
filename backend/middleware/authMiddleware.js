@@ -1,11 +1,12 @@
-// File: /backend/middleware/authMiddleware.js - COMPLETE with optionalUserAuth
+// File: /backend/middleware/authMiddleware.js - Enhanced with optionalUserAuth
 
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Seller = require('../models/Seller');
 const DeliveryAgent = require('../models/DeliveryAgent');
+const Admin = require('../models/Admin');
 
-// Enhanced logging
+// Enhanced logging for auth middleware
 const logAuth = (action, data, level = 'info') => {
   const timestamp = new Date().toISOString();
   const logLevels = {
@@ -19,242 +20,316 @@ const logAuth = (action, data, level = 'info') => {
     data ? JSON.stringify(data, null, 2) : '');
 };
 
-// User authentication middleware
+// Protect User Routes
 const protectUser = async (req, res, next) => {
   try {
     let token;
 
+    // Get token from header
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
+      try {
+        token = req.headers.authorization.split(' ')[1];
+        
+        logAuth('USER_TOKEN_EXTRACTED', {
+          tokenLength: token?.length || 0,
+          hasToken: !!token
+        });
 
-    if (!token) {
-      logAuth('USER_AUTH_FAILED', { reason: 'no_token' }, 'warning');
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized, no token provided'
-      });
-    }
+        // Verify token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        logAuth('USER_TOKEN_VERIFIED', {
+          userId: decoded.id,
+          tokenExp: new Date(decoded.exp * 1000).toISOString()
+        });
 
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id).select('-password');
-      
-      if (!user) {
-        logAuth('USER_AUTH_FAILED', { reason: 'user_not_found', userId: decoded.id }, 'warning');
+        // Get user from database
+        req.user = await User.findById(decoded.id).select('-password');
+        
+        if (!req.user) {
+          logAuth('USER_NOT_FOUND_IN_DB', { userId: decoded.id }, 'error');
+          return res.status(401).json({
+            success: false,
+            message: 'User not found'
+          });
+        }
+
+        logAuth('USER_AUTH_SUCCESS', {
+          userId: req.user._id,
+          userName: req.user.name,
+          hasLocation: !!req.user.location?.coordinates?.length
+        }, 'success');
+
+        next();
+      } catch (error) {
+        logAuth('USER_TOKEN_ERROR', {
+          error: error.message,
+          tokenProvided: !!token
+        }, 'error');
+        
         return res.status(401).json({
           success: false,
-          message: 'Not authorized, user not found'
+          message: 'Not authorized, token failed'
         });
       }
-
-      req.user = user;
-      logAuth('USER_AUTH_SUCCESS', { userId: user._id, email: user.email }, 'success');
-      next();
-    } catch (error) {
-      logAuth('USER_AUTH_FAILED', { reason: 'invalid_token', error: error.message }, 'error');
+    } else {
+      logAuth('NO_USER_TOKEN_PROVIDED', null, 'warning');
       return res.status(401).json({
         success: false,
-        message: 'Not authorized, token failed'
+        message: 'Not authorized, no token'
       });
     }
   } catch (error) {
-    logAuth('USER_AUTH_ERROR', { error: error.message }, 'error');
-    res.status(500).json({
+    logAuth('USER_PROTECT_ERROR', { error: error.message }, 'error');
+    return res.status(500).json({
       success: false,
       message: 'Server error in authentication'
     });
   }
 };
 
-// 🎯 NEW: Optional user authentication middleware
-// Attaches user to request if token is valid, but doesn't fail if no token
+// 🎯 CRITICAL: Optional User Auth - for endpoints that work with or without auth
 const optionalUserAuth = async (req, res, next) => {
   try {
     let token;
 
+    // Get token from header (optional)
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
+      try {
+        token = req.headers.authorization.split(' ')[1];
+        
+        logAuth('OPTIONAL_USER_TOKEN_FOUND', {
+          tokenLength: token?.length || 0
+        });
 
-    if (!token) {
-      logAuth('OPTIONAL_AUTH_NO_TOKEN', null, 'info');
-      req.user = null;
-      return next();
-    }
+        // Verify token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        // Get user from database
+        req.user = await User.findById(decoded.id).select('-password');
+        
+        if (req.user) {
+          logAuth('OPTIONAL_USER_AUTH_SUCCESS', {
+            userId: req.user._id,
+            userName: req.user.name,
+            hasLocation: !!req.user.location?.coordinates?.length
+          }, 'success');
+        } else {
+          logAuth('OPTIONAL_USER_NOT_FOUND', { userId: decoded.id }, 'warning');
+          req.user = null;
+        }
 
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id).select('-password');
-      
-      if (!user) {
-        logAuth('OPTIONAL_AUTH_USER_NOT_FOUND', { userId: decoded.id }, 'warning');
+      } catch (error) {
+        logAuth('OPTIONAL_USER_TOKEN_INVALID', {
+          error: error.message
+        }, 'warning');
         req.user = null;
-      } else {
-        req.user = user;
-        logAuth('OPTIONAL_AUTH_SUCCESS', { userId: user._id, email: user.email }, 'success');
       }
-    } catch (error) {
-      logAuth('OPTIONAL_AUTH_TOKEN_INVALID', { error: error.message }, 'warning');
+    } else {
+      logAuth('OPTIONAL_USER_NO_TOKEN', null, 'info');
       req.user = null;
     }
 
+    // Always continue to next middleware (token is optional)
     next();
   } catch (error) {
-    logAuth('OPTIONAL_AUTH_ERROR', { error: error.message }, 'error');
+    logAuth('OPTIONAL_USER_AUTH_ERROR', { error: error.message }, 'error');
     req.user = null;
     next();
   }
 };
 
-// Seller authentication middleware
+// Protect Seller Routes
 const protectSeller = async (req, res, next) => {
   try {
     let token;
 
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
+      try {
+        token = req.headers.authorization.split(' ')[1];
+        
+        logAuth('SELLER_TOKEN_EXTRACTED', {
+          tokenLength: token?.length || 0
+        });
 
-    if (!token) {
-      logAuth('SELLER_AUTH_FAILED', { reason: 'no_token' }, 'warning');
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized, no token provided'
-      });
-    }
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        req.seller = await Seller.findById(decoded.id).select('-password');
+        
+        if (!req.seller) {
+          logAuth('SELLER_NOT_FOUND', { sellerId: decoded.id }, 'error');
+          return res.status(401).json({
+            success: false,
+            message: 'Seller not found'
+          });
+        }
 
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const seller = await Seller.findById(decoded.id).select('-password');
-      
-      if (!seller) {
-        logAuth('SELLER_AUTH_FAILED', { reason: 'seller_not_found', sellerId: decoded.id }, 'warning');
+        logAuth('SELLER_AUTH_SUCCESS', {
+          sellerId: req.seller._id,
+          sellerName: req.seller.firstName
+        }, 'success');
+
+        next();
+      } catch (error) {
+        logAuth('SELLER_TOKEN_ERROR', { error: error.message }, 'error');
         return res.status(401).json({
           success: false,
-          message: 'Not authorized, seller not found'
+          message: 'Not authorized, token failed'
         });
       }
-
-      req.seller = seller;
-      logAuth('SELLER_AUTH_SUCCESS', { sellerId: seller._id, email: seller.email }, 'success');
-      next();
-    } catch (error) {
-      logAuth('SELLER_AUTH_FAILED', { reason: 'invalid_token', error: error.message }, 'error');
+    } else {
       return res.status(401).json({
         success: false,
-        message: 'Not authorized, token failed'
+        message: 'Not authorized, no token'
       });
     }
   } catch (error) {
-    logAuth('SELLER_AUTH_ERROR', { error: error.message }, 'error');
-    res.status(500).json({
+    logAuth('SELLER_PROTECT_ERROR', { error: error.message }, 'error');
+    return res.status(500).json({
       success: false,
       message: 'Server error in authentication'
     });
   }
 };
 
-// Delivery agent authentication middleware
+// Protect Delivery Agent Routes
 const protectDeliveryAgent = async (req, res, next) => {
   try {
     let token;
 
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
+      try {
+        token = req.headers.authorization.split(' ')[1];
+        
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        req.deliveryAgent = await DeliveryAgent.findById(decoded.id).select('-password');
+        
+        if (!req.deliveryAgent) {
+          return res.status(401).json({
+            success: false,
+            message: 'Delivery agent not found'
+          });
+        }
 
-    if (!token) {
-      logAuth('DELIVERY_AUTH_FAILED', { reason: 'no_token' }, 'warning');
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized, no token provided'
-      });
-    }
+        logAuth('DELIVERY_AGENT_AUTH_SUCCESS', {
+          agentId: req.deliveryAgent._id,
+          agentName: req.deliveryAgent.name
+        }, 'success');
 
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const deliveryAgent = await DeliveryAgent.findById(decoded.id).select('-password');
-      
-      if (!deliveryAgent) {
-        logAuth('DELIVERY_AUTH_FAILED', { reason: 'agent_not_found', agentId: decoded.id }, 'warning');
+        next();
+      } catch (error) {
         return res.status(401).json({
           success: false,
-          message: 'Not authorized, delivery agent not found'
+          message: 'Not authorized, token failed'
         });
       }
-
-      req.deliveryAgent = deliveryAgent;
-      logAuth('DELIVERY_AUTH_SUCCESS', { agentId: deliveryAgent._id, email: deliveryAgent.email }, 'success');
-      next();
-    } catch (error) {
-      logAuth('DELIVERY_AUTH_FAILED', { reason: 'invalid_token', error: error.message }, 'error');
+    } else {
       return res.status(401).json({
         success: false,
-        message: 'Not authorized, token failed'
+        message: 'Not authorized, no token'
       });
     }
   } catch (error) {
-    logAuth('DELIVERY_AUTH_ERROR', { error: error.message }, 'error');
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Server error in authentication'
     });
   }
 };
 
-// Admin authentication middleware
+// Protect Admin Routes
 const protectAdmin = async (req, res, next) => {
   try {
     let token;
 
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
+      try {
+        token = req.headers.authorization.split(' ')[1];
+        
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        req.admin = await Admin.findById(decoded.id).select('-password');
+        
+        if (!req.admin) {
+          return res.status(401).json({
+            success: false,
+            message: 'Admin not found'
+          });
+        }
 
-    if (!token) {
-      logAuth('ADMIN_AUTH_FAILED', { reason: 'no_token' }, 'warning');
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized, no token provided'
-      });
-    }
+        logAuth('ADMIN_AUTH_SUCCESS', {
+          adminId: req.admin._id,
+          adminEmail: req.admin.email
+        }, 'success');
 
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      
-      // Check if it's a valid admin token
-      if (decoded.role !== 'admin') {
-        logAuth('ADMIN_AUTH_FAILED', { reason: 'not_admin', userId: decoded.id }, 'warning');
-        return res.status(403).json({
+        next();
+      } catch (error) {
+        return res.status(401).json({
           success: false,
-          message: 'Not authorized, admin access required'
+          message: 'Not authorized, token failed'
         });
       }
-
-      req.admin = decoded;
-      logAuth('ADMIN_AUTH_SUCCESS', { adminId: decoded.id }, 'success');
-      next();
-    } catch (error) {
-      logAuth('ADMIN_AUTH_FAILED', { reason: 'invalid_token', error: error.message }, 'error');
+    } else {
       return res.status(401).json({
         success: false,
-        message: 'Not authorized, token failed'
+        message: 'Not authorized, no token'
       });
     }
   } catch (error) {
-    logAuth('ADMIN_AUTH_ERROR', { error: error.message }, 'error');
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Server error in authentication'
     });
   }
 };
 
+// Generic token validation (for any user type)
+const validateToken = async (req, res, next) => {
+  try {
+    let token;
+
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+      
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.tokenValid = true;
+        req.decodedToken = decoded;
+        
+        logAuth('TOKEN_VALIDATION_SUCCESS', {
+          userId: decoded.id,
+          tokenExp: new Date(decoded.exp * 1000).toISOString()
+        }, 'success');
+        
+        next();
+      } catch (error) {
+        req.tokenValid = false;
+        req.tokenError = error.message;
+        
+        logAuth('TOKEN_VALIDATION_FAILED', {
+          error: error.message
+        }, 'warning');
+        
+        next();
+      }
+    } else {
+      req.tokenValid = false;
+      req.tokenError = 'No token provided';
+      next();
+    }
+  } catch (error) {
+    req.tokenValid = false;
+    req.tokenError = error.message;
+    next();
+  }
+};
+
 module.exports = {
   protectUser,
-  optionalUserAuth,
+  optionalUserAuth, // 🎯 CRITICAL: Export the missing middleware
   protectSeller,
   protectDeliveryAgent,
-  protectAdmin
+  protectAdmin,
+  validateToken
 };

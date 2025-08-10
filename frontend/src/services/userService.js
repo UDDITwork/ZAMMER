@@ -1,481 +1,318 @@
-// File: /frontend/src/services/userService.js - COMPLETE with getNearbyShops
+// File: /frontend/src/services/userService.js - COMPLETE with getNearbyShops function
 
 import api from './api';
 
-// Enhanced logging for development
-const logUserService = (action, data, type = 'info') => {
-  if (process.env.NODE_ENV === 'development') {
-    const colors = {
-      info: '#2196F3',
-      success: '#4CAF50',
-      warning: '#FF9800',
-      error: '#F44336'
-    };
-    
-    console.log(
-      `%c[USER-SERVICE] ${action}`,
-      `color: ${colors[type]}; font-weight: bold;`,
-      data
-    );
-  }
+// Enhanced logging for debugging
+const logUserService = (action, data, level = 'info') => {
+  const timestamp = new Date().toISOString();
+  const logLevels = {
+    info: '👤',
+    success: '✅',
+    warning: '⚠️',
+    error: '❌'
+  };
+  
+  console.log(`${logLevels[level]} [USER-SERVICE] ${timestamp} - ${action}`, 
+    data ? JSON.stringify(data, null, 2) : '');
 };
 
-// Get current user location using browser geolocation
-const getCurrentLocation = () => {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocation is not supported by this browser.'));
-      return;
-    }
-
-    logUserService('Getting current location...', null, 'info');
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const location = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy
-        };
-        
-        logUserService('Location obtained successfully', location, 'success');
-        resolve(location);
-      },
-      (error) => {
-        let errorMessage = 'Failed to get location';
-        
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = 'Location access denied by user';
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = 'Location information unavailable';
-            break;
-          case error.TIMEOUT:
-            errorMessage = 'Location request timed out';
-            break;
-          default:
-            errorMessage = 'Unknown location error';
-            break;
-        }
-        
-        logUserService('Location error', { error: errorMessage, code: error.code }, 'error');
-        reject(new Error(errorMessage));
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 300000 // 5 minutes
-      }
-    );
-  });
-};
-
-// 🎯 NEW: Get nearby shops with multiple location strategies
-const getNearbyShops = async (options = {}) => {
+// Register user
+export const registerUser = async (userData) => {
   try {
-    const {
-      lat,
-      lng,
-      maxDistance = 50000,
-      limit = 20,
-      forceCurrentLocation = false
-    } = options;
-
-    logUserService('getNearbyShops called', {
-      providedLat: lat,
-      providedLng: lng,
-      maxDistance,
-      limit,
-      forceCurrentLocation
-    }, 'info');
-
-    let queryParams = new URLSearchParams();
-    
-    // Add basic parameters
-    queryParams.append('maxDistance', maxDistance);
-    queryParams.append('limit', limit);
-
-    // Strategy 1: Use provided coordinates
-    if (lat && lng && !forceCurrentLocation) {
-      queryParams.append('lat', lat);
-      queryParams.append('lng', lng);
-      logUserService('Using provided coordinates', { lat, lng }, 'info');
-    } 
-    // Strategy 2: Try to get current location
-    else {
-      try {
-        logUserService('Attempting to get current location...', null, 'info');
-        const currentLocation = await getCurrentLocation();
-        queryParams.append('lat', currentLocation.latitude);
-        queryParams.append('lng', currentLocation.longitude);
-        logUserService('Using current location', currentLocation, 'success');
-      } catch (locationError) {
-        logUserService('Failed to get current location, proceeding without coordinates', 
-          { error: locationError.message }, 'warning');
-        // Continue without location - backend will return all shops
-      }
-    }
-
-    const url = `/users/nearby-shops?${queryParams.toString()}`;
-    logUserService('Making API call', { url }, 'info');
-
-    const response = await api.get(url);
-
-    if (response.data.success) {
-      logUserService('getNearbyShops success', {
-        shopsCount: response.data.count,
-        userLocation: response.data.userLocation,
-        searchRadius: response.data.searchRadius,
-        processingTime: response.data.processingTime
-      }, 'success');
-
-      return {
-        success: true,
-        data: response.data.data,
-        count: response.data.count,
-        userLocation: response.data.userLocation,
-        searchRadius: response.data.searchRadius,
-        stats: response.data.stats,
-        processingTime: response.data.processingTime
-      };
-    } else {
-      logUserService('API returned error', response.data, 'error');
-      return {
-        success: false,
-        message: response.data.message || 'Failed to fetch nearby shops',
-        data: []
-      };
-    }
-
-  } catch (error) {
-    logUserService('getNearbyShops error', {
-      error: error.message,
-      response: error.response?.data
-    }, 'error');
-
-    // Return error response
-    return {
-      success: false,
-      message: error.response?.data?.message || error.message || 'Failed to fetch nearby shops',
-      data: [],
-      error: error.response?.data
-    };
-  }
-};
-
-// User registration
-const registerUser = async (userData) => {
-  try {
-    logUserService('Registering user', { 
-      name: userData.name, 
+    logUserService('REGISTER_USER_START', {
+      name: userData.name,
       email: userData.email,
-      hasLocation: !!userData.location 
-    }, 'info');
+      hasLocation: !!userData.location
+    });
 
     const response = await api.post('/users/register', userData);
     
-    if (response.data.success) {
-      logUserService('User registered successfully', {
-        userId: response.data.data._id,
-        email: response.data.data.email
-      }, 'success');
-
-      // Store token in localStorage
-      if (response.data.data.token) {
-        localStorage.setItem('userToken', response.data.data.token);
-        
-        // Set default auth header
-        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.data.token}`;
-      }
-    }
+    logUserService('REGISTER_USER_SUCCESS', {
+      userId: response.data.data._id,
+      email: response.data.data.email
+    }, 'success');
 
     return response.data;
   } catch (error) {
-    logUserService('Registration error', {
-      error: error.message,
-      response: error.response?.data
+    logUserService('REGISTER_USER_ERROR', {
+      error: error.response?.data || error.message
     }, 'error');
-
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Registration failed',
-      errors: error.response?.data?.errors
-    };
+    throw error.response?.data || error;
   }
 };
 
-// User login
-const loginUser = async (credentials) => {
+// Login user
+export const loginUser = async (credentials) => {
   try {
-    logUserService('Logging in user', { email: credentials.email }, 'info');
+    logUserService('LOGIN_USER_START', { email: credentials.email });
 
     const response = await api.post('/users/login', credentials);
     
-    if (response.data.success) {
-      logUserService('User logged in successfully', {
-        userId: response.data.data._id,
-        email: response.data.data.email,
-        hasLocation: !!response.data.data.location
-      }, 'success');
-
-      // Store token in localStorage
-      if (response.data.data.token) {
-        localStorage.setItem('userToken', response.data.data.token);
-        
-        // Set default auth header
-        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.data.token}`;
-      }
-    }
+    logUserService('LOGIN_USER_SUCCESS', {
+      userId: response.data.data._id,
+      email: response.data.data.email,
+      hasLocation: !!response.data.data.location
+    }, 'success');
 
     return response.data;
   } catch (error) {
-    logUserService('Login error', {
-      error: error.message,
-      response: error.response?.data
+    logUserService('LOGIN_USER_ERROR', {
+      error: error.response?.data || error.message
     }, 'error');
-
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Login failed'
-    };
+    throw error.response?.data || error;
   }
 };
 
 // Get user profile
-const getUserProfile = async () => {
+export const getUserProfile = async () => {
   try {
-    logUserService('Getting user profile', null, 'info');
-
     const response = await api.get('/users/profile');
-    
-    if (response.data.success) {
-      logUserService('User profile retrieved', {
-        userId: response.data.data._id,
-        hasLocation: !!response.data.data.location
-      }, 'success');
-    }
-
     return response.data;
   } catch (error) {
-    logUserService('Get profile error', {
-      error: error.message,
-      response: error.response?.data
-    }, 'error');
-
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to get profile'
-    };
+    throw error.response?.data || error;
   }
 };
 
 // Update user profile
-const updateUserProfile = async (userData) => {
+export const updateUserProfile = async (profileData) => {
   try {
-    logUserService('Updating user profile', {
-      updates: Object.keys(userData),
-      hasLocation: !!userData.location
-    }, 'info');
+    logUserService('UPDATE_PROFILE_START', {
+      hasLocation: !!profileData.location,
+      updateFields: Object.keys(profileData)
+    });
 
-    const response = await api.put('/users/profile', userData);
+    const response = await api.put('/users/profile', profileData);
     
-    if (response.data.success) {
-      logUserService('User profile updated', {
-        userId: response.data.data._id,
-        hasLocation: !!response.data.data.location
-      }, 'success');
+    logUserService('UPDATE_PROFILE_SUCCESS', {
+      userId: response.data.data._id,
+      hasLocation: !!response.data.data.location
+    }, 'success');
+
+    return response.data;
+  } catch (error) {
+    logUserService('UPDATE_PROFILE_ERROR', {
+      error: error.response?.data || error.message
+    }, 'error');
+    throw error.response?.data || error;
+  }
+};
+
+// 🎯 CRITICAL FIX: Add the missing getNearbyShops function
+export const getNearbyShops = async (params = {}) => {
+  try {
+    // Extract parameters with defaults
+    const {
+      lat,
+      lng,
+      maxDistance = 50000000, // 50,000 km in meters (covers entire globe)
+      limit = 50
+    } = params;
+
+    logUserService('GET_NEARBY_SHOPS_START', {
+      lat,
+      lng,
+      maxDistance: `${maxDistance} meters (${maxDistance/1000} km)`,
+      limit,
+      hasCoordinates: !!(lat && lng)
+    });
+
+    // Build query parameters
+    const queryParams = new URLSearchParams();
+    
+    if (lat) queryParams.append('lat', lat);
+    if (lng) queryParams.append('lng', lng);
+    queryParams.append('maxDistance', maxDistance);
+    queryParams.append('limit', limit);
+
+    // Make API call with query parameters
+    const response = await api.get(`/users/nearby-shops?${queryParams.toString()}`);
+    
+    logUserService('GET_NEARBY_SHOPS_SUCCESS', {
+      shopsFound: response.data.count || response.data.data?.length || 0,
+      hasUserLocation: !!response.data.userLocation,
+      searchRadius: response.data.searchRadius,
+      processingTime: response.data.processingTime
+    }, 'success');
+
+    // Log first few shops for debugging
+    if (response.data.data && response.data.data.length > 0) {
+      logUserService('NEARBY_SHOPS_SAMPLE', {
+        firstShop: {
+          name: response.data.data[0].shop?.name,
+          distance: response.data.data[0].distanceText,
+          coordinates: response.data.data[0].shop?.location?.coordinates
+        },
+        totalShops: response.data.data.length
+      });
     }
 
     return response.data;
   } catch (error) {
-    logUserService('Update profile error', {
-      error: error.message,
-      response: error.response?.data
+    logUserService('GET_NEARBY_SHOPS_ERROR', {
+      error: error.response?.data || error.message,
+      status: error.response?.status
     }, 'error');
-
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to update profile'
-    };
+    throw error.response?.data || error;
   }
 };
 
-// Get user wishlist
-const getWishlist = async () => {
+// 🎯 NEW: Get nearby shops with current location
+export const getNearbyShopsWithLocation = async () => {
   try {
-    logUserService('Getting user wishlist', null, 'info');
+    logUserService('GET_NEARBY_SHOPS_WITH_LOCATION_START');
 
+    // Try to get current location
+    const getCurrentLocation = () => {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('Geolocation is not supported by this browser'));
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            resolve({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy
+            });
+          },
+          (error) => {
+            reject(error);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 60000
+          }
+        );
+      });
+    };
+
+    try {
+      const location = await getCurrentLocation();
+      
+      logUserService('LOCATION_DETECTED', {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracy: `${location.accuracy}m`
+      }, 'success');
+
+      // Call getNearbyShops with detected location
+      return await getNearbyShops({
+        lat: location.latitude,
+        lng: location.longitude
+      });
+
+    } catch (locationError) {
+      logUserService('LOCATION_DETECTION_FAILED', {
+        error: locationError.message
+      }, 'warning');
+
+      // Fallback: get shops without location
+      return await getNearbyShops();
+    }
+
+  } catch (error) {
+    logUserService('GET_NEARBY_SHOPS_WITH_LOCATION_ERROR', {
+      error: error.message
+    }, 'error');
+    throw error;
+  }
+};
+
+// Wishlist functions
+export const getWishlist = async () => {
+  try {
     const response = await api.get('/users/wishlist');
-    
-    if (response.data.success) {
-      logUserService('Wishlist retrieved', {
-        itemCount: response.data.data.length
-      }, 'success');
-    }
-
     return response.data;
   } catch (error) {
-    logUserService('Get wishlist error', {
-      error: error.message,
-      response: error.response?.data
-    }, 'error');
-
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to get wishlist',
-      data: []
-    };
+    throw error.response?.data || error;
   }
 };
 
-// Add to wishlist
-const addToWishlist = async (productId) => {
+export const addToWishlist = async (productId) => {
   try {
-    logUserService('Adding to wishlist', { productId }, 'info');
-
     const response = await api.post('/users/wishlist', { productId });
-    
-    if (response.data.success) {
-      logUserService('Added to wishlist successfully', { productId }, 'success');
-    }
-
     return response.data;
   } catch (error) {
-    logUserService('Add to wishlist error', {
-      error: error.message,
-      response: error.response?.data
-    }, 'error');
-
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to add to wishlist'
-    };
+    throw error.response?.data || error;
   }
 };
 
-// Remove from wishlist
-const removeFromWishlist = async (productId) => {
+export const removeFromWishlist = async (productId) => {
   try {
-    logUserService('Removing from wishlist', { productId }, 'info');
-
     const response = await api.delete(`/users/wishlist/${productId}`);
-    
-    if (response.data.success) {
-      logUserService('Removed from wishlist successfully', { productId }, 'success');
-    }
-
     return response.data;
   } catch (error) {
-    logUserService('Remove from wishlist error', {
-      error: error.message,
-      response: error.response?.data
-    }, 'error');
-
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to remove from wishlist'
-    };
+    throw error.response?.data || error;
   }
 };
 
-// Check if product is in wishlist
-const checkWishlist = async (productId) => {
+export const checkWishlist = async (productId) => {
   try {
     const response = await api.get(`/users/wishlist/check/${productId}`);
     return response.data;
   } catch (error) {
-    return {
-      success: false,
-      message: 'Failed to check wishlist',
-      data: { isInWishlist: false }
-    };
+    throw error.response?.data || error;
   }
 };
 
-// Logout user
-const logoutUser = () => {
-  logUserService('Logging out user', null, 'info');
-  
-  // Remove token from localStorage
-  localStorage.removeItem('userToken');
-  
-  // Remove auth header
-  delete api.defaults.headers.common['Authorization'];
-  
-  logUserService('User logged out successfully', null, 'success');
-};
-
-// 🎯 UTILITY: Get user's saved location
-const getUserLocation = async () => {
+// Password reset functions
+export const requestPasswordReset = async (email) => {
   try {
-    const profile = await getUserProfile();
-    if (profile.success && profile.data.location) {
-      return {
-        success: true,
-        location: profile.data.location
-      };
-    }
-    return {
-      success: false,
-      message: 'No saved location found'
-    };
+    const response = await api.post('/users/forgot-password', { email });
+    return response.data;
   } catch (error) {
-    return {
-      success: false,
-      message: 'Failed to get user location'
-    };
+    throw error.response?.data || error;
   }
 };
 
-// 🎯 UTILITY: Update user location
-const updateUserLocation = async (coordinates, address) => {
+export const resetPassword = async (resetData) => {
   try {
-    const locationData = {
-      location: {
-        type: 'Point',
-        coordinates: coordinates,
-        address: address
-      }
-    };
+    const response = await api.post('/users/reset-password', resetData);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+// 🎯 NEW: Location utilities for user service
+export const updateUserLocation = async (location) => {
+  try {
+    logUserService('UPDATE_USER_LOCATION_START', {
+      coordinates: location.coordinates,
+      address: location.address
+    });
+
+    const response = await updateUserProfile({ location });
     
-    return await updateUserProfile(locationData);
+    logUserService('UPDATE_USER_LOCATION_SUCCESS', {
+      coordinates: response.data.location?.coordinates
+    }, 'success');
+
+    return response;
   } catch (error) {
-    return {
-      success: false,
-      message: 'Failed to update location'
-    };
+    logUserService('UPDATE_USER_LOCATION_ERROR', {
+      error: error.message
+    }, 'error');
+    throw error;
   }
 };
 
-export {
-  registerUser,
-  loginUser,
-  getUserProfile,
-  updateUserProfile,
-  getNearbyShops,
-  getWishlist,
-  addToWishlist,
-  removeFromWishlist,
-  checkWishlist,
-  logoutUser,
-  getCurrentLocation,
-  getUserLocation,
-  updateUserLocation
-};
-
+// Default export
 export default {
   registerUser,
   loginUser,
   getUserProfile,
   updateUserProfile,
   getNearbyShops,
+  getNearbyShopsWithLocation,
   getWishlist,
   addToWishlist,
   removeFromWishlist,
   checkWishlist,
-  logoutUser,
-  getCurrentLocation,
-  getUserLocation,
+  requestPasswordReset,
+  resetPassword,
   updateUserLocation
 };

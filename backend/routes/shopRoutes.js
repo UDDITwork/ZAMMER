@@ -127,7 +127,7 @@ router.get('/nearby', async (req, res) => {
   const startTime = Date.now();
   
   try {
-    const { lat, lng, maxDistance = 50000, limit = 20 } = req.query;
+    const { lat, lng, maxDistance = 50000000, limit = 20 } = req.query;
     
     logShopRequest('NEARBY_SHOPS_REQUEST', { lat, lng, maxDistance, limit });
     

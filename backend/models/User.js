@@ -316,7 +316,7 @@ userSchema.methods.resetLoginAttempts = function() {
 };
 
 // 🎯 Static method to find users within distance
-userSchema.statics.findNearbyUsers = function(longitude, latitude, maxDistanceKm = 50000) {
+  userSchema.statics.findNearbyUsers = function(longitude, latitude, maxDistanceKm = 50000000) {
   return this.find({
     location: {
       $near: {

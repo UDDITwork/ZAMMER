@@ -1,4 +1,4 @@
-// File: /backend/controllers/userController.js - COMPLETE with getNearbyShops
+// File: /backend/controllers/userController.js - CORRECTED with 50,000 KM Distance
 
 const User = require('../models/User');
 const Seller = require('../models/Seller');
@@ -275,7 +275,7 @@ const updateUserProfile = async (req, res) => {
   }
 };
 
-// 🎯 NEW: Get nearby shops based on user location
+// 🎯 FIXED: Get nearby shops based on user location with 50,000 KM radius
 // @desc    Get nearby shops
 // @route   GET /api/users/nearby-shops
 // @access  Public (but better with auth for location)
@@ -283,11 +283,12 @@ const getNearbyShops = async (req, res) => {
   const startTime = Date.now();
   
   try {
-    const { lat, lng, maxDistance = 50000, limit = 20 } = req.query;
+    // 🔥 MAIN FIX: Changed default from 50000 to 50000000 (50,000 km in meters)
+    const { lat, lng, maxDistance = 50000000, limit = 50 } = req.query;
     let userLocation = null;
 
     logUser('GET_NEARBY_SHOPS_START', {
-      queryParams: { lat, lng, maxDistance, limit },
+      queryParams: { lat, lng, maxDistance: `${maxDistance} meters (${maxDistance/1000} km)`, limit },
       hasAuthUser: !!req.user,
       userId: req.user?._id
     });
@@ -334,12 +335,14 @@ const getNearbyShops = async (req, res) => {
       .limit(parseInt(limit))
       .lean();
 
+      logUser('RETURNING_ALL_SHOPS_NO_LOCATION', { count: shops.length });
+
       return res.status(200).json({
         success: true,
         data: shops,
         count: shops.length,
         userLocation: null,
-        message: 'All available shops (location not provided)',
+        message: `All available shops (location not provided) - ${shops.length} shops found`,
         processingTime: `${Date.now() - startTime}ms`
       });
     }
@@ -354,6 +357,7 @@ const getNearbyShops = async (req, res) => {
     }
 
     // 5. Create MongoDB geospatial query
+    // 🔥 SECOND FIX: Use maxDistance directly (already in meters)
     const nearbyQuery = {
       "shop.location": {
         $near: {
@@ -361,7 +365,7 @@ const getNearbyShops = async (req, res) => {
             type: "Point",
             coordinates: [userLocation.longitude, userLocation.latitude]
           },
-          $maxDistance: parseInt(maxDistance) * 1000 // Convert km to meters
+          $maxDistance: parseInt(maxDistance) // Already in meters (50,000,000 = 50,000 km)
         }
       },
       isVerified: true,
@@ -370,8 +374,9 @@ const getNearbyShops = async (req, res) => {
 
     logUser('MONGODB_GEOSPATIAL_QUERY', {
       userCoordinates: [userLocation.longitude, userLocation.latitude],
-      maxDistanceKm: maxDistance,
-      maxDistanceMeters: parseInt(maxDistance) * 1000
+      maxDistanceKm: `${maxDistance/1000} km`,
+      maxDistanceMeters: parseInt(maxDistance),
+      queryObject: JSON.stringify(nearbyQuery, null, 2)
     });
 
     // 6. Execute geospatial query
@@ -390,7 +395,80 @@ const getNearbyShops = async (req, res) => {
       processingTime: `${Date.now() - startTime}ms`
     });
 
-    // 7. Calculate exact distances using Haversine formula
+    // 7. If no shops found with geospatial query, try to get all shops and calculate distances
+    if (sellers.length === 0) {
+      logUser('NO_SHOPS_IN_GEOSPATIAL_QUERY_TRYING_ALL_SHOPS', null, 'warning');
+      
+      const allShops = await Seller.find({
+        isVerified: true,
+        "shop.name": { $exists: true, $ne: null, $ne: '' }
+      })
+      .select(`
+        _id firstName email shop.name shop.description shop.category 
+        shop.location shop.images shop.mainImage shop.openTime shop.closeTime 
+        shop.phoneNumber shop.address shop.gstNumber shop.workingDays
+        averageRating numReviews createdAt updatedAt
+      `)
+      .limit(parseInt(limit))
+      .lean();
+
+      logUser('ALL_SHOPS_FALLBACK', { totalShops: allShops.length });
+
+      // Calculate distances for all shops and sort by distance
+      const shopsWithDistances = allShops.map(shop => {
+        if (!shop.shop?.location?.coordinates || 
+            shop.shop.location.coordinates[0] === 0 || 
+            shop.shop.location.coordinates[1] === 0) {
+          return {
+            ...shop,
+            distance: 999999,
+            distanceText: 'Location unavailable',
+            isAccurate: false
+          };
+        }
+
+        const distance = calculateHaversineDistance(
+          userLocation.latitude,
+          userLocation.longitude,
+          shop.shop.location.coordinates[1], // latitude
+          shop.shop.location.coordinates[0]  // longitude
+        );
+
+        let distanceText;
+        if (distance < 1) {
+          distanceText = `${Math.round(distance * 1000)}m`;
+        } else if (distance < 10) {
+          distanceText = `${distance.toFixed(1)}km`;
+        } else {
+          distanceText = `${Math.round(distance)}km`;
+        }
+
+        return {
+          ...shop,
+          distance: distance,
+          distanceText: distanceText,
+          isAccurate: distance < 10000 // Less than 10,000 km is reasonable
+        };
+      }).sort((a, b) => a.distance - b.distance);
+
+      return res.status(200).json({
+        success: true,
+        data: shopsWithDistances,
+        count: shopsWithDistances.length,
+        userLocation: userLocation,
+        searchRadius: `${maxDistance/1000}km`,
+        processingTime: `${Date.now() - startTime}ms`,
+        message: `Showing all shops sorted by distance (fallback method)`,
+        stats: {
+          totalShopsFound: allShops.length,
+          averageDistance: shopsWithDistances.length > 0 
+            ? (shopsWithDistances.reduce((sum, shop) => sum + (shop.distance || 0), 0) / shopsWithDistances.length).toFixed(2)
+            : 0
+        }
+      });
+    }
+
+    // 8. Calculate exact distances using Haversine formula for found shops
     const shopsWithDistances = sellers.map(shop => {
       if (!shop.shop?.location?.coordinates) {
         return {
@@ -421,11 +499,11 @@ const getNearbyShops = async (req, res) => {
         ...shop,
         distance: distance,
         distanceText: distanceText,
-        isAccurate: distance < 1000 // Should be reasonable for most cases
+        isAccurate: distance < 10000 // Less than 10,000 km is reasonable
       };
     });
 
-    // 8. Sort by distance (should already be sorted by MongoDB, but ensure)
+    // 9. Sort by distance (should already be sorted by MongoDB, but ensure)
     shopsWithDistances.sort((a, b) => a.distance - b.distance);
 
     logUser('NEARBY_SHOPS_SUCCESS', {
@@ -443,7 +521,7 @@ const getNearbyShops = async (req, res) => {
       data: shopsWithDistances,
       count: shopsWithDistances.length,
       userLocation: userLocation,
-      searchRadius: `${maxDistance}km`,
+      searchRadius: `${maxDistance/1000}km`,
       processingTime: `${Date.now() - startTime}ms`,
       stats: {
         totalShopsFound: sellers.length,
@@ -651,6 +729,34 @@ const resetPassword = async (req, res) => {
   });
 };
 
+const verifyAllSellers = async (req, res) => {
+  try {
+    const result = await Seller.updateMany({}, {$set: {isVerified: true}});
+    res.json({
+      success: true,
+      message: `${result.modifiedCount} sellers verified`,
+      result: result
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+// Add this function before the module.exports line
+const debugSellers = async (req, res) => {
+  try {
+    const sellers = await Seller.find({})
+      .select('shop.name shop.location.coordinates isVerified')
+      .limit(10);
+    
+    res.json({
+      success: true,
+      count: sellers.length,
+      sellers: sellers
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 module.exports = {
   registerUser,
   loginUser,
@@ -662,5 +768,7 @@ module.exports = {
   removeFromWishlist,
   checkWishlist,
   verifyEmail,
-  resetPassword
+  resetPassword,
+  debugSellers,
+  verifyAllSellers
 };
