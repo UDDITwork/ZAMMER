@@ -1,3 +1,5 @@
+// File: /frontend/src/services/shopService.js
+
 import api from './api';
 
 // Get shop details

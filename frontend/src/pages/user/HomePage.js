@@ -1,3 +1,5 @@
+// File: /frontend/src/pages/user/HomePage.js
+
 import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';

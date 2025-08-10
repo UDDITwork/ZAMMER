@@ -29,6 +29,9 @@ const SellerRegister = () => {
     upi: "",
   });
 
+  // 🎯 NEW: Add state for coordinates
+  const [shopCoordinates, setShopCoordinates] = useState(null);
+
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
 
@@ -55,6 +58,14 @@ const SellerRegister = () => {
           address: formData.address.trim(),
           gstNumber: formData.gst.trim(),
           category: formData.category,
+          // 🎯 NEW: Add coordinates if available
+          location: shopCoordinates ? {
+            type: "Point",
+            coordinates: shopCoordinates // [longitude, latitude]
+          } : {
+            type: "Point", 
+            coordinates: [0, 0] // fallback
+          }
         },
         bankDetails: {
           accountNumber: formData.upi.trim(),
@@ -354,6 +365,14 @@ const SellerRegister = () => {
                 onChange={(val) =>
                   setFormData((f) => ({ ...f, address: val }))
                 }
+                // 🎯 NEW: Extract coordinates when place is selected
+                onPlaceSelected={(placeData) => {
+                  console.log('🗺️ Place selected:', placeData);
+                  if (placeData && placeData.coordinates) {
+                    setShopCoordinates(placeData.coordinates);
+                    console.log('📍 Coordinates extracted:', placeData.coordinates);
+                  }
+                }}
               />
             </div>
 

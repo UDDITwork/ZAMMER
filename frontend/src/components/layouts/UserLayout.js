@@ -1,6 +1,7 @@
-import React from 'react';
+// File: /frontend/src/components/layouts/UserLayout.js
+
+import React, { useContext } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useContext } from 'react';
 import { AuthContext } from '../../contexts/AuthContext';
 
 const UserLayout = ({ children }) => {

@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+// File: /frontend/src/pages/user/NearbyShopsPage.js
+
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import UserLayout from '../../components/layouts/UserLayout';
 import { getNearbyShops } from '../../services/userService';

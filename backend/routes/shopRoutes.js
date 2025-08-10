@@ -50,7 +50,7 @@ router.get('/', async (req, res) => {
                 type: "Point",
                 coordinates: [validation.longitude, validation.latitude]
               },
-              $maxDistance: 50000 // 50km in meters
+              $maxDistance: 50000000 // 50000km in meters
             }
           }
         };
@@ -127,7 +127,7 @@ router.get('/nearby', async (req, res) => {
   const startTime = Date.now();
   
   try {
-    const { lat, lng, maxDistance = 50, limit = 20 } = req.query;
+    const { lat, lng, maxDistance = 50000, limit = 20 } = req.query;
     
     logShopRequest('NEARBY_SHOPS_REQUEST', { lat, lng, maxDistance, limit });
     

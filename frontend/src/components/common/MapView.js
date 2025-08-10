@@ -1,4 +1,6 @@
-import React from 'react';
+// File: /frontend/src/components/common/MapView.js
+
+import React, { useEffect, useRef } from 'react';
 
 const MapView = ({ latitude, longitude, height = '200px' }) => {
   const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;

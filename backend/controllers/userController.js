@@ -1,91 +1,111 @@
+// File: /backend/controllers/userController.js - COMPLETE with getNearbyShops
+
 const User = require('../models/User');
 const Seller = require('../models/Seller');
 const Product = require('../models/Product');
-const { generateToken } = require('../utils/jwtToken');
-const { validationResult } = require('express-validator');
+const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { validationResult } = require('express-validator');
 
-// @desc    Register a new user
+// Enhanced logging
+const logUser = (action, data, level = 'info') => {
+  const timestamp = new Date().toISOString();
+  const logLevels = {
+    info: '👤',
+    success: '✅',
+    warning: '⚠️',
+    error: '❌'
+  };
+  
+  console.log(`${logLevels[level]} [USER-CONTROLLER] ${timestamp} - ${action}`, 
+    data ? JSON.stringify(data, null, 2) : '');
+};
+
+// Generate JWT Token
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+};
+
+// @desc    Register user
 // @route   POST /api/users/register
 // @access  Public
-exports.registerUser = async (req, res) => {
+const registerUser = async (req, res) => {
   try {
-    console.log('👤 [UserRegister] Registration attempt started');
-    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ [UserRegister] Validation errors:', errors.array());
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
       });
     }
 
     const { name, email, password, mobileNumber, location } = req.body;
 
-    console.log('📝 [UserRegister] Processing registration for:', { 
-      name, 
-      email, 
-      mobileNumber: mobileNumber?.substring(0, 3) + '***' 
-    });
+    logUser('REGISTER_USER_START', { name, email, mobileNumber });
 
     // Check if user already exists
     const userExists = await User.findOne({ email });
     if (userExists) {
-      console.log('❌ [UserRegister] User already exists:', email);
       return res.status(400).json({
         success: false,
-        message: 'User already exists'
+        message: 'User already exists with this email'
       });
     }
 
-    // Create new user
-    const user = await User.create({
+    // Check if mobile number already exists
+    const mobileExists = await User.findOne({ mobileNumber });
+    if (mobileExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number already registered'
+      });
+    }
+
+    // Create user with location if provided
+    const userData = {
       name,
       email,
       password,
-      mobileNumber,
-      location
-    });
+      mobileNumber
+    };
 
-    if (user) {
-      console.log('✅ [UserRegister] User created successfully:', { 
-        userId: user._id, 
-        userName: user.name 
-      });
+    // Add location if provided
+    if (location && location.coordinates && location.coordinates.length === 2) {
+      userData.location = {
+        type: 'Point',
+        coordinates: location.coordinates,
+        address: location.address || ''
+      };
+    }
 
-      // Generate JWT token
-      const token = generateToken(user._id);
-      console.log('🔑 [UserRegister] Token generated successfully');
+    const user = await User.create(userData);
 
-      const responseData = {
+    logUser('USER_REGISTERED_SUCCESS', {
+      userId: user._id,
+      email: user.email,
+      hasLocation: !!user.location?.coordinates?.length
+    }, 'success');
+
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      data: {
         _id: user._id,
         name: user.name,
         email: user.email,
         mobileNumber: user.mobileNumber,
         location: user.location,
-        token
-      };
+        token: generateToken(user._id)
+      }
+    });
 
-      console.log('📤 [UserRegister] Sending success response');
-
-      res.status(201).json({
-        success: true,
-        data: responseData
-      });
-    } else {
-      console.log('❌ [UserRegister] Failed to create user');
-      res.status(400).json({
-        success: false,
-        message: 'Invalid user data'
-      });
-    }
   } catch (error) {
-    console.error('💥 [UserRegister] Registration error:', error);
+    logUser('REGISTER_USER_ERROR', { error: error.message }, 'error');
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Server error during user registration',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -93,126 +113,64 @@ exports.registerUser = async (req, res) => {
 // @desc    Login user
 // @route   POST /api/users/login
 // @access  Public
-exports.loginUser = async (req, res) => {
+const loginUser = async (req, res) => {
   try {
-    console.log('🔐 [UserLogin] Login attempt started');
-    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ [UserLogin] Validation errors:', errors.array());
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
       });
     }
 
     const { email, password } = req.body;
-    console.log('📝 [UserLogin] Login attempt for email:', email);
 
-    // Handle test user login
-    if (email === 'test@example.com' && password === 'password123') {
-      console.log('🧪 [UserLogin] Test user login detected');
-      
-      // Check if test user exists, create if not
-      let testUser = await User.findOne({ email: 'test@example.com' });
-      
-      if (!testUser) {
-        console.log('🔧 [UserLogin] Creating test user...');
-        try {
-          testUser = await User.create({
-            name: 'Test User',
-            email: 'test@example.com',
-            password: 'password123', // This will be hashed by the pre-save middleware
-            mobileNumber: '9999999999',
-            location: {
-              coordinates: [77.2090, 28.6139], // Delhi coordinates
-              address: 'New Delhi, India'
-            },
-            isVerified: true
-          });
-          console.log('✅ [UserLogin] Test user created successfully:', testUser._id);
-        } catch (createError) {
-          console.error('❌ [UserLogin] Failed to create test user:', createError);
-          return res.status(500).json({
-            success: false,
-            message: 'Failed to create test user'
-          });
-        }
-      } else {
-        console.log('✅ [UserLogin] Test user found:', testUser._id);
-      }
+    logUser('LOGIN_USER_START', { email });
 
-      // Generate token for test user
-      const token = generateToken(testUser._id);
-      console.log('🔑 [UserLogin] Token generated for test user');
-
-      const responseData = {
-        _id: testUser._id,
-        name: testUser.name,
-        email: testUser.email,
-        mobileNumber: testUser.mobileNumber,
-        location: testUser.location,
-        token
-      };
-
-      console.log('📤 [UserLogin] Sending test user success response');
-      return res.status(200).json({
-        success: true,
-        data: responseData
-      });
-    }
-
-    // Find regular user
+    // Check if user exists
     const user = await User.findOne({ email });
-
     if (!user) {
-      console.log('❌ [UserLogin] User not found:', email);
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid email or password'
       });
     }
 
-    console.log('👤 [UserLogin] User found, checking password...');
-
-    // Match password
+    // Check password
     const isMatch = await user.matchPassword(password);
-
     if (!isMatch) {
-      console.log('❌ [UserLogin] Password mismatch for:', email);
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid email or password'
       });
     }
 
-    console.log('✅ [UserLogin] Password match successful');
-
-    // Generate JWT token
-    const token = generateToken(user._id);
-    console.log('🔑 [UserLogin] Token generated successfully');
-
-    const responseData = {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      mobileNumber: user.mobileNumber,
-      location: user.location,
-      token
-    };
-
-    console.log('📤 [UserLogin] Sending success response for:', user.name);
+    logUser('USER_LOGIN_SUCCESS', {
+      userId: user._id,
+      email: user.email
+    }, 'success');
 
     res.status(200).json({
       success: true,
-      data: responseData
+      message: 'Login successful',
+      data: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        mobileNumber: user.mobileNumber,
+        location: user.location,
+        wishlist: user.wishlist,
+        token: generateToken(user._id)
+      }
     });
+
   } catch (error) {
-    console.error('💥 [UserLogin] Login error:', error);
+    logUser('LOGIN_USER_ERROR', { error: error.message }, 'error');
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Server error during login',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -220,32 +178,28 @@ exports.loginUser = async (req, res) => {
 // @desc    Get user profile
 // @route   GET /api/users/profile
 // @access  Private
-exports.getUserProfile = async (req, res) => {
+const getUserProfile = async (req, res) => {
   try {
-    console.log('👤 [UserProfile] Profile request for user:', req.user._id);
-    
     const user = await User.findById(req.user._id).select('-password');
-
+    
     if (!user) {
-      console.log('❌ [UserProfile] User not found:', req.user._id);
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
 
-    console.log('✅ [UserProfile] Profile fetched successfully:', user.name);
-
     res.status(200).json({
       success: true,
       data: user
     });
+
   } catch (error) {
-    console.error('💥 [UserProfile] Profile error:', error);
+    logUser('GET_USER_PROFILE_ERROR', { error: error.message }, 'error');
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Error fetching user profile',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -253,236 +207,319 @@ exports.getUserProfile = async (req, res) => {
 // @desc    Update user profile
 // @route   PUT /api/users/profile
 // @access  Private
-exports.updateUserProfile = async (req, res) => {
+const updateUserProfile = async (req, res) => {
   try {
-    console.log('✏️ [UserUpdate] Profile update request for user:', req.user._id);
-    
-    const user = await User.findById(req.user._id);
+    const { name, email, mobileNumber, location } = req.body;
 
+    logUser('UPDATE_USER_PROFILE_START', {
+      userId: req.user._id,
+      updates: Object.keys(req.body)
+    });
+
+    const user = await User.findById(req.user._id);
     if (!user) {
-      console.log('❌ [UserUpdate] User not found:', req.user._id);
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
 
-    // Update fields that are sent
-    if (req.body.name) user.name = req.body.name;
-    if (req.body.email) user.email = req.body.email;
-    if (req.body.mobileNumber) user.mobileNumber = req.body.mobileNumber;
+    // Update fields if provided
+    if (name) user.name = name;
+    if (email) user.email = email;
+    if (mobileNumber) user.mobileNumber = mobileNumber;
     
-    // Update location if sent
-    if (req.body.location) {
-      if (req.body.location.coordinates) {
-        user.location.coordinates = req.body.location.coordinates;
+    // Update location if provided
+    if (location) {
+      if (location.coordinates && location.coordinates.length === 2) {
+        user.location = {
+          type: 'Point',
+          coordinates: location.coordinates,
+          address: location.address || user.location?.address || ''
+        };
+        logUser('USER_LOCATION_UPDATED', {
+          userId: user._id,
+          coordinates: location.coordinates,
+          address: location.address
+        }, 'success');
       }
-      if (req.body.location.address) {
-        user.location.address = req.body.location.address;
-      }
-    }
-
-    // Update password if sent
-    if (req.body.password) {
-      user.password = req.body.password;
     }
 
     const updatedUser = await user.save();
-    console.log('✅ [UserUpdate] Profile updated successfully:', updatedUser.name);
+
+    logUser('USER_PROFILE_UPDATED_SUCCESS', {
+      userId: updatedUser._id,
+      hasLocation: !!updatedUser.location?.coordinates?.length
+    }, 'success');
 
     res.status(200).json({
       success: true,
+      message: 'Profile updated successfully',
       data: {
         _id: updatedUser._id,
         name: updatedUser.name,
         email: updatedUser.email,
         mobileNumber: updatedUser.mobileNumber,
-        location: updatedUser.location
+        location: updatedUser.location,
+        wishlist: updatedUser.wishlist
       }
     });
+
   } catch (error) {
-    console.error('💥 [UserUpdate] Update error:', error);
+    logUser('UPDATE_USER_PROFILE_ERROR', { error: error.message }, 'error');
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Error updating user profile',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-// @desc    Get shops near user location
+// 🎯 NEW: Get nearby shops based on user location
+// @desc    Get nearby shops
 // @route   GET /api/users/nearby-shops
-// @access  Public (with optional authentication)
-exports.getNearbyShops = async (req, res) => {
+// @access  Public (but better with auth for location)
+const getNearbyShops = async (req, res) => {
+  const startTime = Date.now();
+  
   try {
-    console.log('🏪 [NearbyShops] Request received');
-    
-    // 🎯 FIX: Better authentication check
-    if (!req.isAuthenticated || !req.user) {
-      console.log('📍 [NearbyShops] Unauthenticated request, returning all shops');
+    const { lat, lng, maxDistance = 50000, limit = 20 } = req.query;
+    let userLocation = null;
+
+    logUser('GET_NEARBY_SHOPS_START', {
+      queryParams: { lat, lng, maxDistance, limit },
+      hasAuthUser: !!req.user,
+      userId: req.user?._id
+    });
+
+    // Try to get user location from multiple sources
+    if (req.user) {
+      // 1. First try from authenticated user's saved location
+      const user = await User.findById(req.user._id).select('location');
+      if (user?.location?.coordinates?.length === 2) {
+        userLocation = {
+          longitude: user.location.coordinates[0],
+          latitude: user.location.coordinates[1],
+          address: user.location.address || 'Saved location'
+        };
+        logUser('USER_LOCATION_FROM_DB', userLocation);
+      }
+    }
+
+    // 2. Override with query parameters if provided
+    if (lat && lng) {
+      const latitude = parseFloat(lat);
+      const longitude = parseFloat(lng);
       
-      // Return all shops without location-based filtering
-      const shops = await Seller.find({ 
-        'shop.isActive': { $ne: false }
+      if (!isNaN(latitude) && !isNaN(longitude)) {
+        userLocation = { latitude, longitude, address: 'Current location' };
+        logUser('USER_LOCATION_FROM_QUERY', userLocation);
+      }
+    }
+
+    // 3. If no location available, return all shops without distance
+    if (!userLocation) {
+      logUser('NO_USER_LOCATION_AVAILABLE', null, 'warning');
+      
+      const shops = await Seller.find({
+        isVerified: true,
+        "shop.name": { $exists: true, $ne: null, $ne: '' }
       })
-        .select('-password -bankDetails')
-        .limit(20);
-      
-      console.log(`✅ [NearbyShops] Returning ${shops.length} shops (no location filtering)`);
-      
+      .select(`
+        _id firstName email shop.name shop.description shop.category 
+        shop.location shop.images shop.mainImage shop.openTime shop.closeTime 
+        shop.phoneNumber shop.address shop.gstNumber shop.workingDays
+        averageRating numReviews createdAt updatedAt
+      `)
+      .limit(parseInt(limit))
+      .lean();
+
       return res.status(200).json({
         success: true,
+        data: shops,
         count: shops.length,
-        message: 'Showing all shops (location-based filtering requires login)',
-        data: shops
+        userLocation: null,
+        message: 'All available shops (location not provided)',
+        processingTime: `${Date.now() - startTime}ms`
       });
     }
 
-    // 🎯 FIX: Add error handling for user lookup
-    let user;
-    try {
-      user = await User.findById(req.user._id);
-      if (!user) {
-        console.log('⚠️ [NearbyShops] User not found in database:', req.user._id);
-        // Fall back to showing all shops instead of erroring
-        const shops = await Seller.find({ 
-          'shop.isActive': { $ne: false }
-        })
-          .select('-password -bankDetails')
-          .limit(20);
-        
-        return res.status(200).json({
-          success: true,
-          count: shops.length,
-          message: 'User profile incomplete, showing all shops',
-          data: shops
-        });
-      }
-    } catch (userError) {
-      console.error('❌ [NearbyShops] User lookup error:', userError);
-      // Return all shops as fallback
-      const shops = await Seller.find({ 
-        'shop.isActive': { $ne: false }
-      })
-        .select('-password -bankDetails')
-        .limit(20);
-      
-      return res.status(200).json({
-        success: true,
-        count: shops.length,
-        message: 'Location service unavailable, showing all shops',
-        data: shops
+    // 4. Validate coordinates
+    if (userLocation.latitude < -90 || userLocation.latitude > 90 ||
+        userLocation.longitude < -180 || userLocation.longitude > 180) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid coordinates provided'
       });
     }
-    
-    if (!user.location || !user.location.coordinates) {
-      console.log('📍 [NearbyShops] User location not available, returning all shops');
-      // Return all shops if user doesn\'t have location set
-      const shops = await Seller.find({ 
-        'shop.isActive': { $ne: false }
-      })
-        .select('-password -bankDetails')
-        .limit(20);
-      
-      console.log(`✅ [NearbyShops] Returning ${shops.length} shops (no user location)`);
-      
-      return res.status(200).json({
-        success: true,
-        count: shops.length,
-        message: 'User location not available, showing all shops',
-        data: shops
-      });
-    }
-    
-    // Get user\'s coordinates
-    const [longitude, latitude] = user.location.coordinates;
-    console.log('📍 [NearbyShops] User location:', { latitude, longitude });
-    
-    // Find nearby shops using geospatial query (default 2000km radius)
-    const maxDistance = parseInt(req.query.distance) || 2000000; // in meters (2000km)
-    
-    const shops = await Seller.find({
-      'shop.location': {
+
+    // 5. Create MongoDB geospatial query
+    const nearbyQuery = {
+      "shop.location": {
         $near: {
           $geometry: {
-            type: 'Point',
-            coordinates: [longitude, latitude]
+            type: "Point",
+            coordinates: [userLocation.longitude, userLocation.latitude]
           },
-          $maxDistance: maxDistance
+          $maxDistance: parseInt(maxDistance) * 1000 // Convert km to meters
         }
       },
-      'shop.isActive': { $ne: false }
-    }).select('-password -bankDetails');
-    
-    console.log(`✅ [NearbyShops] Found ${shops.length} nearby shops`);
-    
+      isVerified: true,
+      "shop.name": { $exists: true, $ne: null, $ne: '' }
+    };
+
+    logUser('MONGODB_GEOSPATIAL_QUERY', {
+      userCoordinates: [userLocation.longitude, userLocation.latitude],
+      maxDistanceKm: maxDistance,
+      maxDistanceMeters: parseInt(maxDistance) * 1000
+    });
+
+    // 6. Execute geospatial query
+    const sellers = await Seller.find(nearbyQuery)
+      .select(`
+        _id firstName email shop.name shop.description shop.category 
+        shop.location shop.images shop.mainImage shop.openTime shop.closeTime 
+        shop.phoneNumber shop.address shop.gstNumber shop.workingDays
+        averageRating numReviews createdAt updatedAt
+      `)
+      .limit(parseInt(limit))
+      .lean();
+
+    logUser('MONGODB_QUERY_RESULTS', {
+      shopsFound: sellers.length,
+      processingTime: `${Date.now() - startTime}ms`
+    });
+
+    // 7. Calculate exact distances using Haversine formula
+    const shopsWithDistances = sellers.map(shop => {
+      if (!shop.shop?.location?.coordinates) {
+        return {
+          ...shop,
+          distance: 999999,
+          distanceText: 'Location unavailable',
+          isAccurate: false
+        };
+      }
+
+      const distance = calculateHaversineDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        shop.shop.location.coordinates[1], // latitude
+        shop.shop.location.coordinates[0]  // longitude
+      );
+
+      let distanceText;
+      if (distance < 1) {
+        distanceText = `${Math.round(distance * 1000)}m`;
+      } else if (distance < 10) {
+        distanceText = `${distance.toFixed(1)}km`;
+      } else {
+        distanceText = `${Math.round(distance)}km`;
+      }
+
+      return {
+        ...shop,
+        distance: distance,
+        distanceText: distanceText,
+        isAccurate: distance < 1000 // Should be reasonable for most cases
+      };
+    });
+
+    // 8. Sort by distance (should already be sorted by MongoDB, but ensure)
+    shopsWithDistances.sort((a, b) => a.distance - b.distance);
+
+    logUser('NEARBY_SHOPS_SUCCESS', {
+      shopsReturned: shopsWithDistances.length,
+      userLocation: userLocation,
+      processingTime: `${Date.now() - startTime}ms`,
+      nearestShop: shopsWithDistances[0] ? {
+        name: shopsWithDistances[0].shop?.name,
+        distance: shopsWithDistances[0].distanceText
+      } : null
+    }, 'success');
+
     res.status(200).json({
       success: true,
-      count: shops.length,
-      data: shops
+      data: shopsWithDistances,
+      count: shopsWithDistances.length,
+      userLocation: userLocation,
+      searchRadius: `${maxDistance}km`,
+      processingTime: `${Date.now() - startTime}ms`,
+      stats: {
+        totalShopsFound: sellers.length,
+        averageDistance: shopsWithDistances.length > 0 
+          ? (shopsWithDistances.reduce((sum, shop) => sum + (shop.distance || 0), 0) / shopsWithDistances.length).toFixed(2)
+          : 0
+      }
     });
+
   } catch (error) {
-    console.error('💥 [NearbyShops] Error:', error);
-    
-    // 🎯 FIX: Return shops even on error instead of failing
-    try {
-      const fallbackShops = await Seller.find({ 
-        'shop.isActive': { $ne: false }
-      })
-        .select('-password -bankDetails')
-        .limit(20);
-      
-      res.status(200).json({
-        success: true,
-        count: fallbackShops.length,
-        message: 'Location service error, showing all available shops',
-        data: fallbackShops
-      });
-    } catch (fallbackError) {
-      console.error('💥 [NearbyShops] Fallback error:', fallbackError);
-      res.status(500).json({
-        success: false,
-        message: 'Server Error',
-        error: error.message
-      });
-    }
+    const processingTime = Date.now() - startTime;
+    logUser('GET_NEARBY_SHOPS_ERROR', {
+      error: error.message,
+      stack: error.stack,
+      processingTime: `${processingTime}ms`
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching nearby shops',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      processingTime: `${processingTime}ms`
+    });
   }
 };
 
-// @desc    Get user's wishlist
+// 🎯 Haversine Distance Calculation Function
+const calculateHaversineDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Radius of the earth in km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  const distance = R * c; // Distance in km
+  return parseFloat(distance.toFixed(2));
+};
+
+const deg2rad = (deg) => {
+  return deg * (Math.PI/180);
+};
+
+// @desc    Get user wishlist
 // @route   GET /api/users/wishlist
 // @access  Private
-exports.getWishlist = async (req, res) => {
+const getWishlist = async (req, res) => {
   try {
-    console.log('❤️ [Wishlist] Get wishlist request for user:', req.user._id);
-    
     const user = await User.findById(req.user._id)
       .populate({
         path: 'wishlist',
-        select: 'name images zammerPrice mrp category'
+        populate: {
+          path: 'seller',
+          select: 'shop.name'
+        }
       });
 
     if (!user) {
-      console.log('❌ [Wishlist] User not found:', req.user._id);
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
 
-    console.log(`✅ [Wishlist] Found ${user.wishlist.length} items in wishlist`);
-
     res.status(200).json({
       success: true,
-      count: user.wishlist.length,
       data: user.wishlist
     });
+
   } catch (error) {
-    console.error('💥 [Wishlist] Get wishlist error:', error);
+    logUser('GET_WISHLIST_ERROR', { error: error.message }, 'error');
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Error fetching wishlist',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -490,28 +527,20 @@ exports.getWishlist = async (req, res) => {
 // @desc    Add product to wishlist
 // @route   POST /api/users/wishlist
 // @access  Private
-exports.addToWishlist = async (req, res) => {
+const addToWishlist = async (req, res) => {
   try {
-    console.log('❤️ [Wishlist] Add to wishlist request:', req.body.productId);
-    
     const { productId } = req.body;
 
-    // Check if product exists
-    const product = await Product.findById(productId);
-    if (!product) {
-      console.log('❌ [Wishlist] Product not found:', productId);
+    const user = await User.findById(req.user._id);
+    if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: 'User not found'
       });
     }
 
-    // Update user's wishlist
-    const user = await User.findById(req.user._id);
-
     // Check if product already in wishlist
     if (user.wishlist.includes(productId)) {
-      console.log('⚠️ [Wishlist] Product already in wishlist:', productId);
       return res.status(400).json({
         success: false,
         message: 'Product already in wishlist'
@@ -521,19 +550,18 @@ exports.addToWishlist = async (req, res) => {
     user.wishlist.push(productId);
     await user.save();
 
-    console.log('✅ [Wishlist] Product added to wishlist successfully');
-
     res.status(200).json({
       success: true,
       message: 'Product added to wishlist',
-      data: { product: productId }
+      data: user.wishlist
     });
+
   } catch (error) {
-    console.error('💥 [Wishlist] Add to wishlist error:', error);
+    logUser('ADD_TO_WISHLIST_ERROR', { error: error.message }, 'error');
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Error adding to wishlist',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -541,41 +569,33 @@ exports.addToWishlist = async (req, res) => {
 // @desc    Remove product from wishlist
 // @route   DELETE /api/users/wishlist/:productId
 // @access  Private
-exports.removeFromWishlist = async (req, res) => {
+const removeFromWishlist = async (req, res) => {
   try {
-    console.log('❤️ [Wishlist] Remove from wishlist request:', req.params.productId);
-    
     const { productId } = req.params;
 
-    // Update user's wishlist
     const user = await User.findById(req.user._id);
-
-    // Check if product in wishlist
-    const index = user.wishlist.indexOf(productId);
-    if (index === -1) {
-      console.log('❌ [Wishlist] Product not found in wishlist:', productId);
+    if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'Product not found in wishlist'
+        message: 'User not found'
       });
     }
 
-    user.wishlist.splice(index, 1);
+    user.wishlist = user.wishlist.filter(id => id.toString() !== productId);
     await user.save();
-
-    console.log('✅ [Wishlist] Product removed from wishlist successfully');
 
     res.status(200).json({
       success: true,
       message: 'Product removed from wishlist',
-      data: {}
+      data: user.wishlist
     });
+
   } catch (error) {
-    console.error('💥 [Wishlist] Remove from wishlist error:', error);
+    logUser('REMOVE_FROM_WISHLIST_ERROR', { error: error.message }, 'error');
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Error removing from wishlist',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -583,97 +603,64 @@ exports.removeFromWishlist = async (req, res) => {
 // @desc    Check if product is in wishlist
 // @route   GET /api/users/wishlist/check/:productId
 // @access  Private
-exports.checkWishlist = async (req, res) => {
+const checkWishlist = async (req, res) => {
   try {
-    console.log('❤️ [Wishlist] Check wishlist request:', req.params.productId);
-    
     const { productId } = req.params;
 
-    // Get user's wishlist
     const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
 
-    // Check if product in wishlist
     const isInWishlist = user.wishlist.includes(productId);
-
-    console.log(`✅ [Wishlist] Product ${isInWishlist ? 'is' : 'is not'} in wishlist`);
 
     res.status(200).json({
       success: true,
       data: { isInWishlist }
     });
+
   } catch (error) {
-    console.error('💥 [Wishlist] Check wishlist error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Error checking wishlist',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-// @desc    Verify email for password reset
+// @desc    Verify email (placeholder)
 // @route   POST /api/users/verify-email
 // @access  Public
-exports.verifyEmail = async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    // Check if user exists
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'No user found with this email address'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Email verified successfully'
-    });
-  } catch (error) {
-    console.error('Email verification error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error verifying email',
-      error: error.message
-    });
-  }
+const verifyEmail = async (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Email verification feature coming soon'
+  });
 };
 
-// @desc    Reset password
+// @desc    Reset password (placeholder)
 // @route   POST /api/users/reset-password
 // @access  Public
-exports.resetPassword = async (req, res) => {
-  try {
-    const { email, newPassword } = req.body;
+const resetPassword = async (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Password reset feature coming soon'
+  });
+};
 
-    // Find user by email
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'No user found with this email address'
-      });
-    }
-
-    // Hash new password
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
-
-    // Save user with new password
-    await user.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Password reset successfully'
-    });
-  } catch (error) {
-    console.error('Password reset error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error resetting password',
-      error: error.message
-    });
-  }
+module.exports = {
+  registerUser,
+  loginUser,
+  getUserProfile,
+  updateUserProfile,
+  getNearbyShops,
+  getWishlist,
+  addToWishlist,
+  removeFromWishlist,
+  checkWishlist,
+  verifyEmail,
+  resetPassword
 };

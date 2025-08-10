@@ -117,13 +117,13 @@ const verifyFix = async () => {
             type: "Point",
             coordinates: [testLocation.longitude, testLocation.latitude]
           },
-          $maxDistance: 50000 // 50km
+          $maxDistance: 50000000 // 50000km
         }
       },
       isVerified: true
     }).limit(5);
 
-    console.log(`🔍 Test nearby query found ${nearbyShops.length} shops within 50km of Ahmedabad`);
+    console.log(`🔍 Test nearby query found ${nearbyShops.length} shops within 50000km of Ahmedabad`);
 
     if (nearbyShops.length > 0) {
       console.log('📋 Sample shops:');

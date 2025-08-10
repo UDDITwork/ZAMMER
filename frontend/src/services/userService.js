@@ -1,325 +1,481 @@
-import api from './api';
-import axios from 'axios';
+// File: /frontend/src/services/userService.js - COMPLETE with getNearbyShops
 
-// Optimized logging - only log errors and important events
-const isProduction = process.env.NODE_ENV === 'production';
-const debugLog = (message, data = null, type = 'info') => {
-  // Only log in development or for errors
-  if (!isProduction || type === 'error') {
+import api from './api';
+
+// Enhanced logging for development
+const logUserService = (action, data, type = 'info') => {
+  if (process.env.NODE_ENV === 'development') {
     const colors = {
       info: '#2196F3',
-      success: '#4CAF50', 
+      success: '#4CAF50',
       warning: '#FF9800',
       error: '#F44336'
     };
     
     console.log(
-      `%c[Service] ${message}`,
+      `%c[USER-SERVICE] ${action}`,
       `color: ${colors[type]}; font-weight: bold;`,
       data
     );
   }
 };
 
-// Register a user
-export const registerUser = async (userData) => {
+// Get current user location using browser geolocation
+const getCurrentLocation = () => {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation is not supported by this browser.'));
+      return;
+    }
+
+    logUserService('Getting current location...', null, 'info');
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const location = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy
+        };
+        
+        logUserService('Location obtained successfully', location, 'success');
+        resolve(location);
+      },
+      (error) => {
+        let errorMessage = 'Failed to get location';
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Location access denied by user';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Location information unavailable';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Location request timed out';
+            break;
+          default:
+            errorMessage = 'Unknown location error';
+            break;
+        }
+        
+        logUserService('Location error', { error: errorMessage, code: error.code }, 'error');
+        reject(new Error(errorMessage));
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 300000 // 5 minutes
+      }
+    );
+  });
+};
+
+// 🎯 NEW: Get nearby shops with multiple location strategies
+const getNearbyShops = async (options = {}) => {
   try {
-    debugLog('📝 User registration attempt', {
-      name: userData.name,
-      email: userData.email,
-      hasMobileNumber: !!userData.mobileNumber
+    const {
+      lat,
+      lng,
+      maxDistance = 50000,
+      limit = 20,
+      forceCurrentLocation = false
+    } = options;
+
+    logUserService('getNearbyShops called', {
+      providedLat: lat,
+      providedLng: lng,
+      maxDistance,
+      limit,
+      forceCurrentLocation
     }, 'info');
 
-    const response = await api.post('/users/register', userData);
+    let queryParams = new URLSearchParams();
     
-    debugLog('✅ User registration successful', {
-      success: response.data.success,
-      userName: response.data.data?.name,
-      hasToken: !!response.data.data?.token
-    }, 'success');
+    // Add basic parameters
+    queryParams.append('maxDistance', maxDistance);
+    queryParams.append('limit', limit);
 
-    return response.data;
-  } catch (error) {
-    debugLog('❌ User registration failed', {
-      status: error.response?.status,
-      message: error.response?.data?.message || error.message,
-      errors: error.response?.data?.errors
-    }, 'error');
+    // Strategy 1: Use provided coordinates
+    if (lat && lng && !forceCurrentLocation) {
+      queryParams.append('lat', lat);
+      queryParams.append('lng', lng);
+      logUserService('Using provided coordinates', { lat, lng }, 'info');
+    } 
+    // Strategy 2: Try to get current location
+    else {
+      try {
+        logUserService('Attempting to get current location...', null, 'info');
+        const currentLocation = await getCurrentLocation();
+        queryParams.append('lat', currentLocation.latitude);
+        queryParams.append('lng', currentLocation.longitude);
+        logUserService('Using current location', currentLocation, 'success');
+      } catch (locationError) {
+        logUserService('Failed to get current location, proceeding without coordinates', 
+          { error: locationError.message }, 'warning');
+        // Continue without location - backend will return all shops
+      }
+    }
 
-    throw error.response?.data || { success: false, message: 'Network error' };
-  }
-};
+    const url = `/users/nearby-shops?${queryParams.toString()}`;
+    logUserService('Making API call', { url }, 'info');
 
-// Login a user
-export const loginUser = async (credentials) => {
-  try {
-    debugLog('🔐 User login attempt', {
-      email: credentials.email,
-      passwordLength: credentials.password?.length
-    }, 'info');
+    const response = await api.get(url);
 
-    const response = await api.post('/users/login', credentials);
-    
-    debugLog('✅ User login successful', {
-      success: response.data.success,
-      userName: response.data.data?.name,
-      userId: response.data.data?._id,
-      hasToken: !!response.data.data?.token,
-      tokenLength: response.data.data?.token?.length
-    }, 'success');
+    if (response.data.success) {
+      logUserService('getNearbyShops success', {
+        shopsCount: response.data.count,
+        userLocation: response.data.userLocation,
+        searchRadius: response.data.searchRadius,
+        processingTime: response.data.processingTime
+      }, 'success');
 
-    return response.data;
-  } catch (error) {
-    debugLog('❌ User login failed', {
-      status: error.response?.status,
-      message: error.response?.data?.message || error.message,
-      errors: error.response?.data?.errors
-    }, 'error');
-
-    throw error.response?.data || { success: false, message: 'Network error' };
-  }
-};
-
-// Get user profile
-export const getUserProfile = async () => {
-  try {
-    debugLog('👤 Fetching user profile', null, 'info');
-
-    const response = await api.get('/users/profile');
-    
-    debugLog('✅ User profile fetched', {
-      success: response.data.success,
-      userName: response.data.data?.name
-    }, 'success');
-
-    return response.data;
-  } catch (error) {
-    debugLog('❌ User profile fetch failed', {
-      status: error.response?.status,
-      message: error.response?.data?.message || error.message
-    }, 'error');
-
-    throw error.response?.data || { success: false, message: 'Network error' };
-  }
-};
-
-// Update user profile
-export const updateUserProfile = async (profileData) => {
-  try {
-    debugLog('✏️ Updating user profile', {
-      fieldsToUpdate: Object.keys(profileData)
-    }, 'info');
-
-    const response = await api.put('/users/profile', profileData);
-    
-    debugLog('✅ User profile updated', {
-      success: response.data.success,
-      userName: response.data.data?.name
-    }, 'success');
-
-    return response.data;
-  } catch (error) {
-    debugLog('❌ User profile update failed', {
-      status: error.response?.status,
-      message: error.response?.data?.message || error.message
-    }, 'error');
-
-    throw error.response?.data || { success: false, message: 'Network error' };
-  }
-};
-
-// Update user location
-export const updateUserLocation = async (locationData) => {
-  try {
-    debugLog('📍 Updating user location', {
-      hasCoordinates: !!locationData.coordinates,
-      hasAddress: !!locationData.address
-    }, 'info');
-
-    const response = await api.put('/users/profile', { location: locationData });
-    
-    debugLog('✅ User location updated', {
-      success: response.data.success
-    }, 'success');
-
-    return response.data;
-  } catch (error) {
-    debugLog('❌ User location update failed', {
-      status: error.response?.status,
-      message: error.response?.data?.message || error.message
-    }, 'error');
-
-    throw error.response?.data || { success: false, message: 'Network error' };
-  }
-};
-
-// Get nearby shops - FIXED to ensure it gets ALL shops
-export const getNearbyShops = async () => {
-  try {
-    console.log('🏪 [UserService] Fetching nearby shops...');
-    console.log('🏪 [UserService] API endpoint: /shops/nearby');
-
-    // 🎯 FIXED: Call the correct shops endpoint that returns ALL shops
-    const response = await api.get('/shops/nearby');
-    
-    console.log('🏪 [UserService] Raw response received:', {
-      success: response.data?.success,
-      dataType: typeof response.data?.data,
-      isArray: Array.isArray(response.data?.data),
-      count: response.data?.count || 0,
-      firstShop: response.data?.data?.[0]?.shop?.name || 'none'
-    });
-    
-    // 🎯 FIXED: Validate response data more carefully
-    if (!response.data) {
-      console.error('❌ [UserService] No response data received');
+      return {
+        success: true,
+        data: response.data.data,
+        count: response.data.count,
+        userLocation: response.data.userLocation,
+        searchRadius: response.data.searchRadius,
+        stats: response.data.stats,
+        processingTime: response.data.processingTime
+      };
+    } else {
+      logUserService('API returned error', response.data, 'error');
       return {
         success: false,
-        message: 'No response data received from server',
+        message: response.data.message || 'Failed to fetch nearby shops',
         data: []
       };
     }
 
-    if (!response.data.success) {
-      console.error('❌ [UserService] API returned success: false', response.data);
-      return {
-        success: false,
-        message: response.data.message || 'Failed to fetch shops',
-        data: []
-      };
-    }
-
-    if (!Array.isArray(response.data.data)) {
-      console.error('❌ [UserService] Invalid data format - not an array:', {
-        dataType: typeof response.data.data,
-        data: response.data.data
-      });
-      return {
-        success: false,
-        message: 'Invalid response format from server',
-        data: []
-      };
-    }
-
-    console.log('✅ [UserService] Nearby shops fetched successfully:', {
-      success: response.data.success,
-      count: response.data.count,
-      actualDataLength: response.data.data.length,
-      sampleShop: response.data.data[0] ? {
-        id: response.data.data[0]._id,
-        name: response.data.data[0].shop?.name,
-        hasLocation: !!response.data.data[0].shop?.location,
-        hasImages: !!response.data.data[0].shop?.images?.length,
-        category: response.data.data[0].shop?.category
-      } : null
-    });
-
-    return response.data;
   } catch (error) {
-    console.error('❌ [UserService] Nearby shops fetch failed:', {
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      message: error.response?.data?.message || error.message,
-      url: error.config?.url,
-      method: error.config?.method,
-      baseURL: error.config?.baseURL,
-      fullURL: `${error.config?.baseURL}${error.config?.url}`,
-      isNetworkError: !error.response,
-      errorData: error.response?.data
-    });
+    logUserService('getNearbyShops error', {
+      error: error.message,
+      response: error.response?.data
+    }, 'error');
 
-    // 🎯 FIXED: Return consistent error format instead of throwing
+    // Return error response
     return {
       success: false,
-      message: error.response?.data?.message || 'Failed to fetch nearby shops',
-      error: error.message,
+      message: error.response?.data?.message || error.message || 'Failed to fetch nearby shops',
       data: [],
-      debug: {
-        status: error.response?.status,
-        endpoint: error.config?.url,
-        isNetworkError: !error.response
-      }
+      error: error.response?.data
     };
   }
 };
 
-// Request password reset
-export const requestPasswordReset = async (email) => {
+// User registration
+const registerUser = async (userData) => {
   try {
-    debugLog('🔄 Password reset request', { email }, 'info');
-
-    const response = await api.post('/users/forgot-password', { email });
-    
-    debugLog('✅ Password reset request sent', {
-      success: response.data.success
-    }, 'success');
-
-    return response.data;
-  } catch (error) {
-    debugLog('❌ Password reset request failed', {
-      status: error.response?.status,
-      message: error.response?.data?.message || error.message
-    }, 'error');
-
-    throw error.response?.data || { success: false, message: 'Network error' };
-  }
-};
-
-// Reset password
-export const resetPassword = async (email, newPassword) => {
-  try {
-    debugLog('🔑 Resetting password', { email }, 'info');
-    const response = await api.post('/users/reset-password', {
-      email,
-      newPassword
-    });
-    debugLog('✅ Password reset successful', { email }, 'success');
-    return response.data;
-  } catch (error) {
-    debugLog('❌ Password reset failed', {
-      status: error.response?.status,
-      message: error.response?.data?.message || error.message
-    }, 'error');
-    throw error.response?.data?.message || 'Failed to reset password';
-  }
-};
-
-// Verify reset token
-export const verifyResetToken = async (token) => {
-  try {
-    debugLog('🔍 Verifying reset token', {
-      hasToken: !!token,
-      tokenLength: token?.length
+    logUserService('Registering user', { 
+      name: userData.name, 
+      email: userData.email,
+      hasLocation: !!userData.location 
     }, 'info');
 
-    const response = await api.get(`/users/reset-password/${token}`);
+    const response = await api.post('/users/register', userData);
     
-    debugLog('✅ Reset token verified', {
-      success: response.data.success
-    }, 'success');
+    if (response.data.success) {
+      logUserService('User registered successfully', {
+        userId: response.data.data._id,
+        email: response.data.data.email
+      }, 'success');
+
+      // Store token in localStorage
+      if (response.data.data.token) {
+        localStorage.setItem('userToken', response.data.data.token);
+        
+        // Set default auth header
+        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.data.token}`;
+      }
+    }
 
     return response.data;
   } catch (error) {
-    debugLog('❌ Reset token verification failed', {
-      status: error.response?.status,
-      message: error.response?.data?.message || error.message
+    logUserService('Registration error', {
+      error: error.message,
+      response: error.response?.data
     }, 'error');
 
-    throw error.response?.data || { success: false, message: 'Network error' };
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Registration failed',
+      errors: error.response?.data?.errors
+    };
   }
 };
 
-export const verifyEmail = async (email) => {
+// User login
+const loginUser = async (credentials) => {
   try {
-    debugLog('📧 Verifying email', { email }, 'info');
-    const response = await axios.post('/api/users/verify-email', { email });
-    debugLog('✅ Email verified successfully', { email }, 'success');
+    logUserService('Logging in user', { email: credentials.email }, 'info');
+
+    const response = await api.post('/users/login', credentials);
+    
+    if (response.data.success) {
+      logUserService('User logged in successfully', {
+        userId: response.data.data._id,
+        email: response.data.data.email,
+        hasLocation: !!response.data.data.location
+      }, 'success');
+
+      // Store token in localStorage
+      if (response.data.data.token) {
+        localStorage.setItem('userToken', response.data.data.token);
+        
+        // Set default auth header
+        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.data.token}`;
+      }
+    }
+
     return response.data;
   } catch (error) {
-    debugLog('❌ Email verification failed', {
-      status: error.response?.status,
-      message: error.response?.data?.message || error.message
+    logUserService('Login error', {
+      error: error.message,
+      response: error.response?.data
     }, 'error');
-    throw error.response?.data?.message || 'Failed to verify email';
+
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Login failed'
+    };
   }
+};
+
+// Get user profile
+const getUserProfile = async () => {
+  try {
+    logUserService('Getting user profile', null, 'info');
+
+    const response = await api.get('/users/profile');
+    
+    if (response.data.success) {
+      logUserService('User profile retrieved', {
+        userId: response.data.data._id,
+        hasLocation: !!response.data.data.location
+      }, 'success');
+    }
+
+    return response.data;
+  } catch (error) {
+    logUserService('Get profile error', {
+      error: error.message,
+      response: error.response?.data
+    }, 'error');
+
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to get profile'
+    };
+  }
+};
+
+// Update user profile
+const updateUserProfile = async (userData) => {
+  try {
+    logUserService('Updating user profile', {
+      updates: Object.keys(userData),
+      hasLocation: !!userData.location
+    }, 'info');
+
+    const response = await api.put('/users/profile', userData);
+    
+    if (response.data.success) {
+      logUserService('User profile updated', {
+        userId: response.data.data._id,
+        hasLocation: !!response.data.data.location
+      }, 'success');
+    }
+
+    return response.data;
+  } catch (error) {
+    logUserService('Update profile error', {
+      error: error.message,
+      response: error.response?.data
+    }, 'error');
+
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to update profile'
+    };
+  }
+};
+
+// Get user wishlist
+const getWishlist = async () => {
+  try {
+    logUserService('Getting user wishlist', null, 'info');
+
+    const response = await api.get('/users/wishlist');
+    
+    if (response.data.success) {
+      logUserService('Wishlist retrieved', {
+        itemCount: response.data.data.length
+      }, 'success');
+    }
+
+    return response.data;
+  } catch (error) {
+    logUserService('Get wishlist error', {
+      error: error.message,
+      response: error.response?.data
+    }, 'error');
+
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to get wishlist',
+      data: []
+    };
+  }
+};
+
+// Add to wishlist
+const addToWishlist = async (productId) => {
+  try {
+    logUserService('Adding to wishlist', { productId }, 'info');
+
+    const response = await api.post('/users/wishlist', { productId });
+    
+    if (response.data.success) {
+      logUserService('Added to wishlist successfully', { productId }, 'success');
+    }
+
+    return response.data;
+  } catch (error) {
+    logUserService('Add to wishlist error', {
+      error: error.message,
+      response: error.response?.data
+    }, 'error');
+
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to add to wishlist'
+    };
+  }
+};
+
+// Remove from wishlist
+const removeFromWishlist = async (productId) => {
+  try {
+    logUserService('Removing from wishlist', { productId }, 'info');
+
+    const response = await api.delete(`/users/wishlist/${productId}`);
+    
+    if (response.data.success) {
+      logUserService('Removed from wishlist successfully', { productId }, 'success');
+    }
+
+    return response.data;
+  } catch (error) {
+    logUserService('Remove from wishlist error', {
+      error: error.message,
+      response: error.response?.data
+    }, 'error');
+
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to remove from wishlist'
+    };
+  }
+};
+
+// Check if product is in wishlist
+const checkWishlist = async (productId) => {
+  try {
+    const response = await api.get(`/users/wishlist/check/${productId}`);
+    return response.data;
+  } catch (error) {
+    return {
+      success: false,
+      message: 'Failed to check wishlist',
+      data: { isInWishlist: false }
+    };
+  }
+};
+
+// Logout user
+const logoutUser = () => {
+  logUserService('Logging out user', null, 'info');
+  
+  // Remove token from localStorage
+  localStorage.removeItem('userToken');
+  
+  // Remove auth header
+  delete api.defaults.headers.common['Authorization'];
+  
+  logUserService('User logged out successfully', null, 'success');
+};
+
+// 🎯 UTILITY: Get user's saved location
+const getUserLocation = async () => {
+  try {
+    const profile = await getUserProfile();
+    if (profile.success && profile.data.location) {
+      return {
+        success: true,
+        location: profile.data.location
+      };
+    }
+    return {
+      success: false,
+      message: 'No saved location found'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: 'Failed to get user location'
+    };
+  }
+};
+
+// 🎯 UTILITY: Update user location
+const updateUserLocation = async (coordinates, address) => {
+  try {
+    const locationData = {
+      location: {
+        type: 'Point',
+        coordinates: coordinates,
+        address: address
+      }
+    };
+    
+    return await updateUserProfile(locationData);
+  } catch (error) {
+    return {
+      success: false,
+      message: 'Failed to update location'
+    };
+  }
+};
+
+export {
+  registerUser,
+  loginUser,
+  getUserProfile,
+  updateUserProfile,
+  getNearbyShops,
+  getWishlist,
+  addToWishlist,
+  removeFromWishlist,
+  checkWishlist,
+  logoutUser,
+  getCurrentLocation,
+  getUserLocation,
+  updateUserLocation
+};
+
+export default {
+  registerUser,
+  loginUser,
+  getUserProfile,
+  updateUserProfile,
+  getNearbyShops,
+  getWishlist,
+  addToWishlist,
+  removeFromWishlist,
+  checkWishlist,
+  logoutUser,
+  getCurrentLocation,
+  getUserLocation,
+  updateUserLocation
 };
