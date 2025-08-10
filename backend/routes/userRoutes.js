@@ -14,7 +14,9 @@ const {
   removeFromWishlist,
   checkWishlist,
   verifyEmail,
-  resetPassword
+  resetPassword,
+  debugSellers,
+  verifyAllSellers
 } = require('../controllers/userController');
 const { protectUser, optionalUserAuth } = require('../middleware/authMiddleware');
 
@@ -45,6 +47,12 @@ router.post(
 // @access  Public (optionally authenticated for saved location)
 router.get('/nearby-shops', optionalUserAuth, getNearbyShops);
 
+// 🐛 DEBUG ROUTE - Check sellers in database
+// @desc    Debug route to check sellers
+// @route   GET /api/users/debug-sellers
+// @access  Public
+router.get('/debug-sellers', debugSellers);
+router.get('/verify-all-sellers', verifyAllSellers);
 // Protected routes
 router.get('/profile', protectUser, getUserProfile);
 router.put('/profile', protectUser, updateUserProfile);
