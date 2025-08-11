@@ -50,7 +50,7 @@ exports.registerSeller = async (req, res) => {
 
     if (seller) {
       // Generate JWT token
-      const token = generateToken(seller._id);
+      const token = generateToken(seller._id, 'seller');
 
       res.status(201).json({
         success: true,
@@ -139,7 +139,7 @@ exports.loginSeller = async (req, res) => {
     }
 
     // Generate JWT token
-    const token = generateToken(seller._id);
+    const token = generateToken(seller._id, 'seller');
 
     console.log('✅ [SellerLogin] Login successful:', {
       sellerId: seller._id,
