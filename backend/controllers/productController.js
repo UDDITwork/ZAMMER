@@ -35,7 +35,8 @@ const getMarketplaceProducts = async (req, res) => {
       maxPrice,
       sortBy = 'createdAt',
       sortOrder = 'desc',
-      status = 'active'
+      status = 'active',
+      seller
     } = req.query;
 
     logProductQuery('MARKETPLACE_PRODUCTS_REQUEST', {
@@ -117,6 +118,12 @@ const getMarketplaceProducts = async (req, res) => {
       });
     }
 
+    // 🎯 SELLER FILTERING - CRITICAL FIX FOR SHOP-SPECIFIC PRODUCTS
+    if (seller && seller.trim() !== '') {
+      filter.seller = seller.trim();
+      logProductQuery('FILTER_APPLIED', { type: 'seller', value: seller.trim() });
+    }
+
     // 🎯 BUILD SORT OBJECT
     const sortOptions = {};
     
@@ -168,6 +175,7 @@ const getMarketplaceProducts = async (req, res) => {
 🏷️ Product Category: ${productCategory || 'All'}
 🔍 Search: ${search || 'None'}
 💰 Price Range: ${minPrice || 0} - ${maxPrice || '∞'}
+🏪 Seller: ${seller || 'All'}
 📄 Page: ${pageNumber} (Size: ${pageSize})
 🔢 Sort: ${sortBy} (${sortOrder})
 📊 MongoDB Filter: ${JSON.stringify(filter, null, 2)}
@@ -292,6 +300,7 @@ const getMarketplaceProducts = async (req, res) => {
         search,
         minPrice,
         maxPrice,
+        seller,
         sortBy,
         sortOrder
       },
