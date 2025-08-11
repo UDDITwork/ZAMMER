@@ -602,7 +602,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // 🎯 ENHANCED: Login seller with logging
+  // 🎯 CRITICAL FIX: Login seller with comprehensive token cleanup
   const loginSeller = (data) => {
     try {
       debugLog('SELLER LOGIN INITIATED', {
@@ -619,20 +619,47 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Invalid token format received from server');
       }
 
-      const tokenStored = safeSetItem('sellerToken', data.token);
-      const dataStored = safeSetItem('sellerData', JSON.stringify(data));
+      // 🎯 CRITICAL: Clear ALL old tokens first
+      debugLog('CLEARING ALL OLD TOKENS BEFORE SELLER LOGIN', null, 'critical');
       
-      if (!tokenStored || !dataStored) {
-        throw new Error('Failed to store seller authentication data');
-      }
-      
-      setSellerAuth({
-        isAuthenticated: true,
-        seller: data,
-        token: data.token,
-      });
+      // Clear all existing tokens (not just seller tokens)
+      safeRemoveItem('userToken');
+      safeRemoveItem('userData');
+      safeRemoveItem('sellerToken');
+      safeRemoveItem('sellerData');
+      safeRemoveItem('adminToken');
+      safeRemoveItem('adminData');
+      safeRemoveItem('deliveryAgentToken');
+      safeRemoveItem('deliveryAgentData');
 
-      debugLog('SELLER LOGIN COMPLETED', null, 'success');
+      // Reset all auth states
+      setUserAuth({ isAuthenticated: false, user: null, token: null });
+      setAdminAuth({ isAuthenticated: false, admin: null, token: null });
+      setDeliveryAgentAuth({ isAuthenticated: false, deliveryAgent: null, token: null });
+
+      // Wait a moment for cleanup
+      setTimeout(() => {
+        // Now store the new seller token
+        const tokenStored = safeSetItem('sellerToken', data.token);
+        const dataStored = safeSetItem('sellerData', JSON.stringify(data));
+        
+        if (!tokenStored || !dataStored) {
+          throw new Error('Failed to store seller authentication data');
+        }
+        
+        setSellerAuth({
+          isAuthenticated: true,
+          seller: data,
+          token: data.token,
+        });
+
+        debugLog('SELLER LOGIN COMPLETED WITH CLEAN TOKENS', {
+          newTokenLength: data.token.length,
+          sellerId: data._id,
+          sellerName: data.firstName
+        }, 'success');
+      }, 100);
+
     } catch (error) {
       debugLog('SELLER LOGIN FAILED', { error: error.message }, 'error');
       throw error;
