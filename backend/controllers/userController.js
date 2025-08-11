@@ -33,10 +33,10 @@ const registerUser = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
+      return res.status(400).json({ 
+        success: false, 
         message: 'Validation failed',
-        errors: errors.array()
+        errors: errors.array() 
       });
     }
 
@@ -82,7 +82,7 @@ const registerUser = async (req, res) => {
     const user = await User.create(userData);
 
     logUser('USER_REGISTERED_SUCCESS', {
-      userId: user._id,
+        userId: user._id, 
       email: user.email,
       hasLocation: !!user.location?.coordinates?.length
     }, 'success');
@@ -117,10 +117,10 @@ const loginUser = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
+      return res.status(400).json({ 
+        success: false, 
         message: 'Validation failed',
-        errors: errors.array()
+        errors: errors.array() 
       });
     }
 
@@ -155,11 +155,11 @@ const loginUser = async (req, res) => {
       success: true,
       message: 'Login successful',
       data: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        mobileNumber: user.mobileNumber,
-        location: user.location,
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      mobileNumber: user.mobileNumber,
+      location: user.location,
         wishlist: user.wishlist,
         token: generateToken(user._id)
       }
@@ -181,7 +181,7 @@ const loginUser = async (req, res) => {
 const getUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-password');
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -215,7 +215,7 @@ const updateUserProfile = async (req, res) => {
       userId: req.user._id,
       updates: Object.keys(req.body)
     });
-
+    
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({
@@ -322,7 +322,7 @@ const getNearbyShops = async (req, res) => {
     if (!userLocation) {
       logUser('NO_USER_LOCATION_AVAILABLE', null, 'warning');
       
-      const shops = await Seller.find({
+        const shops = await Seller.find({ 
         isVerified: true,
         "shop.name": { $exists: true, $ne: null, $ne: '' }
       })
@@ -336,11 +336,11 @@ const getNearbyShops = async (req, res) => {
       .lean();
 
       logUser('RETURNING_ALL_SHOPS_NO_LOCATION', { count: shops.length });
-
-      return res.status(200).json({
-        success: true,
+        
+        return res.status(200).json({
+          success: true,
         data: shops,
-        count: shops.length,
+          count: shops.length,
         userLocation: null,
         message: `All available shops (location not provided) - ${shops.length} shops found`,
         processingTime: `${Date.now() - startTime}ms`
@@ -450,7 +450,7 @@ const getNearbyShops = async (req, res) => {
           isAccurate: distance < 10000 // Less than 10,000 km is reasonable
         };
       }).sort((a, b) => a.distance - b.distance);
-
+      
       return res.status(200).json({
         success: true,
         data: shopsWithDistances,
@@ -515,7 +515,7 @@ const getNearbyShops = async (req, res) => {
         distance: shopsWithDistances[0].distanceText
       } : null
     }, 'success');
-
+    
     res.status(200).json({
       success: true,
       data: shopsWithDistances,
@@ -539,8 +539,8 @@ const getNearbyShops = async (req, res) => {
       processingTime: `${processingTime}ms`
     }, 'error');
 
-    res.status(500).json({
-      success: false,
+      res.status(500).json({
+        success: false,
       message: 'Error fetching nearby shops',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
       processingTime: `${processingTime}ms`
@@ -713,8 +713,8 @@ const checkWishlist = async (req, res) => {
 // @route   POST /api/users/verify-email
 // @access  Public
 const verifyEmail = async (req, res) => {
-  res.status(200).json({
-    success: true,
+    res.status(200).json({
+      success: true,
     message: 'Email verification feature coming soon'
   });
 };
