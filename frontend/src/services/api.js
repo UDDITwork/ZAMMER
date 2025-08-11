@@ -32,7 +32,23 @@ const api = axios.create({
 // 🔧 UNIVERSAL: Request interceptor with token handling
 api.interceptors.request.use(
   (config) => {
-    // Get tokens from localStorage
+    // Clear any invalid/conflicting tokens before each request
+    const tokens = getStoredTokens();
+    
+    // If route is seller-specific, ensure only seller token exists
+    if (config.url?.includes('/sellers/') || config.url?.includes('seller')) {
+      if (tokens.userToken || tokens.adminToken || tokens.deliveryAgentToken) {
+        console.warn('🧹 Clearing conflicting tokens for seller request');
+        localStorage.removeItem('userToken');
+        localStorage.removeItem('userData');
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminData');
+        localStorage.removeItem('deliveryAgentToken');
+        localStorage.removeItem('deliveryAgentData');
+      }
+    }
+    
+    // Get tokens from localStorage (after cleanup)
     const userToken = localStorage.getItem('userToken');
     const sellerToken = localStorage.getItem('sellerToken');
     const adminToken = localStorage.getItem('adminToken');
