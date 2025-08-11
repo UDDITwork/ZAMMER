@@ -153,7 +153,43 @@ router.get('/health', async (req, res) => {
     });
   }
 });
+// Add this to your backend/routes/paymentRoutes.js for testing
 
+// 🎯 TEST ENDPOINT - Add this route for testing SMEPay
+router.get('/test-smepay', async (req, res) => {
+  try {
+    const smepayService = require('../services/smepayService');
+    
+    console.log('🧪 Testing SMEPay Service...');
+    
+    // Test authentication
+    const authResult = await smepayService.authenticate();
+    
+    // Test health check
+    const healthResult = await smepayService.healthCheck();
+    
+    res.status(200).json({
+      success: true,
+      message: 'SMEPay test completed',
+      authentication: !!authResult,
+      health: healthResult,
+      config: {
+        baseURL: smepayService.baseURL,
+        hasClientId: !!smepayService.clientId,
+        hasClientSecret: !!smepayService.clientSecret
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('🧪 SMEPay Test Failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'SMEPay test failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 // 🎯 ERROR HANDLING MIDDLEWARE
 router.use((error, req, res, next) => {
   console.error('❌ [PaymentRoutes] Error:', error);
