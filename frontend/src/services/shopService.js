@@ -1,3 +1,35 @@
+/**
+ * FILE LOCATION: frontend/src/services/shopService.js
+ * 
+ * SHOP SERVICE OVERVIEW:
+ * This service handles shop-specific operations including shop details,
+ * shop products, ratings, and reviews.
+ * 
+ * KEY FUNCTIONS:
+ * - getShop: Retrieves detailed shop information by shop ID
+ * - getShopProducts: Fetches all products for a specific shop
+ * - rateShop: Allows users to rate shops with reviews
+ * - getShopRatings: Retrieves all ratings and reviews for a shop
+ * 
+ * SHOP PRODUCTS LOGIC:
+ * The getShopProducts function is critical for displaying products
+ * that belong to a specific seller's shop. It uses the endpoint
+ * `/products/shop/${shopId}` to filter products by seller.
+ * 
+ * RATING SYSTEM:
+ * - Supports numerical ratings (1-5 stars)
+ * - Allows text reviews with ratings
+ * - Retrieves aggregated rating data
+ * - Manages shop reputation and feedback
+ * 
+ * INTEGRATION:
+ * - Uses centralized API configuration from api.js
+ * - Implements comprehensive error handling
+ * - Supports shop-specific product filtering
+ * - Provides fallback responses for network errors
+ * - Integrates with the broader product management system
+ */
+
 // File: /frontend/src/services/shopService.js
 
 import api from './api';

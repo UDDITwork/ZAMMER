@@ -1,3 +1,38 @@
+/**
+ * FILE LOCATION: frontend/src/services/sellerService.js
+ * 
+ * SELLER SERVICE OVERVIEW:
+ * This service handles all seller-related operations including authentication,
+ * profile management, shop management, and image uploads.
+ * 
+ * KEY FUNCTIONS:
+ * - registerSeller: Creates new seller accounts
+ * - loginSeller: Authenticates sellers and returns tokens
+ * - getSellerProfile: Retrieves seller profile information
+ * - updateSellerProfile: Updates seller profile and shop details
+ * - uploadShopImages: Uploads shop images to Cloudinary
+ * - uploadShopImageToCloudinary: Direct file upload to Cloudinary
+ * - requestPasswordReset: Initiates password reset process
+ * - checkEmailExists: Validates email availability
+ * - resetPasswordDirect: Direct password reset without tokens
+ * - verifyResetToken: Validates reset tokens
+ * - resetPassword: Completes password reset process
+ * - deleteImage: Removes images from Cloudinary storage
+ * 
+ * SHOP MANAGEMENT:
+ * - Supports shop profile creation and updates
+ * - Handles shop image uploads and management
+ * - Manages shop location and contact information
+ * - Supports shop branding and customization
+ * 
+ * INTEGRATION:
+ * - Uses centralized API configuration from api.js
+ * - Integrates with Cloudinary for image storage
+ * - Implements comprehensive error handling
+ * - Supports file upload with progress tracking
+ * - Provides fallback responses for network errors
+ */
+
 import api from './api';
 
 // Register a seller

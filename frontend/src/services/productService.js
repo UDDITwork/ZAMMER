@@ -1,3 +1,40 @@
+/**
+ * FILE LOCATION: frontend/src/services/productService.js
+ * 
+ * PRODUCT SERVICE OVERVIEW:
+ * This service handles all product-related API operations including CRUD operations,
+ * marketplace product fetching, category filtering, and image management.
+ * 
+ * KEY FUNCTIONS:
+ * - createProduct: Creates new products with validation
+ * - getSellerProducts: Fetches products for authenticated sellers
+ * - getProductById: Retrieves single product details
+ * - updateProduct: Updates existing products with data sanitization
+ * - deleteProduct: Removes products from the system
+ * - getMarketplaceProducts: Main function for fetching marketplace products with filtering
+ * - getProductsByCategory: Filters products by main category (Men, Women, Kids)
+ * - getLimitedEditionProducts: Fetches limited edition products
+ * - getTrendingProducts: Retrieves trending products
+ * - searchProducts: Performs text-based product search
+ * - deleteImage: Removes images from Cloudinary storage
+ * 
+ * FILTERING LOGIC:
+ * The service supports multiple filtering parameters including:
+ * - Category filtering (Men, Women, Kids)
+ * - Subcategory filtering (T-shirts, Shirts, Jeans, etc.)
+ * - Price range filtering
+ * - Product category filtering (Traditional Indian, Winter Fashion, etc.)
+ * - Limited edition and trending flags
+ * - Search queries
+ * 
+ * INTEGRATION:
+ * - Uses centralized API configuration from api.js
+ * - Implements comprehensive error handling and logging
+ * - Supports pagination and sorting
+ * - Integrates with Cloudinary for image management
+ * - Provides fallback responses for network errors
+ */
+
 import api from './api';
 
 // Optimized logging - only log errors and important events
