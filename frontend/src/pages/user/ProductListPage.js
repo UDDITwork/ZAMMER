@@ -22,7 +22,7 @@ const ProductListPage = () => {
   
   // Get filter parameters from URL
   const category = searchParams.get('category');
-  const subcategory = searchParams.get('subcategory');
+  const subcategory = searchParams.get('subCategory');
   const productCategory = searchParams.get('productCategory');
   const search = searchParams.get('search');
   

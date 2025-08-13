@@ -1,3 +1,47 @@
+/**
+ * FILE LOCATION: frontend/src/pages/seller/AddProduct.js
+ * 
+ * CATEGORY STRUCTURE:
+ * This component implements a comprehensive product creation form with a hierarchical category system.
+ * The form is organized into three main categories (Men, Women, Kids) with specific subcategories for each:
+ * 
+ * MEN CATEGORY:
+ * - Subcategories: T-shirts, Shirts, Jeans, Ethnic Wear, Jackets, Tops, Tees, Sleepwear, Top Wear
+ * 
+ * WOMEN CATEGORY:
+ * - Subcategories: Kurties, Tops, Tees, Dresses, Jeans, Nightwear, Sleepwear, Lehengass, Rayon, Shrugs
+ * 
+ * KIDS CATEGORY:
+ * - Subcategories: T-shirts, Shirts, Boys Sets, Top Wear, Nightwear, Sleepwear
+ * 
+ * PRODUCT CATEGORIES (Additional Classification):
+ * The form also includes product category options that provide further classification:
+ * - Traditional Indian
+ * - Winter Fashion
+ * - Party Wear
+ * - Sports Destination
+ * - Office Wear
+ * 
+ * FORM SECTIONS:
+ * 1. Basic Information: Product name, category selection, subcategory selection, product category, description
+ * 2. Pricing Strategy: Zammer price and MRP with automatic discount calculation
+ * 3. Product Variants: Color, size, and quantity combinations with color preview
+ * 4. Product Gallery: Image upload with Cloudinary integration and main image designation
+ * 5. Product Features: Limited edition and trending flags, product tags
+ * 
+ * VALIDATION:
+ * - All required fields are validated using Yup schema
+ * - MRP must be greater than or equal to Zammer price
+ * - At least one variant and one image are required
+ * - Character limits are enforced for name (100 chars) and description (1000 chars)
+ * 
+ * INTEGRATION:
+ * - Uses Cloudinary for image storage via /api/upload endpoint
+ * - Integrates with backend Product.js schema for data consistency
+ * - Supports real-time image deletion from cloud storage
+ * - Implements proper error handling and user feedback
+ */
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
