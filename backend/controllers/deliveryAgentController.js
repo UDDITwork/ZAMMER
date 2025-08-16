@@ -1,4 +1,5 @@
-// backend/controllers/deliveryAgentController.js - Complete Delivery Agent Management
+// backend/controllers/deliveryAgentController.js - FIXED VERSION
+// 🚚 FIXED: Field mapping and proper error handling
 
 const DeliveryAgent = require('../models/DeliveryAgent');
 const Order = require('../models/Order');
@@ -6,9 +7,10 @@ const OtpVerification = require('../models/OtpVerification');
 const { generateDeliveryAgentToken, verifyDeliveryAgentToken } = require('../utils/jwtToken');
 const { validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-// 🚚 DELIVERY AGENT LOGGING UTILITIES
-const logDeliveryAgent = (action, data, type = 'info') => {
+// 🚚 DELIVERY AGENT LOGGING UTILITIES - FIXED
+const logDelivery = (action, data, type = 'info') => {
   const timestamp = new Date().toISOString();
   const logColor = type === 'error' ? '\x1b[31m' : type === 'success' ? '\x1b[32m' : '\x1b[36m';
   const resetColor = '\x1b[0m';
@@ -16,15 +18,15 @@ const logDeliveryAgent = (action, data, type = 'info') => {
   console.log(`${logColor}🚚 [DELIVERY-AGENT] ${timestamp} | ${action} | ${JSON.stringify(data)}${resetColor}`);
 };
 
-const logDeliveryAgentError = (action, error, additionalData = {}) => {
+const logDeliveryError = (action, error, additionalData = {}) => {
   const timestamp = new Date().toISOString();
   console.error(`\x1b[31m🚚 [DELIVERY-AGENT-ERROR] ${timestamp} | ${action} | Error: ${error.message} | Stack: ${error.stack} | Data: ${JSON.stringify(additionalData)}\x1b[0m`);
 };
 
-// 🎯 VEHICLE TYPE MAPPING UTILITY
+// 🎯 VEHICLE TYPE MAPPING UTILITY - ENHANCED
 const mapVehicleType = (frontendType) => {
   const vehicleTypeMap = {
-    // Frontend → Model Enum (now simplified since frontend sends correct values)
+    // Frontend → Model Enum (enhanced mapping)
     'Bicycle': 'Bicycle',
     'bicycle': 'Bicycle',
     
@@ -51,13 +53,14 @@ const registerDeliveryAgent = async (req, res) => {
   const startTime = Date.now();
   
   try {
-    logDeliveryAgent('REGISTRATION_STARTED', { 
+    logDelivery('REGISTRATION_STARTED', { 
       email: req.body.email, 
       name: req.body.name,
       ip: req.ip,
       userAgent: req.get('User-Agent')
     });
 
+    // 🎯 ENHANCED LOGGING
     console.log(`
 🚚 ===============================
    DELIVERY AGENT REGISTRATION
@@ -70,92 +73,133 @@ const registerDeliveryAgent = async (req, res) => {
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      logDeliveryAgentError('REGISTRATION_VALIDATION_FAILED', new Error('Validation error'), { errors: errors.array() });
+      logDeliveryError('REGISTRATION_VALIDATION_FAILED', new Error('Validation error'), { errors: errors.array() });
       return res.status(400).json({ 
         success: false, 
         errors: errors.array() 
       });
     }
 
-    const {
-      name,
-      email,
-      password,
-      phone,
-      address,
-      vehicleType,
-      vehicleModel,
-      vehicleRegistration,
-      licenseNumber,
-      workingAreas,
-      emergencyContact
+    // ✅ FIXED: Proper field mapping and validation
+    const { 
+      name, 
+      email, 
+      password, 
+      phone,           // Frontend sends 'phone'
+      address, 
+      vehicleType, 
+      vehicleModel, 
+      vehicleRegistration, 
+      licenseNumber, 
+      workingAreas, 
+      emergencyContact 
     } = req.body;
 
-    // Check if agent already exists
-    logDeliveryAgent('CHECKING_EXISTING_AGENT', { email });
-    const agentExists = await DeliveryAgent.findOne({ 
-      $or: [{ email }, { phoneNumber: phone }] 
+    // 🔍 VALIDATION: Check for existing agent
+    logDelivery('CHECKING_EXISTING_AGENT', { email });
+    
+    const existingAgent = await DeliveryAgent.findOne({
+      $or: [
+        { email: email },
+        { mobileNumber: phone },  // Check against mobileNumber field
+        { phone: phone },         // Also check phone field for backward compatibility
+        { phoneNumber: phone }    // Check phoneNumber field as well
+      ]
     });
 
-    if (agentExists) {
-      logDeliveryAgentError('REGISTRATION_DUPLICATE_EMAIL', new Error('Delivery agent already exists with this email or phone'), { email, phone });
+    if (existingAgent) {
+      const error = new Error('Delivery agent already exists with this email or phone');
+      logDeliveryError('REGISTRATION_DUPLICATE_EMAIL', error, { email, phone });
       return res.status(400).json({
         success: false,
-        message: 'Delivery agent already exists with this email or phone'
+        message: 'Agent already exists with this email or phone number',
+        code: 'DUPLICATE_AGENT'
       });
     }
 
-    // ✅ Map vehicle type from frontend to model enum
-    const mappedVehicleType = mapVehicleType(vehicleType);
+    // 🚗 VEHICLE TYPE MAPPING - ENHANCED
+    const vehicleTypeMapping = {
+      'bicycle': 'Bicycle',
+      'Bicycle': 'Bicycle',
+      'motorcycle': 'Motorcycle', 
+      'Motorcycle': 'Motorcycle',
+      'scooter': 'Scooter',
+      'Scooter': 'Scooter',
+      'car': 'Car',
+      'Car': 'Car',
+      'van': 'Van',
+      'Van': 'Van'
+    };
+
+    const mappedVehicleType = vehicleTypeMapping[vehicleType] || vehicleType;
     
-    logDeliveryAgent('VEHICLE_TYPE_MAPPING', { 
+    logDelivery('VEHICLE_TYPE_MAPPING', { 
       original: vehicleType, 
       mapped: mappedVehicleType 
     });
-
+    
     console.log(`🚗 Vehicle Type Mapping: "${vehicleType}" → "${mappedVehicleType}"`);
 
-    // Create new delivery agent
-    logDeliveryAgent('CREATING_DELIVERY_AGENT', { 
+    // ✅ FIXED: Create delivery agent with proper field mapping
+    logDelivery('CREATING_DELIVERY_AGENT', { 
       email, 
       name, 
       vehicleType: mappedVehicleType,
-      hasEmergencyContact: !!emergencyContact 
+      hasEmergencyContact: !!emergencyContact
     });
 
-    const deliveryAgent = await DeliveryAgent.create({
-      name,
-      email,
-      password,
-      phoneNumber: phone, // Map phone to phoneNumber
+    // 🎯 CRITICAL FIX: Map phone to mobileNumber for database model
+    const deliveryAgentData = {
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      password, // Will be hashed by pre-save middleware
+      mobileNumber: phone,  // ✅ Map phone to mobileNumber
+      phone: phone,         // Keep phone for backward compatibility  
+      phoneNumber: phone,   // Also map to phoneNumber for compatibility
       address,
       vehicleDetails: {
-        type: mappedVehicleType, // Use properly mapped vehicle type
+        type: mappedVehicleType,
         model: vehicleModel,
         registrationNumber: vehicleRegistration
       },
       documents: {
         licenseNumber
       },
-      workingAreas: workingAreas || [],
+      workingAreas: workingAreas ? (Array.isArray(workingAreas) ? workingAreas : workingAreas.split(',').map(area => area.trim())) : [],
       emergencyContact,
+      isVerified: false,
+      isOnline: true,
+      isAvailable: true,
+      isBlocked: false,
+      rating: 0,
+      totalDeliveries: 0,
+      totalEarnings: 0,
+      currentLocation: {
+        type: 'Point',
+        coordinates: [0, 0] // Will be updated when agent shares location
+      },
       profileCompletion: 85 // Initial completion percentage
-    });
+    };
 
-    if (deliveryAgent) {
-      // 🎯 FIXED: Generate JWT token specifically for delivery agent
-      const token = generateDeliveryAgentToken(deliveryAgent._id);
+    const deliveryAgent = new DeliveryAgent(deliveryAgentData);
+    
+    // 💾 SAVE TO DATABASE
+    await deliveryAgent.save();
 
-      logDeliveryAgent('REGISTRATION_SUCCESS', { 
-        agentId: deliveryAgent._id,
-        agentName: deliveryAgent.name,
-        email: deliveryAgent.email,
-        vehicleType: mappedVehicleType,
-        processingTime: `${Date.now() - startTime}ms`,
-        tokenGenerated: !!token
-      }, 'success');
+    // 🔐 GENERATE JWT TOKEN - FIXED
+    const token = generateDeliveryAgentToken(deliveryAgent._id);
 
-      console.log(`
+    // 📤 SUCCESSFUL RESPONSE
+    const processingTime = Date.now() - startTime;
+    
+    logDelivery('REGISTRATION_SUCCESS', { 
+      agentId: deliveryAgent._id,
+      email: deliveryAgent.email,
+      processingTime: `${processingTime}ms`,
+      tokenGenerated: !!token
+    }, 'success');
+
+    console.log(`
 ✅ ===============================
    DELIVERY AGENT REGISTERED!
 ===============================
@@ -166,39 +210,85 @@ const registerDeliveryAgent = async (req, res) => {
 📅 Registered: ${new Date().toLocaleString()}
 ===============================`);
 
-      const responseData = {
-        _id: deliveryAgent._id,
-        name: deliveryAgent.name,
-        email: deliveryAgent.email,
-        phoneNumber: deliveryAgent.phoneNumber,
-        isOnline: deliveryAgent.isOnline,
-        isAvailable: deliveryAgent.isAvailable,
-        vehicleDetails: deliveryAgent.vehicleDetails,
-        token
-      };
-
-      res.status(201).json({
-        success: true,
-        data: responseData
-      });
-    } else {
-      logDeliveryAgentError('REGISTRATION_FAILED', new Error('Invalid delivery agent data'), { email, name });
-      res.status(400).json({
-        success: false,
-        message: 'Invalid delivery agent data'
-      });
+    // 🔔 SEND WELCOME NOTIFICATION (if socket service available)
+    try {
+      if (req.io) {
+        req.io.emit('deliveryAgentRegistered', {
+          message: 'New delivery agent registered',
+          agent: {
+            id: deliveryAgent._id,
+            name: deliveryAgent.name,
+            email: deliveryAgent.email,
+            vehicleType: deliveryAgent.vehicleDetails.type
+          }
+        });
+      }
+    } catch (socketError) {
+      console.log('Socket notification failed:', socketError.message);
     }
+
+    const responseData = {
+      _id: deliveryAgent._id,
+      name: deliveryAgent.name,
+      email: deliveryAgent.email,
+      mobileNumber: deliveryAgent.mobileNumber,
+      phoneNumber: deliveryAgent.phoneNumber,
+      isOnline: deliveryAgent.isOnline,
+      isAvailable: deliveryAgent.isAvailable,
+      vehicleDetails: deliveryAgent.vehicleDetails,
+      workingAreas: deliveryAgent.workingAreas,
+      isVerified: deliveryAgent.isVerified,
+      rating: deliveryAgent.rating,
+      totalDeliveries: deliveryAgent.totalDeliveries,
+      token
+    };
+
+    res.status(201).json({
+      success: true,
+      message: 'Delivery agent registered successfully',
+      data: responseData
+    });
+
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    logDeliveryAgentError('REGISTRATION_FAILED', error, { 
+    
+    logDeliveryError('REGISTRATION_FAILED', error, { 
       body: req.body,
       processingTime: `${processingTime}ms`
     });
+
     console.error('❌ Delivery Agent Registration Error:', error);
+
+    // Handle specific validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => ({
+        field: err.path,
+        message: err.message
+      }));
+
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validationErrors,
+        code: 'VALIDATION_ERROR'
+      });
+    }
+
+    // Handle duplicate key errors (E11000)
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyValue)[0];
+      return res.status(400).json({
+        success: false,
+        message: `${field} already exists`,
+        code: 'DUPLICATE_KEY'
+      });
+    }
+
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Registration failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: 'REGISTRATION_ERROR'
     });
   }
 };
@@ -210,7 +300,7 @@ const loginDeliveryAgent = async (req, res) => {
   const startTime = Date.now();
   
   try {
-    logDeliveryAgent('LOGIN_ATTEMPT', { 
+    logDelivery('LOGIN_STARTED', { 
       email: req.body.email,
       ip: req.ip,
       userAgent: req.get('User-Agent')
@@ -226,7 +316,7 @@ const loginDeliveryAgent = async (req, res) => {
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      logDeliveryAgentError('LOGIN_VALIDATION_FAILED', new Error('Validation error'), { errors: errors.array() });
+      logDeliveryError('LOGIN_VALIDATION_FAILED', new Error('Validation error'), { errors: errors.array() });
       return res.status(400).json({ 
         success: false, 
         errors: errors.array() 
@@ -235,49 +325,53 @@ const loginDeliveryAgent = async (req, res) => {
 
     const { email, password } = req.body;
 
-    // Find delivery agent
-    logDeliveryAgent('SEARCHING_AGENT', { email });
-    const deliveryAgent = await DeliveryAgent.findOne({ email }).select('+password');
+    // Find delivery agent by email
+    const deliveryAgent = await DeliveryAgent.findOne({ 
+      email: email.toLowerCase().trim() 
+    }).select('+password');
 
     if (!deliveryAgent) {
-      logDeliveryAgentError('LOGIN_AGENT_NOT_FOUND', new Error('Invalid credentials'), { email });
+      logDeliveryError('LOGIN_AGENT_NOT_FOUND', new Error('Agent not found'), { email });
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid email or password',
+        code: 'INVALID_CREDENTIALS'
       });
     }
 
     // Check if agent is blocked
     if (deliveryAgent.isBlocked) {
-      logDeliveryAgentError('LOGIN_AGENT_BLOCKED', new Error('Account blocked'), { 
+      logDeliveryError('LOGIN_AGENT_BLOCKED', new Error('Agent blocked'), { 
+        email, 
         agentId: deliveryAgent._id,
         reason: deliveryAgent.blockReason
       });
       return res.status(403).json({
         success: false,
-        message: `Account blocked: ${deliveryAgent.blockReason}`
+        message: `Your account has been blocked: ${deliveryAgent.blockReason || 'Please contact support.'}`,
+        code: 'ACCOUNT_BLOCKED'
       });
     }
 
-    // Match password
-    logDeliveryAgent('VERIFYING_PASSWORD', { email, agentId: deliveryAgent._id });
-    const isMatch = await deliveryAgent.matchPassword(password);
-
-    if (!isMatch) {
-      logDeliveryAgentError('LOGIN_INVALID_PASSWORD', new Error('Invalid credentials'), { email });
+    // Verify password
+    const isPasswordValid = await deliveryAgent.matchPassword(password);
+    
+    if (!isPasswordValid) {
+      logDeliveryError('LOGIN_INVALID_PASSWORD', new Error('Invalid password'), { email });
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid email or password',
+        code: 'INVALID_CREDENTIALS'
       });
     }
 
-    // Update last login and set online status
+    // Update agent status
+    deliveryAgent.isOnline = true;
     deliveryAgent.lastLoginAt = new Date();
     deliveryAgent.lastActiveAt = new Date();
-    deliveryAgent.isOnline = true;
     await deliveryAgent.save();
 
-    // 🎯 FIXED: Generate JWT token specifically for delivery agent
+    // Generate JWT token - FIXED
     console.log('🔑 Generating JWT token for delivery agent:', deliveryAgent._id);
     const token = generateDeliveryAgentToken(deliveryAgent._id);
     console.log('✅ JWT token generated successfully');
@@ -291,11 +385,12 @@ const loginDeliveryAgent = async (req, res) => {
     
     console.log('✅ Token verification successful:', { userId: verification.decoded.id });
 
-    logDeliveryAgent('LOGIN_SUCCESS', { 
+    const processingTime = Date.now() - startTime;
+    
+    logDelivery('LOGIN_SUCCESS', { 
       agentId: deliveryAgent._id,
-      agentName: deliveryAgent.name,
-      processingTime: `${Date.now() - startTime}ms`,
-      tokenGenerated: true
+      email: deliveryAgent.email,
+      processingTime: `${processingTime}ms`
     }, 'success');
 
     console.log(`
@@ -309,34 +404,43 @@ const loginDeliveryAgent = async (req, res) => {
 📅 Login Time: ${new Date().toLocaleString()}
 ===============================`);
 
-    const responseData = {
-      _id: deliveryAgent._id,
-      name: deliveryAgent.name,
-      email: deliveryAgent.email,
-      phoneNumber: deliveryAgent.phoneNumber,
-      isOnline: deliveryAgent.isOnline,
-      isAvailable: deliveryAgent.isAvailable,
-      currentLocation: deliveryAgent.currentLocation,
-      vehicleDetails: deliveryAgent.vehicleDetails,
-      stats: deliveryAgent.stats,
-      token
-    };
-
     res.status(200).json({
       success: true,
-      data: responseData
+      message: 'Login successful',
+      data: {
+        _id: deliveryAgent._id,
+        name: deliveryAgent.name,
+        email: deliveryAgent.email,
+        mobileNumber: deliveryAgent.mobileNumber,
+        phoneNumber: deliveryAgent.phoneNumber,
+        isOnline: deliveryAgent.isOnline,
+        isAvailable: deliveryAgent.isAvailable,
+        currentLocation: deliveryAgent.currentLocation,
+        vehicleDetails: deliveryAgent.vehicleDetails,
+        workingAreas: deliveryAgent.workingAreas,
+        isVerified: deliveryAgent.isVerified,
+        rating: deliveryAgent.rating,
+        totalDeliveries: deliveryAgent.totalDeliveries,
+        totalEarnings: deliveryAgent.totalEarnings,
+        stats: deliveryAgent.stats,
+        token
+      }
     });
+
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    logDeliveryAgentError('LOGIN_FAILED', error, { 
-      body: req.body,
+    
+    logDeliveryError('LOGIN_FAILED', error, { 
+      email: req.body.email,
       processingTime: `${processingTime}ms`
     });
+
     console.error('❌ Delivery Agent Login Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Login failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: 'LOGIN_ERROR'
     });
   }
 };
@@ -348,27 +452,27 @@ const getDeliveryAgentProfile = async (req, res) => {
   try {
     const agentId = req.deliveryAgent.id;
     
-    logDeliveryAgent('PROFILE_REQUEST', { agentId });
+    logDelivery('PROFILE_REQUEST', { agentId });
 
     const deliveryAgent = await DeliveryAgent.findById(agentId)
       .select('-password -resetPasswordToken');
 
     if (!deliveryAgent) {
-      logDeliveryAgentError('PROFILE_AGENT_NOT_FOUND', new Error('Agent not found'), { agentId });
+      logDeliveryError('PROFILE_AGENT_NOT_FOUND', new Error('Agent not found'), { agentId });
       return res.status(404).json({
         success: false,
         message: 'Delivery agent not found'
       });
     }
 
-    logDeliveryAgent('PROFILE_RETRIEVED', { agentId, email: deliveryAgent.email });
+    logDelivery('PROFILE_RETRIEVED', { agentId, email: deliveryAgent.email });
 
     res.status(200).json({
       success: true,
       data: deliveryAgent
     });
   } catch (error) {
-    logDeliveryAgentError('PROFILE_RETRIEVAL_FAILED', error, { agentId: req.deliveryAgent?.id });
+    logDeliveryError('PROFILE_RETRIEVAL_FAILED', error, { agentId: req.deliveryAgent?.id });
     console.error('❌ Get Delivery Agent Profile Error:', error);
     res.status(500).json({
       success: false,
@@ -385,7 +489,7 @@ const getAvailableOrders = async (req, res) => {
   try {
     const agentId = req.deliveryAgent.id;
     
-    logDeliveryAgent('AVAILABLE_ORDERS_REQUEST', { agentId });
+    logDelivery('AVAILABLE_ORDERS_REQUEST', { agentId });
 
     console.log(`
 📦 ===============================
@@ -408,7 +512,7 @@ const getAvailableOrders = async (req, res) => {
     .sort({ createdAt: 1 }) // FIFO basis
     .limit(20);
 
-    logDeliveryAgent('AVAILABLE_ORDERS_RETRIEVED', { 
+    logDelivery('AVAILABLE_ORDERS_RETRIEVED', { 
       agentId, 
       orderCount: orders.length 
     });
@@ -453,7 +557,7 @@ const getAvailableOrders = async (req, res) => {
       data: formattedOrders
     });
   } catch (error) {
-    logDeliveryAgentError('AVAILABLE_ORDERS_FAILED', error, { agentId: req.deliveryAgent?.id });
+    logDeliveryError('AVAILABLE_ORDERS_FAILED', error, { agentId: req.deliveryAgent?.id });
     console.error('❌ Get Available Orders Error:', error);
     res.status(500).json({
       success: false,
@@ -473,7 +577,7 @@ const acceptOrder = async (req, res) => {
     const agentId = req.deliveryAgent.id;
     const orderId = req.params.id;
 
-    logDeliveryAgent('ORDER_ACCEPT_STARTED', { 
+    logDelivery('ORDER_ACCEPT_STARTED', { 
       agentId, 
       orderId 
     });
@@ -492,7 +596,7 @@ const acceptOrder = async (req, res) => {
       .populate('seller', 'firstName shop');
 
     if (!order) {
-      logDeliveryAgentError('ACCEPT_ORDER_NOT_FOUND', new Error('Order not found'), { orderId });
+      logDeliveryError('ACCEPT_ORDER_NOT_FOUND', new Error('Order not found'), { orderId });
       return res.status(404).json({
         success: false,
         message: 'Order not found'
@@ -501,7 +605,7 @@ const acceptOrder = async (req, res) => {
 
     // Check if order is available for assignment
     if (order.deliveryAgent.status !== 'unassigned') {
-      logDeliveryAgentError('ORDER_ALREADY_ASSIGNED', new Error('Order is no longer available'), { orderId, currentStatus: order.deliveryAgent.status, assignedTo: order.deliveryAgent.agent });
+      logDeliveryError('ORDER_ALREADY_ASSIGNED', new Error('Order is no longer available'), { orderId, currentStatus: order.deliveryAgent.status, assignedTo: order.deliveryAgent.agent });
       return res.status(400).json({
         success: false,
         message: 'Order is no longer available'
@@ -516,7 +620,7 @@ const acceptOrder = async (req, res) => {
     deliveryAgent.stats.assignedOrders += 1;
     await deliveryAgent.save();
 
-    logDeliveryAgent('ORDER_ACCEPT_SUCCESS', { 
+    logDelivery('ORDER_ACCEPT_SUCCESS', { 
       agentId, 
       orderId,
       processingTime: `${Date.now() - startTime}ms`
@@ -586,7 +690,7 @@ const acceptOrder = async (req, res) => {
     });
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    logDeliveryAgentError('ORDER_ACCEPT_FAILED', error, { 
+    logDeliveryError('ORDER_ACCEPT_FAILED', error, { 
       agentId: req.deliveryAgent?.id,
       orderId: req.params.id,
       processingTime: `${processingTime}ms`
@@ -610,10 +714,10 @@ const updateLocation = async (req, res) => {
     const agentId = req.deliveryAgent.id;
     const { latitude, longitude } = req.body;
 
-    logDeliveryAgent('UPDATE_LOCATION_STARTED', { agentId, latitude, longitude });
+    logDelivery('UPDATE_LOCATION_STARTED', { agentId, latitude, longitude });
 
     if (!latitude || !longitude) {
-      logDeliveryAgentError('UPDATE_LOCATION_MISSING_COORDINATES', new Error('Latitude and longitude are required'), { agentId, latitude: !!latitude, longitude: !!longitude });
+      logDeliveryError('UPDATE_LOCATION_MISSING_COORDINATES', new Error('Latitude and longitude are required'), { agentId, latitude: !!latitude, longitude: !!longitude });
       return res.status(400).json({
         success: false,
         message: 'Latitude and longitude are required'
@@ -629,7 +733,7 @@ const updateLocation = async (req, res) => {
 
     await deliveryAgent.save();
 
-    logDeliveryAgent('UPDATE_LOCATION_SUCCESS', { agentId, coordinates: [longitude, latitude] }, 'success');
+    logDelivery('UPDATE_LOCATION_SUCCESS', { agentId, coordinates: [longitude, latitude] }, 'success');
 
     res.status(200).json({
       success: true,
@@ -640,7 +744,7 @@ const updateLocation = async (req, res) => {
     });
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    logDeliveryAgentError('UPDATE_LOCATION_FAILED', error, { 
+    logDeliveryError('UPDATE_LOCATION_FAILED', error, { 
       agentId: req.deliveryAgent?.id,
       processingTime: `${processingTime}ms`
     });
@@ -662,7 +766,7 @@ const toggleAvailability = async (req, res) => {
   try {
     const agentId = req.deliveryAgent.id;
     
-    logDeliveryAgent('TOGGLE_AVAILABILITY_STARTED', { agentId, currentStatus: req.deliveryAgent.isAvailable });
+    logDelivery('TOGGLE_AVAILABILITY_STARTED', { agentId, currentStatus: req.deliveryAgent.isAvailable });
 
     const deliveryAgent = await DeliveryAgent.findById(agentId);
     deliveryAgent.isAvailable = !deliveryAgent.isAvailable;
@@ -677,7 +781,7 @@ const toggleAvailability = async (req, res) => {
 
     await deliveryAgent.save();
 
-    logDeliveryAgent('TOGGLE_AVAILABILITY_SUCCESS', { agentId, newStatus: deliveryAgent.isAvailable, isOnline: deliveryAgent.isOnline }, 'success');
+    logDelivery('TOGGLE_AVAILABILITY_SUCCESS', { agentId, newStatus: deliveryAgent.isAvailable, isOnline: deliveryAgent.isOnline }, 'success');
 
     console.log(`
 🔄 ===============================
@@ -699,7 +803,7 @@ const toggleAvailability = async (req, res) => {
     });
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    logDeliveryAgentError('TOGGLE_AVAILABILITY_FAILED', error, { 
+    logDeliveryError('TOGGLE_AVAILABILITY_FAILED', error, { 
       agentId: req.deliveryAgent?.id,
       processingTime: `${processingTime}ms`
     });
@@ -721,7 +825,7 @@ const logoutDeliveryAgent = async (req, res) => {
   try {
     const agentId = req.deliveryAgent.id;
     
-    logDeliveryAgent('DELIVERY_AGENT_LOGOUT_STARTED', { agentId });
+    logDelivery('DELIVERY_AGENT_LOGOUT_STARTED', { agentId });
 
     // Update agent status to offline
     const deliveryAgent = await DeliveryAgent.findById(agentId);
@@ -730,7 +834,7 @@ const logoutDeliveryAgent = async (req, res) => {
     deliveryAgent.lastActiveAt = new Date();
     await deliveryAgent.save();
 
-    logDeliveryAgent('DELIVERY_AGENT_LOGOUT_SUCCESS', { agentId, agentName: req.deliveryAgent.name }, 'success');
+    logDelivery('DELIVERY_AGENT_LOGOUT_SUCCESS', { agentId, agentName: req.deliveryAgent.name }, 'success');
 
     console.log(`
 🚪 ===============================
@@ -747,7 +851,7 @@ const logoutDeliveryAgent = async (req, res) => {
     });
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    logDeliveryAgentError('DELIVERY_AGENT_LOGOUT_FAILED', error, { 
+    logDeliveryError('DELIVERY_AGENT_LOGOUT_FAILED', error, { 
       agentId: req.deliveryAgent?.id,
       processingTime: `${processingTime}ms`
     });
@@ -760,29 +864,133 @@ const logoutDeliveryAgent = async (req, res) => {
   }
 };
 
-// Placeholder functions for other endpoints
+// Placeholder functions for other endpoints - ENHANCED
 const updateDeliveryAgentProfile = async (req, res) => {
-  res.status(501).json({ success: false, message: 'Not implemented yet' });
+  try {
+    const agentId = req.deliveryAgent.id;
+    logDelivery('PROFILE_UPDATE_STARTED', { agentId });
+    
+    // TODO: Implement profile update logic
+    res.status(501).json({ 
+      success: false, 
+      message: 'Profile update not implemented yet',
+      code: 'NOT_IMPLEMENTED'
+    });
+  } catch (error) {
+    logDeliveryError('PROFILE_UPDATE_FAILED', error, { agentId: req.deliveryAgent?.id });
+    res.status(500).json({
+      success: false,
+      message: 'Profile update failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
 };
 
 const completePickup = async (req, res) => {
-  res.status(501).json({ success: false, message: 'Not implemented yet' });
+  try {
+    const agentId = req.deliveryAgent.id;
+    const orderId = req.params.id;
+    logDelivery('PICKUP_COMPLETE_STARTED', { agentId, orderId });
+    
+    // TODO: Implement pickup completion logic
+    res.status(501).json({ 
+      success: false, 
+      message: 'Pickup completion not implemented yet',
+      code: 'NOT_IMPLEMENTED'
+    });
+  } catch (error) {
+    logDeliveryError('PICKUP_COMPLETE_FAILED', error, { agentId: req.deliveryAgent?.id });
+    res.status(500).json({
+      success: false,
+      message: 'Pickup completion failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
 };
 
 const completeDelivery = async (req, res) => {
-  res.status(501).json({ success: false, message: 'Not implemented yet' });
+  try {
+    const agentId = req.deliveryAgent.id;
+    const orderId = req.params.id;
+    logDelivery('DELIVERY_COMPLETE_STARTED', { agentId, orderId });
+    
+    // TODO: Implement delivery completion logic
+    res.status(501).json({ 
+      success: false, 
+      message: 'Delivery completion not implemented yet',
+      code: 'NOT_IMPLEMENTED'
+    });
+  } catch (error) {
+    logDeliveryError('DELIVERY_COMPLETE_FAILED', error, { agentId: req.deliveryAgent?.id });
+    res.status(500).json({
+      success: false,
+      message: 'Delivery completion failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
 };
 
 const getAssignedOrders = async (req, res) => {
-  res.status(501).json({ success: false, message: 'Not implemented yet' });
+  try {
+    const agentId = req.deliveryAgent.id;
+    logDelivery('ASSIGNED_ORDERS_REQUEST', { agentId });
+    
+    // TODO: Implement assigned orders retrieval logic
+    res.status(501).json({ 
+      success: false, 
+      message: 'Assigned orders retrieval not implemented yet',
+      code: 'NOT_IMPLEMENTED'
+    });
+  } catch (error) {
+    logDeliveryError('ASSIGNED_ORDERS_FAILED', error, { agentId: req.deliveryAgent?.id });
+    res.status(500).json({
+      success: false,
+      message: 'Assigned orders retrieval failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
 };
 
 const getDeliveryStats = async (req, res) => {
-  res.status(501).json({ success: false, message: 'Not implemented yet' });
+  try {
+    const agentId = req.deliveryAgent.id;
+    logDelivery('DELIVERY_STATS_REQUEST', { agentId });
+    
+    // TODO: Implement delivery stats retrieval logic
+    res.status(501).json({ 
+      success: false, 
+      message: 'Delivery stats retrieval not implemented yet',
+      code: 'NOT_IMPLEMENTED'
+    });
+  } catch (error) {
+    logDeliveryError('DELIVERY_STATS_FAILED', error, { agentId: req.deliveryAgent?.id });
+    res.status(500).json({
+      success: false,
+      message: 'Delivery stats retrieval failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
 };
 
 const getDeliveryHistory = async (req, res) => {
-  res.status(501).json({ success: false, message: 'Not implemented yet' });
+  try {
+    const agentId = req.deliveryAgent.id;
+    logDelivery('DELIVERY_HISTORY_REQUEST', { agentId });
+    
+    // TODO: Implement delivery history retrieval logic
+    res.status(501).json({ 
+      success: false, 
+      message: 'Delivery history retrieval not implemented yet',
+      code: 'NOT_IMPLEMENTED'
+    });
+  } catch (error) {
+    logDeliveryError('DELIVERY_HISTORY_FAILED', error, { agentId: req.deliveryAgent?.id });
+    res.status(500).json({
+      success: false,
+      message: 'Delivery history retrieval failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
 };
 
 module.exports = {
