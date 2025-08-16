@@ -43,7 +43,11 @@ const registrationValidation = [
     .withMessage('Password must be at least 6 characters long'),
   body('phone')
     .isMobilePhone('en-IN')
-    .withMessage('Please provide a valid Indian mobile number'),
+    .withMessage('Please provide a valid Indian mobile number')
+    .custom((value, { req }) => {
+      req.body.mobileNumber = value;  // Map to mobileNumber
+      return true;
+    }),
   body('vehicleType')
     .custom((value) => {
       // ✅ FIXED: Accept all common frontend vehicle type variations

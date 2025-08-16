@@ -1,4 +1,5 @@
-// frontend/src/pages/auth/DeliveryAgentRegister.js - FIXED VERSION
+// frontend/src/pages/auth/DeliveryAgentRegister.js - FULLY FIXED VERSION
+// 🚚 FIXED: Proper field mapping, validation, and error handling
 
 import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -24,7 +25,7 @@ const DeliveryAgentRegister = () => {
     name: '',
     email: '',
     password: '',
-    phone: '',
+    phone: '',              // ✅ Keep as 'phone' - backend will map to mobileNumber
     address: '',
     vehicleType: '',
     vehicleModel: '',
@@ -33,10 +34,12 @@ const DeliveryAgentRegister = () => {
     workingAreas: '',
     emergencyContact: ''
   });
+  
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
   const navigate = useNavigate();
   
-  // ✅ FIXED: Use delivery agent context function
+  // ✅ FIXED: Use proper delivery agent context function
   const { loginDeliveryAgent } = useContext(AuthContext);
 
   // 🚚 REGISTRATION PAGE LOADED
@@ -46,10 +49,36 @@ const DeliveryAgentRegister = () => {
       userAgent: navigator.userAgent,
       timestamp: new Date().toISOString()
     });
+    
+    // Clear any existing tokens to prevent conflicts
+    const existingTokens = {
+      userToken: localStorage.getItem('userToken'),
+      sellerToken: localStorage.getItem('sellerToken'),
+      adminToken: localStorage.getItem('adminToken')
+    };
+    
+    if (existingTokens.userToken || existingTokens.sellerToken || existingTokens.adminToken) {
+      logDeliveryRegister('CLEARING_CONFLICTING_TOKENS', existingTokens);
+      localStorage.removeItem('userToken');
+      localStorage.removeItem('userData');
+      localStorage.removeItem('sellerToken');
+      localStorage.removeItem('sellerData');
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminData');
+    }
   }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    
+    // Clear error for this field when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
+    
     setFormData({
       ...formData,
       [name]: value
@@ -62,6 +91,59 @@ const DeliveryAgentRegister = () => {
       valueLength: value.length,
       isPassword: name === 'password'
     });
+  };
+
+  // ✅ ENHANCED: Client-side validation
+  const validateForm = () => {
+    const newErrors = {};
+    
+    // Required field validation
+    const requiredFields = {
+      name: 'Full name is required',
+      email: 'Email address is required', 
+      password: 'Password is required',
+      phone: 'Phone number is required',
+      address: 'Address is required',
+      vehicleType: 'Vehicle type is required',
+      vehicleModel: 'Vehicle model is required',
+      vehicleRegistration: 'Vehicle registration is required',
+      licenseNumber: 'License number is required'
+    };
+
+    Object.keys(requiredFields).forEach(field => {
+      if (!formData[field] || formData[field].trim() === '') {
+        newErrors[field] = requiredFields[field];
+      }
+    });
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (formData.email && !emailRegex.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    // Phone validation (Indian mobile number)
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (formData.phone && !phoneRegex.test(formData.phone)) {
+      newErrors.phone = 'Please enter a valid 10-digit Indian mobile number';
+    }
+
+    // Password validation
+    if (formData.password && formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters long';
+    }
+
+    setErrors(newErrors);
+    
+    const hasErrors = Object.keys(newErrors).length > 0;
+    
+    logDeliveryRegister('FORM_VALIDATION', { 
+      hasErrors,
+      errorCount: Object.keys(newErrors).length,
+      errors: hasErrors ? Object.keys(newErrors) : []
+    });
+    
+    return !hasErrors;
   };
 
   const handleSubmit = async (e) => {
@@ -77,29 +159,66 @@ const DeliveryAgentRegister = () => {
       formFields: Object.keys(formData).filter(key => formData[key])
     });
 
+    // ✅ VALIDATE FORM FIRST
+    if (!validateForm()) {
+      logDeliveryRegister('FORM_VALIDATION_FAILED', { 
+        errors: Object.keys(errors)
+      });
+      toast.error('Please fix the form errors before submitting');
+      return;
+    }
+
     setLoading(true);
 
     try {
       logDeliveryRegister('API_CALL_STARTED', { 
         endpoint: '/api/delivery/register',
         method: 'POST',
-        dataFields: Object.keys(formData)
+        dataFields: Object.keys(formData).filter(key => formData[key])
       });
+
+      // ✅ PREPARE DATA - Clean and format
+      const submitData = {
+        name: formData.name.trim(),
+        email: formData.email.toLowerCase().trim(),
+        password: formData.password,
+        phone: formData.phone.trim(),  // Backend will map this to mobileNumber
+        address: formData.address.trim(),
+        vehicleType: formData.vehicleType,
+        vehicleModel: formData.vehicleModel.trim(),
+        vehicleRegistration: formData.vehicleRegistration.trim().toUpperCase(),
+        licenseNumber: formData.licenseNumber.trim(),
+        workingAreas: formData.workingAreas.trim(),
+        emergencyContact: formData.emergencyContact.trim()
+      };
 
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(submitData),
       });
 
       const data = await response.json();
       const processingTime = Date.now() - startTime;
 
-      if (data.success) {
+      logDeliveryRegister('API_RESPONSE_RECEIVED', {
+        success: data.success,
+        status: response.status,
+        hasData: !!data.data,
+        hasToken: !!(data.data && data.data.token),
+        processingTime: `${processingTime}ms`
+      });
+
+      if (data.success && data.data) {
         // ✅ FIXED: Use proper delivery agent login function
         try {
+          logDeliveryRegister('AUTH_CONTEXT_UPDATE_STARTED', { 
+            agentId: data.data._id,
+            email: data.data.email
+          });
+
           await loginDeliveryAgent(data.data);
 
           logDeliveryRegister('REGISTRATION_SUCCESS', { 
@@ -113,33 +232,57 @@ const DeliveryAgentRegister = () => {
             hasLicense: !!data.data.licenseNumber
           }, 'success');
 
-          toast.success('Registration successful! Welcome to ZAMMER Delivery!');
-          navigate('/delivery/dashboard');
+          toast.success('🎉 Registration successful! Welcome to ZAMMER Delivery!');
+          
+          // Small delay to ensure state updates complete
+          setTimeout(() => {
+            navigate('/delivery/dashboard');
+          }, 500);
+          
         } catch (authError) {
           logDeliveryRegisterError('REGISTRATION_AUTH_FAILED', authError, {
             email: formData.email,
             name: formData.name
           });
-          toast.error('Registration successful but login failed. Please try logging in.');
-          navigate('/delivery/login');
+          
+          toast.error('Registration successful but login failed. Please try logging in manually.');
+          setTimeout(() => {
+            navigate('/delivery/login');
+          }, 2000);
         }
       } else {
+        // ✅ ENHANCED: Better error handling
         logDeliveryRegisterError('REGISTRATION_FAILED', new Error(data.message || 'Registration failed'), {
           email: formData.email,
           name: formData.name,
           processingTime: `${processingTime}ms`,
           responseStatus: response.status,
           errorMessage: data.message,
+          errorCode: data.code,
           errors: data.errors || []
         });
 
-        // ✅ FIXED: Show validation errors properly
-        if (data.errors && Array.isArray(data.errors)) {
+        // Handle different types of errors
+        if (data.code === 'DUPLICATE_AGENT') {
+          toast.error('An account with this email or phone number already exists. Please try logging in instead.');
+        } else if (data.code === 'VALIDATION_ERROR' && data.errors) {
+          // Show validation errors
+          const validationErrors = {};
           data.errors.forEach(error => {
-            toast.error(`${error.path}: ${error.msg}`);
+            validationErrors[error.field] = error.message;
+            toast.error(`${error.field}: ${error.message}`);
           });
+          setErrors(validationErrors);
+        } else if (data.errors && Array.isArray(data.errors)) {
+          // Handle express-validator errors
+          const validationErrors = {};
+          data.errors.forEach(error => {
+            validationErrors[error.path || error.param] = error.msg;
+            toast.error(`${error.path || error.param}: ${error.msg}`);
+          });
+          setErrors(validationErrors);
         } else {
-          toast.error(data.message || 'Registration failed');
+          toast.error(data.message || 'Registration failed. Please try again.');
         }
       }
     } catch (error) {
@@ -154,7 +297,12 @@ const DeliveryAgentRegister = () => {
       });
 
       console.error('Registration error:', error);
-      toast.error('Something went wrong. Please try again.');
+      
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        toast.error('Unable to connect to server. Please check your internet connection.');
+      } else {
+        toast.error('Something went wrong. Please try again.');
+      }
     } finally {
       setLoading(false);
       logDeliveryRegister('REGISTRATION_ATTEMPT_COMPLETED', { 
@@ -172,27 +320,6 @@ const DeliveryAgentRegister = () => {
     });
   };
 
-  // 🚚 LOG FORM VALIDATION
-  const validateForm = () => {
-    const requiredFields = ['name', 'email', 'password', 'phone', 'vehicleType', 'vehicleRegistration', 'licenseNumber'];
-    const missingFields = requiredFields.filter(field => !formData[field]);
-    
-    if (missingFields.length > 0) {
-      logDeliveryRegister('FORM_VALIDATION_FAILED', { 
-        missingFields,
-        totalFields: requiredFields.length,
-        filledFields: requiredFields.length - missingFields.length
-      });
-      return false;
-    }
-
-    logDeliveryRegister('FORM_VALIDATION_PASSED', { 
-      totalFields: requiredFields.length,
-      allFieldsFilled: true
-    });
-    return true;
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -208,7 +335,7 @@ const DeliveryAgentRegister = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-2xl">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
             {/* Personal Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -222,9 +349,12 @@ const DeliveryAgentRegister = () => {
                   required
                   value={formData.name}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${
+                    errors.name ? 'border-red-300' : 'border-gray-300'
+                  }`}
                   placeholder="Enter your full name"
                 />
+                {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
               </div>
 
               <div>
@@ -238,9 +368,12 @@ const DeliveryAgentRegister = () => {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${
+                    errors.email ? 'border-red-300' : 'border-gray-300'
+                  }`}
                   placeholder="Enter your email"
                 />
+                {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
               </div>
 
               <div>
@@ -254,9 +387,12 @@ const DeliveryAgentRegister = () => {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
-                  placeholder="Create a password"
+                  className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${
+                    errors.password ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  placeholder="Create a password (min 6 characters)"
                 />
+                {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
               </div>
 
               <div>
@@ -270,9 +406,13 @@ const DeliveryAgentRegister = () => {
                   required
                   value={formData.phone}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
-                  placeholder="Enter your phone number"
+                  className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${
+                    errors.phone ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter 10-digit mobile number"
+                  maxLength="10"
                 />
+                {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
               </div>
             </div>
 
@@ -288,9 +428,12 @@ const DeliveryAgentRegister = () => {
                 required
                 value={formData.address}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${
+                  errors.address ? 'border-red-300' : 'border-gray-300'
+                }`}
                 placeholder="Enter your complete address"
               />
+              {errors.address && <p className="mt-1 text-sm text-red-600">{errors.address}</p>}
             </div>
 
             {/* Vehicle Information */}
@@ -305,7 +448,9 @@ const DeliveryAgentRegister = () => {
                   required
                   value={formData.vehicleType}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${
+                    errors.vehicleType ? 'border-red-300' : 'border-gray-300'
+                  }`}
                 >
                   <option value="">Select vehicle type</option>
                   <option value="Bicycle">Bicycle</option>
@@ -314,6 +459,7 @@ const DeliveryAgentRegister = () => {
                   <option value="Car">Car</option>
                   <option value="Van">Van</option>
                 </select>
+                {errors.vehicleType && <p className="mt-1 text-sm text-red-600">{errors.vehicleType}</p>}
               </div>
 
               <div>
@@ -327,9 +473,12 @@ const DeliveryAgentRegister = () => {
                   required
                   value={formData.vehicleModel}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${
+                    errors.vehicleModel ? 'border-red-300' : 'border-gray-300'
+                  }`}
                   placeholder="e.g., Honda Activa, Swift"
                 />
+                {errors.vehicleModel && <p className="mt-1 text-sm text-red-600">{errors.vehicleModel}</p>}
               </div>
 
               <div>
@@ -343,9 +492,12 @@ const DeliveryAgentRegister = () => {
                   required
                   value={formData.vehicleRegistration}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${
+                    errors.vehicleRegistration ? 'border-red-300' : 'border-gray-300'
+                  }`}
                   placeholder="e.g., MH12AB1234"
                 />
+                {errors.vehicleRegistration && <p className="mt-1 text-sm text-red-600">{errors.vehicleRegistration}</p>}
               </div>
             </div>
 
@@ -362,9 +514,12 @@ const DeliveryAgentRegister = () => {
                   required
                   value={formData.licenseNumber}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${
+                    errors.licenseNumber ? 'border-red-300' : 'border-gray-300'
+                  }`}
                   placeholder="Enter your license number"
                 />
+                {errors.licenseNumber && <p className="mt-1 text-sm text-red-600">{errors.licenseNumber}</p>}
               </div>
 
               <div>
@@ -411,7 +566,7 @@ const DeliveryAgentRegister = () => {
                     hasPassword: !!formData.password,
                     hasVehicleDetails: !!formData.vehicleType,
                     loading: loading,
-                    formValid: validateForm()
+                    hasErrors: Object.keys(errors).length > 0
                   });
                 }}
               >

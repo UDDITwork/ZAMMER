@@ -31,6 +31,15 @@ const DeliveryAgentSchema = new mongoose.Schema({
     unique: true,
     match: [/^[6-9]\d{9}$/, 'Please provide a valid Indian mobile number']
   },
+  // Additional phone fields for compatibility
+  phone: {
+    type: String,
+    match: [/^[6-9]\d{9}$/, 'Please provide a valid Indian mobile number']
+  },
+  phoneNumber: {
+    type: String,
+    match: [/^[6-9]\d{9}$/, 'Please provide a valid Indian mobile number']
+  },
   password: {
     type: String,
     required: [true, 'Password is required'],
@@ -68,6 +77,16 @@ const DeliveryAgentSchema = new mongoose.Schema({
     enum: ['bike', 'scooter', 'car', 'bicycle'],
     default: 'bike'
   },
+  // Enhanced vehicle details structure for compatibility
+  vehicleDetails: {
+    type: {
+      type: String,
+      enum: ['Bicycle', 'Motorcycle', 'Scooter', 'Car', 'Van'],
+      required: true
+    },
+    model: String,
+    registrationNumber: String
+  },
   vehicleNumber: {
     type: String,
     uppercase: true,
@@ -93,6 +112,10 @@ const DeliveryAgentSchema = new mongoose.Schema({
     trim: true,
     maxlength: [100, 'Area cannot exceed 100 characters']
   },
+  workingAreas: [{
+    type: String,
+    trim: true
+  }],
   serviceRadius: {
     type: Number,
     default: 10, // kilometers
@@ -114,6 +137,20 @@ const DeliveryAgentSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // Online status for compatibility
+  isOnline: {
+    type: Boolean,
+    default: false
+  },
+  isAvailable: {
+    type: Boolean,
+    default: true
+  },
+  isBlocked: {
+    type: Boolean,
+    default: false
+  },
+  blockReason: String,
   verificationStatus: {
     documents: {
       type: String,
@@ -156,6 +193,14 @@ const DeliveryAgentSchema = new mongoose.Schema({
 
   // Location Tracking
   currentLocation: {
+    type: {
+      type: String,
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number],
+      default: [0, 0]
+    },
     latitude: {
       type: Number,
       min: [-90, 'Latitude must be between -90 and 90'],
@@ -216,6 +261,27 @@ const DeliveryAgentSchema = new mongoose.Schema({
     thisMonth: {
       deliveries: { type: Number, default: 0 },
       earnings: { type: Number, default: 0 }
+    }
+  },
+  // Additional stats for compatibility
+  rating: {
+    type: Number,
+    default: 0,
+    min: [0, 'Rating cannot be negative'],
+    max: [5, 'Rating cannot exceed 5']
+  },
+  totalDeliveries: {
+    type: Number,
+    default: 0
+  },
+  totalEarnings: {
+    type: Number,
+    default: 0
+  },
+  stats: {
+    assignedOrders: {
+      type: Number,
+      default: 0
     }
   },
 
@@ -310,6 +376,8 @@ const DeliveryAgentSchema = new mongoose.Schema({
     ref: 'Admin'
   },
   lastLogin: Date,
+  lastLoginAt: Date,
+  lastActiveAt: Date,
   loginAttempts: {
     type: Number,
     default: 0
@@ -343,6 +411,14 @@ const DeliveryAgentSchema = new mongoose.Schema({
     platform: String,
     version: String,
     model: String
+  },
+  
+  // Profile completion percentage
+  profileCompletion: {
+    type: Number,
+    default: 0,
+    min: [0, 'Profile completion cannot be negative'],
+    max: [100, 'Profile completion cannot exceed 100']
   }
 }, {
   timestamps: true,
@@ -353,6 +429,8 @@ const DeliveryAgentSchema = new mongoose.Schema({
 // Indexes for better performance
 DeliveryAgentSchema.index({ email: 1 });
 DeliveryAgentSchema.index({ mobileNumber: 1 });
+DeliveryAgentSchema.index({ phone: 1 });
+DeliveryAgentSchema.index({ phoneNumber: 1 });
 DeliveryAgentSchema.index({ status: 1, isActive: 1 });
 DeliveryAgentSchema.index({ 'currentLocation.latitude': 1, 'currentLocation.longitude': 1 });
 DeliveryAgentSchema.index({ area: 1, vehicleType: 1 });
@@ -361,10 +439,6 @@ DeliveryAgentSchema.index({ createdAt: -1 });
 // Virtual fields
 DeliveryAgentSchema.virtual('fullName').get(function() {
   return this.name;
-});
-
-DeliveryAgentSchema.virtual('isOnline').get(function() {
-  return this.status !== 'offline' && this.isActive;
 });
 
 DeliveryAgentSchema.virtual('completionRate').get(function() {
