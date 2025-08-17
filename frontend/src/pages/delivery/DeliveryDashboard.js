@@ -24,8 +24,13 @@ const DeliveryDashboard = () => {
   const [deliveryData, setDeliveryData] = useState({ orderId: '', otp: '', notes: '' });
   const [showPickupModal, setShowPickupModal] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  
+  // 🆕 NEW: Profile and logout states
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' or 'profile'
+  const [profileData, setProfileData] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
 
-  const { deliveryAgentAuth } = useAuth();
+  const { deliveryAgentAuth, logoutDeliveryAgent } = useAuth();
 
   // Enhanced logging for delivery operations
   const logDelivery = (action, data, type = 'info') => {
@@ -51,6 +56,54 @@ const DeliveryDashboard = () => {
       initializeDashboard();
     }
   }, [deliveryAgentAuth.isAuthenticated]);
+
+  // 🆕 NEW: Load profile data
+  const loadProfileData = async () => {
+    try {
+      setProfileLoading(true);
+      const response = await deliveryService.getProfile();
+      if (response.success) {
+        setProfileData(response.data);
+        logDelivery('PROFILE_LOADED', { agentId: response.data._id }, 'success');
+      }
+    } catch (error) {
+      logDelivery('PROFILE_LOAD_ERROR', { error: error.message }, 'error');
+      toast.error('Failed to load profile data');
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  // 🆕 NEW: Handle logout
+  const handleLogout = async () => {
+    try {
+      logDelivery('LOGOUT_STARTED', { agentId: deliveryAgentAuth.deliveryAgent?._id });
+      
+      // Disconnect socket
+      await socketService.disconnect();
+      
+      // Logout from service
+      await deliveryService.logoutDeliveryAgent();
+      
+      // Clear auth context
+      logoutDeliveryAgent();
+      
+      logDelivery('LOGOUT_SUCCESS', { agentId: deliveryAgentAuth.deliveryAgent?._id }, 'success');
+      toast.success('Logged out successfully');
+      
+    } catch (error) {
+      logDelivery('LOGOUT_ERROR', { error: error.message }, 'error');
+      toast.error('Logout failed. Please try again.');
+    }
+  };
+
+  // 🆕 NEW: Tab change handler
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab === 'profile' && !profileData) {
+      loadProfileData();
+    }
+  };
 
   const initializeDashboard = async () => {
     try {
@@ -468,6 +521,229 @@ const DeliveryDashboard = () => {
     </div>
   );
 
+  // 🆕 NEW: Profile Tab Component
+  const ProfileTab = () => (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+      <div className="px-6 py-4 border-b border-gray-200">
+        <h2 className="text-lg font-medium text-gray-900">My Profile</h2>
+      </div>
+      
+      <div className="p-6">
+        {profileLoading ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading profile...</p>
+          </div>
+        ) : profileData ? (
+          <div className="space-y-6">
+            {/* Basic Information */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Basic Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Full Name</label>
+                  <p className="mt-1 text-sm text-gray-900">{profileData.name || 'Not provided'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Email</label>
+                  <p className="mt-1 text-sm text-gray-900">{profileData.email || 'Not provided'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Mobile Number</label>
+                  <p className="mt-1 text-sm text-gray-900">{profileData.mobileNumber || profileData.phone || 'Not provided'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {profileData.dateOfBirth ? new Date(profileData.dateOfBirth).toLocaleDateString() : 'Not provided'}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Gender</label>
+                  <p className="mt-1 text-sm text-gray-900">{profileData.gender || 'Not provided'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Profile Completion</label>
+                  <div className="mt-1">
+                    <div className="flex items-center">
+                      <div className="flex-1 bg-gray-200 rounded-full h-2 mr-2">
+                        <div 
+                          className="bg-blue-500 h-2 rounded-full" 
+                          style={{ width: `${profileData.profileCompletion || 0}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-sm text-gray-600">{profileData.profileCompletion || 0}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Address Information */}
+            {profileData.address && (
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Address Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Street</label>
+                    <p className="mt-1 text-sm text-gray-900">{profileData.address.street || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Area</label>
+                    <p className="mt-1 text-sm text-gray-900">{profileData.address.area || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">City</label>
+                    <p className="mt-1 text-sm text-gray-900">{profileData.address.city || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">State</label>
+                    <p className="mt-1 text-sm text-gray-900">{profileData.address.state || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Pincode</label>
+                    <p className="mt-1 text-sm text-gray-900">{profileData.address.pincode || 'Not provided'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Vehicle Information */}
+            {profileData.vehicleDetails && (
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Vehicle Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Vehicle Type</label>
+                    <p className="mt-1 text-sm text-gray-900">{profileData.vehicleDetails.type || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Vehicle Model</label>
+                    <p className="mt-1 text-sm text-gray-900">{profileData.vehicleDetails.model || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Registration Number</label>
+                    <p className="mt-1 text-sm text-gray-900">{profileData.vehicleDetails.registrationNumber || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">License Number</label>
+                    <p className="mt-1 text-sm text-gray-900">{profileData.documents?.licenseNumber || 'Not provided'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Working Areas */}
+            {profileData.workingAreas && profileData.workingAreas.length > 0 && (
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Working Areas</h3>
+                <div className="flex flex-wrap gap-2">
+                  {profileData.workingAreas.map((area, index) => (
+                    <span 
+                      key={index}
+                      className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                    >
+                      {area}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Emergency Contact */}
+            {profileData.emergencyContact && (
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Emergency Contact</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Contact Name</label>
+                    <p className="mt-1 text-sm text-gray-900">{profileData.emergencyContact.name || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Relationship</label>
+                    <p className="mt-1 text-sm text-gray-900">{profileData.emergencyContact.relationship || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Mobile Number</label>
+                    <p className="mt-1 text-sm text-gray-900">{profileData.emergencyContact.mobileNumber || 'Not provided'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Verification Status */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Verification Status</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="text-center">
+                  <div className={`w-16 h-16 rounded-full mx-auto mb-2 flex items-center justify-center ${
+                    profileData.verificationStatus?.documents === 'verified' ? 'bg-green-100' : 'bg-yellow-100'
+                  }`}>
+                    <svg className={`w-8 h-8 ${
+                      profileData.verificationStatus?.documents === 'verified' ? 'text-green-600' : 'text-yellow-600'
+                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-gray-900">Documents</p>
+                  <p className={`text-xs ${
+                    profileData.verificationStatus?.documents === 'verified' ? 'text-green-600' : 'text-yellow-600'
+                  }`}>
+                    {profileData.verificationStatus?.documents || 'pending'}
+                  </p>
+                </div>
+                
+                <div className="text-center">
+                  <div className={`w-16 h-16 rounded-full mx-auto mb-2 flex items-center justify-center ${
+                    profileData.verificationStatus?.identity === 'verified' ? 'bg-green-100' : 'bg-yellow-100'
+                  }`}>
+                    <svg className={`w-8 h-8 ${
+                      profileData.verificationStatus?.identity === 'verified' ? 'text-green-600' : 'text-yellow-600'
+                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-gray-900">Identity</p>
+                  <p className={`text-xs ${
+                    profileData.verificationStatus?.identity === 'verified' ? 'text-green-600' : 'text-yellow-600'
+                  }`}>
+                    {profileData.verificationStatus?.identity || 'pending'}
+                  </p>
+                </div>
+                
+                <div className="text-center">
+                  <div className={`w-16 h-16 rounded-full mx-auto mb-2 flex items-center justify-center ${
+                    profileData.verificationStatus?.vehicle === 'verified' ? 'bg-green-100' : 'bg-yellow-100'
+                  }`}>
+                    <svg className={`w-8 h-8 ${
+                      profileData.verificationStatus?.vehicle === 'verified' ? 'text-green-600' : 'text-yellow-600'
+                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-gray-900">Vehicle</p>
+                  <p className={`text-xs ${
+                    profileData.verificationStatus?.vehicle === 'verified' ? 'text-green-600' : 'text-yellow-600'
+                  }`}>
+                    {profileData.verificationStatus?.vehicle || 'pending'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Profile Not Found</h3>
+            <p className="text-gray-600">Unable to load profile data</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -513,43 +789,81 @@ const DeliveryDashboard = () => {
                   {deliveryAgentAuth.deliveryAgent?.name}
                 </span>
               </div>
+
+              {/* 🆕 NEW: Logout Button */}
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors"
+              >
+                🚪 Logout
+              </button>
             </div>
           </div>
         </div>
       </header>
 
+      {/* 🆕 NEW: Tab Navigation */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex space-x-8">
+            <button
+              onClick={() => handleTabChange('dashboard')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'dashboard'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              📊 Dashboard
+            </button>
+            <button
+              onClick={() => handleTabChange('profile')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'profile'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              👤 Profile
+            </button>
+          </nav>
+        </div>
+      </div>
+
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <StatsCard
-            title="Total Deliveries"
-            value={stats?.totalDeliveries || 0}
-            icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>}
-            color="bg-blue-500"
-          />
-          
-          <StatsCard
-            title="Total Earnings"
-            value={formatCurrency(stats?.totalEarnings || 0)}
-            icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" /></svg>}
-            color="bg-green-500"
-          />
-          
-          <StatsCard
-            title="Assigned Orders"
-            value={assignedOrders.length}
-            icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>}
-            color="bg-orange-500"
-          />
-          
-          <StatsCard
-            title="Available Orders"
-            value={availableOrders.length}
-            icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-            color="bg-purple-500"
-          />
-        </div>
+        {activeTab === 'dashboard' ? (
+          <>
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <StatsCard
+                title="Total Deliveries"
+                value={stats?.total?.deliveries || 0}
+                icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>}
+                color="bg-blue-500"
+              />
+              
+              <StatsCard
+                title="Total Earnings"
+                value={formatCurrency(stats?.total?.earnings || 0)}
+                icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" /></svg>}
+                color="bg-green-500"
+              />
+              
+              <StatsCard
+                title="Assigned Orders"
+                value={assignedOrders.length}
+                icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>}
+                color="bg-orange-500"
+              />
+              
+              <StatsCard
+                title="Available Orders"
+                value={availableOrders.length}
+                icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                color="bg-purple-500"
+              />
+            </div>
 
         {/* Orders Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -601,6 +915,11 @@ const DeliveryDashboard = () => {
             </div>
           </div>
         </div>
+          </>
+        ) : (
+          /* 🆕 NEW: Profile Tab Content */
+          <ProfileTab />
+        )}
       </main>
 
       {/* Modals */}
