@@ -1,9 +1,10 @@
-// frontend/src/pages/delivery/DeliveryProfile.js - Fixed to use AuthContext
+// frontend/src/pages/delivery/DeliveryProfile.js - Integrated with DeliveryLayout
 
 import React, { useState, useEffect, useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { AuthContext } from '../../contexts/AuthContext';
+import DeliveryLayout from '../../components/layouts/DeliveryLayout';
 
 const DeliveryProfile = () => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -82,7 +83,7 @@ const DeliveryProfile = () => {
         setProfileData({
           name: agent.name || '',
           email: agent.email || '',
-          phoneNumber: agent.phoneNumber || '',
+          phoneNumber: agent.phoneNumber || agent.mobileNumber || '',
           address: agent.address || '',
           vehicleDetails: {
             type: agent.vehicleDetails?.type || '',
@@ -334,12 +335,6 @@ const DeliveryProfile = () => {
     setErrors({});
   };
 
-  const handleLogout = () => {
-    logoutDeliveryAgent();
-    navigate('/delivery/login');
-    toast.success('Logged out successfully');
-  };
-
   const vehicleTypes = [
     { value: 'Bicycle', label: 'Bicycle' },
     { value: 'Motorcycle', label: 'Motorcycle' },
@@ -350,59 +345,20 @@ const DeliveryProfile = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <div className="bg-white shadow">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center py-6">
-              <div className="flex items-center">
-                <Link to="/delivery/dashboard" className="text-orange-600 hover:text-orange-500 mr-4">
-                  ← Back to Dashboard
-                </Link>
-                <h1 className="text-2xl font-bold text-gray-900">🚚 Profile Settings</h1>
-              </div>
-            </div>
-          </div>
-        </div>
-
+      <DeliveryLayout>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500 mx-auto"></div>
             <p className="mt-4 text-gray-600">Loading profile...</p>
           </div>
         </div>
-      </div>
+      </DeliveryLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <Link to="/delivery/dashboard" className="text-orange-600 hover:text-orange-500 mr-4">
-                ← Back to Dashboard
-              </Link>
-              <h1 className="text-2xl font-bold text-gray-900">🚚 Profile Settings</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-500">
-                Welcome, {deliveryAgentAuth.deliveryAgent?.name}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <DeliveryLayout>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
@@ -859,7 +815,7 @@ const DeliveryProfile = () => {
           </div>
         )}
       </div>
-    </div>
+    </DeliveryLayout>
   );
 };
 

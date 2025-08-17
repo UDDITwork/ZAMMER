@@ -1,3 +1,5 @@
+// frontend/src/App.js - Simplified Final Version (No Extra Components Needed)
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
@@ -56,6 +58,9 @@ import DeliveryHistory from './pages/delivery/DeliveryHistory';
 import DeliveryProfile from './pages/delivery/DeliveryProfile';
 import OrderDelivery from './pages/delivery/OrderDelivery';
 import OrderPickup from './pages/delivery/OrderPickup';
+
+// 🎯 ADDED: Import AssignedOrders component for "My Orders" functionality
+import AssignedOrders from './pages/delivery/AssignedOrders';
 
 // User Auth Pages
 import UserLogin from './pages/auth/UserLogin';
@@ -166,40 +171,67 @@ function App() {
             <Route path="/seller/products" element={<Navigate replace to="/seller/view-products" />} />
             <Route path="/seller/profile" element={<Navigate replace to="/seller/edit-profile" />} />
             
-            {/* 🎯 WRAPPED: Delivery Agent Routes with DeliveryProvider */}
-            {/* Delivery Agent Auth Routes - These don't need DeliveryProvider as they use AuthContext */}
+            {/* 🎯 DELIVERY AGENT ROUTES - Simple Approach with DeliveryProvider Only */}
+            
+            {/* Delivery Agent Auth Routes - Public (no protection needed) */}
             <Route path="/delivery/login" element={<DeliveryAgentLogin />} />
             <Route path="/delivery/register" element={<DeliveryAgentRegister />} />
             
-            {/* 🎯 WRAPPED: Delivery Agent Dashboard Routes with DeliveryProvider */}
+            {/* 🎯 DELIVERY AGENT PROTECTED ROUTES - Simple approach using DeliveryProvider */}
+            
+            {/* Dashboard Route */}
             <Route path="/delivery/dashboard" element={
               <DeliveryProvider>
                 <DeliveryDashboard />
               </DeliveryProvider>
             } />
-            <Route path="/delivery/orders/available" element={
-              <DeliveryProvider>
-                <AvailableOrders />
-              </DeliveryProvider>
-            } />
-            <Route path="/delivery/history" element={
-              <DeliveryProvider>
-                <DeliveryHistory />
-              </DeliveryProvider>
-            } />
+            
+            {/* 🆕 PROFILE ROUTE - NEW Addition */}
             <Route path="/delivery/profile" element={
               <DeliveryProvider>
                 <DeliveryProfile />
               </DeliveryProvider>
             } />
-            <Route path="/delivery/orders/:id/pickup" element={
+            
+            {/* Order Management Routes */}
+            <Route path="/delivery/orders/available" element={
+              <DeliveryProvider>
+                <AvailableOrders />
+              </DeliveryProvider>
+            } />
+            
+            {/* 🆕 ASSIGNED ORDERS ROUTE - For "My Orders" functionality */}
+            <Route path="/delivery/orders/assigned" element={
+              <DeliveryProvider>
+                <AssignedOrders />
+              </DeliveryProvider>
+            } />
+            
+            {/* Order Action Routes */}
+            <Route path="/delivery/orders/:orderId/pickup" element={
               <DeliveryProvider>
                 <OrderPickup />
               </DeliveryProvider>
             } />
+            
+            {/* Order Delivery Route */}
+            <Route path="/delivery/orders/:orderId/delivery" element={
+              <DeliveryProvider>
+                <OrderDelivery />
+              </DeliveryProvider>
+            } />
+            
+            {/* Alternative delivery route for backward compatibility */}
             <Route path="/delivery/orders/:id/deliver" element={
               <DeliveryProvider>
                 <OrderDelivery />
+              </DeliveryProvider>
+            } />
+            
+            {/* Delivery History Route */}
+            <Route path="/delivery/history" element={
+              <DeliveryProvider>
+                <DeliveryHistory />
               </DeliveryProvider>
             } />
             
@@ -260,6 +292,9 @@ function App() {
                     </a>
                     <a href="/user/login" className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors">
                       User Login
+                    </a>
+                    <a href="/delivery/login" className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-colors">
+                      Delivery Login
                     </a>
                   </div>
                 </div>
