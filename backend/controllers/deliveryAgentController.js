@@ -1,6 +1,11 @@
 // backend/controllers/deliveryAgentController.js - FIXED VERSION
 // 🚚 FIXED: Field mapping and proper error handling
 
+// 🔥 CONTROLLER FILE LOADING TEST
+console.log('🔥 CONTROLLER FILE LOADING - deliveryAgentController.js');
+console.log('🔥 Available functions:', Object.keys(module.exports || {}));
+
+const mongoose = require('mongoose'); // Add this if not already present
 const DeliveryAgent = require('../models/DeliveryAgent');
 const Order = require('../models/Order');
 const OtpVerification = require('../models/OtpVerification');
@@ -865,130 +870,1214 @@ const logoutDeliveryAgent = async (req, res) => {
 };
 
 // Placeholder functions for other endpoints - ENHANCED
+// @desc    Update delivery agent profile
+// @route   PUT /api/delivery/profile
+// @access  Private (Delivery Agent)
 const updateDeliveryAgentProfile = async (req, res) => {
+  const startTime = Date.now();
+  
   try {
     const agentId = req.deliveryAgent.id;
+    
     logDelivery('PROFILE_UPDATE_STARTED', { agentId });
     
-    // TODO: Implement profile update logic
-    res.status(501).json({ 
+    console.log(`
+✏️ ===============================
+   UPDATING DELIVERY AGENT PROFILE
+===============================
+🚚 Agent: ${req.deliveryAgent.name}
+🆔 Agent ID: ${agentId}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      logDeliveryError('PROFILE_UPDATE_VALIDATION_FAILED', new Error('Validation error'), { errors: errors.array() });
+      return res.status(400).json({ 
       success: false, 
-      message: 'Profile update not implemented yet',
-      code: 'NOT_IMPLEMENTED'
+        errors: errors.array() 
+      });
+    }
+
+    // 🎯 ALLOWED FIELDS: Only allow updating specific profile fields
+    const allowedUpdates = {};
+    const updateFields = [
+      'name', 'address', 'vehicleDetails', 'workingAreas', 
+      'emergencyContact', 'profileImage', 'isAvailable'
+    ];
+
+    updateFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        if (field === 'vehicleDetails') {
+          // Handle vehicle details update with validation
+          if (req.body.vehicleDetails?.type) {
+            const mappedVehicleType = mapVehicleType(req.body.vehicleDetails.type);
+            allowedUpdates['vehicleDetails.type'] = mappedVehicleType;
+            console.log(`🚗 Vehicle Type Update: "${req.body.vehicleDetails.type}" → "${mappedVehicleType}"`);
+          }
+          if (req.body.vehicleDetails?.model) {
+            allowedUpdates['vehicleDetails.model'] = req.body.vehicleDetails.model;
+          }
+          if (req.body.vehicleDetails?.registrationNumber) {
+            allowedUpdates['vehicleDetails.registrationNumber'] = req.body.vehicleDetails.registrationNumber;
+          }
+        } else if (field === 'workingAreas') {
+          // Handle working areas array
+          allowedUpdates[field] = Array.isArray(req.body[field]) ? 
+            req.body[field] : req.body[field].split(',').map(area => area.trim());
+        } else if (field === 'emergencyContact') {
+          // Handle emergency contact object
+          if (req.body.emergencyContact?.name && req.body.emergencyContact?.phone) {
+            allowedUpdates[field] = req.body.emergencyContact;
+          }
+        } else {
+          allowedUpdates[field] = req.body[field];
+        }
+      }
     });
+
+    // 🎯 VALIDATION: Check if there are any updates to make
+    if (Object.keys(allowedUpdates).length === 0) {
+      logDeliveryError('PROFILE_UPDATE_NO_CHANGES', new Error('No valid fields to update'), { agentId });
+      return res.status(400).json({
+        success: false,
+        message: 'No valid fields provided for update',
+        code: 'NO_CHANGES'
+      });
+    }
+
+    // 🎯 UPDATE PROFILE: Apply changes to delivery agent
+    const updatedAgent = await DeliveryAgent.findByIdAndUpdate(
+      agentId,
+      { 
+        ...allowedUpdates,
+        lastUpdatedAt: new Date()
+      },
+      { 
+        new: true, 
+        runValidators: true 
+      }
+    ).select('-password -resetPasswordToken');
+
+    if (!updatedAgent) {
+      logDeliveryError('PROFILE_UPDATE_AGENT_NOT_FOUND', new Error('Agent not found'), { agentId });
+      return res.status(404).json({
+        success: false,
+        message: 'Delivery agent not found'
+      });
+    }
+
+    // 🎯 CALCULATE PROFILE COMPLETION: Update completion percentage
+    let completionScore = 0;
+    if (updatedAgent.name) completionScore += 15;
+    if (updatedAgent.email) completionScore += 15;
+    if (updatedAgent.mobileNumber) completionScore += 15;
+    if (updatedAgent.address) completionScore += 10;
+    if (updatedAgent.vehicleDetails?.type) completionScore += 15;
+    if (updatedAgent.vehicleDetails?.model) completionScore += 5;
+    if (updatedAgent.vehicleDetails?.registrationNumber) completionScore += 5;
+    if (updatedAgent.workingAreas?.length > 0) completionScore += 10;
+
+    // Update profile completion
+    await DeliveryAgent.findByIdAndUpdate(agentId, {
+      profileCompletion: Math.min(completionScore, 100)
+    });
+
+    const processingTime = Date.now() - startTime;
+    
+    logDelivery('PROFILE_UPDATE_SUCCESS', { 
+      agentId, 
+      updatedFields: Object.keys(allowedUpdates),
+      profileCompletion: completionScore,
+      processingTime: `${processingTime}ms`
+    }, 'success');
+
+    console.log(`
+✅ ===============================
+   PROFILE UPDATED SUCCESSFULLY!
+===============================
+🚚 Agent: ${updatedAgent.name}
+📊 Profile Completion: ${completionScore}%
+📝 Updated Fields: ${Object.keys(allowedUpdates).join(', ')}
+📅 Updated: ${new Date().toLocaleString()}
+===============================`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        ...updatedAgent.toObject(),
+        profileCompletion: completionScore
+      }
+    });
+
   } catch (error) {
-    logDeliveryError('PROFILE_UPDATE_FAILED', error, { agentId: req.deliveryAgent?.id });
+    const processingTime = Date.now() - startTime;
+    
+    logDeliveryError('PROFILE_UPDATE_FAILED', error, { 
+      agentId: req.deliveryAgent?.id,
+      processingTime: `${processingTime}ms`
+    });
+
+    console.error('❌ Update Profile Error:', error);
+
+    // Handle specific validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => ({
+        field: err.path,
+        message: err.message
+      }));
+
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validationErrors,
+        code: 'VALIDATION_ERROR'
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Profile update failed',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: 'PROFILE_UPDATE_ERROR'
     });
   }
 };
 
+// @desc    Complete order pickup from seller
+// @route   PUT /api/delivery/orders/:id/pickup
+// @access  Private (Delivery Agent)
 const completePickup = async (req, res) => {
+  const startTime = Date.now();
+  
   try {
     const agentId = req.deliveryAgent.id;
     const orderId = req.params.id;
+    
     logDelivery('PICKUP_COMPLETE_STARTED', { agentId, orderId });
     
-    // TODO: Implement pickup completion logic
-    res.status(501).json({ 
+    console.log(`
+📦 ===============================
+   COMPLETING ORDER PICKUP
+===============================
+📋 Order ID: ${orderId}
+🚚 Agent: ${req.deliveryAgent.name}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    // 🎯 VALIDATION: Check if order exists and is assigned to this agent
+    const order = await Order.findById(orderId)
+      .populate('user', 'name phone')
+      .populate('seller', 'firstName shop')
+      .populate('orderItems.product', 'name images');
+
+    if (!order) {
+      logDeliveryError('PICKUP_ORDER_NOT_FOUND', new Error('Order not found'), { orderId });
+      return res.status(404).json({
       success: false, 
-      message: 'Pickup completion not implemented yet',
-      code: 'NOT_IMPLEMENTED'
+        message: 'Order not found',
+        code: 'ORDER_NOT_FOUND'
+      });
+    }
+
+    // 🎯 AUTHORIZATION: Verify order is assigned to this agent
+    if (order.deliveryAgent.agent.toString() !== agentId) {
+      logDeliveryError('PICKUP_UNAUTHORIZED', new Error('Order not assigned to this agent'), { 
+        orderId, 
+        assignedAgent: order.deliveryAgent.agent, 
+        currentAgent: agentId 
+      });
+      return res.status(403).json({
+        success: false,
+        message: 'Order is not assigned to you',
+        code: 'UNAUTHORIZED_ORDER'
+      });
+    }
+
+    // 🎯 STATUS VALIDATION: Check if pickup can be completed
+    if (order.deliveryAgent.status === 'delivery_completed') {
+      logDeliveryError('PICKUP_ALREADY_DELIVERED', new Error('Order already delivered'), { orderId });
+      return res.status(400).json({
+        success: false,
+        message: 'Order has already been delivered',
+        code: 'ORDER_ALREADY_DELIVERED'
+      });
+    }
+
+    if (order.deliveryAgent.status === 'pickup_completed') {
+      logDeliveryError('PICKUP_ALREADY_COMPLETED', new Error('Pickup already completed'), { orderId });
+      return res.status(400).json({
+        success: false,
+        message: 'Pickup has already been completed for this order',
+        code: 'PICKUP_ALREADY_COMPLETED'
+      });
+    }
+
+    // 🎯 BUSINESS LOGIC: Update order status and pickup details
+    const pickupNotes = req.body.pickupNotes || '';
+    const pickupTime = new Date();
+
+    // Update order delivery status
+    order.deliveryAgent.status = 'pickup_completed';
+    order.deliveryAgent.pickupCompletedAt = pickupTime;
+    
+    // Update pickup details
+    if (!order.pickup) order.pickup = {};
+    order.pickup.isCompleted = true;
+    order.pickup.completedAt = pickupTime;
+    order.pickup.pickupNotes = pickupNotes;
+    order.pickup.completedBy = agentId;
+
+    // Update order status to "Out for Delivery"
+    if (order.status === 'Confirmed' || order.status === 'Processing') {
+      order.status = 'Out for Delivery';
+    }
+
+    // Update order timeline
+    if (!order.orderTimeline) order.orderTimeline = [];
+    order.orderTimeline.push({
+      status: 'pickup_completed',
+      timestamp: pickupTime,
+      description: 'Order picked up by delivery agent',
+      agentId: agentId,
+      notes: pickupNotes
     });
+
+    await order.save();
+
+    // 🎯 UPDATE DELIVERY AGENT: Update agent statistics
+    const deliveryAgent = await DeliveryAgent.findById(agentId);
+    if (deliveryAgent) {
+      deliveryAgent.stats.pickupsCompleted = (deliveryAgent.stats.pickupsCompleted || 0) + 1;
+      deliveryAgent.lastActiveAt = new Date();
+      await deliveryAgent.save();
+    }
+
+    const processingTime = Date.now() - startTime;
+    
+    logDelivery('PICKUP_COMPLETE_SUCCESS', { 
+      agentId, 
+      orderId,
+      pickupTime: pickupTime.toISOString(),
+      processingTime: `${processingTime}ms`
+    }, 'success');
+
+    console.log(`
+✅ ===============================
+   PICKUP COMPLETED SUCCESSFULLY!
+===============================
+📦 Order: ${order.orderNumber}
+🚚 Agent: ${req.deliveryAgent.name}
+🏪 Seller: ${order.seller.firstName}
+👤 Customer: ${order.user.name}
+📅 Pickup Time: ${pickupTime.toLocaleString()}
+📝 Notes: ${pickupNotes || 'None'}
+===============================`);
+
+    // 🔔 EMIT REAL-TIME NOTIFICATIONS
+    try {
+      if (global.emitToBuyer) {
+        global.emitToBuyer(order.user._id, 'order-pickup-completed', {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          pickupTime: pickupTime,
+          deliveryAgent: {
+            name: req.deliveryAgent.name,
+            phone: req.deliveryAgent.phoneNumber
+          }
+        });
+      }
+
+      if (global.emitToSeller) {
+        global.emitToSeller(order.seller._id, 'order-pickup-completed', {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          pickupTime: pickupTime,
+          deliveryAgent: {
+            name: req.deliveryAgent.name,
+            phone: req.deliveryAgent.phoneNumber
+          }
+        });
+      }
+    } catch (socketError) {
+      console.log('Socket notification failed:', socketError.message);
+    }
+
+    // 📤 SUCCESS RESPONSE
+    res.status(200).json({
+      success: true,
+      message: 'Order pickup completed successfully',
+      data: {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        deliveryStatus: order.deliveryAgent.status,
+        pickup: {
+          isCompleted: order.pickup.isCompleted,
+          completedAt: order.pickup.completedAt,
+          notes: order.pickup.pickupNotes
+        },
+        estimatedDelivery: order.estimatedDelivery?.estimatedAt,
+        nextStep: 'Proceed to customer for delivery'
+      }
+    });
+
   } catch (error) {
-    logDeliveryError('PICKUP_COMPLETE_FAILED', error, { agentId: req.deliveryAgent?.id });
+    const processingTime = Date.now() - startTime;
+    
+    logDeliveryError('PICKUP_COMPLETE_FAILED', error, { 
+      agentId: req.deliveryAgent?.id,
+      orderId: req.params.id,
+      processingTime: `${processingTime}ms`
+    });
+
+    console.error('❌ Complete Pickup Error:', error);
+
     res.status(500).json({
       success: false,
-      message: 'Pickup completion failed',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message: 'Failed to complete pickup',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: 'PICKUP_COMPLETE_ERROR'
     });
   }
 };
 
+// @desc    Complete order delivery to customer
+// @route   PUT /api/delivery/orders/:id/delivery
+// @access  Private (Delivery Agent)
 const completeDelivery = async (req, res) => {
+  const startTime = Date.now();
+  
   try {
     const agentId = req.deliveryAgent.id;
     const orderId = req.params.id;
+    
     logDelivery('DELIVERY_COMPLETE_STARTED', { agentId, orderId });
     
-    // TODO: Implement delivery completion logic
-    res.status(501).json({ 
+    console.log(`
+📦 ===============================
+   COMPLETING ORDER DELIVERY
+===============================
+📋 Order ID: ${orderId}
+🚚 Agent: ${req.deliveryAgent.name}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    // 🎯 VALIDATION: Check if order exists and is assigned to this agent
+    const order = await Order.findById(orderId)
+      .populate('user', 'name phone email')
+      .populate('seller', 'firstName shop')
+      .populate('orderItems.product', 'name images');
+
+    if (!order) {
+      logDeliveryError('DELIVERY_ORDER_NOT_FOUND', new Error('Order not found'), { orderId });
+      return res.status(404).json({
       success: false, 
-      message: 'Delivery completion not implemented yet',
-      code: 'NOT_IMPLEMENTED'
+        message: 'Order not found',
+        code: 'ORDER_NOT_FOUND'
+      });
+    }
+
+    // 🎯 AUTHORIZATION: Verify order is assigned to this agent
+    if (order.deliveryAgent.agent.toString() !== agentId) {
+      logDeliveryError('DELIVERY_UNAUTHORIZED', new Error('Order not assigned to this agent'), { 
+        orderId, 
+        assignedAgent: order.deliveryAgent.agent, 
+        currentAgent: agentId 
+      });
+      return res.status(403).json({
+        success: false,
+        message: 'Order is not assigned to you',
+        code: 'UNAUTHORIZED_ORDER'
+      });
+    }
+
+    // 🎯 STATUS VALIDATION: Check if delivery can be completed
+    if (order.deliveryAgent.status === 'delivery_completed') {
+      logDeliveryError('DELIVERY_ALREADY_COMPLETED', new Error('Delivery already completed'), { orderId });
+      return res.status(400).json({
+        success: false,
+        message: 'Delivery has already been completed for this order',
+        code: 'DELIVERY_ALREADY_COMPLETED'
+      });
+    }
+
+    if (order.deliveryAgent.status !== 'pickup_completed') {
+      logDeliveryError('DELIVERY_PICKUP_NOT_COMPLETED', new Error('Pickup not completed yet'), { 
+        orderId, 
+        currentStatus: order.deliveryAgent.status 
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Order pickup must be completed before delivery',
+        code: 'PICKUP_NOT_COMPLETED'
+      });
+    }
+
+    // 🎯 OTP VERIFICATION: Check if OTP verification is required and completed
+    if (order.otpVerification?.isRequired && !order.otpVerification?.isVerified) {
+      logDeliveryError('DELIVERY_OTP_NOT_VERIFIED', new Error('OTP verification required'), { orderId });
+      return res.status(400).json({
+        success: false,
+        message: 'OTP verification is required before completing delivery',
+        code: 'OTP_VERIFICATION_REQUIRED'
+      });
+    }
+
+    // 🎯 BUSINESS LOGIC: Update order status and delivery details
+    const deliveryNotes = req.body.deliveryNotes || '';
+    const deliveryTime = new Date();
+    const customerSignature = req.body.customerSignature || null;
+    const deliveryProof = req.body.deliveryProof || null;
+
+    // Update order delivery status
+    order.deliveryAgent.status = 'delivery_completed';
+    order.deliveryAgent.deliveryCompletedAt = deliveryTime;
+    
+    // Update delivery details
+    if (!order.delivery) order.delivery = {};
+    order.delivery.isCompleted = true;
+    order.delivery.completedAt = deliveryTime;
+    order.delivery.deliveryNotes = deliveryNotes;
+    order.delivery.completedBy = agentId;
+    order.delivery.customerSignature = customerSignature;
+    order.delivery.deliveryProof = deliveryProof;
+
+    // Update order status to "Delivered"
+    order.status = 'Delivered';
+    order.deliveredAt = deliveryTime;
+
+    // Update order timeline
+    if (!order.orderTimeline) order.orderTimeline = [];
+    order.orderTimeline.push({
+      status: 'delivery_completed',
+      timestamp: deliveryTime,
+      description: 'Order delivered to customer',
+      agentId: agentId,
+      notes: deliveryNotes
     });
+
+    // 🎯 CALCULATE DELIVERY TIME: Track delivery performance
+    if (order.deliveryAgent.assignedAt) {
+      const assignedTime = new Date(order.deliveryAgent.assignedAt);
+      const deliveryDuration = deliveryTime.getTime() - assignedTime.getTime();
+      order.deliveryAgent.deliveryDuration = Math.round(deliveryDuration / (1000 * 60)); // in minutes
+    }
+
+    await order.save();
+
+    // 🎯 UPDATE DELIVERY AGENT: Update agent statistics and earnings
+    const deliveryAgent = await DeliveryAgent.findById(agentId);
+    if (deliveryAgent) {
+      deliveryAgent.stats.deliveriesCompleted = (deliveryAgent.stats.deliveriesCompleted || 0) + 1;
+      deliveryAgent.totalDeliveries = (deliveryAgent.totalDeliveries || 0) + 1;
+      
+      // Calculate and add delivery earnings
+      const deliveryEarning = order.deliveryFees?.agentEarning || 0;
+      deliveryAgent.totalEarnings = (deliveryAgent.totalEarnings || 0) + deliveryEarning;
+      
+      // Update average delivery time
+      const currentAvgTime = deliveryAgent.stats.averageDeliveryTime || 0;
+      const completedDeliveries = deliveryAgent.stats.deliveriesCompleted;
+      deliveryAgent.stats.averageDeliveryTime = Math.round(
+        ((currentAvgTime * (completedDeliveries - 1)) + order.deliveryAgent.deliveryDuration) / completedDeliveries
+      );
+      
+      deliveryAgent.lastActiveAt = new Date();
+      await deliveryAgent.save();
+    }
+
+    const processingTime = Date.now() - startTime;
+    
+    logDelivery('DELIVERY_COMPLETE_SUCCESS', { 
+      agentId, 
+      orderId,
+      deliveryTime: deliveryTime.toISOString(),
+      deliveryDuration: order.deliveryAgent.deliveryDuration,
+      earnings: order.deliveryFees?.agentEarning,
+      processingTime: `${processingTime}ms`
+    }, 'success');
+
+    console.log(`
+✅ ===============================
+   DELIVERY COMPLETED SUCCESSFULLY!
+===============================
+📦 Order: ${order.orderNumber}
+🚚 Agent: ${req.deliveryAgent.name}
+🏪 Seller: ${order.seller.firstName}
+👤 Customer: ${order.user.name}
+📅 Delivery Time: ${deliveryTime.toLocaleString()}
+⏱️ Delivery Duration: ${order.deliveryAgent.deliveryDuration} minutes
+💰 Agent Earnings: ₹${order.deliveryFees?.agentEarning || 0}
+📝 Notes: ${deliveryNotes || 'None'}
+===============================`);
+
+    // 🔔 EMIT REAL-TIME NOTIFICATIONS
+    try {
+      if (global.emitToBuyer) {
+        global.emitToBuyer(order.user._id, 'order-delivered', {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          deliveryTime: deliveryTime,
+          deliveryAgent: {
+            name: req.deliveryAgent.name,
+            phone: req.deliveryAgent.phoneNumber
+          }
+        });
+      }
+
+      if (global.emitToSeller) {
+        global.emitToSeller(order.seller._id, 'order-delivered', {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          deliveryTime: deliveryTime,
+          deliveryAgent: {
+            name: req.deliveryAgent.name,
+            phone: req.deliveryAgent.phoneNumber
+          }
+        });
+      }
+    } catch (socketError) {
+      console.log('Socket notification failed:', socketError.message);
+    }
+
+    // 📤 SUCCESS RESPONSE
+    res.status(200).json({
+      success: true,
+      message: 'Order delivery completed successfully',
+      data: {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        deliveryStatus: order.deliveryAgent.status,
+        delivery: {
+          isCompleted: order.delivery.isCompleted,
+          completedAt: order.delivery.completedAt,
+          notes: order.delivery.deliveryNotes,
+          duration: order.deliveryAgent.deliveryDuration
+        },
+        agentEarnings: order.deliveryFees?.agentEarning || 0,
+        nextStep: 'Order completed successfully'
+      }
+    });
+
   } catch (error) {
-    logDeliveryError('DELIVERY_COMPLETE_FAILED', error, { agentId: req.deliveryAgent?.id });
+    const processingTime = Date.now() - startTime;
+    
+    logDeliveryError('DELIVERY_COMPLETE_FAILED', error, { 
+      agentId: req.deliveryAgent?.id,
+      orderId: req.params.id,
+      processingTime: `${processingTime}ms`
+    });
+
+    console.error('❌ Complete Delivery Error:', error);
+
     res.status(500).json({
       success: false,
-      message: 'Delivery completion failed',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message: 'Failed to complete delivery',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: 'DELIVERY_COMPLETE_ERROR'
     });
   }
 };
 
+// @desc    Get assigned orders for delivery agent  
+// @route   GET /api/delivery/orders/assigned
+// @access  Private (Delivery Agent)
 const getAssignedOrders = async (req, res) => {
+  // ⬇️ YE LINES ADD करें - FUNCTION के शुरुआत में
+  console.log('🟢 getAssignedOrders FUNCTION CALLED!');
+  console.log('🟢 Agent ID:', req.deliveryAgent?.id);
+  console.log('🟢 Request method:', req.method);
+  console.log('🟢 Request URL:', req.originalUrl);
+  
+  console.log('🔥🔥🔥 NEW getAssignedOrders called - REAL IMPLEMENTATION LOADED! 🔥🔥🔥');
+  
   try {
     const agentId = req.deliveryAgent.id;
+    
     logDelivery('ASSIGNED_ORDERS_REQUEST', { agentId });
     
-    // TODO: Implement assigned orders retrieval logic
-    res.status(501).json({ 
-      success: false, 
-      message: 'Assigned orders retrieval not implemented yet',
-      code: 'NOT_IMPLEMENTED'
+    console.log(`
+📋 ===============================
+   FETCHING ASSIGNED ORDERS
+===============================
+🚚 Agent: ${req.deliveryAgent.name}
+🆔 Agent ID: ${agentId}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    // 🎯 BUSINESS LOGIC: Get orders assigned to this agent that are still in progress
+    const assignedOrders = await Order.find({
+      'deliveryAgent.agent': agentId,
+      'deliveryAgent.status': { 
+        $in: ['assigned', 'accepted', 'pickup_completed'] 
+      },
+      status: { $nin: ['Cancelled', 'Delivered'] }
+    })
+    .populate('user', 'name email mobileNumber')
+    .populate('seller', 'firstName lastName email shop')
+    .populate('orderItems.product', 'name images')
+    .sort({ 'deliveryAgent.assignedAt': 1 }) // FIFO - oldest assignments first
+    .limit(50); // Reasonable limit
+
+    logDelivery('ASSIGNED_ORDERS_RETRIEVED', { 
+      agentId, 
+      orderCount: assignedOrders.length,
+      statusBreakdown: assignedOrders.reduce((acc, order) => {
+        acc[order.deliveryAgent.status] = (acc[order.deliveryAgent.status] || 0) + 1;
+        return acc;
+      }, {})
     });
+
+    console.log(`
+✅ ===============================
+   ASSIGNED ORDERS FETCHED
+===============================
+📦 Orders Found: ${assignedOrders.length}
+📊 Status Breakdown:
+   - Assigned: ${assignedOrders.filter(o => o.deliveryAgent.status === 'assigned').length}
+   - Accepted: ${assignedOrders.filter(o => o.deliveryAgent.status === 'accepted').length}  
+   - Picked Up: ${assignedOrders.filter(o => o.deliveryAgent.status === 'pickup_completed').length}
+🚚 Agent: ${req.deliveryAgent.name}
+===============================`);
+
+    // 🎯 FRONTEND COMPATIBLE: Format orders for delivery agent dashboard
+    const formattedOrders = assignedOrders.map(order => ({
+      _id: order._id,
+      orderNumber: order.orderNumber, // ✅ Visible after assignment
+      status: order.status,
+      deliveryStatus: order.deliveryAgent.status,
+      totalPrice: order.totalPrice,
+      deliveryFees: order.deliveryFees,
+      
+      // Customer information
+      user: {
+        name: order.user.name,
+        phone: order.user.mobileNumber,
+        email: order.user.email
+      },
+      
+      // Seller information for pickup
+      seller: {
+        name: order.seller.firstName + (order.seller.lastName ? ' ' + order.seller.lastName : ''),
+        shopName: order.seller.shop?.name || 'Shop',
+        email: order.seller.email,
+        phone: order.seller.shop?.phoneNumber?.main || order.seller.mobileNumber,
+        address: order.seller.shop?.address || 'Address not provided'
+      },
+      
+      // Delivery information
+      shippingAddress: order.shippingAddress,
+      
+      // Order items summary
+      orderItems: order.orderItems.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        image: item.image,
+        size: item.size,
+        color: item.color
+      })),
+      
+      // Timeline information
+      assignedAt: order.deliveryAgent.assignedAt,
+      acceptedAt: order.deliveryAgent.acceptedAt,
+      estimatedDelivery: order.estimatedDelivery?.estimatedAt,
+      
+      // Order tracking
+      createdAt: order.createdAt,
+      paymentMethod: order.paymentMethod,
+      isPaid: order.isPaid,
+      
+      // Pickup and delivery tracking
+      pickup: {
+        isCompleted: order.pickup?.isCompleted || false,
+        completedAt: order.pickup?.completedAt,
+        notes: order.pickup?.pickupNotes
+      },
+      
+      delivery: {
+        isCompleted: order.delivery?.isCompleted || false,
+        attemptCount: order.delivery?.attemptCount || 0,
+        notes: order.delivery?.deliveryNotes
+      },
+      
+      // OTP verification status
+      otpVerification: {
+        isRequired: order.otpVerification?.isRequired || false,
+        isVerified: order.otpVerification?.isVerified || false
+      }
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: 'Assigned orders retrieved successfully',
+      count: formattedOrders.length,
+      data: formattedOrders
+    });
+
   } catch (error) {
     logDeliveryError('ASSIGNED_ORDERS_FAILED', error, { agentId: req.deliveryAgent?.id });
+    console.error('❌ Get Assigned Orders Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Assigned orders retrieval failed',
+      message: 'Failed to fetch assigned orders',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };
 
+// @desc    Get delivery agent statistics
+// @route   GET /api/delivery/stats
+// @access  Private (Delivery Agent)
 const getDeliveryStats = async (req, res) => {
+  // ⬇️ YE LINES ADD करें - FUNCTION के शुरुआत में
+  console.log('🟢 getDeliveryStats FUNCTION CALLED!');
+  console.log('🟢 Agent ID:', req.deliveryAgent?.id);
+  console.log('🟢 Request method:', req.method);
+  console.log('🟢 Request URL:', req.originalUrl);
+  
+  console.log('🔥🔥🔥 NEW getDeliveryStats called - REAL IMPLEMENTATION LOADED! 🔥🔥🔥');
+  
   try {
     const agentId = req.deliveryAgent.id;
+    
     logDelivery('DELIVERY_STATS_REQUEST', { agentId });
     
-    // TODO: Implement delivery stats retrieval logic
-    res.status(501).json({ 
-      success: false, 
-      message: 'Delivery stats retrieval not implemented yet',
-      code: 'NOT_IMPLEMENTED'
+    console.log(`
+📊 ===============================
+   CALCULATING DELIVERY STATS
+===============================
+🚚 Agent: ${req.deliveryAgent.name}
+🆔 Agent ID: ${agentId}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    // Get date ranges for calculations
+    const now = new Date();
+    const todayStart = new Date(now.setHours(0, 0, 0, 0));
+    const todayEnd = new Date(now.setHours(23, 59, 59, 999));
+    
+    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // 🎯 PRODUCTION QUERIES: Calculate real statistics from Order collection
+    const [
+      // Total completed deliveries and earnings
+      totalStats,
+      
+      // Today's deliveries and earnings
+      todayStats,
+      
+      // Weekly stats
+      weeklyStats,
+      
+      // Monthly stats  
+      monthlyStats,
+      
+      // Current assigned orders (in progress)
+      currentAssigned,
+      
+      // Performance metrics
+      averageRating,
+      
+      // Recent activity
+      recentCompletedOrders
+    ] = await Promise.all([
+      // Total completed deliveries with earnings
+      Order.aggregate([
+        {
+          $match: {
+            'deliveryAgent.agent': new mongoose.Types.ObjectId(agentId),
+            'deliveryAgent.status': 'delivery_completed'
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalDeliveries: { $sum: 1 },
+            totalEarnings: { $sum: '$deliveryFees.agentEarning' },
+            totalOrderValue: { $sum: '$totalPrice' }
+          }
+        }
+      ]),
+
+      // Today's deliveries and earnings
+      Order.aggregate([
+        {
+          $match: {
+            'deliveryAgent.agent': new mongoose.Types.ObjectId(agentId),
+            'deliveryAgent.status': 'delivery_completed',
+            'delivery.completedAt': { $gte: todayStart, $lte: todayEnd }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            todayDeliveries: { $sum: 1 },
+            todayEarnings: { $sum: '$deliveryFees.agentEarning' }
+          }
+        }
+      ]),
+
+      // Weekly stats
+      Order.aggregate([
+        {
+          $match: {
+            'deliveryAgent.agent': new mongoose.Types.ObjectId(agentId),
+            'deliveryAgent.status': 'delivery_completed',
+            'delivery.completedAt': { $gte: weekStart }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            weeklyDeliveries: { $sum: 1 },
+            weeklyEarnings: { $sum: '$deliveryFees.agentEarning' }
+          }
+        }
+      ]),
+
+      // Monthly stats
+      Order.aggregate([
+        {
+          $match: {
+            'deliveryAgent.agent': new mongoose.Types.ObjectId(agentId),
+            'deliveryAgent.status': 'delivery_completed',
+            'delivery.completedAt': { $gte: monthStart }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            monthlyDeliveries: { $sum: 1 },
+            monthlyEarnings: { $sum: '$deliveryFees.agentEarning' }
+          }
+        }
+      ]),
+
+      // Current assigned orders count (in progress)
+      Order.countDocuments({
+        'deliveryAgent.agent': agentId,
+        'deliveryAgent.status': { $in: ['assigned', 'accepted', 'pickup_completed'] }
+      }),
+
+      // Average rating from completed orders
+      Order.aggregate([
+        {
+          $match: {
+            'deliveryAgent.agent': new mongoose.Types.ObjectId(agentId),
+            'deliveryAgent.status': 'delivery_completed',
+            'deliveryRating': { $exists: true, $ne: null }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            averageRating: { $avg: '$deliveryRating' },
+            ratingCount: { $sum: 1 }
+          }
+        }
+      ]),
+
+      // Recent completed orders for activity tracking
+      Order.find({
+        'deliveryAgent.agent': agentId,
+        'deliveryAgent.status': 'delivery_completed'
+      })
+      .sort({ 'delivery.completedAt': -1 })
+      .limit(5)
+      .select('orderNumber totalPrice delivery.completedAt deliveryFees.agentEarning')
+    ]);
+
+    // 🎯 PROCESS RESULTS: Extract data with fallbacks
+    const total = totalStats[0] || { totalDeliveries: 0, totalEarnings: 0, totalOrderValue: 0 };
+    const today = todayStats[0] || { todayDeliveries: 0, todayEarnings: 0 };
+    const weekly = weeklyStats[0] || { weeklyDeliveries: 0, weeklyEarnings: 0 };
+    const monthly = monthlyStats[0] || { monthlyDeliveries: 0, monthlyEarnings: 0 };
+    const rating = averageRating[0] || { averageRating: 0, ratingCount: 0 };
+
+    // 🎯 BUSINESS LOGIC: Calculate performance metrics
+    const completionRate = total.totalDeliveries > 0 ? 100 : 0; // Since we only count completed deliveries
+    const avgEarningsPerDelivery = total.totalDeliveries > 0 ? 
+      Math.round((total.totalEarnings / total.totalDeliveries) * 100) / 100 : 0;
+
+    // 🎯 FRONTEND COMPATIBLE: Format response to match dashboard expectations
+    const statsResponse = {
+      today: {
+        deliveries: today.todayDeliveries,
+        earnings: Math.round(today.todayEarnings * 100) / 100
+      },
+      total: {
+        deliveries: total.totalDeliveries,
+        earnings: Math.round(total.totalEarnings * 100) / 100
+      },
+      weekly: {
+        deliveries: weekly.weeklyDeliveries,
+        earnings: Math.round(weekly.weeklyEarnings * 100) / 100
+      },
+      monthly: {
+        deliveries: monthly.monthlyDeliveries,
+        earnings: Math.round(monthly.monthlyEarnings * 100) / 100
+      },
+      current: {
+        assigned: currentAssigned,
+        pending: currentAssigned // Same value for now
+      },
+      performance: {
+        rating: Math.round(rating.averageRating * 10) / 10 || 0,
+        completionRate: completionRate,
+        avgEarningsPerDelivery: avgEarningsPerDelivery,
+        totalOrderValue: Math.round(total.totalOrderValue * 100) / 100,
+        ratingCount: rating.ratingCount
+      },
+      recent: {
+        orders: recentCompletedOrders.map(order => ({
+          orderNumber: order.orderNumber,
+          completedAt: order.delivery.completedAt,
+          earnings: order.deliveryFees.agentEarning,
+          orderValue: order.totalPrice
+        }))
+      }
+    };
+
+    // 🎯 SYNC DELIVERY AGENT: Update the agent's stats to match calculated values
+    try {
+      await DeliveryAgent.findByIdAndUpdate(agentId, {
+        totalDeliveries: total.totalDeliveries,
+        totalEarnings: total.totalEarnings,
+        rating: rating.averageRating || 0,
+        'deliveryStats.totalDeliveries': total.totalDeliveries,
+        'deliveryStats.completedDeliveries': total.totalDeliveries,
+        'deliveryStats.totalEarnings': total.totalEarnings,
+        'deliveryStats.averageRating': rating.averageRating || 0,
+        'deliveryStats.thisWeek.deliveries': weekly.weeklyDeliveries,
+        'deliveryStats.thisWeek.earnings': weekly.weeklyEarnings,
+        'deliveryStats.thisMonth.deliveries': monthly.monthlyDeliveries,
+        'deliveryStats.thisMonth.earnings': monthly.monthlyEarnings
+      });
+      
+      logDelivery('AGENT_STATS_SYNCED', { 
+        agentId, 
+        totalDeliveries: total.totalDeliveries,
+        totalEarnings: total.totalEarnings 
+      });
+    } catch (syncError) {
+      logDeliveryError('AGENT_STATS_SYNC_FAILED', syncError, { agentId });
+      // Continue even if sync fails
+    }
+
+    logDelivery('DELIVERY_STATS_SUCCESS', { 
+      agentId, 
+      totalDeliveries: total.totalDeliveries,
+      todayDeliveries: today.todayDeliveries,
+      totalEarnings: total.totalEarnings,
+      currentAssigned: currentAssigned
+    }, 'success');
+
+    console.log(`
+✅ ===============================
+   DELIVERY STATS CALCULATED
+===============================
+📦 Total Deliveries: ${total.totalDeliveries}
+💰 Total Earnings: ₹${total.totalEarnings}
+📅 Today: ${today.todayDeliveries} deliveries, ₹${today.todayEarnings}
+📊 Current Assigned: ${currentAssigned}
+⭐ Rating: ${rating.averageRating || 0}/5
+📈 Completion Rate: ${completionRate}%
+===============================`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Delivery statistics retrieved successfully',
+      data: statsResponse
     });
+
   } catch (error) {
     logDeliveryError('DELIVERY_STATS_FAILED', error, { agentId: req.deliveryAgent?.id });
+    console.error('❌ Get Delivery Stats Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Delivery stats retrieval failed',
+      message: 'Failed to fetch delivery statistics',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };
 
+// @desc    Get delivery agent delivery history
+// @route   GET /api/delivery/history
+// @access  Private (Delivery Agent)
 const getDeliveryHistory = async (req, res) => {
   try {
     const agentId = req.deliveryAgent.id;
+    
     logDelivery('DELIVERY_HISTORY_REQUEST', { agentId });
     
-    // TODO: Implement delivery history retrieval logic
-    res.status(501).json({ 
-      success: false, 
-      message: 'Delivery history retrieval not implemented yet',
-      code: 'NOT_IMPLEMENTED'
+    console.log(`
+📚 ===============================
+   FETCHING DELIVERY HISTORY
+===============================
+🚚 Agent: ${req.deliveryAgent.name}
+🆔 Agent ID: ${agentId}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    // 🎯 QUERY PARAMETERS: Handle pagination and filtering
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const status = req.query.status; // Filter by delivery status
+    const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
+    const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
+
+    // 🎯 BUILD QUERY: Filter completed deliveries
+    const query = {
+      'deliveryAgent.agent': agentId,
+      'deliveryAgent.status': 'delivery_completed'
+    };
+
+    // Add date range filter if provided
+    if (startDate && endDate) {
+      query['delivery.completedAt'] = {
+        $gte: startDate,
+        $lte: endDate
+      };
+    } else if (startDate) {
+      query['delivery.completedAt'] = { $gte: startDate };
+    } else if (endDate) {
+      query['delivery.completedAt'] = { $lte: endDate };
+    }
+
+    // Add status filter if provided
+    if (status) {
+      query.status = status;
+    }
+
+    // 🎯 EXECUTE QUERY: Get paginated delivery history
+    const skip = (page - 1) * limit;
+    
+    const [deliveryHistory, totalCount] = await Promise.all([
+      Order.find(query)
+        .populate('user', 'name phone email')
+        .populate('seller', 'firstName shop')
+        .populate('orderItems.product', 'name images')
+        .sort({ 'delivery.completedAt': -1 }) // Most recent first
+        .skip(skip)
+        .limit(limit)
+        .select('orderNumber status totalPrice deliveryFees delivery deliveryAgent shippingAddress createdAt deliveredAt'),
+      
+      Order.countDocuments(query)
+    ]);
+
+    logDelivery('DELIVERY_HISTORY_RETRIEVED', { 
+      agentId, 
+      orderCount: deliveryHistory.length,
+      totalCount,
+      page,
+      limit
     });
+
+    console.log(`
+✅ ===============================
+   DELIVERY HISTORY FETCHED
+===============================
+📦 Orders Found: ${deliveryHistory.length}
+📊 Total Orders: ${totalCount}
+📄 Page: ${page} of ${Math.ceil(totalCount / limit)}
+🚚 Agent: ${req.deliveryAgent.name}
+===============================`);
+
+    // 🎯 FORMAT RESPONSE: Structure data for frontend consumption
+    const formattedHistory = deliveryHistory.map(order => ({
+      _id: order._id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      totalPrice: order.totalPrice,
+      deliveryFees: order.deliveryFees,
+      
+      // Customer information
+      customer: {
+        name: order.user.name,
+        phone: order.user.phone,
+        email: order.user.email
+      },
+      
+      // Seller information
+      seller: {
+        name: order.seller.firstName,
+        shopName: order.seller.shop?.name || 'Shop'
+      },
+      
+      // Delivery details
+      delivery: {
+        completedAt: order.delivery?.completedAt,
+        duration: order.deliveryAgent?.deliveryDuration,
+        notes: order.delivery?.deliveryNotes,
+        agentEarnings: order.deliveryFees?.agentEarning || 0
+      },
+      
+      // Order timeline
+      assignedAt: order.deliveryAgent?.assignedAt,
+      acceptedAt: order.deliveryAgent?.acceptedAt,
+      pickupCompletedAt: order.deliveryAgent?.pickupCompletedAt,
+      deliveryCompletedAt: order.deliveryAgent?.deliveryCompletedAt,
+      
+      // Location and timing
+      shippingAddress: order.shippingAddress,
+      createdAt: order.createdAt,
+      deliveredAt: order.deliveredAt
+    }));
+
+    // 🎯 CALCULATE PAGINATION: Provide pagination metadata
+    const totalPages = Math.ceil(totalCount / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    // 🎯 SUMMARY STATISTICS: Provide overview of history period
+    const summaryStats = {
+      totalDeliveries: totalCount,
+      totalEarnings: deliveryHistory.reduce((sum, order) => 
+        sum + (order.deliveryFees?.agentEarning || 0), 0
+      ),
+      averageDeliveryTime: deliveryHistory.length > 0 ? 
+        Math.round(deliveryHistory.reduce((sum, order) => 
+          sum + (order.deliveryAgent?.deliveryDuration || 0), 0
+        ) / deliveryHistory.length) : 0,
+      period: {
+        startDate: startDate || 'All time',
+        endDate: endDate || 'Present'
+      }
+    };
+
+    res.status(200).json({
+      success: true,
+      message: 'Delivery history retrieved successfully',
+      data: {
+        history: formattedHistory,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalCount,
+          hasNextPage,
+          hasPrevPage,
+          limit
+        },
+        summary: summaryStats
+      }
+    });
+
   } catch (error) {
     logDeliveryError('DELIVERY_HISTORY_FAILED', error, { agentId: req.deliveryAgent?.id });
+    console.error('❌ Get Delivery History Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Delivery history retrieval failed',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message: 'Failed to fetch delivery history',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: 'DELIVERY_HISTORY_ERROR'
     });
   }
 };
@@ -1005,6 +2094,7 @@ module.exports = {
   updateLocation,
   getAssignedOrders,
   getDeliveryStats,
+  
   toggleAvailability,
   getDeliveryHistory,
   logoutDeliveryAgent

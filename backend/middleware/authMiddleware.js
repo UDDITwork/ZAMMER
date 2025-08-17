@@ -192,7 +192,7 @@ const protectSeller = async (req, res, next) => {
   }
 };
 
-// Protect Delivery Agent Routes
+// Protect Delivery Agent Routes - FINAL FIXED VERSION
 const protectDeliveryAgent = async (req, res, next) => {
   try {
     let token;
@@ -201,36 +201,103 @@ const protectDeliveryAgent = async (req, res, next) => {
       try {
         token = req.headers.authorization.split(' ')[1];
         
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        logAuth('DELIVERY_AGENT_TOKEN_EXTRACTED', {
+          tokenLength: token?.length || 0
+        });
+
+        // ✅ CRITICAL FIX: Use same secret logic as token generation
+        const jwtSecret = process.env.DELIVERY_AGENT_JWT_SECRET || process.env.JWT_SECRET;
+        
+        logAuth('DELIVERY_AGENT_SECRET_SELECTED', {
+          hasDeliverySecret: !!process.env.DELIVERY_AGENT_JWT_SECRET,
+          hasMainSecret: !!process.env.JWT_SECRET,
+          secretLength: jwtSecret?.length || 0
+        });
+
+        const decoded = jwt.verify(token, jwtSecret);
+        
+        logAuth('DELIVERY_AGENT_TOKEN_VERIFIED', {
+          userId: decoded.id,
+          userType: decoded.userType,
+          tokenExp: new Date(decoded.exp * 1000).toISOString()
+        });
+
+        // ✅ Check userType field (optional - token might not have it)
+        if (decoded.userType && decoded.userType !== 'deliveryAgent') {
+          logAuth('DELIVERY_AGENT_INVALID_USER_TYPE', {
+            expectedUserType: 'deliveryAgent',
+            actualUserType: decoded.userType,
+            userId: decoded.id
+          }, 'error');
+          
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied. Delivery agent token required.',
+            code: 'INVALID_USER_TYPE'
+          });
+        }
         
         req.deliveryAgent = await DeliveryAgent.findById(decoded.id).select('-password');
         
         if (!req.deliveryAgent) {
+          logAuth('DELIVERY_AGENT_NOT_FOUND_IN_DB', { 
+            userId: decoded.id 
+          }, 'error');
+          
           return res.status(401).json({
             success: false,
             message: 'Delivery agent not found'
           });
         }
 
+        // ✅ Check if agent is blocked
+        if (req.deliveryAgent.isBlocked) {
+          logAuth('DELIVERY_AGENT_BLOCKED', {
+            agentId: req.deliveryAgent._id,
+            agentEmail: req.deliveryAgent.email
+          }, 'error');
+          
+          return res.status(403).json({
+            success: false,
+            message: 'Account has been blocked. Please contact support.',
+            code: 'ACCOUNT_BLOCKED'
+          });
+        }
+
         logAuth('DELIVERY_AGENT_AUTH_SUCCESS', {
           agentId: req.deliveryAgent._id,
-          agentName: req.deliveryAgent.name
+          agentName: req.deliveryAgent.name,
+          agentEmail: req.deliveryAgent.email,
+          isOnline: req.deliveryAgent.isOnline,
+          isAvailable: req.deliveryAgent.isAvailable
         }, 'success');
 
         next();
       } catch (error) {
+        logAuth('DELIVERY_AGENT_TOKEN_ERROR', {
+          error: error.message,
+          tokenProvided: !!token,
+          errorType: error.name
+        }, 'error');
+        
         return res.status(401).json({
           success: false,
           message: 'Not authorized, token failed'
         });
       }
     } else {
+      logAuth('NO_DELIVERY_AGENT_TOKEN_PROVIDED', null, 'warning');
+      
       return res.status(401).json({
         success: false,
         message: 'Not authorized, no token'
       });
     }
   } catch (error) {
+    logAuth('DELIVERY_AGENT_PROTECT_ERROR', { 
+      error: error.message 
+    }, 'error');
+    
     return res.status(500).json({
       success: false,
       message: 'Server error in authentication'

@@ -611,6 +611,67 @@ class SocketService {
       }
     };
   }
+
+  // 🔧 Generic on method for event listening
+  on(event, callback) {
+    if (!this.socket) {
+      debugLog('❌ Cannot add listener - socket not initialized', { event }, 'error');
+      return;
+    }
+
+    debugLog('👂 Adding generic event listener', { event }, 'socket');
+    
+    this.socket.on(event, callback);
+    
+    // Store the listener for cleanup
+    if (!this.eventListeners.has(event)) {
+      this.eventListeners.set(event, []);
+    }
+    this.eventListeners.get(event).push(callback);
+  }
+
+  // 🔧 Generic off method for removing event listeners
+  off(event, callback) {
+    if (!this.socket) {
+      debugLog('❌ Cannot remove listener - socket not initialized', { event }, 'error');
+      return;
+    }
+
+    debugLog('🔇 Removing generic event listener', { event }, 'socket');
+    
+    this.socket.off(event, callback);
+    
+    // Remove from stored listeners
+    if (this.eventListeners.has(event)) {
+      const listeners = this.eventListeners.get(event);
+      const index = listeners.findIndex(cb => cb === callback);
+      if (index > -1) {
+        listeners.splice(index, 1);
+      }
+      
+      // Remove event entirely if no listeners left
+      if (listeners.length === 0) {
+        this.eventListeners.delete(event);
+      }
+    }
+  }
+
+  // 🔧 Generic emit method for sending events
+  emit(event, data) {
+    if (!this.socket || !this.isConnected) {
+      debugLog('❌ Cannot emit - socket not connected', { event }, 'error');
+      return false;
+    }
+
+    debugLog('📤 Emitting generic event', { event, data }, 'socket');
+    this.socket.emit(event, data);
+    return true;
+  }
+
+  // 🔧 Get connection status (enhanced version)
+  isConnected() {
+    return this.isConnected && this.socket && this.socket.connected;
+  }
 }
 
 // Create and export singleton instance
