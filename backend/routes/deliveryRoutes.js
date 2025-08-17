@@ -25,6 +25,36 @@ const {
 // Import middleware
 const { protectDeliveryAgent } = require('../middleware/authMiddleware');
 
+// ⬇️ YE LINES ADD करें - OTHER ROUTES से पहले
+router.get('/test-direct-stats', (req, res) => {
+  console.log('🔥 DIRECT STATS TEST ROUTE HIT');
+  res.json({ 
+    message: 'Direct stats route working',
+    timestamp: new Date().toISOString()
+  });
+});
+
+router.get('/test-direct-assigned', (req, res) => {
+  console.log('🔥 DIRECT ASSIGNED TEST ROUTE HIT');
+  res.json({ 
+    message: 'Direct assigned route working', 
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 🔥 TEST ROUTE - Add this test route at the top
+router.get('/test-functions', (req, res) => {
+  const controller = require('../controllers/deliveryAgentController');
+  
+  res.json({
+    message: 'Testing controller functions',
+    availableFunctions: Object.keys(controller),
+    hasGetDeliveryStats: typeof controller.getDeliveryStats === 'function',
+    hasGetAssignedOrders: typeof controller.getAssignedOrders === 'function',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // 🎯 VALIDATION RULES
 
 // Registration validation
