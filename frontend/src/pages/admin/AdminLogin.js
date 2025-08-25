@@ -20,13 +20,21 @@ const AdminLogin = () => {
   const location = useLocation();
   const { loginAdmin: loginAdminContext, adminAuth } = useAuth(); // 🎯 FIXED: Renamed for clarity
 
-  // Redirect if already logged in
+  // 🎯 CRITICAL FIX: Check if already authenticated and redirect
   useEffect(() => {
-    if (adminAuth.admin) {
+    console.log('🔍 [AdminLogin] Checking authentication state:', {
+      isAuthenticated: adminAuth?.isAuthenticated,
+      hasAdmin: !!adminAuth?.admin,
+      adminName: adminAuth?.admin?.name,
+      currentPath: location.pathname
+    });
+
+    if (adminAuth?.isAuthenticated && adminAuth?.admin) {
+      console.log('✅ [AdminLogin] Admin already authenticated, redirecting to dashboard');
       const redirectTo = location.state?.from?.pathname || '/admin/dashboard';
       navigate(redirectTo, { replace: true });
     }
-  }, [adminAuth.admin, navigate, location]);
+  }, [adminAuth?.isAuthenticated, adminAuth?.admin, navigate, location.state?.from]);
 
   // Handle input changes
   const handleInputChange = (e) => {
@@ -109,10 +117,12 @@ const AdminLogin = () => {
           localStorage.removeItem('adminEmail');
         }
 
-        // Redirect to intended page or dashboard
-        const redirectTo = location.state?.from?.pathname || '/admin/dashboard';
-        console.log('🔧 Redirecting to:', redirectTo);
-        navigate(redirectTo, { replace: true });
+        // 🎯 CRITICAL FIX: Wait for state update before navigation
+        setTimeout(() => {
+          const redirectTo = location.state?.from?.pathname || '/admin/dashboard';
+          console.log('🎯 [AdminLogin] Redirecting to:', redirectTo);
+          navigate(redirectTo, { replace: true });
+        }, 100);
       } else {
         console.log('❌ Login failed - API response:', apiData);
         toast.error(apiData?.message || 'Login failed');
