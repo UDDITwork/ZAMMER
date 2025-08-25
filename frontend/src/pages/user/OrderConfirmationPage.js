@@ -15,10 +15,26 @@ const OrderConfirmationPage = () => {
     if (location.state?.order) {
       setOrder(location.state.order);
       setLoading(false);
+      console.log('✅ Order data received from navigation state:', location.state.order);
     } else {
-      // If no order data, redirect to dashboard
-      toast.error('No order information found');
-      navigate('/user/dashboard');
+      // 🎯 FIXED: Fallback - try to get order from URL params or redirect to dashboard
+      console.log('⚠️ No order data in navigation state, checking URL params...');
+      
+      // Check if we have order ID in URL params
+      const urlParams = new URLSearchParams(window.location.search);
+      const orderId = urlParams.get('orderId');
+      
+      if (orderId) {
+        console.log('🔍 Found order ID in URL params:', orderId);
+        // You can add a service call here to fetch order by ID if needed
+        // For now, redirect to dashboard
+        toast.error('Order information incomplete. Please check your order history.');
+        navigate('/user/dashboard');
+      } else {
+        // If no order data, redirect to dashboard
+        toast.error('No order information found');
+        navigate('/user/dashboard');
+      }
     }
   }, [location.state, navigate]);
 

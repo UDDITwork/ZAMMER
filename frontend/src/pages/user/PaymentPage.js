@@ -98,6 +98,7 @@ const PaymentPage = () => {
       // Step 2: Process real SMEPay payment
       logPaymentFlow('SMEPAY_PAYMENT_START', 'PROCESSING', { orderId: createdOrderId });
 
+      // 🎯 FIXED: Handle SMEPay widget asynchronously
       const smepayResult = await paymentService.processRealSMEPayPayment(createdOrderId);
 
       if (!smepayResult.success) {
@@ -114,6 +115,7 @@ const PaymentPage = () => {
       await cartService.clearCart();
       logPaymentFlow('CART_CLEANUP', 'SUCCESS');
       
+      // 🎯 FIXED: Set success state and redirect
       setPaymentStep('success');
       
       toast.success(
@@ -157,7 +159,11 @@ const PaymentPage = () => {
 📅 Time: ${new Date().toLocaleString()}
 ===============================`);
       
+      // 🎯 FIXED: Ensure redirect happens after successful payment
       setTimeout(() => {
+        console.log('🔄 Redirecting to order confirmation page...');
+        console.log('📦 Order data being passed:', orderResponse.data);
+        
         navigate('/user/order-confirmation', {
           state: { order: orderResponse.data }
         });

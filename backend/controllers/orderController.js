@@ -1182,3 +1182,140 @@ exports.getOrderInvoice = async (req, res) => {
     });
   }
 };
+
+// @desc    Update order payment status
+// @route   PUT /api/orders/:id/payment-status
+// @access  Private (User)
+exports.updateOrderPaymentStatus = async (req, res) => {
+  try {
+    terminalLog('ORDER_PAYMENT_STATUS_UPDATE_START', 'PROCESSING', {
+      orderId: req.params.id,
+      userId: req.user._id,
+      newStatus: req.body.status
+    });
+
+    console.log(`💳 Updating payment status for order: ${req.params.id} → ${req.body.status}`);
+    
+    const { status, paymentData } = req.body;
+    
+    const validPaymentStatuses = ['pending', 'completed', 'failed', 'cancelled'];
+    if (!validPaymentStatuses.includes(status)) {
+      terminalLog('PAYMENT_STATUS_VALIDATION', 'ERROR', {
+        orderId: req.params.id,
+        invalidStatus: status,
+        validStatuses: validPaymentStatuses
+      });
+      console.log(`❌ Invalid payment status: ${status}`);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payment status'
+      });
+    }
+
+    const order = await Order.findById(req.params.id)
+      .populate('user', 'name email mobileNumber')
+      .populate('orderItems.product', 'name images');
+
+    if (!order) {
+      terminalLog('ORDER_PAYMENT_STATUS_UPDATE', 'ERROR', {
+        orderId: req.params.id,
+        reason: 'order_not_found'
+      });
+      console.log(`❌ Order not found: ${req.params.id}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Check if user owns this order
+    if (order.user._id.toString() !== req.user._id.toString()) {
+      terminalLog('ORDER_PAYMENT_STATUS_UPDATE', 'ERROR', {
+        orderId: req.params.id,
+        reason: 'unauthorized_user',
+        orderUserId: order.user._id.toString(),
+        requestUserId: req.user._id.toString()
+      });
+      console.log(`❌ Unauthorized user access: ${req.params.id}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this order'
+      });
+    }
+
+    const previousPaymentStatus = order.paymentStatus;
+    order.paymentStatus = status;
+    
+    // Update payment details if payment is completed
+    if (status === 'completed' && !order.isPaid) {
+      order.isPaid = true;
+      order.paidAt = new Date();
+      order.paymentResult = {
+        gateway: 'smepay',
+        transactionId: paymentData?.transactionId || 'smepay_' + Date.now(),
+        paidAt: new Date(),
+        paymentMethod: 'SMEPay',
+        paymentData: paymentData
+      };
+
+      console.log(`💰 Order marked as paid: ${order.orderNumber}`);
+    }
+
+    const updatedOrder = await order.save();
+
+    terminalLog('ORDER_PAYMENT_STATUS_UPDATE', 'SUCCESS', {
+      orderId: req.params.id,
+      orderNumber: order.orderNumber,
+      previousPaymentStatus,
+      newPaymentStatus: status,
+      userId: req.user._id,
+      customerName: order.user.name
+    });
+
+    console.log(`
+💳 ===============================
+   PAYMENT STATUS UPDATED!
+===============================
+📦 Order Number: ${order.orderNumber}
+💳 Payment Status: ${previousPaymentStatus} → ${status}
+👤 Customer: ${order.user.name}
+💰 Is Paid: ${order.isPaid}
+📅 Updated: ${new Date().toLocaleString()}
+===============================`);
+
+    // 🎯 Real-time notification to buyer about payment status update
+    emitBuyerNotification(order.user._id, {
+      _id: updatedOrder._id,
+      orderNumber: updatedOrder.orderNumber,
+      paymentStatus: updatedOrder.paymentStatus,
+      isPaid: updatedOrder.isPaid,
+      previousPaymentStatus,
+      updatedAt: updatedOrder.updatedAt
+    }, 'payment-status-update');
+
+    res.status(200).json({
+      success: true,
+      message: 'Order payment status updated successfully',
+      data: {
+        orderId: updatedOrder._id,
+        orderNumber: updatedOrder.orderNumber,
+        paymentStatus: updatedOrder.paymentStatus,
+        isPaid: updatedOrder.isPaid,
+        paidAt: updatedOrder.paidAt
+      }
+    });
+  } catch (error) {
+    terminalLog('ORDER_PAYMENT_STATUS_UPDATE', 'ERROR', {
+      orderId: req.params.id,
+      userId: req.user?._id,
+      error: error.message,
+      stack: error.stack
+    });
+    console.error('❌ Update Order Payment Status Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
