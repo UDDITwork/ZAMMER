@@ -602,8 +602,8 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // 🎯 CRITICAL FIX: Login seller with comprehensive token cleanup
-  const loginSeller = (data) => {
+  // 🎯 CRITICAL FIX: Login seller with comprehensive token cleanup - ASYNC VERSION
+  const loginSeller = async (data) => {
     try {
       debugLog('SELLER LOGIN INITIATED', {
         hasData: !!data,
@@ -632,33 +632,54 @@ export const AuthProvider = ({ children }) => {
       safeRemoveItem('deliveryAgentToken');
       safeRemoveItem('deliveryAgentData');
 
-      // Reset all auth states
+      // Reset all auth states immediately
       setUserAuth({ isAuthenticated: false, user: null, token: null });
       setAdminAuth({ isAuthenticated: false, admin: null, token: null });
       setDeliveryAgentAuth({ isAuthenticated: false, deliveryAgent: null, token: null });
 
-      // Wait a moment for cleanup
-      setTimeout(() => {
-        // Now store the new seller token
-        const tokenStored = safeSetItem('sellerToken', data.token);
-        const dataStored = safeSetItem('sellerData', JSON.stringify(data));
-        
-        if (!tokenStored || !dataStored) {
-          throw new Error('Failed to store seller authentication data');
-        }
-        
-        setSellerAuth({
-          isAuthenticated: true,
-          seller: data,
-          token: data.token,
-        });
+      // 🎯 CRITICAL: Wait for state to clear
+      await new Promise(resolve => setTimeout(resolve, 50));
 
-        debugLog('SELLER LOGIN COMPLETED WITH CLEAN TOKENS', {
-          newTokenLength: data.token.length,
-          sellerId: data._id,
-          sellerName: data.firstName
-        }, 'success');
-      }, 100);
+      // Now store the new seller token
+      const tokenStored = safeSetItem('sellerToken', data.token);
+      const dataStored = safeSetItem('sellerData', JSON.stringify(data));
+      
+      if (!tokenStored || !dataStored) {
+        throw new Error('Failed to store seller authentication data');
+      }
+      
+      // 🎯 CRITICAL: Update React state immediately
+      setSellerAuth({
+        isAuthenticated: true,
+        seller: data,
+        token: data.token,
+      });
+
+      // 🎯 CRITICAL: Double-verify storage
+      const verifyToken = localStorage.getItem('sellerToken');
+      const verifyData = localStorage.getItem('sellerData');
+      
+      debugLog('SELLER LOGIN VERIFICATION', {
+        tokenStored: !!verifyToken,
+        dataStored: !!verifyData,
+        tokensMatch: verifyToken === data.token,
+        tokenLength: verifyToken?.length,
+        stateUpdated: true
+      }, 'success');
+
+      if (!verifyToken || verifyToken !== data.token) {
+        throw new Error('Token verification failed - storage issue');
+      }
+
+      debugLog('SELLER LOGIN COMPLETED SUCCESSFULLY', {
+        sellerId: data._id,
+        sellerName: data.firstName,
+        sellerEmail: data.email,
+        tokenInState: !!data.token,
+        tokenInStorage: !!localStorage.getItem('sellerToken')
+      }, 'success');
+
+      return data;
 
     } catch (error) {
       debugLog('SELLER LOGIN FAILED', { error: error.message }, 'error');

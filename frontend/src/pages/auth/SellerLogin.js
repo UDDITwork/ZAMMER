@@ -1,5 +1,5 @@
-import React, { useState, useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useContext, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
@@ -13,21 +13,48 @@ const LoginSchema = Yup.object().shape({
 
 const SellerLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const { loginSeller: authLoginSeller } = useContext(AuthContext);
+  const { loginSeller: authLoginSeller, sellerAuth } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // 🎯 CRITICAL FIX: Check if already authenticated and redirect
+  useEffect(() => {
+    console.log('🔍 [SellerLogin] Checking authentication state:', {
+      isAuthenticated: sellerAuth?.isAuthenticated,
+      hasSeller: !!sellerAuth?.seller,
+      sellerName: sellerAuth?.seller?.firstName,
+      currentPath: location.pathname
+    });
+
+    if (sellerAuth?.isAuthenticated && sellerAuth?.seller) {
+      console.log('✅ [SellerLogin] Seller already authenticated, redirecting to dashboard');
+      const redirectTo = location.state?.from?.pathname || '/seller/dashboard';
+      navigate(redirectTo, { replace: true });
+    }
+  }, [sellerAuth?.isAuthenticated, sellerAuth?.seller, navigate, location.state?.from]);
 
   const handleSubmit = async (values, { setSubmitting }) => {
     setIsLoading(true);
     try {
+      console.log('🔄 [SellerLogin] Attempting seller login...');
       const response = await loginSeller(values);
+      
       if (response.success) {
-        authLoginSeller(response.data);
+        console.log('✅ [SellerLogin] Server login successful, updating context...');
+        await authLoginSeller(response.data);
         toast.success('Login successful!');
-        navigate('/seller/dashboard');
+        
+        // 🎯 FIXED: Wait for state update before navigation
+        setTimeout(() => {
+          const redirectTo = location.state?.from?.pathname || '/seller/dashboard';
+          console.log('🎯 [SellerLogin] Redirecting to:', redirectTo);
+          navigate(redirectTo, { replace: true });
+        }, 100);
       } else {
         toast.error(response.message || 'Login failed');
       }
     } catch (error) {
+      console.error('❌ [SellerLogin] Login error:', error);
       toast.error(error.message || 'Something went wrong');
     } finally {
       setIsLoading(false);
