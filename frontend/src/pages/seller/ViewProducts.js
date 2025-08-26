@@ -7,7 +7,10 @@ import {
   deleteProduct, 
   toggleLimitedEdition, 
   toggleTrending,
-  updateProductStatus 
+  updateProductStatus,
+  getProductInventory,
+  addProductStock,
+  getLowStockProducts
 } from '../../services/productService';
 import { getProductReviews } from '../../services/reviewService';
 import StarRating from '../../components/common/StarRating';
@@ -25,6 +28,14 @@ const ViewProducts = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [productReviews, setProductReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+
+  // 🎯 NEW: Inventory Management States
+  const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [selectedProductForInventory, setSelectedProductForInventory] = useState(null);
+  const [inventoryData, setInventoryData] = useState(null);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [lowStockProducts, setLowStockProducts] = useState([]);
+  const [showLowStockAlert, setShowLowStockAlert] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -185,6 +196,60 @@ const ViewProducts = () => {
     }
   };
 
+  // 🎯 NEW: Inventory Management Functions
+  const handleViewInventory = async (product) => {
+    setSelectedProductForInventory(product);
+    setShowInventoryModal(true);
+    setInventoryLoading(true);
+    
+    try {
+      const response = await getProductInventory(product._id);
+      if (response.success) {
+        setInventoryData(response.data);
+      } else {
+        toast.error(response.message || 'Failed to fetch inventory data');
+      }
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+      toast.error('Something went wrong while loading inventory data');
+    } finally {
+      setInventoryLoading(false);
+    }
+  };
+
+  const handleAddStock = async (productId, variantUpdates, notes) => {
+    try {
+      const response = await addProductStock(productId, variantUpdates, notes);
+      if (response.success) {
+        toast.success('Stock added successfully');
+        setShowInventoryModal(false);
+        fetchProducts(); // Refresh products to show updated inventory
+      } else {
+        toast.error(response.message || 'Failed to add stock');
+      }
+    } catch (error) {
+      console.error('Error adding stock:', error);
+      toast.error('Something went wrong while adding stock');
+    }
+  };
+
+  const checkLowStockProducts = async () => {
+    try {
+      const response = await getLowStockProducts(1, 5);
+      if (response.success && response.data.products.length > 0) {
+        setLowStockProducts(response.data.products);
+        setShowLowStockAlert(true);
+      }
+    } catch (error) {
+      console.error('Error checking low stock products:', error);
+    }
+  };
+
+  // Check for low stock products on component mount
+  useEffect(() => {
+    checkLowStockProducts();
+  }, []);
+
   // Filter products based on search term and category
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -296,6 +361,46 @@ const ViewProducts = () => {
               </div>
             </div>
           </div>
+
+          {/* 🎯 NEW: Low Stock Alert */}
+          {showLowStockAlert && lowStockProducts.length > 0 && (
+            <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-yellow-800">Low Stock Alert</h3>
+                    <p className="text-yellow-700">You have {lowStockProducts.length} products with low stock</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowLowStockAlert(false)}
+                  className="text-yellow-600 hover:text-yellow-800"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="mt-3 space-y-2">
+                {lowStockProducts.slice(0, 3).map((product) => (
+                  <div key={product._id} className="flex items-center justify-between text-sm">
+                    <span className="text-yellow-800">{product.name}</span>
+                    <span className="text-yellow-600 font-medium">
+                      Stock: {product.inventory?.availableQuantity || 0}
+                    </span>
+                  </div>
+                ))}
+                {lowStockProducts.length > 3 && (
+                  <p className="text-yellow-600 text-sm">... and {lowStockProducts.length - 3} more</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Enhanced Stats Summary */}
           {products.length > 0 && (
@@ -457,7 +562,16 @@ const ViewProducts = () => {
                           
                           <div className="flex justify-between items-center text-sm text-gray-600 mb-6">
                             <span className="font-medium">
-                              Stock: <span className="text-gray-800 font-bold">{product.variants?.reduce((total, variant) => total + (variant.quantity || 0), 0) || 0}</span>
+                              Stock: <span className={`font-bold ${
+                                product.inventory?.availableQuantity <= (product.inventory?.lowStockThreshold || 5)
+                                  ? 'text-red-600'
+                                  : 'text-gray-800'
+                              }`}>
+                                {product.inventory?.availableQuantity || product.variants?.reduce((total, variant) => total + (variant.quantity || 0), 0) || 0}
+                              </span>
+                              {product.inventory?.availableQuantity <= (product.inventory?.lowStockThreshold || 5) && (
+                                <span className="ml-2 text-red-600 text-xs">⚠️ Low Stock</span>
+                              )}
                             </span>
                             <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-medium">
                               {product.category}
@@ -535,6 +649,14 @@ const ViewProducts = () => {
                               className="flex-1 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 shadow-md bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600"
                             >
                               📝 View Reviews
+                            </button>
+                            
+                            {/* 🎯 NEW: Inventory Management Button */}
+                            <button
+                              onClick={() => handleViewInventory(product)}
+                              className="flex-1 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 shadow-md bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600"
+                            >
+                              📦 Manage Stock
                             </button>
                           </div>
                         </div>
@@ -645,7 +767,7 @@ const ViewProducts = () => {
                   <div className="space-y-6">
                     {productReviews.map((review) => (
                       <div key={review._id} className="bg-gray-50 rounded-2xl p-6">
-                        <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-start justify-between mb-6">
                           <div>
                             <div className="flex items-center space-x-3">
                               <h4 className="font-semibold text-gray-800">{review.user.name}</h4>
@@ -675,9 +797,248 @@ const ViewProducts = () => {
               </div>
             </div>
           )}
+
+          {/* 🎯 NEW: Inventory Management Modal */}
+          {showInventoryModal && selectedProductForInventory && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-800">Inventory Management</h3>
+                    <p className="text-gray-600 mt-1">{selectedProductForInventory.name}</p>
+                  </div>
+                  <button
+                    onClick={() => setShowInventoryModal(false)}
+                    className="text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {inventoryLoading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-orange-200 border-t-orange-500"></div>
+                  </div>
+                ) : inventoryData ? (
+                  <div className="space-y-6">
+                    {/* Inventory Summary */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                      <div className="bg-blue-50 p-4 rounded-xl">
+                        <div className="text-2xl font-bold text-blue-600">{inventoryData.totalQuantity}</div>
+                        <div className="text-sm text-blue-600">Total Stock</div>
+                      </div>
+                      <div className="bg-green-50 p-4 rounded-xl">
+                        <div className="text-2xl font-bold text-green-600">{inventoryData.availableQuantity}</div>
+                        <div className="text-sm text-green-600">Available</div>
+                      </div>
+                      <div className="bg-yellow-50 p-4 rounded-xl">
+                        <div className="text-2xl font-bold text-yellow-600">{inventoryData.reservedQuantity}</div>
+                        <div className="text-sm text-yellow-600">Reserved</div>
+                      </div>
+                      <div className="bg-red-50 p-4 rounded-xl">
+                        <div className="text-2xl font-bold text-red-600">{inventoryData.lowStockThreshold}</div>
+                        <div className="text-sm text-red-600">Low Stock Threshold</div>
+                      </div>
+                    </div>
+
+                    {/* Variant Details */}
+                    <div className="bg-gray-50 rounded-2xl p-6">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-4">Variant Stock Levels</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {inventoryData.variants.map((variant, index) => (
+                          <div key={index} className="bg-white p-4 rounded-xl border">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-medium text-gray-800">
+                                {variant.size} - {variant.color}
+                              </span>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                variant.quantity <= inventoryData.lowStockThreshold
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-green-100 text-green-800'
+                              }`}>
+                                {variant.quantity} units
+                              </span>
+                            </div>
+                            {variant.isLowStock && (
+                              <div className="text-xs text-red-600">
+                                ⚠️ Low stock alert
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Add Stock Form */}
+                    <div className="bg-gray-50 rounded-2xl p-6">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-4">Add Stock</h4>
+                      <AddStockForm 
+                        product={selectedProductForInventory}
+                        onAddStock={handleAddStock}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 bg-gray-50 rounded-2xl">
+                    <p className="text-gray-600">Failed to load inventory data.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </SellerLayout>
+  );
+};
+
+// 🎯 NEW: Add Stock Form Component
+const AddStockForm = ({ product, onAddStock }) => {
+  const [variantUpdates, setVariantUpdates] = useState([]);
+  const [notes, setNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleVariantUpdate = (index, field, value) => {
+    const updatedVariants = [...variantUpdates];
+    if (!updatedVariants[index]) {
+      updatedVariants[index] = { size: '', color: '', quantity: 0 };
+    }
+    updatedVariants[index][field] = value;
+    setVariantUpdates(updatedVariants);
+  };
+
+  const addVariantUpdate = () => {
+    setVariantUpdates([...variantUpdates, { size: '', color: '', quantity: 0 }]);
+  };
+
+  const removeVariantUpdate = (index) => {
+    const updatedVariants = variantUpdates.filter((_, i) => i !== index);
+    setVariantUpdates(updatedVariants);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validate form
+    const validUpdates = variantUpdates.filter(update => 
+      update.size && update.color && update.quantity > 0
+    );
+    
+    if (validUpdates.length === 0) {
+      toast.error('Please add at least one valid variant update');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await onAddStock(product._id, validUpdates, notes);
+      setVariantUpdates([]);
+      setNotes('');
+    } catch (error) {
+      console.error('Error adding stock:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Variant Updates */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h5 className="font-medium text-gray-700">Add Stock to Variants</h5>
+          <button
+            type="button"
+            onClick={addVariantUpdate}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-lg text-sm font-medium"
+          >
+            + Add Variant
+          </button>
+        </div>
+        
+        {variantUpdates.map((update, index) => (
+          <div key={index} className="grid grid-cols-4 gap-3 p-3 bg-white rounded-lg border">
+            <select
+              value={update.size || ''}
+              onChange={(e) => handleVariantUpdate(index, 'size', e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">Select Size</option>
+              <option value="XS">XS</option>
+              <option value="S">S</option>
+              <option value="M">M</option>
+              <option value="L">L</option>
+              <option value="XL">XL</option>
+              <option value="2XL">2XL</option>
+              <option value="3XL">3XL</option>
+              <option value="4XL">4XL</option>
+            </select>
+            
+            <input
+              type="text"
+              placeholder="Color"
+              value={update.color || ''}
+              onChange={(e) => handleVariantUpdate(index, 'color', e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+            
+            <input
+              type="number"
+              placeholder="Quantity"
+              value={update.quantity || ''}
+              onChange={(e) => handleVariantUpdate(index, 'quantity', parseInt(e.target.value) || 0)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="1"
+              required
+            />
+            
+            <button
+              type="button"
+              onClick={() => removeVariantUpdate(index)}
+              className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium"
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        
+        {variantUpdates.length === 0 && (
+          <div className="text-center py-4 text-gray-500 text-sm">
+            Click "Add Variant" to start adding stock
+          </div>
+        )}
+      </div>
+
+      {/* Notes */}
+      <div>
+        <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-2">
+          Notes (Optional)
+        </label>
+        <textarea
+          id="notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Add notes about this stock update..."
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          rows="3"
+        />
+      </div>
+
+      {/* Submit Button */}
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          disabled={isSubmitting || variantUpdates.length === 0}
+          className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+        >
+          {isSubmitting ? 'Adding Stock...' : 'Add Stock'}
+        </button>
+      </div>
+    </form>
   );
 };
 

@@ -16,9 +16,58 @@ const VariantSchema = new mongoose.Schema({
   quantity: {
     type: Number,
     required: true,
-    default: 0
+    default: 0,
+    min: 0
   },
   images: [String]
+});
+
+// 🎯 NEW: Inventory History Schema for tracking quantity changes
+const InventoryHistorySchema = new mongoose.Schema({
+  action: {
+    type: String,
+    enum: ['order_placed', 'order_cancelled', 'stock_added', 'stock_adjusted', 'product_created'],
+    required: true
+  },
+  quantity: {
+    type: Number,
+    required: true
+  },
+  previousQuantity: {
+    type: Number,
+    default: 0
+  },
+  newQuantity: {
+    type: Number,
+    required: true
+  },
+  orderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Order',
+    default: null
+  },
+  orderNumber: {
+    type: String,
+    default: null
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  sellerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Seller',
+    default: null
+  },
+  notes: {
+    type: String,
+    default: ''
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now
+  }
 });
 
 const ProductSchema = new mongoose.Schema({
@@ -130,6 +179,57 @@ const ProductSchema = new mongoose.Schema({
   numReviews: {
     type: Number,
     default: 0
+  },
+  
+  // 🎯 NEW: Enhanced Inventory Management Fields
+  inventory: {
+    totalQuantity: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    lowStockThreshold: {
+      type: Number,
+      default: 5,
+      min: 0
+    },
+    isLowStock: {
+      type: Boolean,
+      default: false
+    },
+    lastStockUpdate: {
+      type: Date,
+      default: Date.now
+    },
+    reservedQuantity: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    availableQuantity: {
+      type: Number,
+      default: 0,
+      min: 0
+    }
+  },
+  
+  // 🎯 NEW: Inventory History for tracking all quantity changes
+  inventoryHistory: [InventoryHistorySchema],
+  
+  // 🎯 NEW: Stock alerts and notifications
+  stockAlerts: {
+    lowStockNotified: {
+      type: Boolean,
+      default: false
+    },
+    outOfStockNotified: {
+      type: Boolean,
+      default: false
+    },
+    lastAlertSent: {
+      type: Date,
+      default: null
+    }
   }
 }, {
   timestamps: true,
@@ -137,10 +237,203 @@ const ProductSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Virtual for checking if it's on offer/discount
+// 🎯 NEW: Virtual for checking if it's on offer/discount
 ProductSchema.virtual('onOffer').get(function() {
   return this.mrp > this.zammerPrice;
 });
+
+// 🎯 NEW: Virtual for checking if product is available for purchase
+ProductSchema.virtual('isAvailable').get(function() {
+  return this.status === 'active' && this.inventory.availableQuantity > 0;
+});
+
+// 🎯 NEW: Virtual for checking if product is out of stock
+ProductSchema.virtual('isOutOfStock').get(function() {
+  return this.inventory.availableQuantity <= 0;
+});
+
+// 🎯 NEW: Virtual for checking if product is low on stock
+ProductSchema.virtual('isLowStock').get(function() {
+  return this.inventory.availableQuantity <= this.inventory.lowStockThreshold && this.inventory.availableQuantity > 0;
+});
+
+// 🎯 NEW: Pre-save middleware to update inventory totals and status
+ProductSchema.pre('save', function(next) {
+  // Calculate total quantity from variants
+  if (this.variants && this.variants.length > 0) {
+    this.inventory.totalQuantity = this.variants.reduce((total, variant) => {
+      return total + (variant.quantity || 0);
+    }, 0);
+  } else {
+    this.inventory.totalQuantity = 0;
+  }
+  
+  // Calculate available quantity (total - reserved)
+  this.inventory.availableQuantity = Math.max(0, this.inventory.totalQuantity - this.inventory.reservedQuantity);
+  
+  // Update low stock status
+  this.inventory.isLowStock = this.inventory.availableQuantity <= this.inventory.lowStockThreshold && this.inventory.availableQuantity > 0;
+  
+  // Update product status based on availability
+  if (this.inventory.availableQuantity <= 0) {
+    this.status = 'outOfStock';
+  } else if (this.status === 'outOfStock' && this.inventory.availableQuantity > 0) {
+    this.status = 'active';
+  }
+  
+  // Update last stock update timestamp
+  this.inventory.lastStockUpdate = new Date();
+  
+  next();
+});
+
+// 🎯 NEW: Method to update inventory when order is placed
+ProductSchema.methods.updateInventoryForOrder = async function(orderItems, orderId, orderNumber, userId, action = 'order_placed') {
+  const inventoryUpdates = [];
+  
+  for (const orderItem of orderItems) {
+    // Find the matching variant
+    const variant = this.variants.find(v => 
+      v.size === orderItem.size && 
+      v.color === orderItem.color
+    );
+    
+    if (variant) {
+      const previousQuantity = variant.quantity;
+      let newQuantity = variant.quantity;
+      
+      if (action === 'order_placed') {
+        // Decrease quantity for new order
+        newQuantity = Math.max(0, variant.quantity - orderItem.quantity);
+        variant.quantity = newQuantity;
+      } else if (action === 'order_cancelled') {
+        // Increase quantity for cancelled order
+        newQuantity = variant.quantity + orderItem.quantity;
+        variant.quantity = newQuantity;
+      }
+      
+      // Add to inventory history
+      this.inventoryHistory.push({
+        action,
+        quantity: orderItem.quantity,
+        previousQuantity,
+        newQuantity,
+        orderId,
+        orderNumber,
+        userId,
+        sellerId: this.seller,
+        notes: `${action === 'order_placed' ? 'Order placed' : 'Order cancelled'} - ${orderItem.quantity} units`,
+        timestamp: new Date()
+      });
+      
+      inventoryUpdates.push({
+        variant: `${variant.size}-${variant.color}`,
+        previousQuantity,
+        newQuantity,
+        change: action === 'order_placed' ? -orderItem.quantity : orderItem.quantity
+      });
+    }
+  }
+  
+  // Save the product to trigger pre-save middleware
+  await this.save();
+  
+  return {
+    success: true,
+    inventoryUpdates,
+    newTotalQuantity: this.inventory.totalQuantity,
+    newAvailableQuantity: this.inventory.availableQuantity,
+    status: this.status
+  };
+};
+
+// 🎯 NEW: Method to add stock
+ProductSchema.methods.addStock = async function(variantUpdates, notes = 'Stock added by seller') {
+  const stockUpdates = [];
+  
+  for (const update of variantUpdates) {
+    const variant = this.variants.find(v => 
+      v.size === update.size && 
+      v.color === update.color
+    );
+    
+    if (variant) {
+      const previousQuantity = variant.quantity;
+      const newQuantity = variant.quantity + update.quantity;
+      variant.quantity = newQuantity;
+      
+      // Add to inventory history
+      this.inventoryHistory.push({
+        action: 'stock_added',
+        quantity: update.quantity,
+        previousQuantity,
+        newQuantity,
+        sellerId: this.seller,
+        notes: `${notes} - ${update.quantity} units added to ${update.size}-${update.color}`,
+        timestamp: new Date()
+      });
+      
+      stockUpdates.push({
+        variant: `${update.size}-${update.color}`,
+        previousQuantity,
+        newQuantity,
+        added: update.quantity
+      });
+    }
+  }
+  
+  await this.save();
+  
+  return {
+    success: true,
+    stockUpdates,
+    newTotalQuantity: this.inventory.totalQuantity,
+    newAvailableQuantity: this.inventory.availableQuantity
+  };
+};
+
+// 🎯 NEW: Method to check if product has sufficient stock for order
+ProductSchema.methods.hasSufficientStock = function(orderItems) {
+  for (const orderItem of orderItems) {
+    const variant = this.variants.find(v => 
+      v.size === orderItem.size && 
+      v.color === orderItem.color
+    );
+    
+    if (!variant || variant.quantity < orderItem.quantity) {
+      return {
+        hasStock: false,
+        insufficientVariant: `${orderItem.size}-${orderItem.color}`,
+        available: variant ? variant.quantity : 0,
+        requested: orderItem.quantity
+      };
+    }
+  }
+  
+  return { hasStock: true };
+};
+
+// 🎯 NEW: Method to get inventory summary
+ProductSchema.methods.getInventorySummary = function() {
+  const variantSummary = this.variants.map(variant => ({
+    size: variant.size,
+    color: variant.color,
+    quantity: variant.quantity,
+    isLowStock: variant.quantity <= this.inventory.lowStockThreshold
+  }));
+  
+  return {
+    totalQuantity: this.inventory.totalQuantity,
+    availableQuantity: this.inventory.availableQuantity,
+    reservedQuantity: this.inventory.reservedQuantity,
+    lowStockThreshold: this.inventory.lowStockThreshold,
+    isLowStock: this.inventory.isLowStock,
+    isOutOfStock: this.inventory.availableQuantity <= 0,
+    status: this.status,
+    variants: variantSummary,
+    lastUpdated: this.inventory.lastStockUpdate
+  };
+};
 
 // Indexing for better query performance
 ProductSchema.index({ name: 'text', description: 'text' });
@@ -149,5 +442,9 @@ ProductSchema.index({ seller: 1 });
 ProductSchema.index({ status: 1 });
 ProductSchema.index({ isTrending: 1 });
 ProductSchema.index({ isLimitedEdition: 1 });
+// 🎯 NEW: Inventory-related indexes
+ProductSchema.index({ 'inventory.availableQuantity': 1 });
+ProductSchema.index({ 'inventory.isLowStock': 1 });
+ProductSchema.index({ 'inventory.lastStockUpdate': -1 });
 
 module.exports = mongoose.model('Product', ProductSchema);

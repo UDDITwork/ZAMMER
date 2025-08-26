@@ -18,6 +18,12 @@
  * - searchProducts: Performs text-based product search
  * - deleteImage: Removes images from Cloudinary storage
  * 
+ * 🎯 NEW INVENTORY MANAGEMENT FUNCTIONS:
+ * - getProductInventory: Get inventory summary for a product
+ * - addProductStock: Add stock to product variants
+ * - getProductInventoryHistory: Get inventory change history
+ * - getLowStockProducts: Get products with low stock
+ * 
  * FILTERING LOGIC:
  * The service supports multiple filtering parameters including:
  * - Category filtering (Men, Women, Kids)
@@ -383,6 +389,103 @@ export const bulkUpdateProducts = async (productIds, updateData) => {
   }
 };
 
+// 🎯 NEW: Get product inventory summary
+export const getProductInventory = async (productId) => {
+  try {
+    debugLog('📦 Fetching product inventory', { productId });
+    const response = await api.get(`/products/${productId}/inventory`);
+    debugLog('✅ Product inventory fetched successfully', { 
+      productId,
+      totalQuantity: response.data.data.totalQuantity,
+      availableQuantity: response.data.data.availableQuantity
+    }, 'success');
+    return response.data;
+  } catch (error) {
+    debugLog('❌ Get Product Inventory Error', {
+      productId,
+      message: error.response?.data?.message || error.message
+    }, 'error');
+    throw error.response?.data || error;
+  }
+};
+
+// 🎯 NEW: Add stock to product
+export const addProductStock = async (productId, variantUpdates, notes = '') => {
+  try {
+    debugLog('📦 Adding stock to product', { 
+      productId, 
+      variantCount: variantUpdates.length,
+      totalQuantity: variantUpdates.reduce((sum, v) => sum + v.quantity, 0)
+    });
+    
+    const response = await api.post(`/products/${productId}/add-stock`, {
+      variantUpdates,
+      notes
+    });
+    
+    debugLog('✅ Stock added successfully', {
+      productId,
+      stockUpdates: response.data.data.stockUpdates,
+      newTotalQuantity: response.data.data.newTotalQuantity
+    }, 'success');
+    
+    return response.data;
+  } catch (error) {
+    debugLog('❌ Add Product Stock Error', {
+      productId,
+      message: error.response?.data?.message || error.message,
+      variantUpdates
+    }, 'error');
+    throw error.response?.data || error;
+  }
+};
+
+// 🎯 NEW: Get product inventory history
+export const getProductInventoryHistory = async (productId, page = 1, limit = 20) => {
+  try {
+    debugLog('📦 Fetching product inventory history', { productId, page, limit });
+    const response = await api.get(`/products/${productId}/inventory-history`, {
+      params: { page, limit }
+    });
+    
+    debugLog('✅ Product inventory history fetched successfully', {
+      productId,
+      historyCount: response.data.data.history.length,
+      totalHistory: response.data.data.pagination.totalHistory
+    }, 'success');
+    
+    return response.data;
+  } catch (error) {
+    debugLog('❌ Get Product Inventory History Error', {
+      productId,
+      message: error.response?.data?.message || error.message
+    }, 'error');
+    throw error.response?.data || error;
+  }
+};
+
+// 🎯 NEW: Get low stock products
+export const getLowStockProducts = async (page = 1, limit = 10) => {
+  try {
+    debugLog('📦 Fetching low stock products', { page, limit });
+    const response = await api.get('/products/low-stock', {
+      params: { page, limit }
+    });
+    
+    debugLog('✅ Low stock products fetched successfully', {
+      lowStockCount: response.data.data.products.length,
+      totalLowStock: response.data.data.pagination.totalLowStock
+    }, 'success');
+    
+    return response.data;
+  } catch (error) {
+    debugLog('❌ Get Low Stock Products Error', {
+      message: error.response?.data?.message || error.message
+    }, 'error');
+    throw error.response?.data || error;
+  }
+};
+
 // 🎯 NEW: Delete image from Cloudinary
 export const deleteImage = async (publicId) => {
   try {
@@ -419,6 +522,11 @@ const productService = {
   searchProducts,
   bulkUpdateProducts,
   deleteImage,
+  // 🎯 NEW: Inventory management functions
+  getProductInventory,
+  addProductStock,
+  getProductInventoryHistory,
+  getLowStockProducts
 };
 
 export default productService;

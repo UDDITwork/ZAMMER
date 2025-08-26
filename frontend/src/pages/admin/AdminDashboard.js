@@ -63,19 +63,64 @@ const AdminDashboard = () => {
   const setupSocketConnection = async () => {
     try {
       console.log('🔌 Setting up admin socket connection...');
-      await socketService.connect();
       
-      // Listen for new orders
-      socketService.onNewOrder((data) => {
-        console.log('📦 New order received:', data);
-        toast.success(`New order received: ${data.data.orderNumber}`);
-        fetchRecentOrders(); // Refresh orders
-        fetchDashboardStats(); // Update stats
+      // Connect to socket server
+      await socketService.connect();
+      console.log('✅ Socket connection established');
+      
+      // 🎯 NEW: Join admin room for notifications
+      if (adminAuth.admin?._id) {
+        const joinSuccess = socketService.joinAdminRoom(adminAuth.admin._id);
+        if (joinSuccess) {
+          console.log('✅ Admin room joined:', adminAuth.admin._id);
+        } else {
+          console.warn('⚠️ Failed to join admin room');
+        }
+      } else {
+        console.warn('⚠️ No admin ID available for room joining');
+      }
+      
+      // 🎯 UPDATED: Listen for admin notifications with error handling
+      socketService.onAdminNotification((data) => {
+        console.log('🔧 Admin notification received:', data);
+        
+        try {
+          if (data.data?.orderNumber) {
+            const eventType = data.message?.includes('payment') ? 'payment-completed' : 'new-order';
+            const notificationMessage = eventType === 'payment-completed' 
+              ? `Payment completed for order: ${data.data.orderNumber}`
+              : `New order received: ${data.data.orderNumber}`;
+            
+            toast.success(notificationMessage);
+            
+            // Refresh data based on notification type
+            if (eventType === 'payment-completed') {
+              console.log('🔄 Refreshing data due to payment completion');
+              fetchRecentOrders(); // Refresh orders
+              fetchDashboardStats(); // Update stats
+            } else if (eventType === 'new-order') {
+              console.log('🔄 Refreshing data due to new order');
+              fetchRecentOrders(); // Refresh orders
+              fetchDashboardStats(); // Update stats
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error handling admin notification:', error);
+        }
       });
 
-      console.log('✅ Admin socket connection established');
+      // 🎯 NEW: Add fallback listener for new orders (legacy support)
+      socketService.onNewOrder((data) => {
+        console.log('📦 Legacy new order notification received:', data);
+        toast.success(`New order received: ${data.data?.orderNumber || 'Unknown'}`);
+        fetchRecentOrders();
+        fetchDashboardStats();
+      });
+
+      console.log('✅ Admin socket connection and listeners established');
     } catch (error) {
       console.error('❌ Socket connection failed:', error);
+      toast.error('Real-time notifications unavailable');
     }
   };
 
