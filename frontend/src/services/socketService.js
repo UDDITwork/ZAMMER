@@ -282,6 +282,33 @@ class SocketService {
     return true;
   }
 
+  // 🎯 NEW: Join admin room for notifications
+  joinAdminRoom(adminId) {
+    if (!this.socket || !this.isConnected) {
+      debugLog('❌ Cannot join admin room - socket not connected', { adminId }, 'error');
+      return false;
+    }
+
+    debugLog('🔧 Joining admin room', { adminId }, 'socket');
+    
+    this.userType = 'admin';
+    this.userId = adminId;
+    
+    this.socket.emit('admin-join', adminId);
+    
+    // Listen for join confirmation
+    this.socket.on('admin-joined', (data) => {
+      debugLog('✅ Admin room joined successfully', data, 'success');
+    });
+
+    // Listen for errors
+    this.socket.on('error', (error) => {
+      debugLog('❌ Admin room join error', { error, adminId }, 'error');
+    });
+
+    return true;
+  }
+
   // 🎯 NEW: Listen for order status updates (for buyers)
   onOrderUpdate(callback) {
     if (!this.socket) {
@@ -383,6 +410,43 @@ class SocketService {
     this.eventListeners.set('delivery-assigned', callback);
   }
 
+  // 🎯 NEW: Listen for admin notifications (for admins)
+  onAdminNotification(callback) {
+    if (!this.socket) {
+      debugLog('❌ Cannot listen for admin notifications - socket not initialized', null, 'error');
+      return;
+    }
+
+    debugLog('👂 Setting up admin notification listener', null, 'socket');
+    
+    this.socket.on('new-order', (data) => {
+      debugLog('📦 New order notification received (admin)', {
+        orderId: data.data?._id,
+        orderNumber: data.data?.orderNumber,
+        totalPrice: data.data?.totalPrice
+      }, 'success');
+      
+      if (callback && typeof callback === 'function') {
+        callback(data);
+      }
+    });
+
+    this.socket.on('payment-completed', (data) => {
+      debugLog('💳 Payment completed notification received (admin)', {
+        orderId: data.data?._id,
+        orderNumber: data.data?.orderNumber,
+        paymentStatus: data.data?.paymentStatus
+      }, 'success');
+      
+      if (callback && typeof callback === 'function') {
+        callback(data);
+      }
+    });
+
+    // Store the listener for cleanup
+    this.eventListeners.set('admin-notification', callback);
+  }
+
   // 🎯 NEW: Listen for invoice ready notifications
   onInvoiceReady(callback) {
     if (!this.socket) {
@@ -461,8 +525,32 @@ class SocketService {
       const sellerData = localStorage.getItem('sellerData');
       const deliveryToken = localStorage.getItem('deliveryAgentToken');
       const deliveryData = localStorage.getItem('deliveryAgentData');
+      const adminToken = localStorage.getItem('adminToken'); // 🎯 NEW: Admin token
+      const adminData = localStorage.getItem('adminData'); // 🎯 NEW: Admin data
 
-      // Try user authentication first
+      // Try admin authentication first (highest priority)
+      if (adminToken && adminData) {
+        try {
+          const admin = JSON.parse(adminData);
+          debugLog('🔄 Auto-connecting as admin', { adminId: admin._id, adminName: admin.name }, 'socket');
+          
+          if (!this.isConnected) {
+            this.connect().then(() => {
+              this.joinAdminRoom(admin._id);
+              resolve({ type: 'admin', admin });
+            }).catch(reject);
+          } else {
+            this.joinAdminRoom(admin._id);
+            resolve({ type: 'admin', admin });
+          }
+          
+          return;
+        } catch (error) {
+          debugLog('❌ Invalid admin data', error, 'error');
+        }
+      }
+
+      // Try user authentication
       if (userToken && userData) {
         try {
           const user = JSON.parse(userData);

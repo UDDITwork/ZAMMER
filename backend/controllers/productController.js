@@ -1089,6 +1089,248 @@ const updateProductStatus = async (req, res) => {
   }
 };
 
+// 🎯 NEW: Get product inventory summary
+// @route   GET /api/products/:id/inventory
+// @access  Private (Seller)
+const getProductInventory = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const sellerId = req.seller._id;
+
+    const product = await Product.findOne({
+      _id: productId,
+      seller: sellerId
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found or unauthorized'
+      });
+    }
+
+    const inventorySummary = product.getInventorySummary();
+
+    logProductQuery('GET_PRODUCT_INVENTORY', {
+      productId: productId,
+      sellerId: sellerId.toString()
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      data: inventorySummary,
+      message: 'Product inventory retrieved successfully'
+    });
+  } catch (error) {
+    logProductQuery('GET_PRODUCT_INVENTORY_ERROR', { 
+      productId: req.params.id,
+      error: error.message 
+    }, 'error');
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving product inventory',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// 🎯 NEW: Add stock to product
+// @route   POST /api/products/:id/add-stock
+// @access  Private (Seller)
+const addProductStock = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const sellerId = req.seller._id;
+    const { variantUpdates, notes } = req.body;
+
+    if (!variantUpdates || !Array.isArray(variantUpdates) || variantUpdates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Variant updates are required and must be an array'
+      });
+    }
+
+    const product = await Product.findOne({
+      _id: productId,
+      seller: sellerId
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found or unauthorized'
+      });
+    }
+
+    // Validate variant updates
+    for (const update of variantUpdates) {
+      if (!update.size || !update.color || !update.quantity || update.quantity <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Each variant update must include size, color, and positive quantity'
+        });
+      }
+    }
+
+    const stockResult = await product.addStock(variantUpdates, notes || 'Stock added by seller');
+
+    logProductQuery('ADD_PRODUCT_STOCK', {
+      productId: productId,
+      sellerId: sellerId.toString(),
+      updatesCount: variantUpdates.length
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      data: stockResult,
+      message: 'Stock added successfully'
+    });
+  } catch (error) {
+    logProductQuery('ADD_PRODUCT_STOCK_ERROR', { 
+      productId: req.params.id,
+      error: error.message 
+    }, 'error');
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error adding stock to product',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// 🎯 NEW: Get inventory history for product
+// @route   GET /api/products/:id/inventory-history
+// @access  Private (Seller)
+const getProductInventoryHistory = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const sellerId = req.seller._id;
+    const { page = 1, limit = 20 } = req.query;
+
+    const product = await Product.findOne({
+      _id: productId,
+      seller: sellerId
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found or unauthorized'
+      });
+    }
+
+    const pageNumber = parseInt(page) || 1;
+    const pageSize = parseInt(limit) || 20;
+    const skip = (pageNumber - 1) * pageSize;
+
+    // Get paginated inventory history
+    const history = product.inventoryHistory
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(skip, skip + pageSize);
+
+    const totalHistory = product.inventoryHistory.length;
+    const totalPages = Math.ceil(totalHistory / pageSize);
+
+    logProductQuery('GET_PRODUCT_INVENTORY_HISTORY', {
+      productId: productId,
+      sellerId: sellerId.toString(),
+      historyCount: history.length,
+      totalHistory
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      data: {
+        history,
+        pagination: {
+          currentPage: pageNumber,
+          totalPages,
+          totalHistory,
+          hasNextPage: pageNumber < totalPages,
+          hasPrevPage: pageNumber > 1
+        }
+      },
+      message: 'Product inventory history retrieved successfully'
+    });
+  } catch (error) {
+    logProductQuery('GET_PRODUCT_INVENTORY_HISTORY_ERROR', { 
+      productId: req.params.id,
+      error: error.message 
+    }, 'error');
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving product inventory history',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// 🎯 NEW: Get low stock products for seller
+// @route   GET /api/products/low-stock
+// @access  Private (Seller)
+const getLowStockProducts = async (req, res) => {
+  try {
+    const sellerId = req.seller._id;
+    const { page = 1, limit = 10 } = req.query;
+
+    const pageNumber = parseInt(page) || 1;
+    const pageSize = parseInt(limit) || 10;
+    const skip = (pageNumber - 1) * pageSize;
+
+    const lowStockProducts = await Product.find({
+      seller: sellerId,
+      'inventory.isLowStock': true,
+      status: { $ne: 'outOfStock' }
+    })
+    .sort({ 'inventory.availableQuantity': 1 })
+    .skip(skip)
+    .limit(pageSize);
+
+    const totalLowStock = await Product.countDocuments({
+      seller: sellerId,
+      'inventory.isLowStock': true,
+      status: { $ne: 'outOfStock' }
+    });
+
+    const totalPages = Math.ceil(totalLowStock / pageSize);
+
+    logProductQuery('GET_LOW_STOCK_PRODUCTS', {
+      sellerId: sellerId.toString(),
+      lowStockCount: lowStockProducts.length,
+      totalLowStock
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      data: {
+        products: lowStockProducts,
+        pagination: {
+          currentPage: pageNumber,
+          totalPages,
+          totalLowStock,
+          hasNextPage: pageNumber < totalPages,
+          hasPrevPage: pageNumber > 1
+        }
+      },
+      message: `Found ${totalLowStock} products with low stock`
+    });
+  } catch (error) {
+    logProductQuery('GET_LOW_STOCK_PRODUCTS_ERROR', { 
+      sellerId: req.seller?._id,
+      error: error.message 
+    }, 'error');
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving low stock products',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   createProduct,
   getSellerProducts,
@@ -1101,5 +1343,9 @@ module.exports = {
   toggleTrending,
   updateProductStatus,
   getLimitedEditionProducts,
-  getTrendingProducts
+  getTrendingProducts,
+  getProductInventory,
+  addProductStock,
+  getProductInventoryHistory,
+  getLowStockProducts
 };

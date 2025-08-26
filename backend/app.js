@@ -122,6 +122,7 @@ const io = socketIo(server, {
 const connectedSellers = new Map();
 const connectedBuyers = new Map();
 const connectedDeliveryAgents = new Map();
+const connectedAdmins = new Map(); // 🎯 NEW: Track connected admins
 
 io.on('connection', (socket) => {
   console.log(`🔌 Socket connected: ${socket.id} | Origin: ${socket.handshake.headers.origin}`);
@@ -150,6 +151,20 @@ io.on('connection', (socket) => {
       success: true,
       message: 'Connected to order status updates',
       userId,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // 🎯 NEW: Admin room joining
+  socket.on('admin-join', (adminId) => {
+    console.log(`🔧 Admin ${adminId} joined room`);
+    socket.join('admin-room'); // All admins join the same room
+    connectedAdmins.set(adminId, socket.id);
+    
+    socket.emit('admin-joined', {
+      success: true,
+      message: 'Connected to admin notifications',
+      adminId,
       timestamp: new Date().toISOString()
     });
   });
@@ -210,6 +225,15 @@ io.on('connection', (socket) => {
         break;
       }
     }
+
+    // 🎯 NEW: Clean up admin connections
+    for (const [adminId, socketId] of connectedAdmins.entries()) {
+      if (socketId === socket.id) {
+        connectedAdmins.delete(adminId);
+        console.log(`🔧 Admin ${adminId} disconnected`);
+        break;
+      }
+    }
   });
 });
 
@@ -262,6 +286,23 @@ global.emitToDeliveryAgent = (agentId, event, data) => {
     }
   } catch (error) {
     console.error('❌ Error emitting to delivery agent:', error);
+  }
+};
+
+// 🎯 NEW: Global admin notification function
+global.emitToAdmin = (event, data) => {
+  try {
+    if (io && connectedAdmins.size > 0) {
+      io.to('admin-room').emit(event, {
+        success: true,
+        message: `Admin notification: ${event}`,
+        data: data,
+        timestamp: new Date().toISOString()
+      });
+      console.log(`📤 Emitted ${event} to ${connectedAdmins.size} connected admins`);
+    }
+  } catch (error) {
+    console.error('❌ Error emitting to admin:', error);
   }
 };
 

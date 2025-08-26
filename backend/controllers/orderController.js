@@ -192,6 +192,84 @@ const emitBuyerNotification = (userId, orderData, eventType = 'order-status-upda
   }
 };
 
+// 🎯 NEW: Emit real-time notification to admin
+const emitAdminNotification = (orderData, eventType = 'payment-completed') => {
+  try {
+    terminalLog('SOCKET_EMIT_ADMIN_START', 'PROCESSING', {
+      eventType,
+      orderNumber: orderData.orderNumber,
+      paymentStatus: orderData.paymentStatus
+    });
+
+    console.log(`🔧 [ADMIN-NOTIFICATION] Starting admin notification for ${eventType}`);
+    console.log(`🔧 [ADMIN-NOTIFICATION] Order: ${orderData.orderNumber}`);
+    console.log(`🔧 [ADMIN-NOTIFICATION] Global.io available: ${!!global.io}`);
+    console.log(`🔧 [ADMIN-NOTIFICATION] Global.emitToAdmin available: ${!!global.emitToAdmin}`);
+
+    // Check if Socket.io is available
+    if (global.io && global.emitToAdmin) {
+      console.log(`📡 Emitting ${eventType} notification to admin`);
+      
+      // Use the new global function
+      global.emitToAdmin(eventType, orderData);
+      
+      terminalLog('SOCKET_EMIT_ADMIN_SUCCESS', 'SUCCESS', {
+        eventType,
+        orderNumber: orderData.orderNumber,
+        paymentStatus: orderData.paymentStatus,
+        roomName: 'admin-room'
+      });
+
+      // 🎯 Enhanced success logging for real-time tracking
+      if (eventType === 'payment-completed') {
+        console.log(`
+🔔 ===============================
+   ADMIN PAYMENT NOTIFICATION SENT!
+===============================
+📦 Order Number: ${orderData.orderNumber}
+💰 Amount: ₹${orderData.totalPrice}
+👤 Customer: ${orderData.user?.name}
+🏪 Seller: ${orderData.seller?.firstName}
+💳 Payment Status: ${orderData.paymentStatus}
+🕐 Time: ${new Date().toLocaleString()}
+📡 Socket Room: admin-room
+===============================`);
+      } else if (eventType === 'new-order') {
+        console.log(`
+🔔 ===============================
+   ADMIN NEW ORDER NOTIFICATION SENT!
+===============================
+📦 Order Number: ${orderData.orderNumber}
+💰 Amount: ₹${orderData.totalPrice}
+👤 Customer: ${orderData.user?.name}
+🏪 Seller: ${orderData.seller?.firstName}
+📋 Status: ${orderData.status}
+🕐 Time: ${new Date().toLocaleString()}
+📡 Socket Room: admin-room
+===============================`);
+      }
+      
+    } else {
+      terminalLog('SOCKET_EMIT_ADMIN_ERROR', 'ERROR', {
+        reason: 'socket_io_not_available',
+        eventType,
+        hasGlobalIo: !!global.io,
+        hasGlobalEmitToAdmin: !!global.emitToAdmin
+      });
+      console.warn('⚠️ Socket.io not available for admin notifications');
+      console.warn(`⚠️ Global.io: ${!!global.io}`);
+      console.warn(`⚠️ Global.emitToAdmin: ${!!global.emitToAdmin}`);
+    }
+  } catch (error) {
+    terminalLog('SOCKET_EMIT_ADMIN_ERROR', 'ERROR', {
+      eventType,
+      error: error.message,
+      stack: error.stack
+    });
+    console.error('❌ Error emitting admin notification:', error);
+  }
+};
+
 // 🎯 NEW: Send email notification to buyer
 const sendEmailNotification = async (userEmail, orderData, eventType) => {
   try {
@@ -412,9 +490,74 @@ exports.createOrder = async (req, res) => {
     const finalSellerId = sellerId || sellers[0];
     console.log(`✅ STEP 2 COMPLETE: All products verified, Seller ID: ${finalSellerId}`);
 
+    // 🎯 NEW: STEP 2.5 - Inventory Validation
+    terminalLog('STEP_2_5_INVENTORY_VALIDATION', 'PROCESSING', { step: 'Inventory Stock Check' });
+    console.log('🔍 STEP 2.5: Validating inventory availability...');
+
+    const inventoryValidationResults = [];
+    const insufficientStockItems = [];
+
+    for (let i = 0; i < products.length; i++) {
+      const product = products[i];
+      const orderItem = orderItems[i];
+      
+      console.log(`📦 Checking inventory for product: ${product.name} (${orderItem.size}-${orderItem.color})`);
+      
+      // Check if product has sufficient stock
+      const stockCheck = product.hasSufficientStock([orderItem]);
+      
+      if (!stockCheck.hasStock) {
+        insufficientStockItems.push({
+          productId: product._id,
+          productName: product.name,
+          size: orderItem.size,
+          color: orderItem.color,
+          requested: orderItem.quantity,
+          available: stockCheck.available,
+          insufficientVariant: stockCheck.insufficientVariant
+        });
+        
+        console.log(`❌ INSUFFICIENT STOCK: ${product.name} - ${stockCheck.insufficientVariant}`);
+        console.log(`   Requested: ${orderItem.quantity}, Available: ${stockCheck.available}`);
+      } else {
+        console.log(`✅ SUFFICIENT STOCK: ${product.name} - ${orderItem.size}-${orderItem.color}`);
+        console.log(`   Requested: ${orderItem.quantity}, Available: ${product.variants.find(v => v.size === orderItem.size && v.color === orderItem.color)?.quantity || 0}`);
+      }
+      
+      inventoryValidationResults.push({
+        productId: product._id,
+        productName: product.name,
+        hasStock: stockCheck.hasStock,
+        details: stockCheck
+      });
+    }
+
+    // If any product has insufficient stock, return error
+    if (insufficientStockItems.length > 0) {
+      terminalLog('INVENTORY_VALIDATION', 'ERROR', {
+        reason: 'insufficient_stock',
+        insufficientItems: insufficientStockItems
+      });
+      
+      console.log('❌ STEP 2.5 FAILED: Insufficient stock for some products');
+      console.log('📋 Insufficient stock items:', insufficientStockItems);
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Some products have insufficient stock',
+        insufficientStock: insufficientStockItems,
+        details: insufficientStockItems.map(item => 
+          `${item.productName} (${item.size}-${item.color}): Requested ${item.requested}, Available ${item.available}`
+        )
+      });
+    }
+
+    console.log(`✅ STEP 2.5 COMPLETE: All products have sufficient stock`);
+
     terminalLog('VALIDATION_SUCCESS', 'SUCCESS', {
       productCount: products.length,
-      sellerId: finalSellerId
+      sellerId: finalSellerId,
+      inventoryValidated: true
     });
 
     // 🎯 CRITICAL FIX: Generate order number BEFORE creating order object
@@ -510,12 +653,72 @@ exports.createOrder = async (req, res) => {
 
     console.log(`✅ STEP 6 COMPLETE: Order populated successfully`);
 
+    // 🎯 NEW: STEP 6.5 - Update Inventory
+    terminalLog('STEP_6_5_INVENTORY_UPDATE', 'PROCESSING', {
+      step: 'Inventory Management',
+      orderId: createdOrder._id,
+      orderNumber: createdOrder.orderNumber
+    });
+    console.log('🔍 STEP 6.5: Updating product inventory...');
+
+    const inventoryUpdateResults = [];
+
+    try {
+      for (let i = 0; i < products.length; i++) {
+        const product = products[i];
+        const orderItem = orderItems[i];
+        
+        console.log(`📦 Updating inventory for: ${product.name} (${orderItem.size}-${orderItem.color})`);
+        
+        // Update inventory for this product
+        const inventoryResult = await product.updateInventoryForOrder(
+          [orderItem],
+          createdOrder._id,
+          createdOrder.orderNumber,
+          req.user._id,
+          'order_placed'
+        );
+        
+        console.log(`✅ Inventory updated for ${product.name}:`, {
+          totalQuantity: inventoryResult.newTotalQuantity,
+          availableQuantity: inventoryResult.newAvailableQuantity,
+          status: inventoryResult.status,
+          updates: inventoryResult.inventoryUpdates
+        });
+        
+        inventoryUpdateResults.push({
+          productId: product._id,
+          productName: product.name,
+          success: true,
+          result: inventoryResult
+        });
+      }
+      
+      console.log(`✅ STEP 6.5 COMPLETE: All inventory updates successful`);
+      
+    } catch (inventoryError) {
+      console.error('❌ STEP 6.5 FAILED: Inventory update error:', inventoryError);
+      
+      // Log the error but don't fail the order creation
+      // The order is already created, so we'll handle this gracefully
+      terminalLog('INVENTORY_UPDATE_ERROR', 'ERROR', {
+        orderId: createdOrder._id,
+        error: inventoryError.message
+      });
+      
+      inventoryUpdateResults.push({
+        success: false,
+        error: inventoryError.message
+      });
+    }
+
     terminalLog('ORDER_CREATE_SUCCESS', 'SUCCESS', {
       orderId: populatedOrder._id,
       orderNumber: populatedOrder.orderNumber,
       sellerId: populatedOrder.seller._id,
       totalPrice: populatedOrder.totalPrice,
-      customerName: populatedOrder.user.name
+      customerName: populatedOrder.user.name,
+      inventoryUpdated: inventoryUpdateResults.every(result => result.success)
     });
 
     // 🎯 MAJOR SUCCESS DISPLAY
@@ -558,6 +761,9 @@ exports.createOrder = async (req, res) => {
       seller: populatedOrder.seller,
       createdAt: populatedOrder.createdAt
     }, 'order-created');
+
+    // 🎯 NEW: Real-time notification to admin about new order
+    emitAdminNotification(populatedOrder, 'new-order');
 
     // 🎯 Send email notification to buyer
     sendEmailNotification(populatedOrder.user.email, populatedOrder, 'order-created');
@@ -889,6 +1095,54 @@ exports.updateOrderStatus = async (req, res) => {
 
     const previousStatus = order.status;
     order.status = status;
+    
+    // 🎯 NEW: Handle inventory updates for cancellations
+    if (status === 'Cancelled' && previousStatus !== 'Cancelled') {
+      console.log(`🔄 Order cancelled - updating inventory for: ${order.orderNumber}`);
+      
+      try {
+        // Get all products in the order
+        const productIds = order.orderItems.map(item => item.product);
+        const products = await Product.find({ _id: { $in: productIds } });
+        
+        console.log(`📦 Restoring inventory for ${products.length} products`);
+        
+        // Update inventory for each product
+        for (let i = 0; i < products.length; i++) {
+          const product = products[i];
+          const orderItem = order.orderItems[i];
+          
+          console.log(`📦 Restoring inventory for: ${product.name} (${orderItem.size}-${orderItem.color})`);
+          
+          // Restore inventory for cancelled order
+          const inventoryResult = await product.updateInventoryForOrder(
+            [orderItem],
+            order._id,
+            order.orderNumber,
+            order.user,
+            'order_cancelled'
+          );
+          
+          console.log(`✅ Inventory restored for ${product.name}:`, {
+            totalQuantity: inventoryResult.newTotalQuantity,
+            availableQuantity: inventoryResult.newAvailableQuantity,
+            status: inventoryResult.status,
+            updates: inventoryResult.inventoryUpdates
+          });
+        }
+        
+        console.log(`✅ Inventory restoration completed for cancelled order`);
+        
+      } catch (inventoryError) {
+        console.error('❌ Inventory restoration error for cancelled order:', inventoryError);
+        terminalLog('INVENTORY_RESTORATION_ERROR', 'ERROR', {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          error: inventoryError.message
+        });
+        // Continue with order cancellation even if inventory update fails
+      }
+    }
     
     if (status === 'Delivered') {
       order.isDelivered = true;
@@ -1292,6 +1546,9 @@ exports.updateOrderPaymentStatus = async (req, res) => {
       previousPaymentStatus,
       updatedAt: updatedOrder.updatedAt
     }, 'payment-status-update');
+
+    // 🎯 Real-time notification to admin about payment completion
+    emitAdminNotification(updatedOrder, 'payment-completed');
 
     res.status(200).json({
       success: true,
