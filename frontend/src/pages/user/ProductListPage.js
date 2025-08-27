@@ -5,6 +5,7 @@ import UserLayout from '../../components/layouts/UserLayout';
 import { getMarketplaceProducts } from '../../services/productService';
 import { AuthContext } from '../../contexts/AuthContext';
 import cartService from '../../services/cartService';
+import WishlistButton from '../../components/common/WishlistButton';
 
 // Enhanced terminal logging for production monitoring
 const terminalLog = (action, status, data = null) => {
@@ -490,6 +491,15 @@ const ProductListPage = () => {
                         {/* Category Badge */}
                         <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm text-gray-700 text-xs px-3 py-1 rounded-full font-medium border border-white/50">
                           {product.subCategory || product.category}
+                        </div>
+                        
+                        {/* Wishlist Button */}
+                        <div className="absolute top-3 left-3 z-10">
+                          <WishlistButton 
+                            productId={product._id} 
+                            size="sm"
+                            className="shadow-lg"
+                          />
                         </div>
                       </div>
                     </Link>

@@ -505,6 +505,86 @@ export const deleteImage = async (publicId) => {
   }
 };
 
+// 🎯 NEW: Wishlist functions for product pages
+export const addToWishlist = async (productId) => {
+  try {
+    debugLog('❤️ Adding product to wishlist', { productId }, 'info');
+    
+    const response = await api.post('/users/wishlist', { productId });
+    
+    debugLog('✅ Product added to wishlist successfully', { productId }, 'success');
+    
+    return {
+      success: true,
+      message: response.data.message || 'Added to wishlist successfully'
+    };
+  } catch (error) {
+    debugLog('❌ Add to wishlist error', {
+      productId,
+      message: error.response?.data?.message || error.message
+    }, 'error');
+    
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to add to wishlist'
+    };
+  }
+};
+
+export const removeFromWishlist = async (productId) => {
+  try {
+    debugLog('🗑️ Removing product from wishlist', { productId }, 'info');
+    
+    const response = await api.delete(`/users/wishlist/${productId}`);
+    
+    debugLog('✅ Product removed from wishlist successfully', { productId }, 'success');
+    
+    return {
+      success: true,
+      message: response.data.message || 'Removed from wishlist successfully'
+    };
+  } catch (error) {
+    debugLog('❌ Remove from wishlist error', {
+      productId,
+      message: error.response?.data?.message || error.message
+    }, 'error');
+    
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to remove from wishlist'
+    };
+  }
+};
+
+export const checkWishlistStatus = async (productId) => {
+  try {
+    debugLog('🔍 Checking wishlist status', { productId }, 'info');
+    
+    const response = await api.get(`/users/wishlist/check/${productId}`);
+    
+    debugLog('✅ Wishlist status checked', {
+      productId,
+      isInWishlist: response.data.data.isInWishlist
+    }, 'success');
+    
+    return {
+      success: true,
+      data: response.data.data
+    };
+  } catch (error) {
+    debugLog('❌ Check wishlist status error', {
+      productId,
+      message: error.response?.data?.message || error.message
+    }, 'error');
+    
+    // Return graceful fallback for wishlist check
+    return {
+      success: true,
+      data: { isInWishlist: false }
+    };
+  }
+};
+
 // Default export
 const productService = {
   createProduct,
@@ -526,7 +606,11 @@ const productService = {
   getProductInventory,
   addProductStock,
   getProductInventoryHistory,
-  getLowStockProducts
+  getLowStockProducts,
+  // 🎯 NEW: Wishlist functions
+  addToWishlist,
+  removeFromWishlist,
+  checkWishlistStatus
 };
 
 export default productService;
