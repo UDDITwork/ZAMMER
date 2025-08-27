@@ -4,12 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getMarketplaceProducts } from '../../services/productService';
-import { addToWishlist, removeFromWishlist, checkWishlist } from '../../services/wishlistService';
+import { addToWishlist, removeFromWishlist, checkWishlistStatus } from '../../services/productService';
+import WishlistButton from '../../components/common/WishlistButton';
 
 const ShopOffersPage = () => {
   const [offerProducts, setOfferProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [wishlist, setWishlist] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -29,18 +29,6 @@ const ShopOffersPage = () => {
       
       if (response.success) {
         setOfferProducts(response.data);
-        
-        // Check wishlist status for each product
-        const wishlistStatus = {};
-        for (const product of response.data) {
-          try {
-            const result = await checkWishlist(product._id);
-            wishlistStatus[product._id] = result.data.isInWishlist;
-          } catch (error) {
-            wishlistStatus[product._id] = false;
-          }
-        }
-        setWishlist(wishlistStatus);
       } else {
         toast.error(response.message || 'Failed to fetch offer products');
       }
@@ -52,21 +40,7 @@ const ShopOffersPage = () => {
     }
   };
 
-  const toggleWishlist = async (productId) => {
-    try {
-      if (wishlist[productId]) {
-        await removeFromWishlist(productId);
-        setWishlist({...wishlist, [productId]: false});
-        toast.success('Removed from wishlist');
-      } else {
-        await addToWishlist(productId);
-        setWishlist({...wishlist, [productId]: true});
-        toast.success('Added to wishlist');
-      }
-    } catch (error) {
-      toast.error('Failed to update wishlist');
-    }
-  };
+
 
   return (
     <div className="shop-offers-page pb-16">
@@ -100,24 +74,13 @@ const ShopOffersPage = () => {
                   ) : (
                     <div className="h-full w-full flex items-center justify-center text-gray-400">No image</div>
                   )}
-                  <button 
-                    className="absolute top-2 right-2 z-10"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      toggleWishlist(product._id);
-                    }}
-                  >
-                    {wishlist[product._id] ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                      </svg>
-                    )}
-                  </button>
+                  <div className="absolute top-2 right-2 z-10">
+                    <WishlistButton 
+                      productId={product._id} 
+                      size="sm"
+                      className="shadow-lg"
+                    />
+                  </div>
                 </Link>
                 
                 <div className="p-3">

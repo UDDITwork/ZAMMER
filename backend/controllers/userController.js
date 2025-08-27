@@ -573,10 +573,10 @@ const getWishlist = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
       .populate({
-        path: 'wishlist',
+        path: 'wishlist.product',
         populate: {
           path: 'seller',
-          select: 'shop.name'
+          select: 'firstName shop.name'
         }
       });
 
@@ -589,6 +589,7 @@ const getWishlist = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      count: user.wishlist.length,
       data: user.wishlist
     });
 
@@ -618,20 +619,28 @@ const addToWishlist = async (req, res) => {
     }
 
     // Check if product already in wishlist
-    if (user.wishlist.includes(productId)) {
+    const existingItem = user.wishlist.find(item => 
+      item.product.toString() === productId.toString()
+    );
+    
+    if (existingItem) {
       return res.status(400).json({
         success: false,
         message: 'Product already in wishlist'
       });
     }
 
-    user.wishlist.push(productId);
+    // Add product to wishlist with timestamp
+    user.wishlist.push({
+      product: productId,
+      addedAt: new Date()
+    });
+    
     await user.save();
 
     res.status(200).json({
       success: true,
-      message: 'Product added to wishlist',
-      data: user.wishlist
+      message: 'Product added to wishlist successfully'
     });
 
   } catch (error) {
@@ -659,13 +668,16 @@ const removeFromWishlist = async (req, res) => {
       });
     }
 
-    user.wishlist = user.wishlist.filter(id => id.toString() !== productId);
+    // Remove product from wishlist
+    user.wishlist = user.wishlist.filter(item => 
+      item.product.toString() !== productId.toString()
+    );
+    
     await user.save();
 
     res.status(200).json({
       success: true,
-      message: 'Product removed from wishlist',
-      data: user.wishlist
+      message: 'Product removed from wishlist successfully'
     });
 
   } catch (error) {
@@ -693,7 +705,10 @@ const checkWishlist = async (req, res) => {
       });
     }
 
-    const isInWishlist = user.wishlist.includes(productId);
+    // Check if product exists in wishlist
+    const isInWishlist = user.wishlist.some(item => 
+      item.product.toString() === productId.toString()
+    );
 
     res.status(200).json({
       success: true,

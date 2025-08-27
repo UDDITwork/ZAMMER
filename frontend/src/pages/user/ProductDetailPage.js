@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import StarRating from '../../components/common/StarRating';
 import { getProductById } from '../../services/productService';
 import cartService from '../../services/cartService';
-import { addToWishlist, removeFromWishlist, checkWishlist } from '../../services/wishlistService';
+import { addToWishlist, removeFromWishlist, checkWishlistStatus } from '../../services/productService';
 import { AuthContext } from '../../contexts/AuthContext';
 import { 
   getProductReviews, 
@@ -143,7 +143,7 @@ const ProductDetailPage = () => {
 
     setWishlistLoading(true);
     try {
-      const response = await checkWishlist(productId);
+      const response = await checkWishlistStatus(productId);
       if (response.success) {
         setInWishlist(response.data.isInWishlist);
       } else {
@@ -331,11 +331,7 @@ const ProductDetailPage = () => {
           setInWishlist(false);
           toast.success('Removed from wishlist');
         } else {
-          if (response.requiresAuth) {
-            checkAuth(); // This will redirect to login
-          } else {
-            toast.error(response.message || 'Failed to remove from wishlist');
-          }
+          toast.error(response.message || 'Failed to remove from wishlist');
         }
       } else {
         const response = await addToWishlist(productId);
@@ -343,11 +339,7 @@ const ProductDetailPage = () => {
           setInWishlist(true);
           toast.success('Added to wishlist');
         } else {
-          if (response.requiresAuth) {
-            checkAuth(); // This will redirect to login
-          } else {
-            toast.error(response.message || 'Failed to add to wishlist');
-          }
+          toast.error(response.message || 'Failed to add to wishlist');
         }
       }
     } catch (error) {
