@@ -8,6 +8,7 @@ import { AuthContext } from '../../contexts/AuthContext';
 import { getMarketplaceProducts } from '../../services/productService';
 import { getNearbyShops } from '../../services/userService';
 import StarRating from '../../components/common/StarRating';
+import WishlistButton from '../../components/common/WishlistButton';
 
 const HomePage = () => {
   const { userAuth } = useContext(AuthContext);
@@ -243,6 +244,14 @@ const HomePage = () => {
                 offerProducts.map((product) => (
                   <div key={product._id} className="flex-shrink-0 w-80">
                     <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-6 h-44 relative overflow-hidden border border-orange-100 hover:shadow-lg transition-all duration-300 group">
+                      {/* Wishlist Button */}
+                      <div className="absolute top-3 right-3 z-20">
+                        <WishlistButton 
+                          productId={product._id} 
+                          size="sm"
+                          className="shadow-lg"
+                        />
+                      </div>
                       <div className="flex flex-col justify-between h-full relative z-10">
                         <div>
                           <span className="bg-red-600 text-white text-xs px-3 py-1.5 rounded-full font-semibold uppercase tracking-wide">
