@@ -8,6 +8,7 @@ import { getShop, getShopProducts, rateShop } from '../../services/shopService';
 import UserLayout from '../../components/layouts/UserLayout';
 import { getNearbyShops } from '../../services/userService';
 import { getMarketplaceProducts } from '../../services/productService';
+import WishlistButton from '../../components/common/WishlistButton';
 
 const ShopDetailPage = () => {
   const { shopId } = useParams();
@@ -522,6 +523,15 @@ const ShopDetailPage = () => {
                                   ⭐ Limited
                                 </span>
                               )}
+                            </div>
+                            
+                            {/* Wishlist Button */}
+                            <div className="absolute top-3 right-3 z-10">
+                              <WishlistButton 
+                                productId={product._id} 
+                                size="sm"
+                                className="shadow-lg"
+                              />
                             </div>
                           </div>
                           
