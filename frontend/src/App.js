@@ -46,6 +46,7 @@ import EditProduct from './pages/seller/EditProduct';
 import ViewProducts from './pages/seller/ViewProducts';
 import EditProfile from './pages/seller/EditProfile';
 import Orders from './pages/seller/Orders';
+import PaymentTracking from './pages/seller/PaymentTracking';
 
 // Delivery Agent Auth Pages
 import DeliveryAgentLogin from './pages/auth/DeliveryAgentLogin';
@@ -164,6 +165,7 @@ function App() {
             <Route path="/seller/view-products" element={<ViewProducts />} />
             <Route path="/seller/edit-profile" element={<EditProfile />} />
             <Route path="/seller/orders" element={<Orders />} />
+            <Route path="/seller/payment-tracking" element={<PaymentTracking />} />
               
             {/* Legacy route redirects for backward compatibility */}
             <Route path="/seller/products/add" element={<Navigate replace to="/seller/add-product" />} />

@@ -13,7 +13,9 @@ const {
   verifyResetToken,
   resetPassword,
   resetPasswordDirect,
-  checkEmailExists
+  checkEmailExists,
+  getPaymentTracking,
+  getEarningsSummary
 } = require('../controllers/sellerController');
 const { debugPasswordIssues, testPasswordComparison } = require('../utils/passwordDebug');
 const Seller = require('../models/Seller');
@@ -69,6 +71,17 @@ router.post('/reset-password-direct', [
 // @route   POST /api/sellers/upload-shop-images
 // @access  Private (Seller)
 router.post('/upload-shop-images', protectSeller, upload.array('images', 10), handleMulterError, uploadShopImages);
+
+// 🎯 NEW: Payment tracking routes
+// @desc    Get seller payment tracking data
+// @route   GET /api/sellers/payment-tracking
+// @access  Private (Seller)
+router.get('/payment-tracking', protectSeller, getPaymentTracking);
+
+// @desc    Get seller earnings summary
+// @route   GET /api/sellers/earnings-summary
+// @access  Private (Seller)
+router.get('/earnings-summary', protectSeller, getEarningsSummary);
 
 // 🎯 DEBUG ROUTES (Development only)
 if (process.env.NODE_ENV === 'development') {
