@@ -205,3 +205,53 @@ export const uploadShopImageToCloudinary = async (file) => {
     throw error.response?.data || error;
   }
 };
+
+// 🎯 NEW: Get seller payment tracking data
+export const getPaymentTracking = async (filters = {}) => {
+  try {
+    console.log('💰 Fetching payment tracking data with filters:', filters);
+    
+    const queryParams = new URLSearchParams();
+    
+    // Add filters to query params
+    if (filters.startDate) queryParams.append('startDate', filters.startDate);
+    if (filters.endDate) queryParams.append('endDate', filters.endDate);
+    if (filters.status) queryParams.append('status', filters.status);
+    if (filters.paymentMethod) queryParams.append('paymentMethod', filters.paymentMethod);
+    if (filters.page) queryParams.append('page', filters.page);
+    if (filters.limit) queryParams.append('limit', filters.limit);
+    
+    const response = await api.get(`/sellers/payment-tracking?${queryParams.toString()}`);
+    
+    console.log('✅ Payment tracking data fetched:', {
+      ordersCount: response.data.data.orders.length,
+      totalEarnings: response.data.data.statistics.totalEarnings,
+      totalOrders: response.data.data.statistics.totalOrders
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('❌ Payment tracking fetch error:', error.response?.data || error);
+    throw error.response?.data || error;
+  }
+};
+
+// 🎯 NEW: Get seller earnings summary
+export const getEarningsSummary = async (period = '30') => {
+  try {
+    console.log('💰 Fetching earnings summary for period:', period);
+    
+    const response = await api.get(`/sellers/earnings-summary?period=${period}`);
+    
+    console.log('✅ Earnings summary fetched:', {
+      periodEarnings: response.data.data.periodEarnings.total,
+      todayEarnings: response.data.data.todayEarnings.total,
+      thisMonthEarnings: response.data.data.thisMonthEarnings.total
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('❌ Earnings summary fetch error:', error.response?.data || error);
+    throw error.response?.data || error;
+  }
+};

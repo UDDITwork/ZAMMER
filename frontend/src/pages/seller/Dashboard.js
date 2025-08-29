@@ -5,6 +5,7 @@ import SellerLayout from '../../components/layouts/SellerLayout';
 import { getSellerProducts } from '../../services/productService';
 import orderService from '../../services/orderService';
 import socketService from '../../services/socketService';
+import { getEarningsSummary } from '../../services/sellerService';
 import { toast } from 'react-toastify';
 
 const Dashboard = () => {
@@ -18,6 +19,7 @@ const Dashboard = () => {
   const [recentNotifications, setRecentNotifications] = useState([]);
   const [todayOrders, setTodayOrders] = useState([]);
   const [connectionRetrying, setConnectionRetrying] = useState(false);
+  const [earningsSummary, setEarningsSummary] = useState(null);
 
   // 🎯 FIX: Enhanced Socket.io setup with better connection handling
   const setupSocketConnection = useCallback(() => {
@@ -274,6 +276,20 @@ const Dashboard = () => {
     }
   }, []);
 
+  // 🎯 NEW: Fetch earnings summary
+  const fetchEarningsSummary = useCallback(async () => {
+    try {
+      console.log('💰 Fetching earnings summary...');
+      const earningsResponse = await getEarningsSummary('30');
+      if (earningsResponse.success) {
+        setEarningsSummary(earningsResponse.data);
+        console.log('✅ Earnings summary fetched:', earningsResponse.data);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching earnings summary:', error);
+    }
+  }, []);
+
   // 🎯 FIX: Enhanced initialization
   useEffect(() => {
     if (sellerAuth?.seller?._id) {
@@ -283,11 +299,12 @@ const Dashboard = () => {
       fetchProducts();
       fetchSellerOrders();
       fetchOrderStats();
+      fetchEarningsSummary();
       
       // Setup socket connection
       setupSocketConnection();
     }
-  }, [sellerAuth?.seller?._id, fetchProducts, fetchSellerOrders, fetchOrderStats, setupSocketConnection]);
+  }, [sellerAuth?.seller?._id, fetchProducts, fetchSellerOrders, fetchOrderStats, fetchEarningsSummary, setupSocketConnection]);
 
   // 🎯 NEW: Manual refresh function
   const handleRefresh = useCallback(() => {
@@ -295,12 +312,13 @@ const Dashboard = () => {
     fetchProducts();
     fetchSellerOrders();
     fetchOrderStats();
+    fetchEarningsSummary();
     
     // Reconnect socket if disconnected
     if (!socketConnected) {
       setupSocketConnection();
     }
-  }, [fetchProducts, fetchSellerOrders, fetchOrderStats, socketConnected, setupSocketConnection]);
+  }, [fetchProducts, fetchSellerOrders, fetchOrderStats, fetchEarningsSummary, socketConnected, setupSocketConnection]);
 
   // Update order status
   const updateOrderStatus = async (orderId, newStatus) => {
@@ -556,6 +574,24 @@ const Dashboard = () => {
               className="text-yellow-600 hover:underline text-sm inline-block mt-2 transition-colors"
             >
               Manage orders
+            </Link>
+          </div>
+
+          {/* 🎯 NEW: Earnings Summary Card */}
+          <div className="stat-card bg-purple-50 p-6 rounded-lg shadow-sm border border-purple-100">
+            <h3 className="text-lg font-semibold text-purple-700">Today's Earnings</h3>
+            <p className="text-3xl font-bold text-purple-900 mt-2">
+              {earningsSummary ? (
+                `₹${earningsSummary.todayEarnings.total}`
+              ) : (
+                <div className="animate-pulse bg-purple-200 h-8 w-20 rounded"></div>
+              )}
+            </p>
+            <Link 
+              to="/seller/payment-tracking" 
+              className="text-purple-600 hover:underline text-sm inline-block mt-2 transition-colors"
+            >
+              View payment tracking
             </Link>
           </div>
           

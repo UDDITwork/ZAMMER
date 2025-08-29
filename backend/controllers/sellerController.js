@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
+const Order = require('../models/Order'); // Added Order model import
 
 // @desc    Register a new seller
 // @route   POST /api/sellers/register
@@ -642,6 +643,378 @@ exports.checkEmailExists = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Error checking email'
+    });
+  }
+};
+
+// 🎯 NEW: Get seller payment tracking data
+// @desc    Get seller payment tracking and earnings data
+// @route   GET /api/sellers/payment-tracking
+// @access  Private
+exports.getPaymentTracking = async (req, res) => {
+  try {
+    console.log('💰 [PaymentTracking] Fetching payment data for seller:', req.seller._id);
+    
+    const seller = await Seller.findById(req.seller._id);
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: 'Seller not found'
+      });
+    }
+
+    // Get query parameters for filtering
+    const { 
+      startDate, 
+      endDate, 
+      status, 
+      paymentMethod,
+      page = 1, 
+      limit = 20 
+    } = req.query;
+
+    // Build date filter
+    const dateFilter = {};
+    if (startDate || endDate) {
+      dateFilter.createdAt = {};
+      if (startDate) {
+        dateFilter.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        dateFilter.createdAt.$lte = new Date(endDate);
+      }
+    }
+
+    // Build status filter
+    const statusFilter = {};
+    if (status) {
+      statusFilter.status = status;
+    }
+
+    // Build payment method filter
+    const paymentFilter = {};
+    if (paymentMethod) {
+      paymentFilter.paymentMethod = paymentMethod;
+    }
+
+    // Combine all filters
+    const combinedFilter = {
+      seller: req.seller._id,
+      ...dateFilter,
+      ...statusFilter,
+      ...paymentFilter
+    };
+
+    console.log('🔍 [PaymentTracking] Applied filters:', combinedFilter);
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Fetch orders with pagination
+    const orders = await Order.find(combinedFilter)
+      .populate('user', 'name email')
+      .populate('orderItems.product', 'name images')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count for pagination
+    const totalOrders = await Order.countDocuments(combinedFilter);
+
+    // Calculate earnings statistics
+    const earningsStats = await Order.aggregate([
+      {
+        $match: {
+          seller: req.seller._id,
+          status: { $in: ['Delivered', 'Shipped', 'Processing'] },
+          isPaid: true
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalEarnings: { $sum: '$totalPrice' },
+          totalOrders: { $sum: 1 },
+          averageOrderValue: { $avg: '$totalPrice' }
+        }
+      }
+    ]);
+
+    // Calculate daily earnings for the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const dailyEarnings = await Order.aggregate([
+      {
+        $match: {
+          seller: req.seller._id,
+          createdAt: { $gte: thirtyDaysAgo },
+          status: { $in: ['Delivered', 'Shipped', 'Processing'] },
+          isPaid: true
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
+          },
+          dailyEarnings: { $sum: '$totalPrice' },
+          orderCount: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { _id: 1 }
+      }
+    ]);
+
+    // Calculate payment method distribution
+    const paymentMethodStats = await Order.aggregate([
+      {
+        $match: {
+          seller: req.seller._id,
+          status: { $in: ['Delivered', 'Shipped', 'Processing'] },
+          isPaid: true
+        }
+      },
+      {
+        $group: {
+          _id: '$paymentMethod',
+          totalAmount: { $sum: '$totalPrice' },
+          orderCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Calculate status distribution
+    const statusStats = await Order.aggregate([
+      {
+        $match: {
+          seller: req.seller._id
+        }
+      },
+      {
+        $group: {
+          _id: '$status',
+          totalAmount: { $sum: '$totalPrice' },
+          orderCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Format orders for response
+    const formattedOrders = orders.map(order => ({
+      _id: order._id,
+      orderNumber: order.orderNumber,
+      totalPrice: order.totalPrice,
+      status: order.status,
+      paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus,
+      isPaid: order.isPaid,
+      paidAt: order.paidAt,
+      createdAt: order.createdAt,
+      deliveredAt: order.deliveredAt,
+      customer: {
+        name: order.user?.name || 'Unknown',
+        email: order.user?.email || 'Unknown'
+      },
+      items: order.orderItems.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        image: item.image
+      })),
+      // 🎯 NEW: Payment tracking details
+      paymentDetails: {
+        gateway: order.paymentGateway,
+        transactionId: order.paymentResult?.smepay_transaction_id || null,
+        orderSlug: order.smepayOrderSlug || null,
+        refId: order.paymentResult?.smepay_ref_id || null
+      }
+    }));
+
+    const response = {
+      success: true,
+      data: {
+        orders: formattedOrders,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalOrders / parseInt(limit)),
+          totalOrders,
+          hasNextPage: skip + orders.length < totalOrders,
+          hasPrevPage: parseInt(page) > 1
+        },
+        statistics: {
+          totalEarnings: earningsStats[0]?.totalEarnings || 0,
+          totalOrders: earningsStats[0]?.totalOrders || 0,
+          averageOrderValue: earningsStats[0]?.averageOrderValue || 0,
+          dailyEarnings,
+          paymentMethodStats,
+          statusStats
+        }
+      }
+    };
+
+    console.log('✅ [PaymentTracking] Payment data fetched successfully:', {
+      ordersCount: formattedOrders.length,
+      totalEarnings: response.data.statistics.totalEarnings,
+      totalOrders: response.data.statistics.totalOrders
+    });
+
+    res.status(200).json(response);
+
+  } catch (error) {
+    console.error('❌ [PaymentTracking] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
+// 🎯 NEW: Get seller earnings summary
+// @desc    Get seller earnings summary for dashboard
+// @route   GET /api/sellers/earnings-summary
+// @access  Private
+exports.getEarningsSummary = async (req, res) => {
+  try {
+    console.log('💰 [EarningsSummary] Fetching earnings summary for seller:', req.seller._id);
+
+    const seller = await Seller.findById(req.seller._id);
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: 'Seller not found'
+      });
+    }
+
+    // Get date range from query params
+    const { period = '30' } = req.query; // Default to 30 days
+    const daysAgo = new Date();
+    daysAgo.setDate(daysAgo.getDate() - parseInt(period));
+
+    // Calculate earnings for the period
+    const periodEarnings = await Order.aggregate([
+      {
+        $match: {
+          seller: req.seller._id,
+          createdAt: { $gte: daysAgo },
+          status: { $in: ['Delivered', 'Shipped', 'Processing'] },
+          isPaid: true
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalEarnings: { $sum: '$totalPrice' },
+          orderCount: { $sum: 1 },
+          averageOrderValue: { $avg: '$totalPrice' }
+        }
+      }
+    ]);
+
+    // Calculate today's earnings
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const todayEarnings = await Order.aggregate([
+      {
+        $match: {
+          seller: req.seller._id,
+          createdAt: { $gte: today, $lt: tomorrow },
+          status: { $in: ['Delivered', 'Shipped', 'Processing'] },
+          isPaid: true
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalEarnings: { $sum: '$totalPrice' },
+          orderCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Calculate this month's earnings
+    const thisMonth = new Date();
+    thisMonth.setDate(1);
+    thisMonth.setHours(0, 0, 0, 0);
+
+    const thisMonthEarnings = await Order.aggregate([
+      {
+        $match: {
+          seller: req.seller._id,
+          createdAt: { $gte: thisMonth },
+          status: { $in: ['Delivered', 'Shipped', 'Processing'] },
+          isPaid: true
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalEarnings: { $sum: '$totalPrice' },
+          orderCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Get pending payments (orders delivered but not paid)
+    const pendingPayments = await Order.aggregate([
+      {
+        $match: {
+          seller: req.seller._id,
+          status: 'Delivered',
+          isPaid: false
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalPending: { $sum: '$totalPrice' },
+          orderCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const response = {
+      success: true,
+      data: {
+        periodEarnings: {
+          total: periodEarnings[0]?.totalEarnings || 0,
+          orders: periodEarnings[0]?.orderCount || 0,
+          average: periodEarnings[0]?.averageOrderValue || 0
+        },
+        todayEarnings: {
+          total: todayEarnings[0]?.totalEarnings || 0,
+          orders: todayEarnings[0]?.orderCount || 0
+        },
+        thisMonthEarnings: {
+          total: thisMonthEarnings[0]?.totalEarnings || 0,
+          orders: thisMonthEarnings[0]?.orderCount || 0
+        },
+        pendingPayments: {
+          total: pendingPayments[0]?.totalPending || 0,
+          orders: pendingPayments[0]?.orderCount || 0
+        }
+      }
+    };
+
+    console.log('✅ [EarningsSummary] Earnings summary fetched successfully:', {
+      periodEarnings: response.data.periodEarnings.total,
+      todayEarnings: response.data.todayEarnings.total,
+      thisMonthEarnings: response.data.thisMonthEarnings.total
+    });
+
+    res.status(200).json(response);
+
+  } catch (error) {
+    console.error('❌ [EarningsSummary] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
     });
   }
 };
