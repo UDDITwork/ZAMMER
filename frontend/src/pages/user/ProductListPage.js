@@ -489,12 +489,12 @@ const ProductListPage = () => {
                         )}
                         
                         {/* Category Badge */}
-                        <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm text-gray-700 text-xs px-3 py-1 rounded-full font-medium border border-white/50">
+                        <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm text-gray-700 text-xs px-3 py-1 rounded-full font-medium border border-white/50">
                           {product.subCategory || product.category}
                         </div>
                         
                         {/* Wishlist Button */}
-                        <div className="absolute top-3 left-3 z-10">
+                        <div className="absolute top-3 right-3 z-20">
                           <WishlistButton 
                             productId={product._id} 
                             size="sm"
