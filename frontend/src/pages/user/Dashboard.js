@@ -983,7 +983,9 @@ const Dashboard = () => {
                         </div>
                       )}
                       
-                      <WishlistButton productId={product._id} />
+                      <div className="absolute top-4 right-4 z-10">
+                        <WishlistButton productId={product._id} size="sm" className="shadow-lg" />
+                      </div>
                       
                       {product.mrp > product.zammerPrice && (
                         <div className="absolute top-4 left-4 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold">

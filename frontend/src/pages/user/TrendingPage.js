@@ -157,7 +157,9 @@ const TrendingPage = () => {
                         🔥 TRENDING
                       </div>
                       {/* Wishlist Button */}
-                      <WishlistButton productId={product._id} />
+                      <div className="absolute top-2 right-2 z-10">
+                        <WishlistButton productId={product._id} size="sm" className="shadow-lg" />
+                      </div>
                     </div>
                     <div className="p-3">
                       <h3 className="font-medium text-sm text-gray-800 mb-1">
