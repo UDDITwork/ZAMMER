@@ -147,8 +147,8 @@ const getDashboardStats = async (req, res) => {
       Product.countDocuments(),
       Product.countDocuments({ isActive: true }),
       Order.countDocuments(),
-      Order.countDocuments({ status: 'pending' }),
-      Order.countDocuments({ status: 'delivered' }),
+      Order.countDocuments({ status: 'Pending' }),
+      Order.countDocuments({ status: 'Delivered' }),
       Order.aggregate([
         { $match: { isPaid: true } },
         { $group: { _id: null, total: { $sum: '$totalPrice' } } }
@@ -206,7 +206,7 @@ const getDashboardStats = async (req, res) => {
 // @access  Private (Admin)
 const getRecentOrders = async (req, res) => {
   try {
-    const { status = 'pending', limit = 10, page = 1 } = req.query;
+    const { status = 'Pending', limit = 10, page = 1 } = req.query;
 
     logAdmin('GET_RECENT_ORDERS_START', {
       adminId: req.admin._id,
@@ -218,7 +218,7 @@ const getRecentOrders = async (req, res) => {
     // Build query filter
     const filter = {
       isPaid: true, // Only show paid orders
-      status: { $in: ['pending', 'confirmed', 'processing'] }
+      status: { $in: ['Pending', 'Processing'] }
     };
 
     if (status && status !== 'all') {
@@ -597,7 +597,8 @@ const approveAndAssignOrder = async (req, res) => {
     // Find the order
     const order = await Order.findById(orderId)
       .populate('user', 'name email mobileNumber')
-      .populate('seller', 'firstName lastName email shop');
+      .populate('seller', 'firstName lastName email shop')
+      .populate('orderItems.product', 'name images');
 
     if (!order) {
       return res.status(404).json({
@@ -606,11 +607,24 @@ const approveAndAssignOrder = async (req, res) => {
       });
     }
 
-    // Check if order is in correct state
-    if (order.status !== 'pending' && order.status !== 'confirmed') {
+    // 🔧 FIXED: Enhanced status validation with better error messages
+    const allowedStatuses = ['Pending', 'Processing'];
+    if (!allowedStatuses.includes(order.status)) {
       return res.status(400).json({
         success: false,
-        message: 'Order cannot be assigned in current status'
+        message: `Order cannot be assigned in current status. Current status: ${order.status}. Expected: ${allowedStatuses.join(' or ')}`,
+        currentStatus: order.status,
+        allowedStatuses: allowedStatuses
+      });
+    }
+
+    // 🔧 FIXED: Check if order is already assigned with better validation
+    if (order.deliveryAgent && order.deliveryAgent.agent) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order is already assigned to a delivery agent',
+        assignedAgentId: order.deliveryAgent.agent,
+        assignedAt: order.deliveryAgent.assignedAt
       });
     }
 
@@ -628,15 +642,27 @@ const approveAndAssignOrder = async (req, res) => {
     if (!deliveryAgent.isActive || deliveryAgent.status !== 'available') {
       return res.status(400).json({
         success: false,
-        message: 'Delivery agent is not available'
+        message: 'Delivery agent is not available',
+        agentStatus: deliveryAgent.status,
+        isActive: deliveryAgent.isActive
       });
     }
 
-    // Update order
-    order.status = 'approved';
-    order.assignedDeliveryAgent = deliveryAgentId;
-    order.approvedBy = req.admin._id;
-    order.approvedAt = new Date();
+    // ✅ SET ALL FIELDS ATOMICALLY BEFORE SAVING
+    order.deliveryAgent = {
+      agent: deliveryAgentId,
+      assignedAt: new Date(),
+      assignedBy: req.admin._id,
+      status: 'assigned'
+    };
+
+    order.status = 'Pickup_Ready';
+    order.adminApproval = {
+      isRequired: true,
+      status: 'approved',
+      approvedBy: req.admin._id,
+      approvedAt: new Date()
+    };
     
     if (notes) {
       order.adminNotes = notes;
@@ -644,9 +670,9 @@ const approveAndAssignOrder = async (req, res) => {
 
     // Add to order history
     order.statusHistory.push({
-      status: 'approved',
-      updatedBy: req.admin._id,
-      updatedAt: new Date(),
+      status: 'Pickup_Ready',
+      changedBy: 'admin',
+      changedAt: new Date(),
       notes: notes || 'Order approved and assigned to delivery agent'
     });
 
@@ -655,6 +681,14 @@ const approveAndAssignOrder = async (req, res) => {
     // Update delivery agent status
     deliveryAgent.status = 'assigned';
     deliveryAgent.currentOrder = orderId;
+    
+    // Add to assigned orders
+    deliveryAgent.assignedOrders.push({
+      order: orderId,
+      assignedAt: new Date(),
+      status: 'assigned'
+    });
+    
     await deliveryAgent.save();
 
     logAdmin('APPROVE_ASSIGN_ORDER_SUCCESS', {
@@ -665,23 +699,75 @@ const approveAndAssignOrder = async (req, res) => {
       agentName: deliveryAgent.name
     }, 'success');
 
-    // 🎯 TODO: Send real-time notification to delivery agent via socket
-    // socketService.sendToDeliveryAgent(deliveryAgentId, 'order-assigned', {
-    //   order: order,
-    //   message: 'New order assigned to you'
-    // });
+    // 🎯 NEW: Send real-time notification to delivery agent
+    try {
+      if (global.emitToDeliveryAgent) {
+        global.emitToDeliveryAgent(deliveryAgentId, 'order-assigned', {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          customerName: order.user.name,
+          customerPhone: order.user.mobileNumber,
+          pickupAddress: order.seller.shop?.address || 'Address not provided',
+          deliveryAddress: order.shippingAddress.address,
+          totalAmount: order.totalPrice,
+          itemCount: order.orderItems.length,
+          assignedAt: new Date(),
+          message: 'New order assigned to you'
+        });
+        logAdmin('DELIVERY_AGENT_NOTIFICATION_SENT', { deliveryAgentId, orderId });
+      }
+    } catch (notificationError) {
+      logAdmin('DELIVERY_AGENT_NOTIFICATION_FAILED', { 
+        deliveryAgentId, 
+        orderId, 
+        error: notificationError.message 
+      }, 'warning');
+    }
 
-    // 🎯 TODO: Send notification to seller
-    // socketService.sendToSeller(order.seller._id, 'order-approved', {
-    //   order: order,
-    //   message: 'Your order has been approved and assigned for delivery'
-    // });
+    // 🎯 NEW: Send notification to seller
+    try {
+      if (global.emitToSeller) {
+        global.emitToSeller(order.seller._id, 'order-approved', {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          assignedDeliveryAgent: {
+            name: deliveryAgent.name,
+            vehicleType: deliveryAgent.vehicleType
+          },
+          message: 'Your order has been approved and assigned for delivery'
+        });
+        logAdmin('SELLER_NOTIFICATION_SENT', { sellerId: order.seller._id, orderId });
+      }
+    } catch (notificationError) {
+      logAdmin('SELLER_NOTIFICATION_FAILED', { 
+        sellerId: order.seller._id, 
+        orderId, 
+        error: notificationError.message 
+      }, 'warning');
+    }
 
-    // 🎯 TODO: Send notification to buyer
-    // socketService.sendToBuyer(order.user._id, 'order-status-update', {
-    //   order: order,
-    //   message: 'Your order has been approved and will be delivered soon'
-    // });
+    // 🎯 NEW: Send notification to buyer
+    try {
+      if (global.emitToBuyer) {
+        global.emitToBuyer(order.user._id, 'order-status-update', {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          status: 'approved',
+          assignedDeliveryAgent: {
+            name: deliveryAgent.name,
+            vehicleType: deliveryAgent.vehicleType
+          },
+          message: 'Your order has been approved and will be delivered soon'
+        });
+        logAdmin('BUYER_NOTIFICATION_SENT', { userId: order.user._id, orderId });
+      }
+    } catch (notificationError) {
+      logAdmin('BUYER_NOTIFICATION_FAILED', { 
+        userId: order.user._id, 
+        orderId, 
+        error: notificationError.message 
+      }, 'warning');
+    }
 
     res.status(200).json({
       success: true,
@@ -690,12 +776,14 @@ const approveAndAssignOrder = async (req, res) => {
         _id: order._id,
         orderNumber: order.orderNumber,
         status: order.status,
-        assignedDeliveryAgent: {
+        adminApprovalStatus: order.adminApproval.status,
+        deliveryAgent: {
           _id: deliveryAgent._id,
           name: deliveryAgent.name,
           email: deliveryAgent.email,
           vehicleType: deliveryAgent.vehicleType
         },
+        assignedAt: order.deliveryAgent.assignedAt,
         approvedBy: req.admin._id,
         approvedAt: order.approvedAt
       }
@@ -732,12 +820,12 @@ const updateOrderStatus = async (req, res) => {
       hasNotes: !!notes
     });
 
-    // Validate status
-    const validStatuses = ['pending', 'confirmed', 'approved', 'processing', 'shipped', 'delivered', 'cancelled'];
+    // Validate status - use Order model enum values
+    const validStatuses = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Pickup_Ready', 'Out_for_Delivery'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid status provided'
+        message: 'Invalid status provided. Valid statuses: ' + validStatuses.join(', ')
       });
     }
 

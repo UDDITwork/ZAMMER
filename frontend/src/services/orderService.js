@@ -164,7 +164,7 @@ class MockPaymentProcessor {
         return {
           transactionId: mockTransactionId,
           method: 'Cash on Delivery',
-          status: 'pending',
+          status: 'Pending',
           amount: paymentData.amount,
           currency: 'INR',
           processingTime: 0,

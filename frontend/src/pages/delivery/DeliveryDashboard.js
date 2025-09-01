@@ -33,7 +33,8 @@ const DeliveryDashboard = () => {
   const [accepting, setAccepting] = useState(false);
   const [processingPickup, setProcessingPickup] = useState(false);
   const [processingDelivery, setProcessingDelivery] = useState(false);
-
+  const [processingReject, setProcessingReject] = useState(false);
+  
   const navigate = useNavigate();
   const { deliveryAgentAuth, logoutDeliveryAgent } = useAuth();
 

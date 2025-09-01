@@ -287,7 +287,7 @@ const AdminDashboard = () => {
         setOrders(prevOrders => 
           prevOrders.map(order => 
             order._id === selectedOrder._id 
-              ? { ...order, status: 'approved', assignedAgent: selectedAgent }
+              ? { ...order, status: 'Pickup_Ready', assignedAgent: selectedAgent }
               : order
           )
         );
@@ -378,9 +378,12 @@ const AdminDashboard = () => {
           <p className="text-sm text-gray-500">{formatDate(order.createdAt)}</p>
         </div>
         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-          order.status === 'approved' ? 'bg-green-100 text-green-800' :
-          order.status === 'assigned' ? 'bg-blue-100 text-blue-800' :
+          order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+          order.status === 'Processing' ? 'bg-blue-100 text-blue-800' :
+          order.status === 'Pickup_Ready' ? 'bg-orange-100 text-orange-800' :
+          order.status === 'Out_for_Delivery' ? 'bg-indigo-100 text-indigo-800' :
+          order.status === 'Delivered' ? 'bg-green-100 text-green-800' :
+          order.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
           'bg-gray-100 text-gray-800'
         }`}>
           {order.status?.toUpperCase()}
@@ -753,7 +756,7 @@ const AdminDashboard = () => {
           
           <StatCard
             title="Pending Orders"
-            value={orders.filter(order => order.status === 'pending').length}
+            value={orders.filter(order => ['Pending', 'Processing'].includes(order.status)).length}
             icon={
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
