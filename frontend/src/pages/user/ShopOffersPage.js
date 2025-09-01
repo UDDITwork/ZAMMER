@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getMarketplaceProducts } from '../../services/productService';
-import { addToWishlist, removeFromWishlist, checkWishlistStatus } from '../../services/productService';
+import { addToWishlist, removeFromWishlist, checkWishlist } from '../../services/wishlistService';
 import WishlistButton from '../../components/common/WishlistButton';
 
 const ShopOffersPage = () => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { addToWishlist, removeFromWishlist, checkWishlistStatus } from '../../services/productService';
+import { addToWishlist, removeFromWishlist, checkWishlist } from '../../services/wishlistService';
 import { AuthContext } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
@@ -10,7 +10,7 @@ const WishlistButton = ({ productId, className = '', size = 'md' }) => {
   const [isChecking, setIsChecking] = useState(true);
 
   // Debug logging (remove in production)
-  // console.log('🔍 WishlistButton rendered:', { productId, isChecking, isInWishlist, userAuth: userAuth.isAuthenticated });
+  console.log('🔍 WishlistButton rendered:', { productId, isChecking, isInWishlist, userAuth: userAuth.isAuthenticated });
 
   // Check wishlist status on mount
   useEffect(() => {
@@ -21,7 +21,7 @@ const WishlistButton = ({ productId, className = '', size = 'md' }) => {
       }
 
       try {
-        const response = await checkWishlistStatus(productId);
+        const response = await checkWishlist(productId);
         if (response.success) {
           setIsInWishlist(response.data.isInWishlist);
         }
@@ -87,10 +87,11 @@ const WishlistButton = ({ productId, className = '', size = 'md' }) => {
   if (isChecking) {
     return (
       <button
-        className={`${sizeClasses[size]} ${className} bg-gray-100 rounded-full flex items-center justify-center animate-pulse`}
+        className={`${sizeClasses[size]} ${className} bg-red-500 rounded-full flex items-center justify-center animate-pulse border-2 border-white`}
         disabled
+        style={{ zIndex: 9999 }}
       >
-        <svg className={`${iconSizes[size]} text-gray-400`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className={`${iconSizes[size]} text-white`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
         </svg>
       </button>
@@ -108,12 +109,13 @@ const WishlistButton = ({ productId, className = '', size = 'md' }) => {
         flex items-center justify-center 
         transition-all duration-200 
         ${isInWishlist 
-          ? 'bg-red-50 hover:bg-red-100 text-red-500 hover:text-red-600' 
-          : 'bg-white hover:bg-gray-50 text-gray-400 hover:text-red-500'
+          ? 'bg-red-500 hover:bg-red-600 text-white' 
+          : 'bg-white hover:bg-red-50 text-red-500 hover:text-red-600 border-2 border-red-500'
         }
         ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}
-        shadow-sm hover:shadow-md
+        shadow-lg hover:shadow-xl
       `}
+      style={{ zIndex: 9999 }}
       title={isInWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
     >
       {isLoading ? (
