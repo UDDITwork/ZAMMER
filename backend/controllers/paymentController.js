@@ -115,7 +115,7 @@ const createSMEPayOrder = async (req, res) => {
 
     // Update order with SMEPay details
     order.smepayOrderSlug = smepayResult.orderSlug;
-    order.paymentStatus = 'pending';
+          order.paymentStatus = 'pending'; // This is correct - paymentStatus uses lowercase
     order.paymentGateway = 'smepay';
     
     // Add payment attempt to order history

@@ -146,6 +146,66 @@ global.emitToBuyer = (userId, eventType, data) => {
   }
 };
 
+// 🎯 NEW: Emit to delivery agent
+global.emitToDeliveryAgent = (agentId, eventType, data) => {
+  if (!global.io) {
+    logSocketOperation('EmitToDeliveryAgent', {
+      error: 'Socket.io not initialized',
+      agentId,
+      eventType
+    }, 'error');
+    return false;
+  }
+
+  try {
+    const roomName = `delivery-agent-${agentId}`;
+    logSocketOperation('EmitToDeliveryAgent', {
+      agentId,
+      eventType,
+      roomName,
+      orderNumber: data.orderNumber || 'N/A',
+      timestamp: new Date().toISOString()
+    }, 'info');
+    
+    const payload = {
+      type: eventType,
+      data: data,
+      timestamp: new Date().toISOString(),
+      source: 'server'
+    };
+    
+    // Emit to the delivery agent room
+    global.io.to(roomName).emit(eventType, payload);
+    
+    // 🎯 FIX: Also emit to all connected sockets for this agent (fallback)
+    const agentSockets = Array.from(global.io.sockets.sockets.values())
+      .filter(socket => socket.deliveryAgentId === agentId);
+    
+    agentSockets.forEach(socket => {
+      socket.emit(eventType, payload);
+    });
+    
+    logSocketOperation('EmitToDeliveryAgent', {
+      success: true,
+      agentId,
+      eventType,
+      roomTargets: 1,
+      socketTargets: agentSockets.length,
+      totalTargets: agentSockets.length + 1
+    }, 'success');
+    
+    return true;
+  } catch (error) {
+    logSocketOperation('EmitToDeliveryAgent', {
+      error: error.message,
+      agentId,
+      eventType,
+      stack: error.stack
+    }, 'error');
+    return false;
+  }
+};
+
 // 🎯 NEW: Get connection statistics
 global.getSocketStats = () => {
   if (!global.io) return null;

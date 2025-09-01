@@ -624,7 +624,8 @@ OrderSchema.methods.assignDeliveryAgent = function(agentId, assignedBy) {
   this._statusChangedBy = 'admin';
   this._statusChangeNotes = `Assigned to delivery agent`;
   
-  return this.save();
+  // ✅ Don't save automatically, let caller control timing
+  return this;
 };
 
 // 🆕 Method to handle delivery agent response

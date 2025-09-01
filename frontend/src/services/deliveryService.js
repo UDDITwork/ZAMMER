@@ -715,6 +715,47 @@ class DeliveryService {
     return isValid;
   }
 
+  // 🚚 GET ORDER NOTIFICATIONS
+  async getOrderNotifications() {
+    try {
+      logDeliveryService('GET_ORDER_NOTIFICATIONS_STARTED');
+
+      const response = await makeApiCall('/delivery/notifications');
+
+      logDeliveryService('GET_ORDER_NOTIFICATIONS_SUCCESS', { 
+        notificationCount: response.data?.length || 0
+      }, 'success');
+
+      return response;
+    } catch (error) {
+      logDeliveryServiceError('GET_ORDER_NOTIFICATIONS_FAILED', error);
+      throw error;
+    }
+  }
+
+  // 🚚 REJECT ORDER
+  async rejectOrder(orderId, reason = '') {
+    try {
+      logDeliveryService('REJECT_ORDER_STARTED', { orderId, reason });
+
+      const response = await makeApiCall(`/delivery/orders/${orderId}/reject`, {
+        method: 'PUT',
+        body: JSON.stringify({ reason })
+      });
+
+      logDeliveryService('REJECT_ORDER_SUCCESS', { 
+        orderId,
+        reason,
+        response: response.data
+      }, 'success');
+
+      return response;
+    } catch (error) {
+      logDeliveryServiceError('REJECT_ORDER_FAILED', error, { orderId, reason });
+      throw error;
+    }
+  }
+
   // 🚚 HEALTH CHECK
   async healthCheck() {
     try {

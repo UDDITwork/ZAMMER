@@ -19,7 +19,9 @@ const {
   getDeliveryStats,
   toggleAvailability,
   getDeliveryHistory,
-  logoutDeliveryAgent
+  logoutDeliveryAgent,
+  rejectOrder,
+  getOrderNotifications
 } = require('../controllers/deliveryAgentController');
 
 // Import middleware
@@ -209,6 +211,16 @@ router.get('/orders/assigned', protectDeliveryAgent, getAssignedOrders);
 // @route   PUT /api/delivery/orders/:id/accept
 // @access  Private (Delivery Agent)
 router.put('/orders/:id/accept', protectDeliveryAgent, acceptOrder);
+
+// @desc    Reject assigned order
+// @route   PUT /api/delivery/orders/:id/reject
+// @access  Private (Delivery Agent)
+router.put('/orders/:id/reject', protectDeliveryAgent, rejectOrder);
+
+// @desc    Get order notifications
+// @route   GET /api/delivery/notifications
+// @access  Private (Delivery Agent)
+router.get('/notifications', protectDeliveryAgent, getOrderNotifications);
 
 // @desc    Complete order pickup
 // @route   PUT /api/delivery/orders/:id/pickup

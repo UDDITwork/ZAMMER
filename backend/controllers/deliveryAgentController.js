@@ -505,16 +505,17 @@ const getAvailableOrders = async (req, res) => {
 🕐 Time: ${new Date().toLocaleString()}
 ===============================`);
 
-    // Find orders that are approved and ready for assignment
+    // 🔧 FIXED: Find orders that are assigned to this delivery agent and ready for pickup
     const orders = await Order.find({
-      'adminApproval.status': { $in: ['approved', 'auto_approved'] },
-      'deliveryAgent.status': 'unassigned',
-      status: { $nin: ['Cancelled', 'Delivered'] }
+      'adminApproval.status': 'approved',
+      'deliveryAgent.agent': agentId,
+      'deliveryAgent.status': 'assigned',
+      status: 'Pickup_Ready'
     })
     .populate('user', 'name phone')
     .populate('seller', 'firstName shop')
     .populate('orderItems.product', 'name images')
-    .sort({ createdAt: 1 }) // FIFO basis
+    .sort({ 'deliveryAgent.assignedAt': 1 }) // FIFO basis by assignment time
     .limit(20);
 
     logDelivery('AVAILABLE_ORDERS_RETRIEVED', { 
@@ -531,9 +532,10 @@ const getAvailableOrders = async (req, res) => {
 📅 Time: ${new Date().toLocaleString()}
 ===============================`);
 
-    // Format orders for delivery agent (hide sensitive info like order ID initially)
+    // Format orders for delivery agent (show order number after assignment)
     const formattedOrders = orders.map(order => ({
       _id: order._id,
+      orderNumber: order.orderNumber, // Now visible since order is assigned
       status: order.status,
       totalPrice: order.totalPrice,
       deliveryFees: order.deliveryFees,
@@ -553,6 +555,7 @@ const getAvailableOrders = async (req, res) => {
       },
       shippingAddress: order.shippingAddress,
       createdAt: order.createdAt,
+      assignedAt: order.deliveryAgent.assignedAt,
       estimatedDelivery: order.estimatedDelivery?.estimatedAt
     }));
 
@@ -608,22 +611,83 @@ const acceptOrder = async (req, res) => {
       });
     }
 
-    // Check if order is available for assignment
-    if (order.deliveryAgent.status !== 'unassigned') {
-      logDeliveryError('ORDER_ALREADY_ASSIGNED', new Error('Order is no longer available'), { orderId, currentStatus: order.deliveryAgent.status, assignedTo: order.deliveryAgent.agent });
+    // 🔧 FIXED: Enhanced order availability validation
+    console.log('🔍 Order validation details:', {
+      orderId: order._id,
+      orderStatus: order.status,
+      adminApprovalStatus: order.adminApproval?.status,
+      deliveryAgentStatus: order.deliveryAgent?.status,
+      assignedAgent: order.deliveryAgent?.agent
+    });
+
+    // Check if order is in correct state for acceptance
+    if (order.status !== 'Pickup_Ready') {
+      logDeliveryError('ORDER_STATUS_INVALID', new Error('Order status is not Pickup_Ready'), { 
+        orderId, 
+        currentStatus: order.status,
+        expectedStatus: 'Pickup_Ready'
+      });
       return res.status(400).json({
         success: false,
-        message: 'Order is no longer available'
+        message: `Order is not ready for pickup. Current status: ${order.status}. Expected: Pickup_Ready`
       });
     }
 
-    // Assign order to delivery agent
-    await order.assignDeliveryAgent(agentId, null);
+    // Check if order is approved by admin
+    if (order.adminApproval?.status !== 'approved') {
+      logDeliveryError('ORDER_NOT_APPROVED', new Error('Order not approved by admin'), { 
+        orderId, 
+        adminApprovalStatus: order.adminApproval?.status
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Order has not been approved by admin yet'
+      });
+    }
+
+    // Check if order is assigned to this delivery agent
+    if (!order.deliveryAgent?.agent || order.deliveryAgent.agent.toString() !== agentId) {
+      logDeliveryError('ORDER_NOT_ASSIGNED_TO_AGENT', new Error('Order not assigned to this agent'), { 
+        orderId, 
+        assignedAgent: order.deliveryAgent?.agent,
+        currentAgent: agentId
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Order is not assigned to you'
+      });
+    }
+
+    // Check if order is already accepted
+    if (order.deliveryAgent.status === 'accepted') {
+      logDeliveryError('ORDER_ALREADY_ACCEPTED', new Error('Order already accepted'), { 
+        orderId, 
+        currentStatus: order.deliveryAgent.status
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Order is already accepted'
+      });
+    }
+
+    // 🔧 FIXED: Use the Order model's handleDeliveryAgentResponse method
+    try {
+      await order.handleDeliveryAgentResponse('accepted');
+    } catch (responseError) {
+      logDeliveryError('DELIVERY_AGENT_RESPONSE_ERROR', responseError, { orderId, response: 'accepted' });
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to process order acceptance'
+      });
+    }
 
     // Update delivery agent status
     const deliveryAgent = await DeliveryAgent.findById(agentId);
-    deliveryAgent.stats.assignedOrders += 1;
-    await deliveryAgent.save();
+    if (deliveryAgent) {
+      deliveryAgent.stats.acceptedOrders += 1;
+      deliveryAgent.stats.assignedOrders -= 1;
+      await deliveryAgent.save();
+    }
 
     logDelivery('ORDER_ACCEPT_SUCCESS', { 
       agentId, 
@@ -667,44 +731,33 @@ const acceptOrder = async (req, res) => {
       });
     }
 
-    // Now return order with orderNumber visible
-    const responseOrder = {
-      _id: order._id,
-      orderNumber: order.orderNumber, // Now visible after acceptance
-      status: order.status,
-      totalPrice: order.totalPrice,
-      deliveryFees: order.deliveryFees,
-      user: {
-        name: order.user.name,
-        phone: order.user.phone
-      },
-      seller: {
-        name: order.seller.firstName,
-        shopName: order.seller.shop?.name,
-        address: order.seller.shop?.address,
-        phone: order.seller.phone
-      },
-      shippingAddress: order.shippingAddress,
-      deliveryAgent: order.deliveryAgent
-    };
-
     res.status(200).json({
       success: true,
       message: 'Order accepted successfully',
-      data: responseOrder
+      data: {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        deliveryAgent: {
+          _id: req.deliveryAgent.id,
+          name: req.deliveryAgent.name,
+          phone: req.deliveryAgent.phoneNumber
+        },
+        acceptedAt: order.deliveryAgent.acceptedAt
+      }
     });
+
   } catch (error) {
-    const processingTime = Date.now() - startTime;
-    logDeliveryError('ORDER_ACCEPT_FAILED', error, { 
-      agentId: req.deliveryAgent?.id,
-      orderId: req.params.id,
-      processingTime: `${processingTime}ms`
+    logDeliveryError('ACCEPT_ORDER_ERROR', error, { 
+      agentId: req.deliveryAgent?.id, 
+      orderId: req.params.id 
     });
+    
     console.error('❌ Accept Order Error:', error);
+    
     res.status(500).json({
       success: false,
-      message: 'Server Error',
-      error: error.message
+      message: 'Failed to accept order'
     });
   }
 };
@@ -2082,6 +2135,242 @@ const getDeliveryHistory = async (req, res) => {
   }
 };
 
+// 🎯 NEW: Get assigned orders notifications (for dashboard)
+// @desc    Get notifications for newly assigned orders
+// @route   GET /api/delivery/notifications
+// @access  Private (Delivery Agent)
+const getOrderNotifications = async (req, res) => {
+  try {
+    const agentId = req.deliveryAgent.id;
+    
+    logDelivery('GET_ORDER_NOTIFICATIONS', { agentId });
+    
+    // Get orders that are assigned but not yet accepted/rejected
+    const notifications = await Order.find({
+      'deliveryAgent.agent': agentId,
+      'deliveryAgent.status': 'assigned'
+    })
+    .populate('user', 'name mobileNumber')
+    .populate('seller', 'firstName lastName shop')
+    .populate('orderItems.product', 'name images')
+    .sort({ 'deliveryAgent.assignedAt': -1 })
+    .limit(10);
+
+    logDelivery('ORDER_NOTIFICATIONS_RETRIEVED', { 
+      agentId, 
+      notificationCount: notifications.length 
+    });
+
+    // Format notifications (without order ID for security)
+    const formattedNotifications = notifications.map(order => ({
+      notificationId: order._id, // Use order ID as notification ID
+      orderNumber: null, // Order number hidden until accepted
+      status: 'assigned',
+      assignedAt: order.deliveryAgent.assignedAt,
+      
+      // Basic order info (safe to show)
+      customerName: order.user.name,
+      customerPhone: order.user.mobileNumber,
+      pickupAddress: order.seller.shop?.address || 'Address not provided',
+      deliveryAddress: order.shippingAddress.address,
+      totalAmount: order.totalPrice,
+      itemCount: order.orderItems.length,
+      
+      // Seller info for pickup
+      sellerName: `${order.seller.firstName} ${order.seller.lastName || ''}`.trim(),
+      shopName: order.seller.shop?.name || 'Shop',
+      
+      // Order items summary (without sensitive details)
+      itemsSummary: order.orderItems.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        image: item.image
+      })),
+      
+      message: 'New order assigned to you',
+      requiresAction: true
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: 'Order notifications retrieved successfully',
+      data: formattedNotifications,
+      count: formattedNotifications.length
+    });
+
+  } catch (error) {
+    logDeliveryError('GET_ORDER_NOTIFICATIONS', error, { agentId: req.deliveryAgent?.id });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch order notifications'
+    });
+  }
+};
+
+// 🎯 NEW: Reject order
+// @desc    Reject an assigned order
+// @route   PUT /api/delivery/orders/:id/reject
+// @access  Private (Delivery Agent)
+const rejectOrder = async (req, res) => {
+  try {
+    const { id: orderId } = req.params;
+    const { reason } = req.body;
+    const agentId = req.deliveryAgent.id;
+    
+    logDelivery('REJECT_ORDER_START', { 
+      orderId, 
+      agentId,
+      agentName: req.deliveryAgent.name,
+      reason: reason || 'No reason provided'
+    });
+
+    // Find the order
+    const order = await Order.findOne({
+      _id: orderId,
+      'deliveryAgent.agent': agentId,
+      'deliveryAgent.status': 'assigned'
+    })
+    .populate('user', 'name email mobileNumber')
+    .populate('seller', 'firstName lastName email shop');
+
+    if (!order) {
+      logDelivery('REJECT_ORDER_FAILED', { 
+        orderId, 
+        agentId, 
+        reason: 'order_not_found_or_not_assigned' 
+      }, 'error');
+      
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found or not assigned to you'
+      });
+    }
+
+    // Check if order is still in correct state
+    if (order.status !== 'approved') {
+      logDelivery('REJECT_ORDER_FAILED', { 
+        orderId, 
+        agentId, 
+        reason: 'order_status_invalid',
+        currentStatus: order.status 
+      }, 'error');
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Order is not in a state that can be rejected'
+      });
+    }
+
+    // 🎯 UPDATE: Use the Order model's handleDeliveryAgentResponse method
+    order.handleDeliveryAgentResponse('rejected', reason);
+    
+    // Update order status back to approved (so admin can reassign)
+    order.status = 'approved';
+    
+    // Add to status history
+    order.statusHistory.push({
+      status: 'approved',
+      updatedBy: agentId,
+      updatedAt: new Date(),
+      notes: `Order rejected by delivery agent: ${reason || 'No reason provided'}`
+    });
+
+    await order.save();
+
+    // Update delivery agent status
+    const deliveryAgent = await DeliveryAgent.findById(agentId);
+    if (deliveryAgent) {
+      deliveryAgent.status = 'available';
+      deliveryAgent.currentOrder = null;
+      
+      // Update assigned order status
+      const assignedOrder = deliveryAgent.assignedOrders.find(
+        ao => ao.order.toString() === orderId
+      );
+      if (assignedOrder) {
+        assignedOrder.status = 'rejected';
+      }
+      
+      await deliveryAgent.save();
+    }
+
+    logDelivery('REJECT_ORDER_SUCCESS', { 
+      orderId, 
+      agentId,
+      orderNumber: order.orderNumber,
+      reason
+    }, 'success');
+
+    // 🎯 NEW: Send notification to admin
+    try {
+      if (global.emitToAdmin) {
+        global.emitToAdmin('order-rejected', {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          deliveryAgent: {
+            name: req.deliveryAgent.name,
+            id: agentId
+          },
+          customerName: order.user.name,
+          reason: reason || 'No reason provided',
+          message: `Order ${order.orderNumber} rejected by delivery agent ${req.deliveryAgent.name}`
+        });
+      }
+    } catch (notificationError) {
+      logDelivery('ADMIN_NOTIFICATION_FAILED', { 
+        orderId, 
+        error: notificationError.message 
+      }, 'warning');
+    }
+
+    // 🎯 NEW: Send notification to seller
+    try {
+      if (global.emitToSeller) {
+        global.emitToSeller(order.seller._id, 'order-rejected-by-agent', {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          deliveryAgent: {
+            name: req.deliveryAgent.name,
+            vehicleType: deliveryAgent?.vehicleType || 'N/A'
+          },
+          reason: reason || 'No reason provided',
+          message: `Order ${order.orderNumber} has been rejected by delivery agent ${req.deliveryAgent.name}`
+        });
+      }
+    } catch (notificationError) {
+      logDelivery('SELLER_NOTIFICATION_FAILED', { 
+        orderId, 
+        error: notificationError.message 
+      }, 'warning');
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Order rejected successfully',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        status: 'rejected',
+        reason: reason || 'No reason provided',
+        rejectedAt: new Date(),
+        message: 'Order has been rejected and will be reassigned to another agent'
+      }
+    });
+
+  } catch (error) {
+    logDeliveryError('REJECT_ORDER', error, { 
+      orderId: req.params.id, 
+      agentId: req.deliveryAgent?.id 
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reject order'
+    });
+  }
+};
+
 module.exports = {
   registerDeliveryAgent,
   loginDeliveryAgent,
@@ -2094,8 +2383,9 @@ module.exports = {
   updateLocation,
   getAssignedOrders,
   getDeliveryStats,
-  
   toggleAvailability,
   getDeliveryHistory,
-  logoutDeliveryAgent
+  logoutDeliveryAgent,
+  getOrderNotifications,
+  rejectOrder
 };
