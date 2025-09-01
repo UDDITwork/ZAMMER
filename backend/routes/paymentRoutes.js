@@ -12,7 +12,8 @@ const {
   validateSMEPayOrder,
   handleSMEPayWebhook,
   getPaymentMethods,
-  getPaymentHistory
+  getPaymentHistory,
+  autoConfirmSMEPayPayment
 } = require('../controllers/paymentController');
 
 // Import authentication middleware
@@ -102,6 +103,23 @@ router.post(
   validateSMEPayOrder
 );
 
+// 🎯 NEW: Auto-confirm payment route
+// @desc    Auto-confirm SMEPay payment
+// @route   POST /api/payments/smepay/auto-confirm
+// @access  Private (User)
+router.post(
+  '/smepay/auto-confirm',
+  protectUser,
+  [
+    body('orderId')
+      .notEmpty()
+      .withMessage('Order ID is required')
+      .isMongoId()
+      .withMessage('Invalid order ID format')
+  ],
+  autoConfirmSMEPayPayment
+);
+
 // @desc    Handle SMEPay webhook callback
 // @route   POST /api/payments/smepay/webhook
 // @access  Public (webhook)
@@ -139,6 +157,7 @@ router.get('/health', async (req, res) => {
         generateQR: 'POST /api/payments/smepay/generate-qr',
         checkStatus: 'POST /api/payments/smepay/check-qr-status',
         validateOrder: 'POST /api/payments/smepay/validate-order',
+        autoConfirm: 'POST /api/payments/smepay/auto-confirm',
         webhook: 'POST /api/payments/smepay/webhook',
         methods: 'GET /api/payments/methods',
         history: 'GET /api/payments/history'
@@ -153,6 +172,7 @@ router.get('/health', async (req, res) => {
     });
   }
 });
+
 // Add this to your backend/routes/paymentRoutes.js for testing
 
 // 🎯 TEST ENDPOINT - Add this route for testing SMEPay
@@ -190,6 +210,7 @@ router.get('/test-smepay', async (req, res) => {
     });
   }
 });
+
 // 🎯 ERROR HANDLING MIDDLEWARE
 router.use((error, req, res, next) => {
   console.error('❌ [PaymentRoutes] Error:', error);

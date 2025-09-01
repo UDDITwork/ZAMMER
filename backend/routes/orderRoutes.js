@@ -9,9 +9,10 @@ const {
   updateOrderStatus,
   getSellerOrderStats,
   getOrderInvoice,
-  updateOrderPaymentStatus
+  updateOrderPaymentStatus,
+  getAdminDashboardOrders
 } = require('../controllers/orderController');
-const { protectUser, protectSeller } = require('../middleware/authMiddleware');
+const { protectUser, protectSeller, protectAdmin } = require('../middleware/authMiddleware');
 
 // User routes
 router.route('/')
@@ -35,6 +36,9 @@ router.get('/myorders', protectUser, getUserOrders);
 // Seller routes
 router.get('/seller', protectSeller, getSellerOrders);
 router.get('/seller/stats', protectSeller, getSellerOrderStats);
+
+// 🎯 NEW: Admin dashboard route
+router.get('/admin/dashboard', protectAdmin, getAdminDashboardOrders);
 
 // Order by ID (accessible by both user and seller)
 router.get('/:id', getOrderById);

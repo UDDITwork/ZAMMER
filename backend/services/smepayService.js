@@ -532,24 +532,103 @@ class SMEPayService {
         mode: this.mode
       });
 
-      // Basic webhook processing
-      const processedData = {
-        eventType: payload.event_type || payload.type || 'payment_update',
-        orderId: payload.order_id || payload.orderId,
-        orderSlug: payload.order_slug || payload.slug,
-        paymentStatus: payload.payment_status || payload.status,
-        transactionId: payload.transaction_id || payload.txn_id || payload.transactionId,
-        amount: payload.amount,
-        currency: payload.currency || 'INR',
+      console.log('🔔 Processing SMEPay webhook:', {
+        timestamp: new Date().toISOString(),
+        payload: payload,
+        signature: signature
+      });
+
+      // 🎯 CRITICAL: Enhanced webhook processing for SMEPay
+      let processedData = {
+        eventType: 'payment_update',
+        orderId: null,
+        orderSlug: null,
+        paymentStatus: 'pending',
+        transactionId: null,
+        amount: 0,
+        currency: 'INR',
         timestamp: new Date().toISOString(),
         rawPayload: payload
       };
 
+      // 🎯 CRITICAL: Extract data from various possible SMEPay webhook formats
+      if (payload) {
+        // Try different possible response structures
+        if (payload.order_id) {
+          processedData.orderId = payload.order_id;
+        } else if (payload.orderId) {
+          processedData.orderId = payload.orderId;
+        }
+
+        if (payload.order_slug) {
+          processedData.orderSlug = payload.order_slug;
+        } else if (payload.slug) {
+          processedData.orderSlug = payload.slug;
+        } else if (payload.orderSlug) {
+          processedData.orderSlug = payload.orderSlug;
+        }
+
+        if (payload.payment_status) {
+          processedData.paymentStatus = payload.payment_status;
+        } else if (payload.status) {
+          processedData.paymentStatus = payload.status;
+        } else if (payload.paymentStatus) {
+          processedData.paymentStatus = payload.paymentStatus;
+        }
+
+        if (payload.transaction_id) {
+          processedData.transactionId = payload.transaction_id;
+        } else if (payload.txn_id) {
+          processedData.transactionId = payload.txn_id;
+        } else if (payload.transactionId) {
+          processedData.transactionId = payload.transactionId;
+        }
+
+        if (payload.amount) {
+          processedData.amount = parseFloat(payload.amount) || 0;
+        }
+
+        if (payload.currency) {
+          processedData.currency = payload.currency;
+        }
+
+        // 🎯 CRITICAL: Determine event type based on payment status
+        if (processedData.paymentStatus === 'paid' || 
+            processedData.paymentStatus === 'success' || 
+            processedData.paymentStatus === 'completed') {
+          processedData.eventType = 'payment_completed';
+        } else if (processedData.paymentStatus === 'failed' || 
+                   processedData.paymentStatus === 'cancelled') {
+          processedData.eventType = 'payment_failed';
+        } else if (processedData.paymentStatus === 'pending') {
+          processedData.eventType = 'payment_pending';
+        }
+      }
+
+      // 🎯 CRITICAL: Validate essential data
+      if (!processedData.orderSlug && !processedData.orderId) {
+        throw new Error('Webhook missing order identifier (order_slug or order_id)');
+      }
+
+      if (!processedData.paymentStatus) {
+        throw new Error('Webhook missing payment status');
+      }
+
       terminalLog('WEBHOOK_PROCESSING_SUCCESS', 'SUCCESS', {
         eventType: processedData.eventType,
         orderId: processedData.orderId,
+        orderSlug: processedData.orderSlug,
         paymentStatus: processedData.paymentStatus,
+        transactionId: processedData.transactionId,
+        amount: processedData.amount,
         mode: this.mode
+      });
+
+      console.log('✅ Webhook processed successfully:', {
+        eventType: processedData.eventType,
+        orderSlug: processedData.orderSlug,
+        paymentStatus: processedData.paymentStatus,
+        transactionId: processedData.transactionId
       });
 
       return {
@@ -564,6 +643,8 @@ class SMEPayService {
         mode: this.mode
       });
 
+      console.error('❌ Webhook processing error:', error);
+      
       return {
         success: false,
         error: error.message

@@ -270,20 +270,21 @@ export const getDashboardStats = async () => {
   }
 };
 
-// 🎯 Enhanced recent orders fetching
+// 🎯 Enhanced recent orders fetching - UPDATED to use new dashboard endpoint
 export const getRecentOrders = async (queryParams = {}) => {
   try {
     debugLog('📋 FETCHING RECENT ORDERS', { 
       queryParams,
-      endpoint: '/admin/orders/recent'
+      endpoint: '/admin/dashboard'
     }, 'request');
     
-    const response = await api.get('/admin/orders/recent', { params: queryParams });
+    const response = await api.get('/admin/dashboard', { params: queryParams });
     
     debugLog('✅ RECENT ORDERS RECEIVED', {
       ordersCount: response.data.data?.length || 0,
       pagination: response.data.pagination,
-      hasOrders: !!(response.data.data && response.data.data.length > 0)
+      hasOrders: !!(response.data.data && response.data.data.length > 0),
+      dashboardMetrics: response.data.dashboardMetrics
     }, 'success');
 
     return response.data;
