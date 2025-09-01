@@ -35,8 +35,10 @@ api.interceptors.request.use(
     // Clear any invalid/conflicting tokens before each request
     const tokens = getStoredTokens();
     
-    // If route is seller-specific, ensure only seller token exists
-    if (config.url?.includes('/sellers/') || config.url?.includes('seller')) {
+    // If route is seller-specific (but not admin viewing sellers), ensure only seller token exists
+    const isSellerSpecificRoute = (config.url?.startsWith('/seller/') || 
+                                   (config.url?.includes('seller') && !config.url?.includes('/admin/')));
+    if (isSellerSpecificRoute) {
       if (tokens.userToken || tokens.adminToken || tokens.deliveryAgentToken) {
         console.warn('🧹 Clearing conflicting tokens for seller request');
         localStorage.removeItem('userToken');
@@ -105,10 +107,24 @@ api.interceptors.request.use(
     // Debug logging in development
     if (process.env.NODE_ENV === 'development') {
       console.log(`🌐 [API-REQUEST] ${config.method?.toUpperCase()} ${config.url}`);
+      console.log(`🔍 [API] Route analysis:`, {
+        urlPath,
+        isAdminRoute,
+        isSellerRoute,
+        isDeliveryRoute,
+        isUserRoute,
+        hasAdminToken: !!adminToken,
+        hasSellerToken: !!sellerToken,
+        hasUserToken: !!userToken,
+        hasDeliveryToken: !!deliveryAgentToken
+      });
       if (usedToken) {
         console.log(`🔑 [API] Using ${tokenSource}`);
       } else {
         console.warn('⚠️ [API] No token - unauthenticated request');
+        if (isAdminRoute) {
+          console.error('❌ [API] Admin route detected but no admin token available!');
+        }
       }
     }
 
@@ -206,6 +222,63 @@ if (process.env.NODE_ENV === 'development') {
   window.getStoredTokens = getStoredTokens;
   window.clearAllTokens = clearAllTokens;
   window.API_URL = API_URL;
+  
+  // Debug admin authentication
+  window.debugAdminAuth = () => {
+    const adminToken = localStorage.getItem('adminToken');
+    const adminData = localStorage.getItem('adminData');
+    
+    console.log('🔍 Admin Auth Debug:');
+    console.log('  Token:', adminToken ? 'Present' : 'Missing');
+    console.log('  Data:', adminData ? 'Present' : 'Missing');
+    
+    if (adminToken) {
+      console.log('  Token length:', adminToken.length);
+      console.log('  Token preview:', adminToken.substring(0, 50) + '...');
+    }
+    
+    if (adminData) {
+      try {
+        const parsed = JSON.parse(adminData);
+        console.log('  Admin name:', parsed.name);
+        console.log('  Admin email:', parsed.email);
+        console.log('  Admin role:', parsed.role);
+      } catch (e) {
+        console.log('  Admin data parse error:', e.message);
+      }
+    }
+    
+    return { adminToken, adminData };
+  };
+  
+  // Test admin API endpoint
+  window.testAdminAPI = async () => {
+    const adminToken = localStorage.getItem('adminToken');
+    if (!adminToken) {
+      console.error('❌ No admin token found');
+      return;
+    }
+    
+    try {
+      console.log('🧪 Testing admin API with token...');
+      const response = await fetch('/api/admin/sellers?page=1&limit=20', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('📡 Response status:', response.status);
+      const data = await response.json();
+      console.log('📦 Response data:', data);
+      
+      return { status: response.status, data };
+    } catch (error) {
+      console.error('❌ API test failed:', error);
+      return { error: error.message };
+    }
+  };
 }
 
 export default api;

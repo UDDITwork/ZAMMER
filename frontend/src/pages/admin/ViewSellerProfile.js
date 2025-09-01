@@ -1,7 +1,9 @@
+// frontend/src/pages/admin/ViewSellerProfile.js
+// View detailed seller profile with products and statistics
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import AdminLayout from '../../components/layouts/AdminLayout';
 import adminService from '../../services/adminService';
 
 const ViewSellerProfile = () => {
@@ -128,20 +130,20 @@ const ViewSellerProfile = () => {
 
   if (loading) {
     return (
-      <AdminLayout>
+      <div>
         <div className="flex items-center justify-center min-h-96">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading seller profile...</p>
           </div>
         </div>
-      </AdminLayout>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <AdminLayout>
+      <div>
         <div className="flex items-center justify-center min-h-96">
           <div className="text-center">
             <div className="bg-red-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
@@ -159,27 +161,27 @@ const ViewSellerProfile = () => {
             </button>
           </div>
         </div>
-      </AdminLayout>
+      </div>
     );
   }
 
   if (!sellerData) {
     return (
-      <AdminLayout>
+      <div>
         <div className="text-center py-12">
           <h3 className="text-lg font-medium text-gray-900">Seller not found</h3>
           <Link to="/admin/sellers" className="text-orange-600 hover:text-orange-500 mt-2 inline-block">
             Back to Sellers
           </Link>
         </div>
-      </AdminLayout>
+      </div>
     );
   }
 
   const { seller, products, stats } = sellerData;
 
   return (
-    <AdminLayout>
+    <div>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-start">
@@ -467,7 +469,7 @@ const ViewSellerProfile = () => {
           </div>
         )}
       </div>
-    </AdminLayout>
+    </div>
   );
 };
 

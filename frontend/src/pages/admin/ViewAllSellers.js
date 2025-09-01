@@ -1,13 +1,19 @@
+// frontend/src/pages/admin/ViewAllSellers.js
+// View and manage all registered sellers with authentication fixes
+
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import AdminLayout from '../../components/layouts/AdminLayout';
+import { useAuth } from '../../contexts/AuthContext';
 import adminService from '../../services/adminService';
+import { checkAdminAuth, fixAdminAuth } from '../../utils/adminAuthFix';
 
 const ViewAllSellers = () => {
   const [sellers, setSellers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [authCheckComplete, setAuthCheckComplete] = useState(false);
+  const [authInitialized, setAuthInitialized] = useState(false);
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
@@ -16,9 +22,76 @@ const ViewAllSellers = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredSellers, setFilteredSellers] = useState([]);
 
+  // 🔒 SECURITY: Get auth context and navigation
+  const { adminAuth } = useAuth();
+  const navigate = useNavigate();
+
+  // 🔒 CRITICAL: Wait for auth context to initialize first
   useEffect(() => {
-    fetchSellers();
-  }, [pagination.currentPage]);
+    // Small delay to ensure auth context is fully initialized
+    const timer = setTimeout(() => {
+      setAuthInitialized(true);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // 🔒 CRITICAL: Authentication protection with auto-fix capability
+  useEffect(() => {
+    if (!authInitialized) return;
+
+    const handleAuthCheck = async () => {
+      console.log('🔒 [VIEW-ALL-SELLERS] Authentication check started...', {
+        isAuthenticated: adminAuth.isAuthenticated,
+        hasAdmin: !!adminAuth.admin,
+        hasToken: !!adminAuth.token,
+        adminName: adminAuth.admin?.name,
+        authInitialized
+      });
+
+      // Check if AuthContext has valid authentication
+      if (adminAuth.isAuthenticated && adminAuth.admin && adminAuth.token) {
+        console.log('✅ [VIEW-ALL-SELLERS] Authentication verified for admin:', adminAuth.admin.name);
+        setAuthCheckComplete(true);
+        return;
+      }
+
+      // If AuthContext doesn't have auth, check localStorage directly
+      console.log('⚠️ [VIEW-ALL-SELLERS] AuthContext missing auth, checking localStorage...');
+      const authCheck = checkAdminAuth();
+      
+      if (authCheck.isValid) {
+        console.log('✅ [VIEW-ALL-SELLERS] Valid auth found in localStorage, AuthContext will sync');
+        setAuthCheckComplete(true);
+        return;
+      }
+
+      // Try to auto-fix authentication
+      console.log('🔧 [VIEW-ALL-SELLERS] Attempting to auto-fix authentication...');
+      const fixResult = await fixAdminAuth();
+      
+      if (fixResult.success) {
+        console.log('✅ [VIEW-ALL-SELLERS] Authentication auto-fixed successfully');
+        toast.success('Admin authentication restored');
+        setAuthCheckComplete(true);
+        return;
+      }
+
+      // If all else fails, redirect to login
+      console.log('❌ [VIEW-ALL-SELLERS] Authentication failed, redirecting to login...');
+      toast.error('Please login to access admin panel');
+      navigate('/admin/login', { replace: true });
+    };
+
+    handleAuthCheck();
+  }, [authInitialized, adminAuth.isAuthenticated, adminAuth.admin, adminAuth.token, navigate]);
+
+  // 🔒 ONLY fetch data AFTER authentication is verified
+  useEffect(() => {
+    if (authCheckComplete && adminAuth.isAuthenticated) {
+      fetchSellers();
+    }
+  }, [authCheckComplete, adminAuth.isAuthenticated, pagination.currentPage]);
 
   useEffect(() => {
     // Filter sellers based on search term
@@ -38,7 +111,16 @@ const ViewAllSellers = () => {
   const fetchSellers = async (page = 1) => {
     try {
       setLoading(true);
-      console.log('📊 Fetching sellers for page:', page);
+      setError(null);
+      console.log('📊 [VIEW-ALL-SELLERS] Fetching sellers for page:', page);
+      
+      // Verify authentication before making API call
+      if (!adminAuth.isAuthenticated || !adminAuth.token) {
+        console.log('❌ [VIEW-ALL-SELLERS] No valid authentication for API call');
+        toast.error('Authentication required. Please login again.');
+        navigate('/admin/login', { replace: true });
+        return;
+      }
       
       const response = await adminService.getAllSellers({ 
         page, 
@@ -49,7 +131,7 @@ const ViewAllSellers = () => {
         setSellers(response.data);
         setFilteredSellers(response.data);
         setPagination(response.pagination);
-        console.log('✅ Sellers loaded:', {
+        console.log('✅ [VIEW-ALL-SELLERS] Sellers loaded:', {
           count: response.data.length,
           total: response.pagination.totalSellers
         });
@@ -57,7 +139,15 @@ const ViewAllSellers = () => {
         throw new Error(response.message || 'Failed to fetch sellers');
       }
     } catch (error) {
-      console.error('❌ Sellers fetch error:', error);
+      console.error('❌ [VIEW-ALL-SELLERS] Sellers fetch error:', error);
+      
+      if (error.response?.status === 401) {
+        console.log('🔒 [VIEW-ALL-SELLERS] Authentication expired, redirecting to login...');
+        toast.error('Session expired. Please login again.');
+        navigate('/admin/login', { replace: true });
+        return;
+      }
+      
       setError(error.message || 'Failed to load sellers');
       toast.error('Failed to load sellers');
     } finally {
@@ -152,22 +242,58 @@ const ViewAllSellers = () => {
     );
   };
 
+  // Loading and authentication states
+  if (!authInitialized || !authCheckComplete) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">
+            {!authInitialized ? 'Initializing authentication...' : 'Verifying admin access...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!adminAuth.isAuthenticated || !adminAuth.admin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="bg-red-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Access Denied</h3>
+          <p className="text-gray-600 mb-4">You need admin privileges to access this page</p>
+          <button
+            onClick={() => navigate('/admin/login')}
+            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md transition-colors"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <AdminLayout>
+      <div>
         <div className="flex items-center justify-center min-h-96">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading sellers...</p>
           </div>
         </div>
-      </AdminLayout>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <AdminLayout>
+      <div>
         <div className="flex items-center justify-center min-h-96">
           <div className="text-center">
             <div className="bg-red-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
@@ -185,12 +311,12 @@ const ViewAllSellers = () => {
             </button>
           </div>
         </div>
-      </AdminLayout>
+      </div>
     );
   }
 
   return (
-    <AdminLayout>
+    <div>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -364,7 +490,7 @@ const ViewAllSellers = () => {
           </div>
         )}
       </div>
-    </AdminLayout>
+    </div>
   );
 };
 

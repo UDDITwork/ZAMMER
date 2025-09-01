@@ -1,10 +1,10 @@
-// the purpose of this file is to send the data and order hsitory of the delivery agents to admin dashbaord 
-// frontend/src/pages/admin/DeliveryAgents.js - Complete Delivery Agent Management
+// frontend/src/pages/admin/DeliveryAgents.js
+// Complete delivery agent management with profile viewing and status updates
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
-import AdminLayout from '../../components/layouts/AdminLayout';
 import adminService from '../../services/adminService';
 
 const DeliveryAgents = () => {
@@ -330,7 +330,7 @@ const DeliveryAgents = () => {
   };
 
   return (
-    <AdminLayout>
+    <div>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -438,7 +438,7 @@ const DeliveryAgents = () => {
 
       {/* Profile Modal */}
       {showProfileModal && <ProfileModal />}
-    </AdminLayout>
+    </div>
   );
 };
 

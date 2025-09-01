@@ -12,41 +12,32 @@ const AdminLayout = ({ children }) => {
   const { adminAuth, logout } = useAuth();
 
   // 🎯 MOVE ALL useEffect TO TOP - BEFORE ANY CONDITIONAL RETURNS
+
   useEffect(() => {
-    const updateLayout = () => {
-      const mainContent = document.querySelector('.admin-main-content');
-      if (mainContent && window.innerWidth >= 1024) {
-        mainContent.style.paddingLeft = '16rem';
-      } else if (mainContent) {
-        mainContent.style.paddingLeft = '0';
+    // Small delay to ensure auth context is fully initialized
+    const timer = setTimeout(() => {
+      console.log('%c[ADMIN-LAYOUT] Protected route - checking auth', 'color: #673AB7; font-weight: bold;', {
+        isAuthenticated: adminAuth.isAuthenticated,
+        hasAdmin: !!adminAuth.admin,
+        hasToken: !!adminAuth.token,
+        currentPath: location.pathname
+      });
+
+      const publicRoutes = ['/admin/login', '/admin/forgot-password', '/admin/register'];
+      const isPublicRoute = publicRoutes.includes(location.pathname);
+
+      if (!isPublicRoute && (!adminAuth.isAuthenticated || !adminAuth.admin || !adminAuth.token)) {
+        console.log('%c[ADMIN-LAYOUT] Auth failed - redirecting to login', 'color: #F44336; font-weight: bold;');
+        navigate('/admin/login', { replace: true });
+        return;
       }
-    };
-    
-    updateLayout();
-    window.addEventListener('resize', updateLayout);
-    return () => window.removeEventListener('resize', updateLayout);
-  }, []);
 
-  useEffect(() => {
-    console.log('%c[ADMIN-LAYOUT] Protected route - checking auth', 'color: #673AB7; font-weight: bold;', {
-      isAuthenticated: adminAuth.isAuthenticated,
-      hasAdmin: !!adminAuth.admin,
-      hasToken: !!adminAuth.token,
-      currentPath: location.pathname
-    });
+      if (!isPublicRoute) {
+        loadAdminStats();
+      }
+    }, 50);
 
-    const publicRoutes = ['/admin/login', '/admin/forgot-password', '/admin/register'];
-    const isPublicRoute = publicRoutes.includes(location.pathname);
-
-    if (!isPublicRoute && (!adminAuth.isAuthenticated || !adminAuth.admin || !adminAuth.token)) {
-      console.log('%c[ADMIN-LAYOUT] Auth failed - redirecting to login', 'color: #F44336; font-weight: bold;');
-      navigate('/admin/login', { replace: true });
-      return;
-    }
-
-    if (!isPublicRoute) {
-      loadAdminStats();
-    }
+    return () => clearTimeout(timer);
   }, [adminAuth, location.pathname, navigate]);
 
   // 🎯 NOW CHECK PUBLIC ROUTES AFTER HOOKS
@@ -180,7 +171,7 @@ const AdminLayout = ({ children }) => {
   console.log('%c[ADMIN-LAYOUT] Rendering full admin layout', 'color: #4CAF50; font-weight: bold;');
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div 
@@ -190,7 +181,7 @@ const AdminLayout = ({ children }) => {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:relative lg:inset-0 lg:flex-shrink-0 ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         <div className="flex flex-col h-full">
@@ -275,7 +266,7 @@ const AdminLayout = ({ children }) => {
       </div>
 
       {/* Main content */}
-      <div className="admin-main-content pl-0 lg:pl-64" style={{paddingLeft: window.innerWidth >= 1024 ? '16rem' : '0'}}>
+      <div className="admin-main-content flex-1 min-w-0">
         {/* Top header */}
         <header className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">

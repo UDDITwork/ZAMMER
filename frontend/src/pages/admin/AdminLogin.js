@@ -1,4 +1,5 @@
-// frontend/src/pages/admin/AdminLogin.js - FIXED VERSION
+// frontend/src/pages/admin/AdminLogin.js
+// Admin authentication login page with auto-fix capabilities
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';

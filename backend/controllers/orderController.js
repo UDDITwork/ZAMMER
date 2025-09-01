@@ -648,8 +648,8 @@ exports.createOrder = async (req, res) => {
 
     const populatedOrder = await Order.findById(createdOrder._id)
       .populate('user', 'name email mobileNumber')
-      .populate('seller', 'firstName shop')
-      .populate('orderItems.product', 'name images');
+      .populate('seller', 'firstName lastName email shop')
+      .populate('orderItems.product', 'name images description');
 
     console.log(`✅ STEP 6 COMPLETE: Order populated successfully`);
 
@@ -762,8 +762,28 @@ exports.createOrder = async (req, res) => {
       createdAt: populatedOrder.createdAt
     }, 'order-created');
 
-    // 🎯 NEW: Real-time notification to admin about new order
-    emitAdminNotification(populatedOrder, 'new-order');
+    // 🎯 ENHANCED: Real-time notification to admin about new order with comprehensive data
+    const adminNotificationData = {
+      _id: populatedOrder._id,
+      orderNumber: populatedOrder.orderNumber,
+      status: populatedOrder.status,
+      totalPrice: populatedOrder.totalPrice,
+      taxPrice: populatedOrder.taxPrice,
+      shippingPrice: populatedOrder.shippingPrice,
+      paymentMethod: populatedOrder.paymentMethod,
+      isPaid: populatedOrder.isPaid,
+      paymentStatus: populatedOrder.paymentStatus,
+      user: populatedOrder.user,
+      seller: populatedOrder.seller,
+      orderItems: populatedOrder.orderItems,
+      shippingAddress: populatedOrder.shippingAddress,
+      createdAt: populatedOrder.createdAt,
+      // Add payment details if available
+      paymentDetails: populatedOrder.paymentDetails || null,
+      paidAt: populatedOrder.paidAt || null
+    };
+    
+    emitAdminNotification(adminNotificationData, 'new-order');
 
     // 🎯 Send email notification to buyer
     sendEmailNotification(populatedOrder.user.email, populatedOrder, 'order-created');
@@ -1547,8 +1567,33 @@ exports.updateOrderPaymentStatus = async (req, res) => {
       updatedAt: updatedOrder.updatedAt
     }, 'payment-status-update');
 
-    // 🎯 Real-time notification to admin about payment completion
-    emitAdminNotification(updatedOrder, 'payment-completed');
+    // 🎯 ENHANCED: Real-time notification to admin about payment completion with comprehensive data
+    const populatedUpdatedOrder = await Order.findById(updatedOrder._id)
+      .populate('user', 'name email mobileNumber')
+      .populate('seller', 'firstName lastName email shop')
+      .populate('orderItems.product', 'name images description');
+    
+    const adminPaymentNotificationData = {
+      _id: populatedUpdatedOrder._id,
+      orderNumber: populatedUpdatedOrder.orderNumber,
+      status: populatedUpdatedOrder.status,
+      totalPrice: populatedUpdatedOrder.totalPrice,
+      taxPrice: populatedUpdatedOrder.taxPrice,
+      shippingPrice: populatedUpdatedOrder.shippingPrice,
+      paymentMethod: populatedUpdatedOrder.paymentMethod,
+      isPaid: populatedUpdatedOrder.isPaid,
+      paymentStatus: populatedUpdatedOrder.paymentStatus,
+      user: populatedUpdatedOrder.user,
+      seller: populatedUpdatedOrder.seller,
+      orderItems: populatedUpdatedOrder.orderItems,
+      shippingAddress: populatedUpdatedOrder.shippingAddress,
+      createdAt: populatedUpdatedOrder.createdAt,
+      paidAt: populatedUpdatedOrder.paidAt,
+      paymentResult: populatedUpdatedOrder.paymentResult,
+      previousPaymentStatus: previousPaymentStatus
+    };
+    
+    emitAdminNotification(adminPaymentNotificationData, 'payment-completed');
 
     res.status(200).json({
       success: true,
