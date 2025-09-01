@@ -1,7 +1,5 @@
-// frontend/src/pages/admin/AdminDashboard.js - COMPLETE Order Management Dashboard
-// 🎯 ADDED: Complete order management with assignment functionality
-// 🎯 ADDED: Real-time order updates and delivery agent assignment
-// 🎯 ADDED: Order approval and tracking system
+// frontend/src/pages/admin/AdminDashboard.js
+// Complete admin dashboard with order management and real-time updates
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -9,6 +7,7 @@ import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
 import adminService from '../../services/adminService';
 import socketService from '../../services/socketService';
+import { checkAdminAuth, fixAdminAuth } from '../../utils/adminAuthFix';
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -29,24 +28,51 @@ const AdminDashboard = () => {
   const { adminAuth } = useAuth();
   const navigate = useNavigate();
 
-  // 🔒 CRITICAL: Authentication protection - Check FIRST before anything else
+  // 🔒 CRITICAL: Authentication protection with auto-fix capability
   useEffect(() => {
-    console.log('🔒 [ADMIN-DASHBOARD] Authentication check started...', {
-      isAuthenticated: adminAuth.isAuthenticated,
-      hasAdmin: !!adminAuth.admin,
-      hasToken: !!adminAuth.token,
-      adminName: adminAuth.admin?.name
-    });
+    const handleAuthCheck = async () => {
+      console.log('🔒 [ADMIN-DASHBOARD] Authentication check started...', {
+        isAuthenticated: adminAuth.isAuthenticated,
+        hasAdmin: !!adminAuth.admin,
+        hasToken: !!adminAuth.token,
+        adminName: adminAuth.admin?.name
+      });
 
-    if (!adminAuth.isAuthenticated || !adminAuth.admin || !adminAuth.token) {
-      console.log('❌ [ADMIN-DASHBOARD] Unauthorized access detected! Redirecting to login...');
+      // Check if AuthContext has valid authentication
+      if (adminAuth.isAuthenticated && adminAuth.admin && adminAuth.token) {
+        console.log('✅ [ADMIN-DASHBOARD] Authentication verified for admin:', adminAuth.admin.name);
+        setAuthCheckComplete(true);
+        return;
+      }
+
+      // If AuthContext doesn't have auth, check localStorage directly
+      console.log('⚠️ [ADMIN-DASHBOARD] AuthContext missing auth, checking localStorage...');
+      const authCheck = checkAdminAuth();
+      
+      if (authCheck.isValid) {
+        console.log('✅ [ADMIN-DASHBOARD] Valid auth found in localStorage, AuthContext will sync');
+        setAuthCheckComplete(true);
+        return;
+      }
+
+      // Try to auto-fix authentication
+      console.log('🔧 [ADMIN-DASHBOARD] Attempting to auto-fix authentication...');
+      const fixResult = await fixAdminAuth();
+      
+      if (fixResult.success) {
+        console.log('✅ [ADMIN-DASHBOARD] Authentication auto-fixed successfully');
+        toast.success('Admin authentication restored');
+        setAuthCheckComplete(true);
+        return;
+      }
+
+      // If all else fails, redirect to login
+      console.log('❌ [ADMIN-DASHBOARD] Authentication failed, redirecting to login...');
       toast.error('Please login to access admin dashboard');
       navigate('/admin/login', { replace: true });
-      return;
-    }
+    };
 
-    console.log('✅ [ADMIN-DASHBOARD] Authentication verified for admin:', adminAuth.admin.name);
-    setAuthCheckComplete(true);
+    handleAuthCheck();
   }, [adminAuth.isAuthenticated, adminAuth.admin, adminAuth.token, navigate]);
 
   // 🔒 ONLY fetch data AFTER authentication is verified
@@ -80,18 +106,35 @@ const AdminDashboard = () => {
         console.warn('⚠️ No admin ID available for room joining');
       }
       
-      // 🎯 UPDATED: Listen for admin notifications with error handling
+      // 🎯 ENHANCED: Listen for admin notifications with comprehensive order data
       socketService.onAdminNotification((data) => {
         console.log('🔧 Admin notification received:', data);
         
         try {
           if (data.data?.orderNumber) {
             const eventType = data.message?.includes('payment') ? 'payment-completed' : 'new-order';
-            const notificationMessage = eventType === 'payment-completed' 
-              ? `Payment completed for order: ${data.data.orderNumber}`
-              : `New order received: ${data.data.orderNumber}`;
+            const orderData = data.data;
             
-            toast.success(notificationMessage);
+            // Enhanced notification message with order details
+            const notificationMessage = eventType === 'payment-completed' 
+              ? `Payment completed for order: ${orderData.orderNumber} (₹${orderData.totalPrice})`
+              : `New order received: ${orderData.orderNumber} from ${orderData.user?.name} (₹${orderData.totalPrice})`;
+            
+            toast.success(notificationMessage, {
+              autoClose: 5000,
+              position: "top-right"
+            });
+            
+            // Log comprehensive order details
+            console.log('📦 Order notification details:', {
+              orderNumber: orderData.orderNumber,
+              customer: orderData.user?.name,
+              seller: orderData.seller?.firstName,
+              totalPrice: orderData.totalPrice,
+              itemCount: orderData.orderItems?.length,
+              paymentStatus: orderData.isPaid ? 'Paid' : 'Pending',
+              eventType
+            });
             
             // Refresh data based on notification type
             if (eventType === 'payment-completed') {
@@ -124,22 +167,28 @@ const AdminDashboard = () => {
     }
   };
 
-  // 🎯 NEW: Fetch recent orders needing approval
+  // 🎯 ENHANCED: Fetch recent orders needing approval with comprehensive data
   const fetchRecentOrders = async () => {
     try {
       setOrdersLoading(true);
       console.log('📋 Fetching recent orders for admin approval...');
       
-      // This would be a new endpoint - we'll need to add this to adminService
       const response = await adminService.getRecentOrders({
         status: 'pending',
-        needsApproval: true,
-        limit: 10
+        limit: 20 // Increased limit to show more orders
       });
 
       if (response.success) {
         setOrders(response.data);
         console.log('✅ Recent orders loaded:', response.data.length);
+        console.log('📦 Order details:', response.data.map(order => ({
+          orderNumber: order.orderNumber,
+          customer: order.user?.name,
+          seller: order.seller?.firstName,
+          totalPrice: order.totalPrice,
+          itemCount: order.orderItems?.length,
+          paymentStatus: order.isPaid ? 'Paid' : 'Pending'
+        })));
       } else {
         throw new Error(response.message || 'Failed to fetch orders');
       }
@@ -316,7 +365,7 @@ const AdminDashboard = () => {
     </div>
   );
 
-  // 🎯 NEW: Order Card Component
+  // 🎯 ENHANCED: Order Card Component with comprehensive order details
   const OrderCard = ({ order }) => (
     <div 
       className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
@@ -347,6 +396,14 @@ const AdminDashboard = () => {
           <span className="text-sm font-medium">{order.seller?.firstName} {order.seller?.lastName}</span>
         </div>
         <div className="flex justify-between">
+          <span className="text-sm text-gray-600">Shop:</span>
+          <span className="text-sm font-medium">{order.seller?.shop?.name || 'N/A'}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-sm text-gray-600">Items:</span>
+          <span className="text-sm font-medium">{order.orderItems?.length || 0} products</span>
+        </div>
+        <div className="flex justify-between">
           <span className="text-sm text-gray-600">Amount:</span>
           <span className="text-sm font-bold text-green-600">{formatCurrency(order.totalPrice)}</span>
         </div>
@@ -358,7 +415,32 @@ const AdminDashboard = () => {
             {order.isPaid ? '✅ Paid' : '❌ Pending'}
           </span>
         </div>
+        <div className="flex justify-between">
+          <span className="text-sm text-gray-600">Payment ID:</span>
+          <span className="text-sm font-mono text-gray-500">
+            {order.paymentDetails?.transactionId || order.paymentDetails?.paymentId || 'N/A'}
+          </span>
+        </div>
       </div>
+
+      {/* 🎯 NEW: Product preview */}
+      {order.orderItems && order.orderItems.length > 0 && (
+        <div className="mb-3 p-2 bg-gray-50 rounded-md">
+          <p className="text-xs text-gray-600 mb-1">Products:</p>
+          <div className="flex flex-wrap gap-1">
+            {order.orderItems.slice(0, 3).map((item, index) => (
+              <span key={index} className="text-xs bg-white px-2 py-1 rounded border">
+                {item.name} ({item.quantity})
+              </span>
+            ))}
+            {order.orderItems.length > 3 && (
+              <span className="text-xs bg-gray-200 px-2 py-1 rounded">
+                +{order.orderItems.length - 3} more
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       <button className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors">
         View Details & Assign
@@ -415,19 +497,30 @@ const AdminDashboard = () => {
 
             {/* Order Items */}
             <div className="mb-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Order Items</h3>
+              <h3 className="font-semibold text-gray-900 mb-3">Order Items ({selectedOrder.orderItems?.length || 0})</h3>
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 {selectedOrder.orderItems?.map((item, index) => (
                   <div key={index} className="flex items-center p-4 border-b border-gray-200 last:border-b-0">
                     <img 
-                      src={item.image || '/placeholder-product.jpg'} 
+                      src={item.image || item.product?.images?.[0] || '/placeholder-product.jpg'} 
                       alt={item.name}
                       className="w-16 h-16 object-cover rounded-lg"
                     />
                     <div className="ml-4 flex-1">
                       <h4 className="font-medium text-gray-900">{item.name}</h4>
-                      <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
-                      <p className="text-sm font-medium text-green-600">{formatCurrency(item.price)}</p>
+                      <div className="flex flex-wrap gap-2 text-sm text-gray-600">
+                        <span>Qty: {item.quantity}</span>
+                        {item.size && <span>Size: {item.size}</span>}
+                        {item.color && <span>Color: {item.color}</span>}
+                      </div>
+                      <div className="flex justify-between items-center mt-1">
+                        <p className="text-sm font-medium text-green-600">
+                          {formatCurrency(item.price)} each
+                        </p>
+                        <p className="text-sm font-bold text-gray-900">
+                          Total: {formatCurrency(item.price * item.quantity)}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -440,20 +533,57 @@ const AdminDashboard = () => {
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
-                  <span>{formatCurrency(selectedOrder.totalPrice - selectedOrder.taxPrice - selectedOrder.shippingPrice)}</span>
+                  <span>{formatCurrency(selectedOrder.totalPrice - (selectedOrder.taxPrice || 0) - (selectedOrder.shippingPrice || 0))}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Tax:</span>
-                  <span>{formatCurrency(selectedOrder.taxPrice)}</span>
+                  <span>{formatCurrency(selectedOrder.taxPrice || 0)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Shipping:</span>
-                  <span>{formatCurrency(selectedOrder.shippingPrice)}</span>
+                  <span>{formatCurrency(selectedOrder.shippingPrice || 0)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-lg border-t pt-2">
                   <span>Total:</span>
                   <span>{formatCurrency(selectedOrder.totalPrice)}</span>
                 </div>
+              </div>
+            </div>
+
+            {/* 🎯 NEW: Payment Details */}
+            <div className="bg-blue-50 p-4 rounded-lg mb-6">
+              <h3 className="font-semibold text-blue-900 mb-3">Payment Details</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-blue-700">Payment Method:</span>
+                  <span className="font-medium">{selectedOrder.paymentMethod || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-blue-700">Payment Status:</span>
+                  <span className={`font-medium ${
+                    selectedOrder.isPaid ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {selectedOrder.isPaid ? '✅ Paid' : '❌ Pending'}
+                  </span>
+                </div>
+                {selectedOrder.paymentDetails?.transactionId && (
+                  <div className="flex justify-between">
+                    <span className="text-blue-700">Transaction ID:</span>
+                    <span className="font-mono text-sm">{selectedOrder.paymentDetails.transactionId}</span>
+                  </div>
+                )}
+                {selectedOrder.paymentDetails?.paymentId && (
+                  <div className="flex justify-between">
+                    <span className="text-blue-700">Payment ID:</span>
+                    <span className="font-mono text-sm">{selectedOrder.paymentDetails.paymentId}</span>
+                  </div>
+                )}
+                {selectedOrder.paidAt && (
+                  <div className="flex justify-between">
+                    <span className="text-blue-700">Paid At:</span>
+                    <span className="text-sm">{formatDate(selectedOrder.paidAt)}</span>
+                  </div>
+                )}
               </div>
             </div>
 
