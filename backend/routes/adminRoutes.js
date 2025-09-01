@@ -94,6 +94,28 @@ router.use(protectAdmin);
 // @access  Private (Admin)
 router.get('/dashboard/stats', getDashboardStats);
 
+// @route   GET /api/admin/dashboard
+// @desc    Get admin dashboard orders (NEW ROUTE)
+// @access  Private (Admin)
+router.get('/dashboard', [
+  query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+  query('status').optional().isString().withMessage('Status must be a string'),
+  validateRequest
+], async (req, res) => {
+  try {
+    const { getAdminDashboardOrders } = require('../controllers/orderController');
+    await getAdminDashboardOrders(req, res);
+  } catch (error) {
+    console.error('Admin dashboard route error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
 // 🎯 NEW: Order Management Routes
 
 // @route   GET /api/admin/orders/recent

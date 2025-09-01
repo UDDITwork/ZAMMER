@@ -284,22 +284,10 @@ const checkSMEPayQRStatus = async (req, res) => {
       });
     }
 
-    // Get the latest payment attempt
-    const latestAttempt = order.paymentAttempts?.find(
-      attempt => attempt.gateway === 'smepay' && attempt.orderSlug === order.smepayOrderSlug
-    );
-
-    if (!latestAttempt) {
-      return res.status(400).json({
-        success: false,
-        message: 'No payment attempt found'
-      });
-    }
-
-    // Check status with SMEPay
+    // 🎯 CRITICAL FIX: Check status with SMEPay AND update order automatically
     const statusResult = await smepayService.checkQRStatus({
       slug: order.smepayOrderSlug,
-      refId: latestAttempt.refId || 'default_ref'
+      refId: order.paymentAttempts?.[0]?.refId || 'default_ref'
     });
 
     if (!statusResult.success) {
@@ -314,8 +302,11 @@ const checkSMEPayQRStatus = async (req, res) => {
       });
     }
 
-    // Update order if payment is successful
+    // 🎯 CRITICAL FIX: Auto-update order if payment is successful
     if (statusResult.isPaymentSuccessful && !order.isPaid) {
+      console.log(`💰 Payment confirmed for order: ${order.orderNumber}`);
+      
+      // Update order payment status
       order.isPaid = true;
       order.paidAt = new Date();
       order.paymentStatus = 'completed';
@@ -327,24 +318,71 @@ const checkSMEPayQRStatus = async (req, res) => {
       };
 
       // Update payment attempt
-      latestAttempt.status = 'completed';
-      latestAttempt.completedAt = new Date();
-      latestAttempt.transactionId = statusResult.data.transactionId;
+      if (order.paymentAttempts && order.paymentAttempts.length > 0) {
+        const latestAttempt = order.paymentAttempts[order.paymentAttempts.length - 1];
+        latestAttempt.status = 'completed';
+        latestAttempt.completedAt = new Date();
+        latestAttempt.transactionId = statusResult.data.transactionId;
+      }
+
+      // 🎯 CRITICAL: Update order status to "Processing" after payment
+      order.status = 'Processing';
+      order.statusHistory.push({
+        status: 'Processing',
+        changedBy: 'system',
+        changedAt: new Date(),
+        notes: 'Payment confirmed, order processing started'
+      });
 
       await order.save();
 
-      logPayment('PAYMENT_COMPLETED', {
+      logPayment('PAYMENT_COMPLETED_AND_ORDER_UPDATED', {
         orderId: order._id,
         orderNumber: order.orderNumber,
         transactionId: statusResult.data.transactionId,
-        amount: order.totalPrice
+        amount: order.totalPrice,
+        newStatus: order.status
       }, 'success');
+
+      // 🎯 CRITICAL: Emit notifications for order status change
+      const { emitBuyerNotification, emitOrderNotification, emitAdminNotification } = require('../controllers/orderController');
+      
+      // Notify buyer
+      emitBuyerNotification(order.user, {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        isPaid: order.isPaid
+      }, 'payment-completed');
+
+      // Notify seller about new paid order
+      emitOrderNotification(order.seller, {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        totalPrice: order.totalPrice,
+        user: order.user,
+        orderItems: order.orderItems,
+        createdAt: order.createdAt,
+        isPaid: order.isPaid
+      }, 'new-order');
+
+      // Notify admin
+      emitAdminNotification({
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        isPaid: order.isPaid
+      }, 'payment-completed');
     }
 
     logPayment('STATUS_CHECK_SUCCESS', {
       orderId,
       paymentStatus: statusResult.data.paymentStatus,
-      isPaymentSuccessful: statusResult.isPaymentSuccessful
+      isPaymentSuccessful: statusResult.isPaymentSuccessful,
+      orderUpdated: order.isPaid
     }, 'success');
 
     res.status(200).json({
@@ -356,6 +394,7 @@ const checkSMEPayQRStatus = async (req, res) => {
         paymentStatus: statusResult.data.paymentStatus,
         isPaymentSuccessful: statusResult.isPaymentSuccessful,
         isPaid: order.isPaid,
+        orderStatus: order.status,
         smepayData: statusResult.data
       }
     });
@@ -469,6 +508,154 @@ const validateSMEPayOrder = async (req, res) => {
   }
 };
 
+// 🎯 NEW: Auto-confirm payment after SMEPay completion
+// @desc    Auto-confirm SMEPay payment
+// @route   POST /api/payments/smepay/auto-confirm
+// @access  Private (User)
+const autoConfirmSMEPayPayment = async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    const userId = req.user._id;
+
+    logPayment('AUTO_CONFIRM_PAYMENT_START', { orderId, userId: userId.toString() });
+
+    // Find the order
+    const order = await Order.findById(orderId).populate('user seller');
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Check ownership
+    if (order.user._id.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access to order'
+      });
+    }
+
+    if (!order.smepayOrderSlug) {
+      return res.status(400).json({
+        success: false,
+        message: 'No SMEPay payment found for this order'
+      });
+    }
+
+    // 🎯 CRITICAL: Check with SMEPay and confirm payment
+    const confirmResult = await smepayService.validateOrder({
+      slug: order.smepayOrderSlug,
+      amount: order.totalPrice
+    });
+
+    if (!confirmResult.success) {
+      logPayment('AUTO_CONFIRM_FAILED', {
+        orderId,
+        error: confirmResult.error
+      }, 'error');
+
+      return res.status(400).json({
+        success: false,
+        message: confirmResult.error || 'Failed to confirm payment'
+      });
+    }
+
+    // 🎯 CRITICAL: Update order if payment is confirmed
+    if (confirmResult.isPaymentSuccessful && !order.isPaid) {
+      console.log(`🎉 Payment auto-confirmed for order: ${order.orderNumber}`);
+      
+      // Update payment status
+      order.isPaid = true;
+      order.paidAt = new Date();
+      order.paymentStatus = 'completed';
+      order.paymentResult = {
+        gateway: 'smepay',
+        transactionId: confirmResult.data.transactionId || 'smepay_' + Date.now(),
+        paidAt: new Date(),
+        paymentMethod: 'SMEPay'
+      };
+
+      // 🎯 CRITICAL: Update order status
+      order.status = 'Processing';
+      order.statusHistory.push({
+        status: 'Processing',
+        changedBy: 'system',
+        changedAt: new Date(),
+        notes: 'Payment confirmed via SMEPay, order processing started'
+      });
+
+      await order.save();
+
+      logPayment('AUTO_CONFIRM_SUCCESS', {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        paymentStatus: order.paymentStatus,
+        newStatus: order.status
+      }, 'success');
+
+      // 🎯 CRITICAL: Emit all necessary notifications
+      const { emitBuyerNotification, emitOrderNotification, emitAdminNotification } = require('../controllers/orderController');
+      
+      // Notify buyer
+      emitBuyerNotification(order.user._id, {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        isPaid: order.isPaid
+      }, 'payment-completed');
+
+      // Notify seller about new paid order
+      emitOrderNotification(order.seller._id, {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        totalPrice: order.totalPrice,
+        user: order.user,
+        orderItems: order.orderItems,
+        createdAt: order.createdAt,
+        isPaid: order.isPaid
+      }, 'new-order');
+
+      // Notify admin
+      emitAdminNotification({
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        isPaid: order.isPaid,
+        user: order.user,
+        seller: order.seller
+      }, 'payment-completed');
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment confirmation completed',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        isPaymentSuccessful: confirmResult.isPaymentSuccessful,
+        paymentStatus: confirmResult.data.paymentStatus,
+        isPaid: order.isPaid,
+        orderStatus: order.status,
+        smepayData: confirmResult.data
+      }
+    });
+
+  } catch (error) {
+    logPayment('AUTO_CONFIRM_ERROR', { error: error.message }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error while confirming payment',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 // @desc    Handle SMEPay webhook callback
 // @route   POST /api/payments/smepay/webhook
 // @access  Public (Called by SMEPay)
@@ -480,15 +667,23 @@ const handleSMEPayWebhook = async (req, res) => {
     logPayment('WEBHOOK_RECEIVED', {
       hasPayload: !!webhookPayload,
       hasSignature: !!signature,
-      payloadKeys: webhookPayload ? Object.keys(webhookPayload) : []
+      payloadKeys: webhookPayload ? Object.keys(webhookPayload) : [],
+      fullPayload: webhookPayload
     });
 
-    // Process webhook
+    console.log('🔔 SMEPay Webhook Received:', {
+      timestamp: new Date().toISOString(),
+      payload: webhookPayload,
+      signature: signature
+    });
+
+    // 🎯 CRITICAL: Process webhook with enhanced logic
     const webhookResult = await smepayService.processWebhook(webhookPayload, signature);
 
     if (!webhookResult.success) {
       logPayment('WEBHOOK_PROCESSING_FAILED', {
-        error: webhookResult.error
+        error: webhookResult.error,
+        payload: webhookPayload
       }, 'error');
 
       return res.status(400).json({
@@ -498,53 +693,159 @@ const handleSMEPayWebhook = async (req, res) => {
     }
 
     const { data } = webhookResult;
+    console.log('📊 Processed webhook data:', data);
 
-    // Find the order by ID
-    const order = await Order.findById(data.orderId);
+    // 🎯 CRITICAL: Find order by SMEPay slug (more reliable than orderId)
+    let order = null;
+    
+    if (data.orderSlug) {
+      // Find by SMEPay order slug
+      order = await Order.findOne({ smepayOrderSlug: data.orderSlug })
+        .populate('user', 'name email mobileNumber')
+        .populate('seller', 'firstName lastName email shop')
+        .populate('orderItems.product', 'name images');
+    } else if (data.orderId) {
+      // Fallback: Find by order ID
+      order = await Order.findById(data.orderId)
+        .populate('user', 'name email mobileNumber')
+        .populate('seller', 'firstName lastName email shop')
+        .populate('orderItems.product', 'name images');
+    }
 
     if (!order) {
-      logPayment('WEBHOOK_ORDER_NOT_FOUND', { orderId: data.orderId }, 'warning');
+      logPayment('WEBHOOK_ORDER_NOT_FOUND', { 
+        orderSlug: data.orderSlug, 
+        orderId: data.orderId,
+        availableOrders: await Order.countDocuments({ smepayOrderSlug: { $exists: true } })
+      }, 'warning');
+      
+      console.log('❌ Order not found for webhook data:', data);
       return res.status(404).json({
         success: false,
         message: 'Order not found'
       });
     }
 
-    // Update order based on webhook data
-    if (data.paymentStatus === 'paid' && !order.isPaid) {
-      order.isPaid = true;
-      order.paidAt = new Date();
-      order.paymentStatus = 'completed';
-      order.paymentResult = {
-        gateway: 'smepay',
-        transactionId: data.transactionId || 'webhook_' + Date.now(),
-        paidAt: new Date(),
-        paymentMethod: 'SMEPay Webhook',
-        webhookData: data
-      };
+    console.log(`📦 Found order: ${order.orderNumber} for webhook`);
 
-      await order.save();
+    // 🎯 CRITICAL: Update order based on webhook data
+    if (data.paymentStatus === 'paid' || data.paymentStatus === 'success' || data.paymentStatus === 'completed') {
+      if (!order.isPaid) {
+        console.log(`💰 Payment confirmed via webhook for order: ${order.orderNumber}`);
+        
+        // Update payment status
+        order.isPaid = true;
+        order.paidAt = new Date();
+        order.paymentStatus = 'completed';
+        order.paymentResult = {
+          gateway: 'smepay',
+          transactionId: data.transactionId || 'webhook_' + Date.now(),
+          paidAt: new Date(),
+          paymentMethod: 'SMEPay Webhook',
+          webhookData: data
+        };
 
-      logPayment('WEBHOOK_PAYMENT_COMPLETED', {
-        orderId: order._id,
-        orderNumber: order.orderNumber,
-        transactionId: data.transactionId,
-        paymentStatus: data.paymentStatus
-      }, 'success');
+        // 🎯 CRITICAL: Update order status to "Processing" after payment
+        order.status = 'Processing';
+        order.statusHistory.push({
+          status: 'Processing',
+          changedBy: 'system',
+          changedAt: new Date(),
+          notes: 'Payment confirmed via SMEPay webhook, order processing started'
+        });
+
+        // Update payment attempts
+        if (order.paymentAttempts && order.paymentAttempts.length > 0) {
+          const latestAttempt = order.paymentAttempts[order.paymentAttempts.length - 1];
+          latestAttempt.status = 'completed';
+          latestAttempt.completedAt = new Date();
+          latestAttempt.transactionId = data.transactionId;
+        }
+
+        await order.save();
+
+        logPayment('WEBHOOK_PAYMENT_COMPLETED_AND_ORDER_UPDATED', {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          transactionId: data.transactionId,
+          paymentStatus: data.paymentStatus,
+          newOrderStatus: order.status
+        }, 'success');
+
+        console.log(`✅ Order updated successfully: ${order.orderNumber}`);
+        console.log(`📋 New Status: ${order.status}`);
+        console.log(`💳 Payment Status: ${order.paymentStatus}`);
+
+        // 🎯 CRITICAL: Emit all necessary notifications
+        const { emitBuyerNotification, emitOrderNotification, emitAdminNotification } = require('../controllers/orderController');
+        
+        // Notify buyer about payment completion
+        emitBuyerNotification(order.user._id, {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          paymentStatus: order.paymentStatus,
+          isPaid: order.isPaid,
+          transactionId: data.transactionId
+        }, 'payment-completed');
+
+        // Notify seller about new paid order
+        emitOrderNotification(order.seller._id, {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          totalPrice: order.totalPrice,
+          user: order.user,
+          orderItems: order.orderItems,
+          createdAt: order.createdAt,
+          isPaid: order.isPaid,
+          paymentMethod: 'SMEPay'
+        }, 'new-order');
+
+        // Notify admin about payment completion
+        emitAdminNotification({
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          paymentStatus: order.paymentStatus,
+          isPaid: order.isPaid,
+          user: order.user,
+          seller: order.seller,
+          totalPrice: order.totalPrice,
+          transactionId: data.transactionId,
+          paymentMethod: 'SMEPay'
+        }, 'payment-completed');
+
+        console.log(`📡 All notifications sent for order: ${order.orderNumber}`);
+      } else {
+        console.log(`ℹ️ Order ${order.orderNumber} already marked as paid`);
+      }
+    } else {
+      console.log(`ℹ️ Payment status not completed: ${data.paymentStatus}`);
     }
 
     // Send success response to SMEPay
     res.status(200).json({
       success: true,
-      message: 'Webhook processed successfully'
+      message: 'Webhook processed successfully',
+      orderProcessed: !!order,
+      orderNumber: order?.orderNumber,
+      paymentStatus: data.paymentStatus
     });
 
   } catch (error) {
-    logPayment('WEBHOOK_ERROR', { error: error.message }, 'error');
+    logPayment('WEBHOOK_ERROR', { 
+      error: error.message, 
+      stack: error.stack,
+      payload: req.body 
+    }, 'error');
 
+    console.error('❌ Webhook processing error:', error);
+    
     res.status(500).json({
       success: false,
-      message: 'Internal server error while processing webhook'
+      message: 'Internal server error while processing webhook',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal error'
     });
   }
 };
@@ -640,5 +941,6 @@ module.exports = {
   validateSMEPayOrder,
   handleSMEPayWebhook,
   getPaymentMethods,
-  getPaymentHistory
+  getPaymentHistory,
+  autoConfirmSMEPayPayment // 🎯 Add this new function
 };

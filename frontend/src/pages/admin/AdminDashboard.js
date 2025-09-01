@@ -174,7 +174,8 @@ const AdminDashboard = () => {
       console.log('📋 Fetching recent orders for admin approval...');
       
       const response = await adminService.getRecentOrders({
-        status: 'pending',
+        // 🎯 FIXED: Remove status filter to show ALL orders needing admin attention
+        // This will show both Pending (unpaid) and Processing (paid) orders
         limit: 20 // Increased limit to show more orders
       });
 

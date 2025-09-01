@@ -649,7 +649,7 @@ exports.createOrder = async (req, res) => {
     const populatedOrder = await Order.findById(createdOrder._id)
       .populate('user', 'name email mobileNumber')
       .populate('seller', 'firstName lastName email shop')
-      .populate('orderItems.product', 'name images description');
+      .populate('orderItems.product', 'name images');
 
     console.log(`✅ STEP 6 COMPLETE: Order populated successfully`);
 
@@ -1520,7 +1520,7 @@ exports.updateOrderPaymentStatus = async (req, res) => {
     const previousPaymentStatus = order.paymentStatus;
     order.paymentStatus = status;
     
-    // Update payment details if payment is completed
+    // 🎯 CRITICAL FIX: Update payment details if payment is completed
     if (status === 'completed' && !order.isPaid) {
       order.isPaid = true;
       order.paidAt = new Date();
@@ -1532,7 +1532,17 @@ exports.updateOrderPaymentStatus = async (req, res) => {
         paymentData: paymentData
       };
 
+      // 🎯 CRITICAL: Update order status to "Processing" after payment
+      order.status = 'Processing';
+      order.statusHistory.push({
+        status: 'Processing',
+        changedBy: 'system',
+        changedAt: new Date(),
+        notes: 'Payment completed, order processing started'
+      });
+
       console.log(`💰 Order marked as paid: ${order.orderNumber}`);
+      console.log(`📦 Order status updated to: ${order.status}`);
     }
 
     const updatedOrder = await order.save();
@@ -1543,7 +1553,8 @@ exports.updateOrderPaymentStatus = async (req, res) => {
       previousPaymentStatus,
       newPaymentStatus: status,
       userId: req.user._id,
-      customerName: order.user.name
+      customerName: order.user.name,
+      newOrderStatus: order.status
     });
 
     console.log(`
@@ -1552,48 +1563,65 @@ exports.updateOrderPaymentStatus = async (req, res) => {
 ===============================
 📦 Order Number: ${order.orderNumber}
 💳 Payment Status: ${previousPaymentStatus} → ${status}
+📋 Order Status: ${order.status}
 👤 Customer: ${order.user.name}
 💰 Is Paid: ${order.isPaid}
 📅 Updated: ${new Date().toLocaleString()}
 ===============================`);
 
-    // 🎯 Real-time notification to buyer about payment status update
-    emitBuyerNotification(order.user._id, {
-      _id: updatedOrder._id,
-      orderNumber: updatedOrder.orderNumber,
-      paymentStatus: updatedOrder.paymentStatus,
-      isPaid: updatedOrder.isPaid,
-      previousPaymentStatus,
-      updatedAt: updatedOrder.updatedAt
-    }, 'payment-status-update');
+    // 🎯 CRITICAL: Emit notifications for order status change
+    if (status === 'completed') {
+      // Notify buyer about payment completion
+      emitBuyerNotification(order.user._id, {
+        _id: updatedOrder._id,
+        orderNumber: updatedOrder.orderNumber,
+        paymentStatus: updatedOrder.paymentStatus,
+        isPaid: updatedOrder.isPaid,
+        orderStatus: updatedOrder.status,
+        previousPaymentStatus,
+        updatedAt: updatedOrder.updatedAt
+      }, 'payment-status-update');
 
-    // 🎯 ENHANCED: Real-time notification to admin about payment completion with comprehensive data
-    const populatedUpdatedOrder = await Order.findById(updatedOrder._id)
-      .populate('user', 'name email mobileNumber')
-      .populate('seller', 'firstName lastName email shop')
-      .populate('orderItems.product', 'name images description');
-    
-    const adminPaymentNotificationData = {
-      _id: populatedUpdatedOrder._id,
-      orderNumber: populatedUpdatedOrder.orderNumber,
-      status: populatedUpdatedOrder.status,
-      totalPrice: populatedUpdatedOrder.totalPrice,
-      taxPrice: populatedUpdatedOrder.taxPrice,
-      shippingPrice: populatedUpdatedOrder.shippingPrice,
-      paymentMethod: populatedUpdatedOrder.paymentMethod,
-      isPaid: populatedUpdatedOrder.isPaid,
-      paymentStatus: populatedUpdatedOrder.paymentStatus,
-      user: populatedUpdatedOrder.user,
-      seller: populatedUpdatedOrder.seller,
-      orderItems: populatedUpdatedOrder.orderItems,
-      shippingAddress: populatedUpdatedOrder.shippingAddress,
-      createdAt: populatedUpdatedOrder.createdAt,
-      paidAt: populatedUpdatedOrder.paidAt,
-      paymentResult: populatedUpdatedOrder.paymentResult,
-      previousPaymentStatus: previousPaymentStatus
-    };
-    
-    emitAdminNotification(adminPaymentNotificationData, 'payment-completed');
+      // 🎯 CRITICAL: Notify seller about new paid order
+      emitOrderNotification(updatedOrder.seller, {
+        _id: updatedOrder._id,
+        orderNumber: updatedOrder.orderNumber,
+        status: updatedOrder.status,
+        totalPrice: updatedOrder.totalPrice,
+        user: order.user,
+        orderItems: updatedOrder.orderItems,
+        createdAt: updatedOrder.createdAt,
+        isPaid: updatedOrder.isPaid
+      }, 'new-order');
+
+      // 🎯 CRITICAL: Notify admin about payment completion
+      const populatedUpdatedOrder = await Order.findById(updatedOrder._id)
+        .populate('user', 'name email mobileNumber')
+        .populate('seller', 'firstName lastName email shop')
+        .populate('orderItems.product', 'name images description');
+      
+      const adminPaymentNotificationData = {
+        _id: populatedUpdatedOrder._id,
+        orderNumber: populatedUpdatedOrder.orderNumber,
+        status: populatedUpdatedOrder.status,
+        totalPrice: populatedUpdatedOrder.totalPrice,
+        taxPrice: populatedUpdatedOrder.taxPrice,
+        shippingPrice: populatedUpdatedOrder.shippingPrice,
+        paymentMethod: populatedUpdatedOrder.paymentMethod,
+        isPaid: populatedUpdatedOrder.isPaid,
+        paymentStatus: populatedUpdatedOrder.paymentStatus,
+        user: populatedUpdatedOrder.user,
+        seller: populatedUpdatedOrder.seller,
+        orderItems: populatedUpdatedOrder.orderItems,
+        shippingAddress: populatedUpdatedOrder.shippingAddress,
+        createdAt: populatedUpdatedOrder.createdAt,
+        paidAt: populatedUpdatedOrder.paidAt,
+        paymentResult: populatedUpdatedOrder.paymentResult,
+        previousPaymentStatus: previousPaymentStatus
+      };
+      
+      emitAdminNotification(adminPaymentNotificationData, 'payment-completed');
+    }
 
     res.status(200).json({
       success: true,
@@ -1602,6 +1630,7 @@ exports.updateOrderPaymentStatus = async (req, res) => {
         orderId: updatedOrder._id,
         orderNumber: updatedOrder.orderNumber,
         paymentStatus: updatedOrder.paymentStatus,
+        orderStatus: updatedOrder.status,
         isPaid: updatedOrder.isPaid,
         paidAt: updatedOrder.paidAt
       }
@@ -1614,6 +1643,127 @@ exports.updateOrderPaymentStatus = async (req, res) => {
       stack: error.stack
     });
     console.error('❌ Update Order Payment Status Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get admin dashboard orders
+// @route   GET /api/orders/admin/dashboard
+// @access  Private (Admin)
+exports.getAdminDashboardOrders = async (req, res) => {
+  try {
+    terminalLog('ADMIN_DASHBOARD_ORDERS_FETCH', 'PROCESSING', {
+      adminId: req.admin?._id,
+      page: req.query.page || 1,
+      limit: req.query.limit || 10,
+      statusFilter: req.query.status
+    });
+
+    console.log(`🔍 Fetching orders for admin dashboard...`);
+    
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const skip = (page - 1) * limit;
+
+    // 🎯 CRITICAL: Build filter for admin dashboard
+    const filter = {};
+    
+    // 🎯 FIXED: Show ALL orders that need admin attention, not just filtered ones
+    // If no status filter is provided, show orders that need admin attention
+    if (!req.query.status) {
+      // Show orders that need admin attention: Pending (unpaid) + Processing (paid, ready for delivery)
+      filter.status = { $in: ['Pending', 'Processing'] };
+      console.log(`🔍 Showing orders needing admin attention: Pending + Processing`);
+    } else {
+      // If specific status filter is provided, use it
+      filter.status = req.query.status;
+      console.log(`🔍 Filtering by specific status: ${req.query.status}`);
+    }
+
+    // 🎯 CRITICAL: Get orders with proper population
+    const orders = await Order.find(filter)
+      .populate('user', 'name email mobileNumber')
+      .populate('seller', 'firstName lastName email shop')
+      .populate('orderItems.product', 'name images')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const totalOrders = await Order.countDocuments(filter);
+
+    // 🎯 CRITICAL: Get counts by status for dashboard metrics
+    const statusCounts = await Order.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+
+    // 🎯 CRITICAL: Get pending orders count (orders that need admin attention)
+    const pendingOrdersCount = await Order.countDocuments({
+      status: { $in: ['Pending', 'Processing'] }
+      // 🎯 FIXED: Removed isPaid filter - we want ALL orders needing admin attention
+      // Pending = unpaid orders, Processing = paid orders ready for delivery
+    });
+
+    // 🎯 CRITICAL: Get recent paid orders (last 24 hours)
+    const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentPaidOrders = await Order.countDocuments({
+      isPaid: true,
+      paidAt: { $gte: last24Hours }
+    });
+
+    // 🎯 CRITICAL: Get orders needing delivery assignment
+    const ordersNeedingDelivery = await Order.countDocuments({
+      'adminApproval.status': { $in: ['approved', 'auto_approved'] },
+      'deliveryAgent.status': 'unassigned',
+      status: { $nin: ['Cancelled', 'Delivered'] }
+    });
+
+    terminalLog('ADMIN_DASHBOARD_ORDERS_FETCH', 'SUCCESS', {
+      adminId: req.admin?._id,
+      orderCount: orders.length,
+      totalOrders,
+      pendingOrdersCount,
+      recentPaidOrders,
+      ordersNeedingDelivery
+    });
+
+    console.log(`✅ Found ${orders.length} orders for admin dashboard`);
+    console.log(`📊 Dashboard Metrics:`);
+    console.log(`   - Total Orders: ${totalOrders}`);
+    console.log(`   - Pending Admin Action: ${pendingOrdersCount}`);
+    console.log(`   - Recent Paid Orders (24h): ${recentPaidOrders}`);
+    console.log(`   - Need Delivery Assignment: ${ordersNeedingDelivery}`);
+
+    res.status(200).json({
+      success: true,
+      count: orders.length,
+      totalCount: totalOrders,
+      currentPage: page,
+      totalPages: Math.ceil(totalOrders / limit),
+      hasNextPage: page < Math.ceil(totalOrders / limit),
+      hasPrevPage: page > 1,
+      dashboardMetrics: {
+        totalOrders,
+        pendingOrdersCount,
+        recentPaidOrders,
+        ordersNeedingDelivery,
+        statusBreakdown: statusCounts.reduce((acc, curr) => {
+          acc[curr._id] = curr.count;
+          return acc;
+        }, {})
+      },
+      data: orders
+    });
+  } catch (error) {
+    terminalLog('ADMIN_DASHBOARD_ORDERS_FETCH', 'ERROR', {
+      adminId: req.admin?._id,
+      error: error.message,
+      stack: error.stack
+    });
+    console.error('❌ Get Admin Dashboard Orders Error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',
