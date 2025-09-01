@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import StarRating from '../../components/common/StarRating';
 import { getProductById } from '../../services/productService';
 import cartService from '../../services/cartService';
-import { addToWishlist, removeFromWishlist, checkWishlistStatus } from '../../services/productService';
+import { addToWishlist, removeFromWishlist, checkWishlist } from '../../services/wishlistService';
 import { AuthContext } from '../../contexts/AuthContext';
 import { 
   getProductReviews, 
@@ -143,7 +143,7 @@ const ProductDetailPage = () => {
 
     setWishlistLoading(true);
     try {
-      const response = await checkWishlistStatus(productId);
+      const response = await checkWishlist(productId);
       if (response.success) {
         setInWishlist(response.data.isInWishlist);
       } else {
