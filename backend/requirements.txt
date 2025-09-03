@@ -1,0 +1,43 @@
+# ZAMMER Backend Dependencies
+# This file lists all required Node.js packages for the ZAMMER backend
+
+# Core Dependencies
+express@^4.18.2
+socket.io@^4.8.1
+socket.io-client@^4.8.1
+mongodb@^6.16.0
+mongoose@^8.15.0
+
+# Authentication & Security
+bcryptjs@^3.0.2
+jsonwebtoken@^9.0.2
+helmet@^7.1.0
+express-rate-limit@^7.1.5
+
+# File Upload & Media
+multer@^1.4.5-lts.2
+cloudinary@^1.41.3
+
+# HTTP & API
+axios@^1.11.0
+cors@^2.8.5
+cookie-parser@^1.4.7
+morgan@^1.10.0
+
+# Validation & Error Handling
+express-validator@^7.2.1
+express-async-handler@^1.2.0
+
+# Utilities
+dotenv@^16.5.0
+nodemailer@^7.0.5
+pdfkit@^0.17.1
+
+# Development Dependencies
+nodemon@^3.1.10
+
+# Installation Command:
+# npm install
+
+# Alternative using yarn:
+# yarn install
