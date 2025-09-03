@@ -11,6 +11,7 @@ import {
   createReview, 
   checkCanReview 
 } from '../../services/reviewService';
+import VirtualTryOnModal from '../../components/common/VirtualTryOnModal';
 
 const ProductDetailPage = () => {
   const { productId } = useParams();
@@ -33,6 +34,9 @@ const ProductDetailPage = () => {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewForm, setReviewForm] = useState({ rating: 5, review: '' });
   const [submitingReview, setSubmitingReview] = useState(false);
+  
+  // Virtual Try-On state
+  const [showVirtualTryOn, setShowVirtualTryOn] = useState(false);
 
   // Enhanced debugging
   const debugLog = (message, data = null, type = 'info') => {
@@ -398,6 +402,22 @@ const ProductDetailPage = () => {
     }
   };
 
+  const debugVirtualTryOn = () => {
+    debugLog('🔧 MANUAL VIRTUAL TRY-ON DEBUG', {
+      showVirtualTryOn,
+      productId,
+      userAuth: {
+        isAuthenticated: userAuth.isAuthenticated,
+        hasToken: !!userAuth.token,
+        userName: userAuth.user?.name
+      }
+    });
+
+    if (window.debugVirtualTryOn) {
+      window.debugVirtualTryOn();
+    }
+  };
+
   const fetchReviews = async () => {
     setReviewsLoading(true);
     try {
@@ -505,6 +525,36 @@ const ProductDetailPage = () => {
           >
             🔧 Debug Cart
           </button>
+          
+          {/* Virtual Try-On Debug Section */}
+          <div className="border-t border-yellow-300 pt-2 mt-2">
+            <div className="text-yellow-800 font-medium mb-2">Virtual Try-On Debug:</div>
+            <button
+              onClick={debugVirtualTryOn}
+              className="block w-full bg-gradient-to-r from-blue-200 to-blue-300 px-3 py-2 rounded-lg mb-2 hover:from-blue-300 hover:to-blue-400 transition-all duration-300 font-medium text-xs"
+            >
+              🔍 Debug Try-On
+            </button>
+            
+            <button
+              onClick={async () => {
+                try {
+                  console.log('🔍 [VIRTUAL_TRYON_DEBUG] Testing service health...');
+                  const health = await fetch('http://localhost:5001/api/virtual-tryon/health');
+                  const healthData = await health.json();
+                  console.log('🔍 [VIRTUAL_TRYON_DEBUG] Health check result:', healthData);
+                  toast.success('Health check completed - see console');
+                } catch (error) {
+                  console.error('🔍 [VIRTUAL_TRYON_DEBUG] Health check failed:', error);
+                  toast.error('Health check failed - see console');
+                }
+              }}
+              className="block w-full bg-gradient-to-r from-green-200 to-green-300 px-3 py-2 rounded-lg mb-2 hover:from-green-300 hover:to-green-400 transition-all duration-300 font-medium text-xs"
+            >
+              🏥 Health Check
+            </button>
+          </div>
+          
           <div className="text-yellow-800 font-medium">
             Auth: {userAuth.isAuthenticated ? '✅' : '❌'} |
             Token: {userAuth.token ? '✅' : '❌'}
@@ -724,7 +774,7 @@ const ProductDetailPage = () => {
         </div>
         
         {/* Enhanced Action Buttons */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <button
             onClick={handleAddToCart}
             disabled={cartLoading}
@@ -760,6 +810,12 @@ const ProductDetailPage = () => {
             ) : (
               '⚡ Buy Now'
             )}
+          </button>
+          <button
+            onClick={() => setShowVirtualTryOn(true)}
+            className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-4 rounded-2xl text-lg font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 hover:from-blue-600 hover:to-indigo-600"
+          >
+            👗 Try On
           </button>
         </div>
 
@@ -912,6 +968,17 @@ const ProductDetailPage = () => {
           </div>
         </div>
       )}
+      
+      {/* Virtual Try-On Modal */}
+      <VirtualTryOnModal
+        isOpen={showVirtualTryOn}
+        onClose={() => setShowVirtualTryOn(false)}
+        product={product}
+        onTryOnComplete={(result) => {
+          console.log('Virtual try-on completed:', result);
+          toast.success('Virtual try-on completed! Check out the result.');
+        }}
+      />
       
       {/* Enhanced Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-gray-200 z-50 shadow-2xl">

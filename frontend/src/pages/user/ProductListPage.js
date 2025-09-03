@@ -6,6 +6,7 @@ import { getMarketplaceProducts } from '../../services/productService';
 import { AuthContext } from '../../contexts/AuthContext';
 import cartService from '../../services/cartService';
 import WishlistButton from '../../components/common/WishlistButton';
+import VirtualTryOnModal from '../../components/common/VirtualTryOnModal';
 
 // Enhanced terminal logging for production monitoring
 const terminalLog = (action, status, data = null) => {
@@ -36,6 +37,10 @@ const ProductListPage = () => {
   const [priceRange, setPriceRange] = useState({ min: '', max: '' });
   const [showFilters, setShowFilters] = useState(false);
   const [addingToCart, setAddingToCart] = useState({});
+  
+  // Virtual Try-On state
+  const [showVirtualTryOn, setShowVirtualTryOn] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
   
   // Refs for preventing multiple calls
   const isMountedRef = useRef(true);
@@ -525,27 +530,39 @@ const ProductListPage = () => {
                         )}
                       </div>
                       
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleAddToCart(product._id, product.name);
-                        }}
-                        disabled={addingToCart[product._id]}
-                        className={`w-full py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                          addingToCart[product._id]
-                            ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md'
-                        }`}
-                      >
-                        {addingToCart[product._id] ? (
-                          <div className="flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-400 border-t-transparent mr-2"></div>
-                            Adding...
-                          </div>
-                        ) : (
-                          'Add to Cart'
-                        )}
-                      </button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleAddToCart(product._id, product.name);
+                          }}
+                          disabled={addingToCart[product._id]}
+                          className={`py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                            addingToCart[product._id]
+                              ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                              : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md'
+                          }`}
+                        >
+                          {addingToCart[product._id] ? (
+                            <div className="flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-400 border-t-transparent mr-2"></div>
+                              Adding...
+                            </div>
+                          ) : (
+                            'Add to Cart'
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setSelectedProduct(product);
+                            setShowVirtualTryOn(true);
+                          }}
+                          className="py-3 rounded-xl text-sm font-semibold transition-all duration-200 bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-sm hover:shadow-md hover:from-purple-600 hover:to-indigo-600"
+                        >
+                          Try On
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -782,6 +799,20 @@ const ProductListPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Virtual Try-On Modal */}
+      <VirtualTryOnModal
+        isOpen={showVirtualTryOn}
+        onClose={() => {
+          setShowVirtualTryOn(false);
+          setSelectedProduct(null);
+        }}
+        product={selectedProduct}
+        onTryOnComplete={(result) => {
+          console.log('Virtual try-on completed:', result);
+          toast.success('Virtual try-on completed! Check out the result.');
+        }}
+      />
     </UserLayout>
   );
 };

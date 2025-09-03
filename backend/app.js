@@ -23,6 +23,7 @@ const shopRoutes = require('./routes/shopRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const deliveryRoutes = require('./routes/deliveryRoutes');
+const virtualTryOnRoutes = require('./routes/virtualTryOnRoutes');
 
 // Initialize app
 const app = express();
@@ -526,6 +527,7 @@ app.use('/api/shops', shopRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/virtual-tryon', virtualTryOnRoutes);
 
 // ─────────────────────────────────────────────
 // UNIVERSAL: Serve React static assets from multiple possible paths
