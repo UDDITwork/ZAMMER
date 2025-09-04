@@ -619,6 +619,90 @@ const orderService = {
     } catch (error) {
       return { success: false, message: 'Service unavailable' };
     }
+  },
+
+  // 🎯 NEW: Generate shipping label for order
+  async generateShippingLabel(orderId) {
+    try {
+      logOperation('Generating Shipping Label', { orderId }, 'info');
+
+      if (!orderId) {
+        throw new Error('Order ID is required');
+      }
+
+      const response = await api.post(`/sellers/orders/${orderId}/generate-label`);
+      
+      logOperation('Shipping Label Generated', {
+        orderId,
+        trackingNumber: response.data.data.trackingNumber,
+        labelUrl: response.data.data.labelUrl
+      }, 'success');
+
+      return response.data;
+    } catch (error) {
+      return handleApiError(error, 'generateShippingLabel');
+    }
+  },
+
+  // 🎯 NEW: Get shipping label data
+  async getShippingLabel(orderId) {
+    try {
+      logOperation('Fetching Shipping Label', { orderId }, 'info');
+
+      if (!orderId) {
+        throw new Error('Order ID is required');
+      }
+
+      const response = await api.get(`/sellers/orders/${orderId}/label`);
+      
+      logOperation('Shipping Label Fetched', {
+        orderId,
+        trackingNumber: response.data.data.trackingNumber,
+        isGenerated: response.data.data.labelUrl ? true : false
+      }, 'success');
+
+      return response.data;
+    } catch (error) {
+      return handleApiError(error, 'getShippingLabel');
+    }
+  },
+
+  // 🎯 NEW: Download shipping label
+  async downloadShippingLabel(orderId) {
+    try {
+      logOperation('Downloading Shipping Label', { orderId }, 'info');
+
+      if (!orderId) {
+        throw new Error('Order ID is required');
+      }
+
+      // Get label data first to check if it exists
+      const labelData = await this.getShippingLabel(orderId);
+      if (!labelData.success) {
+        throw new Error(labelData.message || 'Label not found');
+      }
+
+      // Open label URL in new tab for download
+      if (labelData.data.labelUrl) {
+        window.open(labelData.data.labelUrl, '_blank');
+        logOperation('Shipping Label Downloaded', {
+          orderId,
+          trackingNumber: labelData.data.trackingNumber,
+          labelUrl: labelData.data.labelUrl
+        }, 'success');
+        
+        return { 
+          success: true, 
+          message: 'Shipping label downloaded successfully',
+          data: labelData.data
+        };
+      } else {
+        throw new Error('Label URL not available');
+      }
+
+    } catch (error) {
+      return handleApiError(error, 'downloadShippingLabel');
+    }
   }
 };
 

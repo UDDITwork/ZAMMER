@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 const Order = require('../models/Order'); // Added Order model import
+const labelGenerationService = require('../services/labelGenerationService');
 
 // @desc    Register a new seller
 // @route   POST /api/sellers/register
@@ -1014,6 +1015,196 @@ exports.getEarningsSummary = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
+// 🎯 NEW: Generate shipping label for order
+// @desc    Generate shipping label for a specific order
+// @route   POST /api/sellers/orders/:orderId/generate-label
+// @access  Private
+exports.generateShippingLabel = async (req, res) => {
+  try {
+    console.log('🏷️ [GenerateLabel] Label generation request for order:', req.params.orderId);
+    
+    const { orderId } = req.params;
+    const sellerId = req.seller._id;
+
+    // Find the order and verify seller ownership
+    const order = await Order.findOne({
+      _id: orderId,
+      seller: sellerId
+    }).populate('user', 'name email');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found or you do not have permission to access this order'
+      });
+    }
+
+    // Check if order is in correct status for label generation
+    if (order.status !== 'Processing') {
+      return res.status(400).json({
+        success: false,
+        message: 'Label can only be generated for orders in "Ready to Ship" status'
+      });
+    }
+
+    // Check if label is already generated
+    if (order.shippingLabel.isGenerated) {
+      return res.status(400).json({
+        success: false,
+        message: 'Shipping label has already been generated for this order',
+        data: {
+          labelUrl: order.shippingLabel.labelUrl,
+          trackingNumber: order.shippingLabel.trackingNumber,
+          generatedAt: order.shippingLabel.generatedAt
+        }
+      });
+    }
+
+    // Generate label data in order
+    await order.generateShippingLabel();
+
+    // Get seller data for label generation
+    const seller = await Seller.findById(sellerId);
+
+    // Generate PDF label
+    const labelResult = await labelGenerationService.generateShippingLabel(order, seller);
+
+    // Update order with label URL
+    order.shippingLabel.labelUrl = labelResult.labelUrl;
+    await order.save();
+
+    console.log('✅ [GenerateLabel] Label generated successfully:', {
+      orderId,
+      orderNumber: order.orderNumber,
+      trackingNumber: labelResult.trackingNumber,
+      labelUrl: labelResult.labelUrl
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Shipping label generated successfully',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        trackingNumber: labelResult.trackingNumber,
+        destinationCode: labelResult.destinationCode,
+        returnCode: labelResult.returnCode,
+        labelUrl: labelResult.labelUrl,
+        generatedAt: order.shippingLabel.generatedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [GenerateLabel] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate shipping label',
+      error: error.message
+    });
+  }
+};
+
+// 🎯 NEW: Get shipping label data
+// @desc    Get shipping label information for a specific order
+// @route   GET /api/sellers/orders/:orderId/label
+// @access  Private
+exports.getShippingLabel = async (req, res) => {
+  try {
+    console.log('🏷️ [GetLabel] Fetching label data for order:', req.params.orderId);
+    
+    const { orderId } = req.params;
+    const sellerId = req.seller._id;
+
+    // Find the order and verify seller ownership
+    const order = await Order.findOne({
+      _id: orderId,
+      seller: sellerId
+    }).populate('user', 'name email');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found or you do not have permission to access this order'
+      });
+    }
+
+    if (!order.shippingLabel.isGenerated) {
+      return res.status(404).json({
+        success: false,
+        message: 'Shipping label has not been generated for this order yet'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        trackingNumber: order.shippingLabel.trackingNumber,
+        carrier: order.shippingLabel.carrier,
+        serviceType: order.shippingLabel.serviceType,
+        destinationCode: order.shippingLabel.destinationCode,
+        returnCode: order.shippingLabel.returnCode,
+        labelUrl: order.shippingLabel.labelUrl,
+        generatedAt: order.shippingLabel.generatedAt,
+        labelData: order.shippingLabel.labelData
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [GetLabel] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch shipping label data',
+      error: error.message
+    });
+  }
+};
+
+// 🎯 NEW: Download shipping label PDF
+// @desc    Download shipping label PDF for a specific order
+// @route   GET /api/sellers/orders/:orderId/label/download
+// @access  Private
+exports.downloadShippingLabel = async (req, res) => {
+  try {
+    console.log('📥 [DownloadLabel] Download request for order:', req.params.orderId);
+    
+    const { orderId } = req.params;
+    const sellerId = req.seller._id;
+
+    // Find the order and verify seller ownership
+    const order = await Order.findOne({
+      _id: orderId,
+      seller: sellerId
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found or you do not have permission to access this order'
+      });
+    }
+
+    if (!order.shippingLabel.isGenerated || !order.shippingLabel.labelUrl) {
+      return res.status(404).json({
+        success: false,
+        message: 'Shipping label has not been generated for this order yet'
+      });
+    }
+
+    // Redirect to the label URL for download
+    res.redirect(order.shippingLabel.labelUrl);
+
+  } catch (error) {
+    console.error('❌ [DownloadLabel] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to download shipping label',
       error: error.message
     });
   }

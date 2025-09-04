@@ -523,6 +523,46 @@ const OrderSchema = new mongoose.Schema({
       type: Date,
       default: null
     }
+  },
+
+  // 🆕 SHIPPING LABEL GENERATION
+  shippingLabel: {
+    isGenerated: {
+      type: Boolean,
+      default: false
+    },
+    generatedAt: {
+      type: Date,
+      default: null
+    },
+    trackingNumber: {
+      type: String,
+      default: null
+    },
+    carrier: {
+      type: String,
+      default: 'Shadowfax'
+    },
+    serviceType: {
+      type: String,
+      default: 'Pickup'
+    },
+    destinationCode: {
+      type: String,
+      default: null
+    },
+    returnCode: {
+      type: String,
+      default: null
+    },
+    labelUrl: {
+      type: String,
+      default: null
+    },
+    labelData: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
+    }
   }
 }, {
   timestamps: true,
@@ -873,6 +913,52 @@ OrderSchema.statics.findPendingSMEPayOrders = function() {
     paymentStatus: { $in: ['pending', 'processing'] },
     status: { $ne: 'Cancelled' }
   }).populate('user seller');
+};
+
+// 🆕 Method to generate shipping label
+OrderSchema.methods.generateShippingLabel = function() {
+  // Generate tracking number
+  const trackingNumber = 'SF' + Date.now() + 'FPL';
+  
+  // Generate destination code based on city
+  const cityCode = this.shippingAddress.city.substring(0, 3).toUpperCase();
+  const destinationCode = `W24_BOM_${cityCode}`;
+  
+  // Generate return code
+  const returnCode = `${this.shippingAddress.postalCode},${Math.floor(Math.random() * 100000)}`;
+  
+  // Update shipping label data
+  this.shippingLabel = {
+    isGenerated: true,
+    generatedAt: new Date(),
+    trackingNumber,
+    carrier: 'Shadowfax',
+    serviceType: 'Pickup',
+    destinationCode,
+    returnCode,
+    labelData: {
+      orderNumber: this.orderNumber,
+      customerName: this.user?.name || 'Unknown',
+      customerPhone: this.shippingAddress.phone,
+      customerEmail: this.user?.email || 'Unknown',
+      customerAddress: this.shippingAddress.address,
+      customerCity: this.shippingAddress.city,
+      customerPincode: this.shippingAddress.postalCode,
+      totalAmount: this.totalPrice,
+      paymentMethod: this.paymentMethod,
+      orderDate: this.createdAt,
+      items: this.orderItems.map(item => ({
+        name: item.name,
+        sku: `${item.name.substring(0, 6).toUpperCase()}_${item.color.toUpperCase()}_${String(item.size).padStart(4, '0')}`,
+        size: item.size,
+        color: item.color,
+        quantity: item.quantity,
+        price: item.price
+      }))
+    }
+  };
+  
+  return this.save();
 };
 
 module.exports = mongoose.model('Order', OrderSchema);
