@@ -252,10 +252,16 @@ const EditProduct = () => {
 
       // Log the data being sent
       console.log('📦 Submitting product data:', {
+        productId: id,
         mrp: productData.mrp,
         zammerPrice: productData.zammerPrice,
-        difference: Number(productData.mrp) - Number(productData.zammerPrice)
+        difference: Number(productData.mrp) - Number(productData.zammerPrice),
+        variantsCount: productData.variants.length,
+        hasImages: productData.images && productData.images.length > 0
       });
+      
+      // 🎯 DEBUG: Log complete data being sent
+      console.log('🔍 Complete product data being sent:', JSON.stringify(productData, null, 2));
       
       const response = await updateProduct(id, productData);
       
@@ -272,21 +278,31 @@ const EditProduct = () => {
         validationErrors: error.validationErrors
       });
       
-      // Enhanced error message handling
-      if (error.details) {
-        // Show specific validation error with details
-        toast.error(
-          `Validation Error: ${error.message}\n` +
-          `MRP: ${error.details.newMrp}\n` +
-          `Zammer Price: ${error.details.newZammerPrice}\n` +
-          `Difference: ${error.details.difference}`
-        );
-      } else if (error.validationErrors) {
+      // 🎯 DEBUG: Log the actual validation error details
+      if (error.details && Array.isArray(error.details)) {
+        console.error('🔍 Validation Error Details:', error.details);
+      }
+      if (error.validationErrors && Array.isArray(error.validationErrors)) {
+        console.error('🔍 Validation Errors Array:', error.validationErrors);
+      }
+      
+      // 🎯 ENHANCED: Better error message handling
+      if (error.validationErrors && Array.isArray(error.validationErrors)) {
         // Show all validation errors
         const errorMessages = error.validationErrors.map(err => 
           `${err.field}: ${err.message}`
         ).join('\n');
         toast.error(`Validation Errors:\n${errorMessages}`);
+      } else if (error.details) {
+        // Show specific validation error with details
+        if (typeof error.details === 'object') {
+          const detailsStr = Object.entries(error.details)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join('\n');
+          toast.error(`Validation Error: ${error.message}\n${detailsStr}`);
+        } else {
+          toast.error(`Validation Error: ${error.message}\n${error.details}`);
+        }
       } else if (error.message && error.message.includes('validation failed')) {
         const errorDetails = error.message.split(':').slice(1).join(':').trim();
         toast.error(`Validation Error: ${errorDetails}`);

@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
 import SellerLayout from '../../components/layouts/SellerLayout';
+import LowStockAlert from '../../components/seller/LowStockAlert';
 import { getSellerProducts } from '../../services/productService';
 import orderService from '../../services/orderService';
 import socketService from '../../services/socketService';
@@ -20,6 +21,8 @@ const Dashboard = () => {
   const [todayOrders, setTodayOrders] = useState([]);
   const [connectionRetrying, setConnectionRetrying] = useState(false);
   const [earningsSummary, setEarningsSummary] = useState(null);
+  const [lowStockProducts, setLowStockProducts] = useState([]);
+  const [showLowStockAlert, setShowLowStockAlert] = useState(false);
 
   // 🎯 FIX: Enhanced Socket.io setup with better connection handling
   const setupSocketConnection = useCallback(() => {
@@ -224,6 +227,17 @@ const Dashboard = () => {
       if (response.success) {
         setProducts(response.data);
         console.log('✅ Products fetched:', response.data.length);
+        
+        // Check for low stock products
+        const lowStock = response.data.filter(product => 
+          product.inventory?.isLowStock || 
+          (product.inventory?.availableQuantity <= 5 && product.inventory?.availableQuantity > 0)
+        );
+        
+        if (lowStock.length > 0) {
+          setLowStockProducts(lowStock);
+          setShowLowStockAlert(true);
+        }
       }
     } catch (error) {
       console.error('❌ Error fetching products:', error);
@@ -532,17 +546,25 @@ const Dashboard = () => {
           </p>
         </div>
 
+        {/* 🎯 NEW: Low Stock Alert */}
+        {showLowStockAlert && (
+          <LowStockAlert 
+            lowStockProducts={lowStockProducts}
+            onClose={() => setShowLowStockAlert(false)}
+          />
+        )}
+
         {/* 🎯 FIX: Enhanced Stats Cards with live data */}
         <div className="stats-cards grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="stat-card bg-blue-50 p-6 rounded-lg shadow-sm border border-blue-100">
             <h3 className="text-lg font-semibold text-blue-700">Total Products</h3>
-            <p className="text-3xl font-bold text-blue-900 mt-2">
+            <div className="text-3xl font-bold text-blue-900 mt-2">
               {loading ? (
                 <div className="animate-pulse bg-blue-200 h-8 w-16 rounded"></div>
               ) : (
                 products.length
               )}
-            </p>
+            </div>
             <Link 
               to="/seller/view-products" 
               className="text-blue-600 hover:underline text-sm inline-block mt-2 transition-colors"
@@ -580,13 +602,13 @@ const Dashboard = () => {
           {/* 🎯 NEW: Earnings Summary Card */}
           <div className="stat-card bg-purple-50 p-6 rounded-lg shadow-sm border border-purple-100">
             <h3 className="text-lg font-semibold text-purple-700">Today's Earnings</h3>
-            <p className="text-3xl font-bold text-purple-900 mt-2">
+            <div className="text-3xl font-bold text-purple-900 mt-2">
               {earningsSummary ? (
                 `₹${earningsSummary.todayEarnings.total}`
               ) : (
                 <div className="animate-pulse bg-purple-200 h-8 w-20 rounded"></div>
               )}
-            </p>
+            </div>
             <Link 
               to="/seller/payment-tracking" 
               className="text-purple-600 hover:underline text-sm inline-block mt-2 transition-colors"
@@ -842,7 +864,17 @@ const Dashboard = () => {
                       )}
                     </div>
                     <div className="flex justify-between items-center text-sm text-gray-600">
-                      <span>Stock: {product.variants?.reduce((total, variant) => total + (variant.quantity || 0), 0) || 0}</span>
+                      <div className="flex items-center space-x-2">
+                        <span>Stock: {product.inventory?.totalQuantity || product.variants?.reduce((total, variant) => total + (variant.quantity || 0), 0) || 0}</span>
+                        {product.inventory?.isLowStock && (
+                          <span className="text-orange-600 text-xs font-medium flex items-center">
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.856-.833-2.598 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                            Low Stock
+                          </span>
+                        )}
+                      </div>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         product.status === 'active' ? 'bg-green-100 text-green-800' : 
                         product.status === 'paused' ? 'bg-yellow-100 text-yellow-800' : 

@@ -144,8 +144,8 @@ export const updateProduct = async (id, productData) => {
     debugLog('❌ Update Product Error', {
       id,
       message: error.response?.data?.message || error.message,
-      details: error.response?.data?.error?.details,
-      validationErrors: error.response?.data?.error?.validationErrors,
+      details: error.response?.data?.details,
+      validationErrors: error.response?.data?.validationErrors,
       updates: Object.keys(productData),
       values: {
         mrp: productData.mrp,
@@ -156,8 +156,8 @@ export const updateProduct = async (id, productData) => {
     // Enhanced error object
     const enhancedError = {
       message: error.response?.data?.message || error.message,
-      details: error.response?.data?.error?.details,
-      validationErrors: error.response?.data?.error?.validationErrors,
+      details: error.response?.data?.details,
+      validationErrors: error.response?.data?.validationErrors,
       originalError: error
     };
 
@@ -441,17 +441,14 @@ export const addProductStock = async (productId, variantUpdates, notes = '') => 
 };
 
 // 🎯 NEW: Get product inventory history
-export const getProductInventoryHistory = async (productId, page = 1, limit = 20) => {
+export const getProductInventoryHistory = async (productId, limit = 50) => {
   try {
-    debugLog('📦 Fetching product inventory history', { productId, page, limit });
-    const response = await api.get(`/products/${productId}/inventory-history`, {
-      params: { page, limit }
-    });
+    debugLog('📦 Fetching product inventory history', { productId, limit });
+    const response = await api.get(`/products/${productId}/inventory-history?limit=${limit}`);
     
     debugLog('✅ Product inventory history fetched successfully', {
       productId,
-      historyCount: response.data.data.history.length,
-      totalHistory: response.data.data.pagination.totalHistory
+      historyCount: response.data.data.length
     }, 'success');
     
     return response.data;
@@ -480,6 +477,26 @@ export const getLowStockProducts = async (page = 1, limit = 10) => {
     return response.data;
   } catch (error) {
     debugLog('❌ Get Low Stock Products Error', {
+      message: error.response?.data?.message || error.message
+    }, 'error');
+    throw error.response?.data || error;
+  }
+};
+
+// 🎯 NEW: Get seller inventory summary
+export const getSellerInventorySummary = async () => {
+  try {
+    debugLog('📦 Fetching seller inventory summary');
+    const response = await api.get('/seller/inventory-summary');
+    
+    debugLog('✅ Seller inventory summary fetched successfully', {
+      todayChanges: response.data.data.todayChanges,
+      lowStockProducts: response.data.data.lowStockProducts
+    }, 'success');
+    
+    return response.data;
+  } catch (error) {
+    debugLog('❌ Get Seller Inventory Summary Error', {
       message: error.response?.data?.message || error.message
     }, 'error');
     throw error.response?.data || error;
@@ -607,6 +624,7 @@ const productService = {
   addProductStock,
   getProductInventoryHistory,
   getLowStockProducts,
+  getSellerInventorySummary,
   // 🎯 NEW: Wishlist functions
   addToWishlist,
   removeFromWishlist,

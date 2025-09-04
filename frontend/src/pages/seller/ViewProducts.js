@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import SellerLayout from '../../components/layouts/SellerLayout';
+import StockManagementModal from '../../components/seller/StockManagementModal';
 import { 
   getSellerProducts, 
   deleteProduct, 
@@ -29,11 +30,9 @@ const ViewProducts = () => {
   const [productReviews, setProductReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
 
-  // 🎯 NEW: Inventory Management States
-  const [showInventoryModal, setShowInventoryModal] = useState(false);
-  const [selectedProductForInventory, setSelectedProductForInventory] = useState(null);
-  const [inventoryData, setInventoryData] = useState(null);
-  const [inventoryLoading, setInventoryLoading] = useState(false);
+  // 🎯 NEW: Enhanced Stock Management States
+  const [showStockModal, setShowStockModal] = useState(false);
+  const [selectedProductForStock, setSelectedProductForStock] = useState(null);
   const [lowStockProducts, setLowStockProducts] = useState([]);
   const [showLowStockAlert, setShowLowStockAlert] = useState(false);
 
@@ -196,41 +195,14 @@ const ViewProducts = () => {
     }
   };
 
-  // 🎯 NEW: Inventory Management Functions
-  const handleViewInventory = async (product) => {
-    setSelectedProductForInventory(product);
-    setShowInventoryModal(true);
-    setInventoryLoading(true);
-    
-    try {
-      const response = await getProductInventory(product._id);
-      if (response.success) {
-        setInventoryData(response.data);
-      } else {
-        toast.error(response.message || 'Failed to fetch inventory data');
-      }
-    } catch (error) {
-      console.error('Error fetching inventory:', error);
-      toast.error('Something went wrong while loading inventory data');
-    } finally {
-      setInventoryLoading(false);
-    }
+  // 🎯 NEW: Enhanced Stock Management Functions
+  const handleManageStock = (product) => {
+    setSelectedProductForStock(product);
+    setShowStockModal(true);
   };
 
-  const handleAddStock = async (productId, variantUpdates, notes) => {
-    try {
-      const response = await addProductStock(productId, variantUpdates, notes);
-      if (response.success) {
-        toast.success('Stock added successfully');
-        setShowInventoryModal(false);
-        fetchProducts(); // Refresh products to show updated inventory
-      } else {
-        toast.error(response.message || 'Failed to add stock');
-      }
-    } catch (error) {
-      console.error('Error adding stock:', error);
-      toast.error('Something went wrong while adding stock');
-    }
+  const handleStockUpdated = () => {
+    fetchProducts(); // Refresh products to show updated inventory
   };
 
   const checkLowStockProducts = async () => {
@@ -651,9 +623,9 @@ const ViewProducts = () => {
                               📝 View Reviews
                             </button>
                             
-                            {/* 🎯 NEW: Inventory Management Button */}
+                            {/* 🎯 NEW: Enhanced Stock Management Button */}
                             <button
-                              onClick={() => handleViewInventory(product)}
+                              onClick={() => handleManageStock(product)}
                               className="flex-1 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 shadow-md bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600"
                             >
                               📦 Manage Stock
@@ -798,248 +770,18 @@ const ViewProducts = () => {
             </div>
           )}
 
-          {/* 🎯 NEW: Inventory Management Modal */}
-          {showInventoryModal && selectedProductForInventory && (
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <h3 className="text-2xl font-bold text-gray-800">Inventory Management</h3>
-                    <p className="text-gray-600 mt-1">{selectedProductForInventory.name}</p>
-                  </div>
-                  <button
-                    onClick={() => setShowInventoryModal(false)}
-                    className="text-gray-500 hover:text-gray-700 transition-colors"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                {inventoryLoading ? (
-                  <div className="flex justify-center items-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-orange-200 border-t-orange-500"></div>
-                  </div>
-                ) : inventoryData ? (
-                  <div className="space-y-6">
-                    {/* Inventory Summary */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                      <div className="bg-blue-50 p-4 rounded-xl">
-                        <div className="text-2xl font-bold text-blue-600">{inventoryData.totalQuantity}</div>
-                        <div className="text-sm text-blue-600">Total Stock</div>
-                      </div>
-                      <div className="bg-green-50 p-4 rounded-xl">
-                        <div className="text-2xl font-bold text-green-600">{inventoryData.availableQuantity}</div>
-                        <div className="text-sm text-green-600">Available</div>
-                      </div>
-                      <div className="bg-yellow-50 p-4 rounded-xl">
-                        <div className="text-2xl font-bold text-yellow-600">{inventoryData.reservedQuantity}</div>
-                        <div className="text-sm text-yellow-600">Reserved</div>
-                      </div>
-                      <div className="bg-red-50 p-4 rounded-xl">
-                        <div className="text-2xl font-bold text-red-600">{inventoryData.lowStockThreshold}</div>
-                        <div className="text-sm text-red-600">Low Stock Threshold</div>
-                      </div>
-                    </div>
-
-                    {/* Variant Details */}
-                    <div className="bg-gray-50 rounded-2xl p-6">
-                      <h4 className="text-lg font-semibold text-gray-800 mb-4">Variant Stock Levels</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {inventoryData.variants.map((variant, index) => (
-                          <div key={index} className="bg-white p-4 rounded-xl border">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="font-medium text-gray-800">
-                                {variant.size} - {variant.color}
-                              </span>
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                variant.quantity <= inventoryData.lowStockThreshold
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-green-100 text-green-800'
-                              }`}>
-                                {variant.quantity} units
-                              </span>
-                            </div>
-                            {variant.isLowStock && (
-                              <div className="text-xs text-red-600">
-                                ⚠️ Low stock alert
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Add Stock Form */}
-                    <div className="bg-gray-50 rounded-2xl p-6">
-                      <h4 className="text-lg font-semibold text-gray-800 mb-4">Add Stock</h4>
-                      <AddStockForm 
-                        product={selectedProductForInventory}
-                        onAddStock={handleAddStock}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 bg-gray-50 rounded-2xl">
-                    <p className="text-gray-600">Failed to load inventory data.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* 🎯 NEW: Enhanced Stock Management Modal */}
+          <StockManagementModal
+            isOpen={showStockModal}
+            onClose={() => setShowStockModal(false)}
+            product={selectedProductForStock}
+            onStockUpdated={handleStockUpdated}
+          />
         </div>
       </div>
     </SellerLayout>
   );
 };
 
-// 🎯 NEW: Add Stock Form Component
-const AddStockForm = ({ product, onAddStock }) => {
-  const [variantUpdates, setVariantUpdates] = useState([]);
-  const [notes, setNotes] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleVariantUpdate = (index, field, value) => {
-    const updatedVariants = [...variantUpdates];
-    if (!updatedVariants[index]) {
-      updatedVariants[index] = { size: '', color: '', quantity: 0 };
-    }
-    updatedVariants[index][field] = value;
-    setVariantUpdates(updatedVariants);
-  };
-
-  const addVariantUpdate = () => {
-    setVariantUpdates([...variantUpdates, { size: '', color: '', quantity: 0 }]);
-  };
-
-  const removeVariantUpdate = (index) => {
-    const updatedVariants = variantUpdates.filter((_, i) => i !== index);
-    setVariantUpdates(updatedVariants);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Validate form
-    const validUpdates = variantUpdates.filter(update => 
-      update.size && update.color && update.quantity > 0
-    );
-    
-    if (validUpdates.length === 0) {
-      toast.error('Please add at least one valid variant update');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await onAddStock(product._id, validUpdates, notes);
-      setVariantUpdates([]);
-      setNotes('');
-    } catch (error) {
-      console.error('Error adding stock:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Variant Updates */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h5 className="font-medium text-gray-700">Add Stock to Variants</h5>
-          <button
-            type="button"
-            onClick={addVariantUpdate}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-lg text-sm font-medium"
-          >
-            + Add Variant
-          </button>
-        </div>
-        
-        {variantUpdates.map((update, index) => (
-          <div key={index} className="grid grid-cols-4 gap-3 p-3 bg-white rounded-lg border">
-            <select
-              value={update.size || ''}
-              onChange={(e) => handleVariantUpdate(index, 'size', e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            >
-              <option value="">Select Size</option>
-              <option value="XS">XS</option>
-              <option value="S">S</option>
-              <option value="M">M</option>
-              <option value="L">L</option>
-              <option value="XL">XL</option>
-              <option value="2XL">2XL</option>
-              <option value="3XL">3XL</option>
-              <option value="4XL">4XL</option>
-            </select>
-            
-            <input
-              type="text"
-              placeholder="Color"
-              value={update.color || ''}
-              onChange={(e) => handleVariantUpdate(index, 'color', e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-            
-            <input
-              type="number"
-              placeholder="Quantity"
-              value={update.quantity || ''}
-              onChange={(e) => handleVariantUpdate(index, 'quantity', parseInt(e.target.value) || 0)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              min="1"
-              required
-            />
-            
-            <button
-              type="button"
-              onClick={() => removeVariantUpdate(index)}
-              className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium"
-            >
-              Remove
-            </button>
-          </div>
-        ))}
-        
-        {variantUpdates.length === 0 && (
-          <div className="text-center py-4 text-gray-500 text-sm">
-            Click "Add Variant" to start adding stock
-          </div>
-        )}
-      </div>
-
-      {/* Notes */}
-      <div>
-        <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-2">
-          Notes (Optional)
-        </label>
-        <textarea
-          id="notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Add notes about this stock update..."
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          rows="3"
-        />
-      </div>
-
-      {/* Submit Button */}
-      <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={isSubmitting || variantUpdates.length === 0}
-          className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-        >
-          {isSubmitting ? 'Adding Stock...' : 'Add Stock'}
-        </button>
-      </div>
-    </form>
-  );
-};
 
 export default ViewProducts;
