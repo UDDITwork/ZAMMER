@@ -2,6 +2,7 @@
 
 const Product = require('../models/Product');
 const Seller = require('../models/Seller');
+const InventoryHistoryService = require('../services/inventoryHistoryService');
 const { validationResult } = require('express-validator');
 
 // Enhanced logging for production monitoring
@@ -758,6 +759,12 @@ const updateProduct = async (req, res) => {
     const productId = req.params.id;
     const sellerId = req.seller._id;
 
+    logProductQuery('UPDATE_PRODUCT_START', {
+      productId: productId,
+      sellerId: sellerId.toString(),
+      updateFields: Object.keys(req.body)
+    });
+
     const product = await Product.findOne({
       _id: productId,
       seller: sellerId
@@ -770,16 +777,29 @@ const updateProduct = async (req, res) => {
       });
     }
 
-    const updatedProduct = await Product.findByIdAndUpdate(
-      productId,
-      req.body,
-      { new: true, runValidators: true }
-    );
+    // Validate the update data before applying
+    const updateData = { ...req.body };
+    
+    // Ensure numeric fields are properly converted
+    if (updateData.mrp) updateData.mrp = Number(updateData.mrp);
+    if (updateData.zammerPrice) updateData.zammerPrice = Number(updateData.zammerPrice);
+    
+    // Validate variants if provided
+    if (updateData.variants && Array.isArray(updateData.variants)) {
+      updateData.variants = updateData.variants.map(variant => ({
+        ...variant,
+        quantity: Number(variant.quantity) || 0
+      }));
+    }
+
+    // 🎯 FIX: Use traditional update approach to ensure validation runs on updated document
+    Object.assign(product, updateData);
+    const updatedProduct = await product.save();
 
     logProductQuery('UPDATE_PRODUCT_SUCCESS', {
       productId: productId,
       sellerId: sellerId.toString(),
-      updatedFields: Object.keys(req.body)
+      updatedFields: Object.keys(updateData)
     }, 'success');
 
     res.status(200).json({
@@ -790,13 +810,36 @@ const updateProduct = async (req, res) => {
   } catch (error) {
     logProductQuery('UPDATE_PRODUCT_ERROR', { 
       productId: req.params.id,
-      error: error.message 
+      error: error.message,
+      errorType: error.name
     }, 'error');
+    
+    // Enhanced error response
+    let errorMessage = 'Error updating product';
+    let errorDetails = null;
+    
+    if (error.name === 'ValidationError') {
+      errorMessage = 'Validation failed';
+      const validationErrors = Object.values(error.errors).map(err => ({
+        field: err.path,
+        message: err.message
+      }));
+      errorDetails = validationErrors;
+    } else if (error.name === 'CastError') {
+      errorMessage = 'Invalid data type provided';
+      errorDetails = {
+        field: error.path,
+        value: error.value,
+        expectedType: error.kind
+      };
+    }
     
     res.status(500).json({
       success: false,
-      message: 'Error updating product',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: errorMessage,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      details: errorDetails,
+      validationErrors: error.name === 'ValidationError' ? errorDetails : undefined
     });
   }
 };
@@ -1144,6 +1187,12 @@ const addProductStock = async (req, res) => {
     const sellerId = req.seller._id;
     const { variantUpdates, notes } = req.body;
 
+    logProductQuery('ADD_PRODUCT_STOCK_START', {
+      productId: productId,
+      sellerId: sellerId.toString(),
+      variantUpdatesCount: variantUpdates?.length || 0
+    });
+
     if (!variantUpdates || !Array.isArray(variantUpdates) || variantUpdates.length === 0) {
       return res.status(400).json({
         success: false,
@@ -1168,28 +1217,44 @@ const addProductStock = async (req, res) => {
       if (!update.size || !update.color || !update.quantity || update.quantity <= 0) {
         return res.status(400).json({
           success: false,
-          message: 'Each variant update must include size, color, and positive quantity'
+          message: `Invalid variant update: ${JSON.stringify(update)}. Each variant update must include size, color, and positive quantity`
         });
       }
     }
 
-    const stockResult = await product.addStock(variantUpdates, notes || 'Stock added by seller');
+    // Use inventory history service for better tracking
+    const stockResult = await InventoryHistoryService.updateProductStock({
+      productId,
+      sellerId,
+      variantUpdates,
+      reason: 'Stock added by seller',
+      notes: notes || 'Stock added by seller'
+    });
 
-    logProductQuery('ADD_PRODUCT_STOCK', {
+    if (!stockResult.success) {
+      return res.status(400).json({
+        success: false,
+        message: stockResult.message
+      });
+    }
+
+    logProductQuery('ADD_PRODUCT_STOCK_SUCCESS', {
       productId: productId,
       sellerId: sellerId.toString(),
-      updatesCount: variantUpdates.length
+      updatesCount: variantUpdates.length,
+      historyEntriesCount: stockResult.data.historyEntries.length
     }, 'success');
 
     res.status(200).json({
       success: true,
-      data: stockResult,
+      data: stockResult.data,
       message: 'Stock added successfully'
     });
   } catch (error) {
     logProductQuery('ADD_PRODUCT_STOCK_ERROR', { 
       productId: req.params.id,
-      error: error.message 
+      error: error.message,
+      errorType: error.name
     }, 'error');
     
     res.status(500).json({
@@ -1221,38 +1286,25 @@ const getProductInventoryHistory = async (req, res) => {
       });
     }
 
-    const pageNumber = parseInt(page) || 1;
-    const pageSize = parseInt(limit) || 20;
-    const skip = (pageNumber - 1) * pageSize;
+    const result = await InventoryHistoryService.getProductInventoryHistory(productId, limit);
 
-    // Get paginated inventory history
-    const history = product.inventoryHistory
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-      .slice(skip, skip + pageSize);
-
-    const totalHistory = product.inventoryHistory.length;
-    const totalPages = Math.ceil(totalHistory / pageSize);
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: result.message
+      });
+    }
 
     logProductQuery('GET_PRODUCT_INVENTORY_HISTORY', {
       productId: productId,
       sellerId: sellerId.toString(),
-      historyCount: history.length,
-      totalHistory
+      historyCount: result.data.length
     }, 'success');
 
     res.status(200).json({
       success: true,
-      data: {
-        history,
-        pagination: {
-          currentPage: pageNumber,
-          totalPages,
-          totalHistory,
-          hasNextPage: pageNumber < totalPages,
-          hasPrevPage: pageNumber > 1
-        }
-      },
-      message: 'Product inventory history retrieved successfully'
+      data: result.data,
+      message: 'Inventory history fetched successfully'
     });
   } catch (error) {
     logProductQuery('GET_PRODUCT_INVENTORY_HISTORY_ERROR', { 
