@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { AuthContext } from '../../contexts/AuthContext';
 import SellerLayout from '../../components/layouts/SellerLayout';
+import LabelPreview from '../../components/seller/LabelPreview';
 import orderService from '../../services/orderService';
 import socketService from '../../services/socketService';
 import { toast } from 'react-toastify';
@@ -15,6 +16,8 @@ const Orders = () => {
   const [socketConnected, setSocketConnected] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [processingOrder, setProcessingOrder] = useState(null);
+  const [generatingLabel, setGeneratingLabel] = useState(null);
+  const [labelPreview, setLabelPreview] = useState({ isOpen: false, orderId: null });
 
   const statusTabs = [
     { key: 'Pending', label: 'Pending', icon: '⏳', color: 'yellow' },
@@ -179,6 +182,61 @@ const Orders = () => {
     }
   };
 
+  const handleGenerateLabel = async (orderId) => {
+    try {
+      setGeneratingLabel(orderId);
+      console.log('🏷️ Generating shipping label for order:', orderId);
+      
+      const response = await orderService.generateShippingLabel(orderId);
+      
+      if (response.success) {
+        toast.success(
+          <div className="flex items-center">
+            <span className="text-2xl mr-2">🏷️</span>
+            <div>
+              <p className="font-bold">Label Generated!</p>
+              <p className="text-sm">Tracking: {response.data.trackingNumber}</p>
+            </div>
+          </div>,
+          { autoClose: 8000 }
+        );
+        fetchOrders(); // Refresh orders to show label status
+      } else {
+        toast.error(response.message || 'Failed to generate shipping label');
+      }
+    } catch (error) {
+      console.error('❌ Error generating shipping label:', error);
+      toast.error('Error generating shipping label');
+    } finally {
+      setGeneratingLabel(null);
+    }
+  };
+
+  const handleDownloadLabel = async (orderId) => {
+    try {
+      console.log('📥 Downloading shipping label for order:', orderId);
+      
+      const response = await orderService.downloadShippingLabel(orderId);
+      
+      if (response.success) {
+        toast.success('Shipping label downloaded successfully');
+      } else {
+        toast.error(response.message || 'Failed to download shipping label');
+      }
+    } catch (error) {
+      console.error('❌ Error downloading shipping label:', error);
+      toast.error('Error downloading shipping label');
+    }
+  };
+
+  const handlePreviewLabel = (orderId) => {
+    setLabelPreview({ isOpen: true, orderId });
+  };
+
+  const handleCloseLabelPreview = () => {
+    setLabelPreview({ isOpen: false, orderId: null });
+  };
+
   const getStatusColor = (status) => {
     const statusMap = {
       'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -334,14 +392,29 @@ const Orders = () => {
                           {formatDate(order.createdAt)}
                         </p>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(order.status)}`}>
-                        {order.status}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(order.status)}`}>
+                          {order.status}
+                        </span>
+                        {order.shippingLabel?.isGenerated && (
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200 flex items-center">
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                            </svg>
+                            Label Generated
+                          </span>
+                        )}
+                      </div>
                     </div>
                     
                     <div className="text-right">
                       <p className="text-lg font-bold text-gray-900">₹{order.totalPrice}</p>
                       <p className="text-sm text-gray-600">{order.paymentMethod}</p>
+                      {order.shippingLabel?.trackingNumber && (
+                        <p className="text-xs text-blue-600 font-medium mt-1">
+                          Tracking: {order.shippingLabel.trackingNumber}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -423,16 +496,57 @@ const Orders = () => {
                     )}
                     
                     {order.status === 'Processing' && (
-                      <button
-                        onClick={() => handleStatusUpdate(order._id, 'Shipped')}
-                        disabled={processingOrder === order._id}
-                        className="bg-purple-500 hover:bg-purple-600 disabled:bg-purple-300 text-white px-4 py-2 rounded text-sm font-medium flex items-center"
-                      >
-                        {processingOrder === order._id ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                        ) : null}
-                        Mark as Shipped
-                      </button>
+                      <div className="flex space-x-2">
+                        {!order.shippingLabel?.isGenerated ? (
+                          <button
+                            onClick={() => handleGenerateLabel(order._id)}
+                            disabled={generatingLabel === order._id}
+                            className="bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white px-4 py-2 rounded text-sm font-medium flex items-center"
+                          >
+                            {generatingLabel === order._id ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                            ) : (
+                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                              </svg>
+                            )}
+                            Generate Label
+                          </button>
+                        ) : (
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handlePreviewLabel(order._id)}
+                              className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded text-sm font-medium flex items-center"
+                            >
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              Preview
+                            </button>
+                            <button
+                              onClick={() => handleDownloadLabel(order._id)}
+                              className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded text-sm font-medium flex items-center"
+                            >
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Download
+                            </button>
+                          </div>
+                        )}
+                        
+                        <button
+                          onClick={() => handleStatusUpdate(order._id, 'Shipped')}
+                          disabled={processingOrder === order._id || !order.shippingLabel?.isGenerated}
+                          className="bg-purple-500 hover:bg-purple-600 disabled:bg-purple-300 text-white px-4 py-2 rounded text-sm font-medium flex items-center"
+                        >
+                          {processingOrder === order._id ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                          ) : null}
+                          Mark as Shipped
+                        </button>
+                      </div>
                     )}
                     
                     {order.status === 'Shipped' && (
@@ -472,6 +586,13 @@ const Orders = () => {
           )}
         </div>
       </div>
+
+      {/* Label Preview Modal */}
+      <LabelPreview
+        orderId={labelPreview.orderId}
+        isOpen={labelPreview.isOpen}
+        onClose={handleCloseLabelPreview}
+      />
     </SellerLayout>
   );
 };

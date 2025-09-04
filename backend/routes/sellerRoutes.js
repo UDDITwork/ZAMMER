@@ -15,7 +15,10 @@ const {
   resetPasswordDirect,
   checkEmailExists,
   getPaymentTracking,
-  getEarningsSummary
+  getEarningsSummary,
+  generateShippingLabel,
+  getShippingLabel,
+  downloadShippingLabel
 } = require('../controllers/sellerController');
 const { debugPasswordIssues, testPasswordComparison } = require('../utils/passwordDebug');
 const Seller = require('../models/Seller');
@@ -82,6 +85,22 @@ router.get('/payment-tracking', protectSeller, getPaymentTracking);
 // @route   GET /api/sellers/earnings-summary
 // @access  Private (Seller)
 router.get('/earnings-summary', protectSeller, getEarningsSummary);
+
+// 🎯 NEW: Shipping label generation routes
+// @desc    Generate shipping label for order
+// @route   POST /api/sellers/orders/:orderId/generate-label
+// @access  Private (Seller)
+router.post('/orders/:orderId/generate-label', protectSeller, generateShippingLabel);
+
+// @desc    Get shipping label data
+// @route   GET /api/sellers/orders/:orderId/label
+// @access  Private (Seller)
+router.get('/orders/:orderId/label', protectSeller, getShippingLabel);
+
+// @desc    Download shipping label PDF
+// @route   GET /api/sellers/orders/:orderId/label/download
+// @access  Private (Seller)
+router.get('/orders/:orderId/label/download', protectSeller, downloadShippingLabel);
 
 // 🎯 DEBUG ROUTES (Development only)
 if (process.env.NODE_ENV === 'development') {
