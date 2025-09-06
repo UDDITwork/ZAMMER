@@ -242,8 +242,13 @@ const HomePage = () => {
             <div className="flex space-x-6 overflow-x-auto pb-4 scrollbar-hide">
               {offerProducts.length > 0 ? (
                 offerProducts.map((product) => (
-                  <div key={product._id} className="flex-shrink-0 w-80">
-                    <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-6 h-44 relative overflow-hidden border border-orange-100 hover:shadow-lg transition-all duration-300 group">
+                  <Link 
+                    key={product._id} 
+                    to={`/user/product/${product._id}`} 
+                    className="flex-shrink-0 w-80 group"
+                    onClick={() => console.log('🛒 Navigating to product:', product._id, product.name)}
+                  >
+                    <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-6 h-44 relative overflow-hidden border border-orange-100 hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer group-hover:border-orange-300">
                       {/* Wishlist Button */}
                       <div className="absolute top-3 right-3 z-20">
                         <WishlistButton 
@@ -257,21 +262,18 @@ const HomePage = () => {
                           <span className="bg-red-600 text-white text-xs px-3 py-1.5 rounded-full font-semibold uppercase tracking-wide">
                             Special Deal
                           </span>
-                          <h3 className="font-bold mt-3 text-gray-900 text-lg">{product.name}</h3>
+                          <h3 className="font-bold mt-3 text-gray-900 text-lg group-hover:text-red-600 transition-colors">{product.name}</h3>
                         </div>
                         <div>
                           <p className="text-gray-700 text-sm font-medium mb-3">
                             Save up to {Math.round(((product.mrp - product.zammerPrice) / product.mrp) * 100)}%
                           </p>
-                          <Link 
-                            to={`/user/product/${product._id}`}
-                            className="inline-flex items-center bg-white hover:bg-gray-50 text-red-600 px-4 py-2 rounded-xl text-sm font-semibold transition-colors border border-red-200 hover:border-red-300"
-                          >
+                          <div className="inline-flex items-center bg-white hover:bg-red-50 text-red-600 px-4 py-2 rounded-xl text-sm font-semibold transition-colors border border-red-200 hover:border-red-300 group-hover:shadow-md">
                             Shop Now
-                            <svg className="w-4 h-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
                             </svg>
-                          </Link>
+                          </div>
                         </div>
                       </div>
                       {product.images && product.images[0] && (
@@ -281,9 +283,11 @@ const HomePage = () => {
                           className="absolute right-4 bottom-4 h-28 w-28 object-cover rounded-xl group-hover:scale-110 transition-transform duration-300 shadow-lg"
                         />
                       )}
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-orange-200/20 rounded-full -translate-y-16 translate-x-16"></div>
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-orange-200/20 rounded-full -translate-y-16 translate-x-16 group-hover:bg-orange-300/30 transition-colors"></div>
+                      {/* Click indicator */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl"></div>
                     </div>
-                  </div>
+                  </Link>
                 ))
               ) : (
                 <div className="flex-shrink-0 w-80">

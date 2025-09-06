@@ -63,41 +63,51 @@ const ShopOffersPage = () => {
         ) : offerProducts.length > 0 ? (
           <div className="grid grid-cols-2 gap-4">
             {offerProducts.map((product) => (
-              <div key={product._id} className="border rounded-lg overflow-hidden bg-white">
-                <Link to={`/user/product/${product._id}`} className="block relative h-48 bg-gray-200">
-                  {product.images && product.images[0] ? (
-                    <img 
-                      src={product.images[0]} 
-                      alt={product.name} 
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center text-gray-400">No image</div>
-                  )}
-                  <div className="absolute top-2 right-2 z-10">
-                    <WishlistButton 
-                      productId={product._id} 
-                      size="sm"
-                      className="shadow-lg"
-                    />
+              <Link 
+                key={product._id} 
+                to={`/user/product/${product._id}`} 
+                className="group"
+                onClick={() => console.log('🛒 Navigating to product:', product._id, product.name)}
+              >
+                <div className="border rounded-lg overflow-hidden bg-white hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer group-hover:border-orange-300 relative">
+                  <div className="relative h-48 bg-gray-200">
+                    {product.images && product.images[0] ? (
+                      <img 
+                        src={product.images[0]} 
+                        alt={product.name} 
+                        className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-gray-400">No image</div>
+                    )}
+                    <div className="absolute top-2 right-2 z-10">
+                      <WishlistButton 
+                        productId={product._id} 
+                        size="sm"
+                        className="shadow-lg"
+                      />
+                    </div>
+                    <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                      {Math.round(((product.mrp - product.zammerPrice) / product.mrp) * 100)}% OFF
+                    </div>
                   </div>
-                </Link>
-                
-                <div className="p-3">
-                  <Link to={`/user/product/${product._id}`} className="block">
-                    <h3 className="font-medium text-sm text-gray-800">{product.name}</h3>
+                  
+                  <div className="p-3">
+                    <h3 className="font-medium text-sm text-gray-800 group-hover:text-orange-600 transition-colors line-clamp-2">{product.name}</h3>
                     <div className="mt-1 flex items-center justify-between">
                       <div>
                         <span className="text-orange-600 font-medium">₹{product.zammerPrice}</span>
                         <span className="text-gray-500 text-xs line-through ml-1">₹{product.mrp}</span>
                       </div>
-                      <span className="text-green-600 text-xs">
-                        {Math.round(((product.mrp - product.zammerPrice) / product.mrp) * 100)}% off
+                      <span className="text-green-600 text-xs font-semibold">
+                        Save ₹{product.mrp - product.zammerPrice}
                       </span>
                     </div>
-                  </Link>
+                  </div>
+                  {/* Click indicator */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg"></div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         ) : (
