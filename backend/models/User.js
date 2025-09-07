@@ -1,7 +1,25 @@
-// File: /backend/models/User.js - Enhanced with better location support
+// File: /backend/models/User.js - Enhanced with comprehensive logging
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+
+// 🎯 ENHANCED: Centralized logging utility for User model
+const logUserModel = (action, data, level = 'info') => {
+  const timestamp = new Date().toISOString();
+  const logLevels = {
+    info: '👤',
+    success: '✅',
+    warning: '⚠️',
+    error: '❌',
+    critical: '🚨',
+    password: '🔐',
+    security: '🛡️'
+  };
+  
+  console.log(`${logLevels[level]} [USER-MODEL] ${timestamp} - ${action}`, 
+    data ? JSON.stringify(data, null, 2) : '');
+};
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -181,8 +199,7 @@ const userSchema = new mongoose.Schema({
 
 // 🎯 ENHANCED: Geospatial indexes for location queries
 userSchema.index({ "location": "2dsphere" });
-userSchema.index({ email: 1 });
-userSchema.index({ mobileNumber: 1 });
+// Note: email and mobileNumber indexes are automatically created by unique: true
 userSchema.index({ isActive: 1 });
 userSchema.index({ createdAt: -1 });
 
@@ -210,16 +227,58 @@ userSchema.virtual('locationDisplay').get(function() {
   return 'Location not set';
 });
 
-// 🎯 Pre-save middleware to hash password
+// 🎯 ENHANCED: Pre-save middleware to hash password with comprehensive logging
 userSchema.pre('save', async function(next) {
   // Only hash password if it's been modified
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password')) {
+    logUserModel('PASSWORD_NOT_MODIFIED', {
+      userId: this._id,
+      email: this.email,
+      operation: this.isNew ? 'CREATE' : 'UPDATE'
+    }, 'info');
+    return next();
+  }
   
   try {
+    logUserModel('PASSWORD_HASHING_START', {
+      userId: this._id,
+      email: this.email,
+      passwordLength: this.password.length,
+      isNewUser: this.isNew,
+      operation: this.isNew ? 'CREATE' : 'UPDATE'
+    }, 'password');
+
+    // Check if password is already hashed (safety check)
+    if (this.password.startsWith('$2')) {
+      logUserModel('PASSWORD_ALREADY_HASHED', {
+        userId: this._id,
+        email: this.email,
+        passwordFormat: this.password.substring(0, 10) + '...'
+      }, 'warning');
+      return next();
+    }
+
     const salt = await bcrypt.genSalt(10);
+    const originalPassword = this.password;
     this.password = await bcrypt.hash(this.password, salt);
+    
+    logUserModel('PASSWORD_HASHED_SUCCESS', {
+      userId: this._id,
+      email: this.email,
+      originalLength: originalPassword.length,
+      hashedLength: this.password.length,
+      saltRounds: 10,
+      hashFormat: this.password.substring(0, 10) + '...'
+    }, 'success');
+    
     next();
   } catch (error) {
+    logUserModel('PASSWORD_HASHING_ERROR', {
+      userId: this._id,
+      email: this.email,
+      error: error.message,
+      stack: error.stack
+    }, 'critical');
     next(error);
   }
 });
@@ -232,12 +291,54 @@ userSchema.pre('save', function(next) {
   next();
 });
 
-// 🎯 Instance method to check password
+// 🎯 ENHANCED: Instance method to check password with comprehensive logging
 userSchema.methods.matchPassword = async function(enteredPassword) {
   try {
-    return await bcrypt.compare(enteredPassword, this.password);
+    logUserModel('PASSWORD_COMPARISON_START', {
+      userId: this._id,
+      email: this.email,
+      enteredPasswordLength: enteredPassword?.length || 0,
+      storedPasswordLength: this.password?.length || 0,
+      storedPasswordFormat: this.password ? this.password.substring(0, 10) + '...' : 'null',
+      isHashedFormat: this.password ? this.password.startsWith('$2') : false
+    }, 'password');
+
+    if (!enteredPassword) {
+      logUserModel('PASSWORD_COMPARISON_FAILED', {
+        userId: this._id,
+        email: this.email,
+        reason: 'No password provided'
+      }, 'warning');
+      return false;
+    }
+
+    if (!this.password) {
+      logUserModel('PASSWORD_COMPARISON_FAILED', {
+        userId: this._id,
+        email: this.email,
+        reason: 'No stored password found'
+      }, 'error');
+      return false;
+    }
+
+    const isMatch = await bcrypt.compare(enteredPassword, this.password);
+    
+    logUserModel('PASSWORD_COMPARISON_RESULT', {
+      userId: this._id,
+      email: this.email,
+      isMatch: isMatch,
+      enteredPasswordLength: enteredPassword.length,
+      storedPasswordLength: this.password.length
+    }, isMatch ? 'success' : 'warning');
+
+    return isMatch;
   } catch (error) {
-    console.error('Password comparison error:', error);
+    logUserModel('PASSWORD_COMPARISON_ERROR', {
+      userId: this._id,
+      email: this.email,
+      error: error.message,
+      stack: error.stack
+    }, 'critical');
     return false;
   }
 };
@@ -287,10 +388,29 @@ userSchema.methods.removeFromWishlist = function(productId) {
   return this.save();
 };
 
-// 🎯 Instance method to increment login attempts
+// 🎯 ENHANCED: Instance method to increment login attempts with comprehensive logging
 userSchema.methods.incLoginAttempts = function() {
+  const currentAttempts = this.loginAttempts || 0;
+  const newAttempts = currentAttempts + 1;
+  
+  logUserModel('LOGIN_ATTEMPT_INCREMENT', {
+    userId: this._id,
+    email: this.email,
+    currentAttempts: currentAttempts,
+    newAttempts: newAttempts,
+    isCurrentlyLocked: this.isLocked,
+    lockUntil: this.lockUntil
+  }, 'security');
+
   // If we have a previous lock that has expired, restart at 1
   if (this.lockUntil && this.lockUntil < Date.now()) {
+    logUserModel('LOGIN_LOCK_EXPIRED_RESET', {
+      userId: this._id,
+      email: this.email,
+      expiredLockUntil: this.lockUntil,
+      resettingToAttempts: 1
+    }, 'security');
+    
     return this.updateOne({
       $unset: { lockUntil: 1 },
       $set: { loginAttempts: 1 }
@@ -300,15 +420,39 @@ userSchema.methods.incLoginAttempts = function() {
   const updates = { $inc: { loginAttempts: 1 } };
   
   // Lock account after 5 failed attempts for 2 hours
-  if (this.loginAttempts + 1 >= 5 && !this.isLocked) {
-    updates.$set = { lockUntil: Date.now() + 2 * 60 * 60 * 1000 }; // 2 hours
+  if (newAttempts >= 5 && !this.isLocked) {
+    const lockUntil = Date.now() + 2 * 60 * 60 * 1000; // 2 hours
+    updates.$set = { lockUntil: lockUntil };
+    
+    logUserModel('ACCOUNT_LOCKED', {
+      userId: this._id,
+      email: this.email,
+      failedAttempts: newAttempts,
+      lockUntil: new Date(lockUntil).toISOString(),
+      lockDuration: '2 hours'
+    }, 'critical');
+  } else if (newAttempts >= 3) {
+    logUserModel('LOGIN_ATTEMPTS_WARNING', {
+      userId: this._id,
+      email: this.email,
+      attempts: newAttempts,
+      remainingBeforeLock: 5 - newAttempts
+    }, 'warning');
   }
   
   return this.updateOne(updates);
 };
 
-// 🎯 Instance method to reset login attempts
+// 🎯 ENHANCED: Instance method to reset login attempts with logging
 userSchema.methods.resetLoginAttempts = function() {
+  logUserModel('LOGIN_ATTEMPTS_RESET', {
+    userId: this._id,
+    email: this.email,
+    previousAttempts: this.loginAttempts || 0,
+    wasLocked: this.isLocked,
+    lockUntil: this.lockUntil
+  }, 'success');
+
   return this.updateOne({
     $unset: { loginAttempts: 1, lockUntil: 1 },
     $set: { lastLogin: new Date() }
@@ -351,6 +495,91 @@ userSchema.statics.getLocationStats = function() {
       }
     }
   ]);
+};
+
+// 🎯 NEW: Password reset token methods with comprehensive logging
+userSchema.methods.getResetPasswordToken = function() {
+  // Generate token
+  const resetToken = crypto.randomBytes(20).toString('hex');
+  
+  // Hash token and set to resetPasswordToken field
+  this.resetPasswordToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+  
+  // Set expire time (10 minutes)
+  this.resetPasswordExpires = Date.now() + 10 * 60 * 1000;
+  
+  logUserModel('PASSWORD_RESET_TOKEN_GENERATED', {
+    userId: this._id,
+    email: this.email,
+    tokenLength: resetToken.length,
+    hashedTokenLength: this.resetPasswordToken.length,
+    expiresAt: new Date(this.resetPasswordExpires).toISOString(),
+    expiresInMinutes: 10
+  }, 'security');
+  
+  return resetToken;
+};
+
+userSchema.statics.findByResetToken = function(token) {
+  // Hash the token to compare with stored hash
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(token)
+    .digest('hex');
+  
+  logUserModel('PASSWORD_RESET_TOKEN_LOOKUP', {
+    tokenLength: token.length,
+    hashedTokenLength: hashedToken.length,
+    searchTime: new Date().toISOString()
+  }, 'security');
+  
+  return this.findOne({
+    resetPasswordToken: hashedToken,
+    resetPasswordExpires: { $gt: Date.now() }
+  });
+};
+
+// 🎯 NEW: Email verification token methods
+userSchema.methods.getEmailVerificationToken = function() {
+  const verificationToken = crypto.randomBytes(20).toString('hex');
+  
+  this.emailVerificationToken = crypto
+    .createHash('sha256')
+    .update(verificationToken)
+    .digest('hex');
+  
+  this.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+  
+  logUserModel('EMAIL_VERIFICATION_TOKEN_GENERATED', {
+    userId: this._id,
+    email: this.email,
+    tokenLength: verificationToken.length,
+    expiresAt: new Date(this.emailVerificationExpires).toISOString(),
+    expiresInHours: 24
+  }, 'security');
+  
+  return verificationToken;
+};
+
+userSchema.statics.findByEmailVerificationToken = function(token) {
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(token)
+    .digest('hex');
+  
+  logUserModel('EMAIL_VERIFICATION_TOKEN_LOOKUP', {
+    tokenLength: token.length,
+    hashedTokenLength: hashedToken.length,
+    searchTime: new Date().toISOString()
+  }, 'security');
+  
+  return this.findOne({
+    emailVerificationToken: hashedToken,
+    emailVerificationExpires: { $gt: Date.now() }
+  });
 };
 
 const User = mongoose.model('User', userSchema);

@@ -1,94 +1,268 @@
+// File: /backend/utils/passwordDebug.js - Password debugging utility
+
 const bcrypt = require('bcryptjs');
-const Seller = require('../models/Seller');
+const User = require('../models/User');
 
-// Utility to check and fix password hashing issues
-const debugPasswordIssues = async () => {
-  try {
-    console.log('🔍 [PasswordDebug] Starting password analysis...');
+const passwordDebug = {
+  
+  // Test password hashing consistency
+  async testHashing(plainPassword) {
+    console.log('\n🔐 TESTING PASSWORD HASHING');
+    console.log('================================');
     
-    const sellers = await Seller.find({}).select('email password firstName');
-    
-    console.log(`📊 [PasswordDebug] Found ${sellers.length} sellers`);
-    
-    let issuesFound = 0;
-    let fixedCount = 0;
-    
-    for (const seller of sellers) {
-      const passwordLength = seller.password?.length || 0;
-      const isHashed = passwordLength > 20; // bcrypt hashes are typically 60+ characters
+    try {
+      // Test with different salt rounds
+      const rounds = [10, 12];
       
-      console.log(`🔍 [PasswordDebug] Seller: ${seller.email}`, {
-        passwordLength: passwordLength,
-        isHashed: isHashed,
-        firstName: seller.firstName
-      });
-      
-      if (!isHashed && passwordLength > 0) {
-        console.log(`⚠️ [PasswordDebug] Found unhashed password for: ${seller.email}`);
-        issuesFound++;
+      for (const saltRounds of rounds) {
+        console.log(`\n📊 Testing with ${saltRounds} salt rounds:`);
         
-        // Fix: Hash the password properly
-        try {
-          const salt = await bcrypt.genSalt(10);
-          const hashedPassword = await bcrypt.hash(seller.password, salt);
-          
-          seller.password = hashedPassword;
-          seller.markModified('password');
-          await seller.save();
-          
-          console.log(`✅ [PasswordDebug] Fixed password for: ${seller.email}`);
-          fixedCount++;
-        } catch (error) {
-          console.error(`❌ [PasswordDebug] Failed to fix password for: ${seller.email}`, error);
-        }
+        const salt = await bcrypt.genSalt(saltRounds);
+        const hash1 = await bcrypt.hash(plainPassword, salt);
+        const hash2 = await bcrypt.hash(plainPassword, saltRounds);
+        
+        console.log(`Salt: ${salt}`);
+        console.log(`Hash 1 (with salt): ${hash1}`);
+        console.log(`Hash 2 (direct): ${hash2}`);
+        
+        // Test comparison
+        const match1 = await bcrypt.compare(plainPassword, hash1);
+        const match2 = await bcrypt.compare(plainPassword, hash2);
+        
+        console.log(`Hash 1 matches: ${match1}`);
+        console.log(`Hash 2 matches: ${match2}`);
       }
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Hashing test failed:', error);
+      return false;
     }
-    
-    console.log('📊 [PasswordDebug] Analysis complete:', {
-      totalSellers: sellers.length,
-      issuesFound: issuesFound,
-      fixedCount: fixedCount
-    });
-    
-    return { issuesFound, fixedCount };
-  } catch (error) {
-    console.error('❌ [PasswordDebug] Error during analysis:', error);
-    throw error;
-  }
-};
+  },
 
-// Test password comparison for a specific seller
-const testPasswordComparison = async (email, testPassword) => {
-  try {
-    console.log(`🔍 [PasswordTest] Testing password for: ${email}`);
+  // Test a specific user's password
+  async testUserPassword(email, testPassword) {
+    console.log('\n👤 TESTING USER PASSWORD');
+    console.log('==========================');
+    console.log(`Email: ${email}`);
+    console.log(`Test Password: ${testPassword}`);
     
-    const seller = await Seller.findOne({ email });
-    if (!seller) {
-      console.log('❌ [PasswordTest] Seller not found');
+    try {
+      const user = await User.findOne({ email }).select('+password');
+      
+      if (!user) {
+        console.log('❌ User not found');
+        return false;
+      }
+      
+      console.log(`\n📋 User Info:`);
+      console.log(`ID: ${user._id}`);
+      console.log(`Name: ${user.name}`);
+      console.log(`Email: ${user.email}`);
+      console.log(`Password length: ${user.password.length}`);
+      console.log(`Password format: ${user.password.substring(0, 10)}...`);
+      console.log(`Is hashed format: ${user.password.startsWith('$2')}`);
+      console.log(`Account active: ${user.isActive}`);
+      console.log(`Account locked: ${user.isLocked}`);
+      console.log(`Login attempts: ${user.loginAttempts || 0}`);
+      
+      // Test password matching
+      console.log(`\n🔍 Password Testing:`);
+      
+      // Method 1: Using user's matchPassword method
+      const match1 = await user.matchPassword(testPassword);
+      console.log(`User.matchPassword(): ${match1}`);
+      
+      // Method 2: Direct bcrypt comparison
+      const match2 = await bcrypt.compare(testPassword, user.password);
+      console.log(`Direct bcrypt.compare(): ${match2}`);
+      
+      // Method 3: Test with different variations
+      const variations = [
+        testPassword,
+        testPassword.trim(),
+        testPassword.toLowerCase(),
+        testPassword.toUpperCase()
+      ];
+      
+      console.log(`\n🔄 Testing variations:`);
+      for (const variation of variations) {
+        const match = await bcrypt.compare(variation, user.password);
+        console.log(`"${variation}": ${match}`);
+      }
+      
+      return { match1, match2, user };
+      
+  } catch (error) {
+      console.error('❌ User password test failed:', error);
+      return false;
+    }
+  },
+
+  // Create a test user with known password
+  async createTestUser() {
+    console.log('\n🆕 CREATING TEST USER');
+    console.log('======================');
+    
+    const testUserData = {
+      name: 'Test User',
+      email: 'test@example.com',
+      password: 'password123',
+      mobileNumber: '+1234567890'
+    };
+    
+    try {
+      // Delete existing test user
+      await User.deleteOne({ email: testUserData.email });
+      console.log('🗑️ Deleted existing test user');
+      
+      // Create new test user
+      const user = await User.create(testUserData);
+      console.log('✅ Test user created successfully');
+      console.log(`ID: ${user._id}`);
+      console.log(`Email: ${user.email}`);
+      console.log(`Password length: ${user.password.length}`);
+      console.log(`Password format: ${user.password.substring(0, 10)}...`);
+      
+      // Test the password immediately
+      const match = await user.matchPassword('password123');
+      console.log(`Password test: ${match}`);
+      
+      return user;
+      
+    } catch (error) {
+      console.error('❌ Test user creation failed:', error);
+      return false;
+    }
+  },
+
+  // Reset a user's password manually
+  async resetUserPassword(email, newPassword) {
+    console.log('\n🔄 RESETTING USER PASSWORD');
+    console.log('============================');
+    console.log(`Email: ${email}`);
+    console.log(`New Password: ${newPassword}`);
+    
+    try {
+      const user = await User.findOne({ email });
+      
+      if (!user) {
+        console.log('❌ User not found');
       return false;
     }
     
-    console.log('📊 [PasswordTest] Seller details:', {
-      email: seller.email,
-      passwordLength: seller.password?.length || 0,
-      isHashed: seller.password?.length > 20
-    });
+      console.log(`Found user: ${user.name}`);
+      console.log(`Old password length: ${user.password.length}`);
+      
+      // Update password (will trigger pre-save hashing)
+      user.password = newPassword;
+      user.loginAttempts = 0;
+      user.lockUntil = undefined;
+      
+      await user.save();
+      
+      console.log(`✅ Password updated successfully`);
+      console.log(`New password length: ${user.password.length}`);
+      
+      // Test new password
+      const match = await user.matchPassword(newPassword);
+      console.log(`New password test: ${match}`);
+      
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Password reset failed:', error);
+      return false;
+    }
+  },
+
+  // Comprehensive password audit
+  async auditAllUsers() {
+    console.log('\n🔍 AUDITING ALL USER PASSWORDS');
+    console.log('================================');
     
-    const isMatch = await seller.matchPassword(testPassword);
-    
-    console.log('🔍 [PasswordTest] Comparison result:', {
-      testPassword: testPassword,
-      isMatch: isMatch
-    });
-    
-    return isMatch;
+    try {
+      const users = await User.find({}).select('+password').limit(10);
+      
+      console.log(`Found ${users.length} users to audit`);
+      
+      for (const user of users) {
+        console.log(`\n👤 ${user.email}:`);
+        console.log(`  Password length: ${user.password.length}`);
+        console.log(`  Is hashed: ${user.password.startsWith('$2')}`);
+        console.log(`  Account active: ${user.isActive}`);
+        console.log(`  Login attempts: ${user.loginAttempts || 0}`);
+        console.log(`  Last login: ${user.lastLogin || 'Never'}`);
+      }
+      
+      return users;
+      
   } catch (error) {
-    console.error('❌ [PasswordTest] Error:', error);
+      console.error('❌ User audit failed:', error);
     return false;
+    }
+  },
+
+  // Test the complete login flow
+  async testLoginFlow(email, password) {
+    console.log('\n🚪 TESTING COMPLETE LOGIN FLOW');
+    console.log('================================');
+    console.log(`Email: ${email}`);
+    console.log(`Password: ${password}`);
+    
+    try {
+      // Step 1: Find user
+      console.log('\n1️⃣ Finding user...');
+      const user = await User.findOne({ email }).select('+password');
+      
+      if (!user) {
+        console.log('❌ User not found');
+        return { success: false, step: 'user_not_found' };
+      }
+      
+      console.log('✅ User found');
+      
+      // Step 2: Check account status
+      console.log('\n2️⃣ Checking account status...');
+      if (user.isLocked) {
+        console.log('❌ Account is locked');
+        return { success: false, step: 'account_locked' };
+      }
+      
+      if (!user.isActive) {
+        console.log('❌ Account is inactive');
+        return { success: false, step: 'account_inactive' };
+      }
+      
+      console.log('✅ Account status OK');
+      
+      // Step 3: Verify password
+      console.log('\n3️⃣ Verifying password...');
+      const isMatch = await user.matchPassword(password);
+      
+      if (!isMatch) {
+        console.log('❌ Password does not match');
+        return { success: false, step: 'password_mismatch' };
+      }
+      
+      console.log('✅ Password matches');
+      
+      // Step 4: Login success
+      console.log('\n4️⃣ Login successful!');
+      return { 
+        success: true, 
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email
+        }
+      };
+      
+    } catch (error) {
+      console.error('❌ Login flow test failed:', error);
+      return { success: false, step: 'error', error: error.message };
+    }
   }
 };
 
-module.exports = {
-  debugPasswordIssues,
-  testPasswordComparison
-}; 
+module.exports = passwordDebug;

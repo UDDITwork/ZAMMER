@@ -57,7 +57,8 @@ const ChangePassword = () => {
 
       const response = await api.put('/users/change-password', {
         currentPassword: values.currentPassword,
-        newPassword: values.newPassword
+        newPassword: values.newPassword,
+        confirmPassword: values.confirmPassword
       });
 
       debugLog('📊 CHANGE PASSWORD RESPONSE', {
