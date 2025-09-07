@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
 // Import User model
-const User = require('./backend/models/User');
+const User = require('./models/User');
 
 async function fixPasswordIssue() {
   try {

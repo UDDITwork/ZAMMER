@@ -1,42 +1,7 @@
 /**
  * FILE LOCATION: frontend/src/services/userService.js
  * 
- * USER SERVICE OVERVIEW:
- * This service handles all user-related operations including authentication,
- * profile management, location services, wishlist management, and nearby shop discovery.
- * 
- * KEY FUNCTIONS:
- * - registerUser: Creates new user accounts with location support
- * - loginUser: Authenticates users and returns tokens
- * - getUserProfile: Retrieves user profile information
- * - updateUserProfile: Updates user profile and location data
- * - getNearbyShops: Fetches shops within specified distance from user location
- * - getNearbyShopsWithLocation: Automatically detects user location and finds nearby shops
- * - updateUserLocation: Updates user's current location coordinates
- * 
- * LOCATION-BASED SERVICES:
- * - Supports geolocation detection using browser APIs
- * - Calculates distances between user and shops
- * - Filters shops by maximum distance (default: 50,000 km)
- * - Provides location accuracy information
- * - Handles location permission and fallback scenarios
- * 
- * WISHLIST MANAGEMENT:
- * - getWishlist: Retrieves user's wishlist
- * - addToWishlist: Adds products to wishlist
- * - removeFromWishlist: Removes products from wishlist
- * - checkWishlist: Verifies if product is in wishlist
- * 
- * PASSWORD MANAGEMENT:
- * - requestPasswordReset: Initiates password reset process
- * - resetPassword: Completes password reset with tokens
- * 
- * INTEGRATION:
- * - Uses centralized API configuration from api.js
- * - Implements comprehensive error handling and logging
- * - Supports geolocation with fallback mechanisms
- * - Provides detailed logging for debugging location issues
- * - Integrates with shop discovery and product management systems
+ Integrates with shop discovery and product management systems
  */
 
 // File: /frontend/src/services/userService.js - COMPLETE with getNearbyShops function
