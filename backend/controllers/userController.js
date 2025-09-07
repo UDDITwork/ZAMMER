@@ -811,8 +811,8 @@ const changePassword = async (req, res) => {
     }
 
     // Check if new password is different from current password
-    const isSamePassword = await bcrypt.compare(newPassword, user.password);
-    if (isSamePassword) {
+    // Compare the new password with the current password (both plain text)
+    if (newPassword === currentPassword) {
       return res.status(400).json({
         success: false,
         message: 'New password must be different from current password'
