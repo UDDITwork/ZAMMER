@@ -15,6 +15,7 @@ const {
   checkWishlist,
   verifyEmail,
   resetPassword,
+  changePassword,
   debugSellers,
   verifyAllSellers
 } = require('../controllers/userController');
@@ -69,5 +70,12 @@ router.get('/wishlist/check/:productId', protectUser, checkWishlist);
 // Password reset routes
 router.post('/verify-email', verifyEmail);
 router.post('/reset-password', resetPassword);
+
+// Change password route
+router.put('/change-password', [
+  protectUser,
+  body('currentPassword').notEmpty().withMessage('Current password is required'),
+  body('newPassword').isLength({ min: 6 }).withMessage('New password must be at least 6 characters')
+], changePassword);
 
 module.exports = router;

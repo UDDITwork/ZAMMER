@@ -772,6 +772,77 @@ const debugSellers = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// @desc    Change user password
+// @route   PUT /api/users/change-password
+// @access  Private
+const changePassword = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Validation failed',
+        errors: errors.array() 
+      });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    logUser('CHANGE_PASSWORD_START', { userId: req.user._id });
+
+    // Get user from database
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      logUser('CHANGE_PASSWORD_FAILED', { reason: 'Invalid current password' }, 'warning');
+      return res.status(400).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    // Check if new password is different from current password
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be different from current password'
+      });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password
+    user.password = hashedPassword;
+    await user.save();
+
+    logUser('CHANGE_PASSWORD_SUCCESS', { userId: req.user._id }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+
+  } catch (error) {
+    logUser('CHANGE_PASSWORD_ERROR', { error: error.message }, 'error');
+    res.status(500).json({
+      success: false,
+      message: 'Error changing password',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
 module.exports = {
   registerUser,
   loginUser,
@@ -784,6 +855,7 @@ module.exports = {
   checkWishlist,
   verifyEmail,
   resetPassword,
+  changePassword,
   debugSellers,
   verifyAllSellers
 };
