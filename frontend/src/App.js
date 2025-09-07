@@ -87,6 +87,7 @@ import TrendingPage from './pages/user/TrendingPage';
 import LimitedEditionPage from './pages/user/LimitedEditionPage';
 import OrderConfirmationPage from './pages/user/OrderConfirmationPage';
 import UserProfile from './pages/user/UserProfile';
+import ChangePassword from './pages/user/ChangePassword';
 import MyOrdersPage from './pages/user/MyOrdersPage';
 
 // Static Pages
@@ -261,6 +262,7 @@ function App() {
             <Route path="/user/limited-edition" element={<LimitedEditionPage />} />
             <Route path="/user/order-confirmation" element={<OrderConfirmationPage />} />
             <Route path="/user/profile" element={<UserProfile />} />
+            <Route path="/user/change-password" element={<ChangePassword />} />
             
             {/* User Order Routes */}
             <Route path="/user/orders" element={<MyOrdersPage />} />
