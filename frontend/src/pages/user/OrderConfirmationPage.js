@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import UserLayout from '../../components/layouts/UserLayout';
+import orderService from '../../services/orderService';
 
 const OrderConfirmationPage = () => {
   const location = useLocation();
@@ -11,31 +12,64 @@ const OrderConfirmationPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get order data from navigation state
-    if (location.state?.order) {
-      setOrder(location.state.order);
-      setLoading(false);
-      console.log('✅ Order data received from navigation state:', location.state.order);
-    } else {
-      // 🎯 FIXED: Fallback - try to get order from URL params or redirect to dashboard
-      console.log('⚠️ No order data in navigation state, checking URL params...');
-      
-      // Check if we have order ID in URL params
-      const urlParams = new URLSearchParams(window.location.search);
-      const orderId = urlParams.get('orderId');
-      
-      if (orderId) {
-        console.log('🔍 Found order ID in URL params:', orderId);
-        // You can add a service call here to fetch order by ID if needed
-        // For now, redirect to dashboard
-        toast.error('Order information incomplete. Please check your order history.');
-        navigate('/user/dashboard');
+    const fetchOrderData = async () => {
+      // Get order data from navigation state
+      if (location.state?.order) {
+        const orderFromState = location.state.order;
+        console.log('✅ Order data received from navigation state:', orderFromState);
+        
+        // 🎯 FIX: Fetch fresh order data to get updated payment status
+        try {
+          console.log('🔄 Fetching fresh order data for updated payment status...');
+          const freshOrderResponse = await orderService.getOrderById(orderFromState._id);
+          
+          if (freshOrderResponse.success) {
+            setOrder(freshOrderResponse.data);
+            console.log('✅ Fresh order data loaded with updated payment status:', freshOrderResponse.data);
+          } else {
+            // Fallback to state data if fresh fetch fails
+            setOrder(orderFromState);
+            console.log('⚠️ Using state data as fallback');
+          }
+        } catch (error) {
+          console.error('❌ Error fetching fresh order data:', error);
+          // Fallback to state data
+          setOrder(orderFromState);
+        }
+        
+        setLoading(false);
       } else {
-        // If no order data, redirect to dashboard
-        toast.error('No order information found');
-        navigate('/user/dashboard');
+        // 🎯 FIXED: Fallback - try to get order from URL params or redirect to dashboard
+        console.log('⚠️ No order data in navigation state, checking URL params...');
+        
+        // Check if we have order ID in URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        const orderId = urlParams.get('orderId');
+        
+        if (orderId) {
+          console.log('🔍 Found order ID in URL params:', orderId);
+          try {
+            const orderResponse = await orderService.getOrderById(orderId);
+            if (orderResponse.success) {
+              setOrder(orderResponse.data);
+              setLoading(false);
+              return;
+            }
+          } catch (error) {
+            console.error('❌ Error fetching order by ID:', error);
+          }
+          
+          toast.error('Order information incomplete. Please check your order history.');
+          navigate('/user/dashboard');
+        } else {
+          // If no order data, redirect to dashboard
+          toast.error('No order information found');
+          navigate('/user/dashboard');
+        }
       }
-    }
+    };
+
+    fetchOrderData();
   }, [location.state, navigate]);
 
   const formatDate = (dateString) => {
