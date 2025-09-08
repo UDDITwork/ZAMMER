@@ -35,6 +35,13 @@ const DeliveryDashboard = () => {
   const [processingDelivery, setProcessingDelivery] = useState(false);
   const [processingReject, setProcessingReject] = useState(false);
   
+  // 🎯 NEW: Bulk operations state
+  const [selectedOrders, setSelectedOrders] = useState([]);
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkAction, setBulkAction] = useState(''); // 'accept' or 'reject'
+  const [bulkReason, setBulkReason] = useState('');
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  
   const navigate = useNavigate();
   const { deliveryAgentAuth, logoutDeliveryAgent } = useAuth();
 
@@ -305,6 +312,133 @@ const DeliveryDashboard = () => {
     }
   };
 
+  // 🎯 NEW: Handle bulk order acceptance
+  const handleBulkAcceptOrders = async () => {
+    if (selectedOrders.length === 0) {
+      toast.error('Please select at least one order');
+      return;
+    }
+
+    try {
+      setBulkProcessing(true);
+      console.log('🚚 Bulk accepting orders:', selectedOrders.map(o => o._id));
+
+      const response = await makeApiCall('/delivery/orders/bulk-accept', {
+        method: 'POST',
+        body: JSON.stringify({
+          orderIds: selectedOrders.map(order => order._id)
+        })
+      });
+
+      if (response && response.success) {
+        const { summary } = response.data;
+        toast.success(`Bulk acceptance completed! ${summary.successfullyAccepted} orders accepted successfully`);
+        
+        if (summary.failed > 0) {
+          toast.warning(`${summary.failed} orders failed to accept`);
+        }
+
+        // Close modal and reset state
+        setShowBulkModal(false);
+        setSelectedOrders([]);
+        setBulkAction('');
+        setBulkReason('');
+
+        // Refresh data
+        await Promise.all([
+          fetchAssignedOrders(),
+          fetchAvailableOrders(),
+          fetchStats()
+        ]);
+      } else {
+        throw new Error(response?.message || 'Failed to perform bulk acceptance');
+      }
+    } catch (error) {
+      console.error('❌ Bulk acceptance error:', error);
+      toast.error(error.message || 'Failed to perform bulk acceptance');
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  // 🎯 NEW: Handle bulk order rejection
+  const handleBulkRejectOrders = async () => {
+    if (selectedOrders.length === 0) {
+      toast.error('Please select at least one order');
+      return;
+    }
+
+    try {
+      setBulkProcessing(true);
+      console.log('🚚 Bulk rejecting orders:', selectedOrders.map(o => o._id));
+
+      const response = await makeApiCall('/delivery/orders/bulk-reject', {
+        method: 'POST',
+        body: JSON.stringify({
+          orderIds: selectedOrders.map(order => order._id),
+          reason: bulkReason || 'No reason provided'
+        })
+      });
+
+      if (response && response.success) {
+        const { summary } = response.data;
+        toast.success(`Bulk rejection completed! ${summary.successfullyRejected} orders rejected successfully`);
+        
+        if (summary.failed > 0) {
+          toast.warning(`${summary.failed} orders failed to reject`);
+        }
+
+        // Close modal and reset state
+        setShowBulkModal(false);
+        setSelectedOrders([]);
+        setBulkAction('');
+        setBulkReason('');
+
+        // Refresh data
+        await Promise.all([
+          fetchAssignedOrders(),
+          fetchAvailableOrders(),
+          fetchStats()
+        ]);
+      } else {
+        throw new Error(response?.message || 'Failed to perform bulk rejection');
+      }
+    } catch (error) {
+      console.error('❌ Bulk rejection error:', error);
+      toast.error(error.message || 'Failed to perform bulk rejection');
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  // 🎯 NEW: Handle order selection for bulk operations
+  const handleOrderSelection = (order, isSelected) => {
+    if (isSelected) {
+      setSelectedOrders(prev => [...prev, order]);
+    } else {
+      setSelectedOrders(prev => prev.filter(o => o._id !== order._id));
+    }
+  };
+
+  // 🎯 NEW: Handle select all orders
+  const handleSelectAllOrders = () => {
+    const assignableOrders = assignedOrders.filter(order => 
+      order.deliveryStatus === 'assigned' || order.status === 'Pickup_Ready'
+    );
+    
+    if (selectedOrders.length === assignableOrders.length) {
+      setSelectedOrders([]);
+    } else {
+      setSelectedOrders(assignableOrders);
+    }
+  };
+
+  // 🎯 NEW: Open bulk action modal
+  const openBulkModal = (action) => {
+    setBulkAction(action);
+    setShowBulkModal(true);
+  };
+
   // Handle logout
   const handleLogout = () => {
     logoutDeliveryAgent();
@@ -385,15 +519,33 @@ const DeliveryDashboard = () => {
   // Order Card Component
   const OrderCard = ({ order, isAssigned = false }) => {
     const nextAction = isAssigned ? getNextAction(order) : null;
+    const isSelectable = isAssigned && (order.deliveryStatus === 'assigned' || order.status === 'Pickup_Ready');
+    const isSelected = selectedOrders.some(selected => selected._id === order._id);
     
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-        <div className="flex justify-between items-start mb-3">
-          <div>
-            <h3 className="font-semibold text-gray-900">
-              Order #{order.orderNumber || order._id?.slice(-6)}
-            </h3>
-            <p className="text-sm text-gray-500">{formatDate(order.createdAt)}</p>
+      <div className={`bg-white border rounded-lg p-4 hover:shadow-md transition-shadow ${
+        isSelected ? 'border-orange-500 bg-orange-50' : 'border-gray-200'
+      }`}>
+        {/* 🎯 NEW: Bulk Selection Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-3">
+            {isSelectable && (
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  handleOrderSelection(order, e.target.checked);
+                }}
+                className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+              />
+            )}
+            <div>
+              <h3 className="font-semibold text-gray-900">
+                Order #{order.orderNumber || order._id?.slice(-6)}
+              </h3>
+              <p className="text-sm text-gray-500">{formatDate(order.createdAt)}</p>
+            </div>
           </div>
           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
             order.deliveryStatus === 'assigned' ? 'bg-blue-100 text-blue-800' :
@@ -613,13 +765,52 @@ const DeliveryDashboard = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
               <h2 className="text-lg font-medium text-gray-900">📋 My Assigned Orders</h2>
-              <Link to="/delivery/orders/assigned" className="text-sm text-blue-600 hover:text-blue-800">
-                View All →
-              </Link>
+              <div className="flex items-center space-x-3">
+                {/* 🎯 NEW: Bulk Action Buttons */}
+                {assignedOrders.length > 0 && selectedOrders.length > 0 && (
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => openBulkModal('accept')}
+                      className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                    >
+                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Accept ({selectedOrders.length})
+                    </button>
+                    <button
+                      onClick={() => openBulkModal('reject')}
+                      className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                    >
+                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Reject ({selectedOrders.length})
+                    </button>
+                  </div>
+                )}
+                <Link to="/delivery/orders/assigned" className="text-sm text-blue-600 hover:text-blue-800">
+                  View All →
+                </Link>
+              </div>
             </div>
             <div className="p-6">
               {assignedOrders.length > 0 ? (
                 <div className="space-y-4">
+                  {/* 🎯 NEW: Select All Button */}
+                  {assignedOrders.filter(order => order.deliveryStatus === 'assigned' || order.status === 'Pickup_Ready').length > 0 && (
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <span className="text-sm text-gray-600">
+                        {selectedOrders.length} of {assignedOrders.filter(order => order.deliveryStatus === 'assigned' || order.status === 'Pickup_Ready').length} orders selected
+                      </span>
+                      <button
+                        onClick={handleSelectAllOrders}
+                        className="text-sm text-orange-600 hover:text-orange-500 font-medium"
+                      >
+                        {selectedOrders.length === assignedOrders.filter(order => order.deliveryStatus === 'assigned' || order.status === 'Pickup_Ready').length ? 'Deselect All' : 'Select All'}
+                      </button>
+                    </div>
+                  )}
                   {assignedOrders.slice(0, 2).map((order) => (
                     <OrderCard key={order._id} order={order} isAssigned={true} />
                   ))}
@@ -797,6 +988,71 @@ const DeliveryDashboard = () => {
                 className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white py-2 px-4 rounded-md font-medium transition-colors"
               >
                 {processingDelivery ? 'Processing...' : 'Complete Delivery'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🎯 NEW: Bulk Action Modal */}
+      {showBulkModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              {bulkAction === 'accept' ? '✅ Bulk Accept Orders' : '❌ Bulk Reject Orders'}
+            </h2>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600">
+                You are about to {bulkAction} {selectedOrders.length} order(s):
+              </p>
+              <div className="mt-2 max-h-32 overflow-y-auto">
+                <div className="flex flex-wrap gap-2">
+                  {selectedOrders.map(order => (
+                    <span key={order._id} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                      #{order.orderNumber || order._id?.slice(-6)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {bulkAction === 'reject' && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Rejection Reason (Optional)
+                </label>
+                <textarea
+                  value={bulkReason}
+                  onChange={(e) => setBulkReason(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  rows="3"
+                  placeholder="Why are you rejecting these orders?"
+                />
+              </div>
+            )}
+
+            <div className="flex space-x-4">
+              <button
+                onClick={() => {
+                  setShowBulkModal(false);
+                  setBulkAction('');
+                  setBulkReason('');
+                }}
+                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-md font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={bulkAction === 'accept' ? handleBulkAcceptOrders : handleBulkRejectOrders}
+                disabled={bulkProcessing}
+                className={`flex-1 text-white py-2 px-4 rounded-md font-medium transition-colors ${
+                  bulkAction === 'accept' 
+                    ? 'bg-green-600 hover:bg-green-700 disabled:bg-green-400'
+                    : 'bg-red-600 hover:bg-red-700 disabled:bg-red-400'
+                }`}
+              >
+                {bulkProcessing ? 'Processing...' : `${bulkAction === 'accept' ? 'Accept' : 'Reject'} ${selectedOrders.length} Orders`}
               </button>
             </div>
           </div>

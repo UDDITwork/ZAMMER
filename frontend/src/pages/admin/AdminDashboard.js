@@ -23,6 +23,13 @@ const AdminDashboard = () => {
   const [deliveryAgents, setDeliveryAgents] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState('');
   const [assigning, setAssigning] = useState(false);
+  
+  // 🎯 NEW: Bulk assignment state
+  const [selectedOrders, setSelectedOrders] = useState([]);
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkSelectedAgent, setBulkSelectedAgent] = useState('');
+  const [bulkAssigning, setBulkAssigning] = useState(false);
+  const [bulkNotes, setBulkNotes] = useState('');
 
   // 🔒 SECURITY: Get auth context and navigation
   const { adminAuth } = useAuth();
@@ -313,6 +320,94 @@ const AdminDashboard = () => {
     }
   };
 
+  // 🎯 NEW: Handle bulk order assignment
+  const handleBulkAssignment = async () => {
+    if (!bulkSelectedAgent) {
+      toast.error('Please select a delivery agent');
+      return;
+    }
+
+    if (selectedOrders.length === 0) {
+      toast.error('Please select at least one order');
+      return;
+    }
+
+    try {
+      setBulkAssigning(true);
+      console.log('📦 Bulk assigning orders:', {
+        orderIds: selectedOrders.map(order => order._id),
+        agentId: bulkSelectedAgent,
+        count: selectedOrders.length
+      });
+
+      const response = await adminService.bulkAssignOrders({
+        orderIds: selectedOrders.map(order => order._id),
+        deliveryAgentId: bulkSelectedAgent,
+        notes: bulkNotes
+      });
+
+      if (response.success) {
+        const { summary } = response.data;
+        toast.success(`Bulk assignment completed! ${summary.successfullyAssigned} orders assigned successfully`);
+        
+        if (summary.failed > 0) {
+          toast.warning(`${summary.failed} orders failed to assign`);
+        }
+
+        // Update order status locally
+        setOrders(prevOrders => 
+          prevOrders.map(order => {
+            const assignedOrder = response.data.assignedOrders.find(ao => ao.orderId === order._id);
+            if (assignedOrder) {
+              return { ...order, status: 'Pickup_Ready', assignedAgent: bulkSelectedAgent };
+            }
+            return order;
+          })
+        );
+
+        // Close modal and reset state
+        setShowBulkModal(false);
+        setSelectedOrders([]);
+        setBulkSelectedAgent('');
+        setBulkNotes('');
+
+        // Refresh data
+        fetchRecentOrders();
+        fetchDashboardStats();
+      } else {
+        throw new Error(response.message || 'Failed to perform bulk assignment');
+      }
+    } catch (error) {
+      console.error('❌ Bulk assignment error:', error);
+      toast.error(error.message || 'Failed to perform bulk assignment');
+    } finally {
+      setBulkAssigning(false);
+    }
+  };
+
+  // 🎯 NEW: Handle order selection for bulk assignment
+  const handleOrderSelection = (order, isSelected) => {
+    if (isSelected) {
+      setSelectedOrders(prev => [...prev, order]);
+    } else {
+      setSelectedOrders(prev => prev.filter(o => o._id !== order._id));
+    }
+  };
+
+  // 🎯 NEW: Handle select all orders
+  const handleSelectAllOrders = () => {
+    const assignableOrders = orders.filter(order => 
+      ['Pending', 'Processing'].includes(order.status) && 
+      !order.deliveryAgent?.agent
+    );
+    
+    if (selectedOrders.length === assignableOrders.length) {
+      setSelectedOrders([]);
+    } else {
+      setSelectedOrders(assignableOrders);
+    }
+  };
+
   // Format currency
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -367,28 +462,47 @@ const AdminDashboard = () => {
   );
 
   // 🎯 ENHANCED: Order Card Component with comprehensive order details
-  const OrderCard = ({ order }) => (
-    <div 
-      className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-      onClick={() => handleOrderClick(order)}
-    >
-      <div className="flex justify-between items-start mb-3">
-        <div>
-          <h3 className="font-semibold text-gray-900">Order #{order.orderNumber}</h3>
-          <p className="text-sm text-gray-500">{formatDate(order.createdAt)}</p>
+  const OrderCard = ({ order }) => {
+    const isAssignable = ['Pending', 'Processing'].includes(order.status) && !order.deliveryAgent?.agent;
+    const isSelected = selectedOrders.some(selected => selected._id === order._id);
+    
+    return (
+      <div 
+        className={`bg-white border rounded-lg p-4 hover:shadow-md transition-shadow ${
+          isSelected ? 'border-orange-500 bg-orange-50' : 'border-gray-200'
+        }`}
+      >
+        {/* 🎯 NEW: Bulk Selection Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-3">
+            {isAssignable && (
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  handleOrderSelection(order, e.target.checked);
+                }}
+                className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+              />
+            )}
+            <div>
+              <h3 className="font-semibold text-gray-900">Order #{order.orderNumber}</h3>
+              <p className="text-sm text-gray-500">{formatDate(order.createdAt)}</p>
+            </div>
+          </div>
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+            order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+            order.status === 'Processing' ? 'bg-blue-100 text-blue-800' :
+            order.status === 'Pickup_Ready' ? 'bg-orange-100 text-orange-800' :
+            order.status === 'Out_for_Delivery' ? 'bg-indigo-100 text-indigo-800' :
+            order.status === 'Delivered' ? 'bg-green-100 text-green-800' :
+            order.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
+            'bg-gray-100 text-gray-800'
+          }`}>
+            {order.status?.toUpperCase()}
+          </span>
         </div>
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-          order.status === 'Processing' ? 'bg-blue-100 text-blue-800' :
-          order.status === 'Pickup_Ready' ? 'bg-orange-100 text-orange-800' :
-          order.status === 'Out_for_Delivery' ? 'bg-indigo-100 text-indigo-800' :
-          order.status === 'Delivered' ? 'bg-green-100 text-green-800' :
-          order.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
-          'bg-gray-100 text-gray-800'
-        }`}>
-          {order.status?.toUpperCase()}
-        </span>
-      </div>
       
       <div className="space-y-2 mb-3">
         <div className="flex justify-between">
@@ -446,11 +560,18 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      <button className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors">
+      <button 
+        onClick={(e) => {
+          e.stopPropagation();
+          handleOrderClick(order);
+        }}
+        className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
+      >
         View Details & Assign
       </button>
     </div>
-  );
+    );
+  };
 
   // 🎯 NEW: Order Details Modal
   const OrderModal = () => {
@@ -635,6 +756,125 @@ const AdminDashboard = () => {
     );
   };
 
+  // 🎯 NEW: Bulk Assignment Modal
+  const BulkAssignmentModal = () => {
+    if (!showBulkModal) return null;
+
+    const assignableOrders = orders.filter(order => 
+      ['Pending', 'Processing'].includes(order.status) && 
+      !order.deliveryAgent?.agent
+    );
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Bulk Assign Orders</h2>
+              <button
+                onClick={() => {
+                  setShowBulkModal(false);
+                  setSelectedOrders([]);
+                  setBulkSelectedAgent('');
+                  setBulkNotes('');
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Order Selection Summary */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-medium text-gray-900">Selected Orders</h3>
+                <button
+                  onClick={handleSelectAllOrders}
+                  className="text-sm text-orange-600 hover:text-orange-500 font-medium"
+                >
+                  {selectedOrders.length === assignableOrders.length ? 'Deselect All' : 'Select All'}
+                </button>
+              </div>
+              <p className="text-sm text-gray-600">
+                {selectedOrders.length} of {assignableOrders.length} assignable orders selected
+              </p>
+              {selectedOrders.length > 0 && (
+                <div className="mt-2 max-h-32 overflow-y-auto">
+                  <div className="flex flex-wrap gap-2">
+                    {selectedOrders.map(order => (
+                      <span key={order._id} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                        #{order.orderNumber}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Delivery Agent Selection */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Delivery Agent *
+              </label>
+              <select
+                value={bulkSelectedAgent}
+                onChange={(e) => setBulkSelectedAgent(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                required
+              >
+                <option value="">Choose a delivery agent...</option>
+                {deliveryAgents.map(agent => (
+                  <option key={agent._id} value={agent._id}>
+                    {agent.firstName} {agent.lastName} - {agent.phone} 
+                    {agent.status === 'available' ? ' (Available)' : ` (${agent.status})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Optional Notes */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Notes (Optional)
+              </label>
+              <textarea
+                value={bulkNotes}
+                onChange={(e) => setBulkNotes(e.target.value)}
+                placeholder="Add any special instructions or notes for the delivery agent..."
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowBulkModal(false);
+                  setSelectedOrders([]);
+                  setBulkSelectedAgent('');
+                  setBulkNotes('');
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkAssignment}
+                disabled={!bulkSelectedAgent || selectedOrders.length === 0 || bulkAssigning}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white rounded-md transition-colors"
+              >
+                {bulkAssigning ? 'Assigning...' : `Assign ${selectedOrders.length} Orders`}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Loading and error states remain the same as before...
   if (!authCheckComplete) {
     return (
@@ -781,7 +1021,19 @@ const AdminDashboard = () => {
         <div className="bg-white shadow-sm rounded-lg border border-gray-200">
           <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
             <h2 className="text-lg font-medium text-gray-900">Recent Orders Needing Approval</h2>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-4">
+              {/* 🎯 NEW: Bulk Assignment Button */}
+              {orders.length > 0 && (
+                <button
+                  onClick={() => setShowBulkModal(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Bulk Assign Orders
+                </button>
+              )}
               <span className="text-sm text-gray-500">
                 {orders.length} orders pending
               </span>
@@ -858,6 +1110,9 @@ const AdminDashboard = () => {
 
       {/* 🎯 NEW: Order Details Modal */}
       {showOrderModal && <OrderModal />}
+      
+      {/* 🎯 NEW: Bulk Assignment Modal */}
+      <BulkAssignmentModal />
     </>
   );
 };

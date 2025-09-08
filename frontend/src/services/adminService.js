@@ -356,6 +356,38 @@ export const approveAndAssignOrder = async (orderData) => {
   }
 };
 
+// 🎯 NEW: Bulk assign orders to delivery agent
+export const bulkAssignOrders = async (bulkAssignmentData) => {
+  try {
+    debugLog('📦 BULK ASSIGNING ORDERS', {
+      orderIds: bulkAssignmentData.orderIds?.length || 0,
+      deliveryAgentId: bulkAssignmentData.deliveryAgentId,
+      hasNotes: !!bulkAssignmentData.notes,
+      endpoint: '/admin/orders/bulk-assign'
+    }, 'request');
+    
+    const response = await api.post('/admin/orders/bulk-assign', bulkAssignmentData);
+    
+    debugLog('✅ BULK ASSIGNMENT COMPLETED', {
+      success: response.data.success,
+      assignedCount: response.data.data?.summary?.successfullyAssigned || 0,
+      failedCount: response.data.data?.summary?.failed || 0,
+      deliveryAgentName: response.data.data?.deliveryAgent?.name
+    }, 'success');
+
+    return response.data;
+  } catch (error) {
+    debugLog('❌ BULK ASSIGNMENT ERROR', {
+      orderIds: bulkAssignmentData.orderIds?.length || 0,
+      deliveryAgentId: bulkAssignmentData.deliveryAgentId,
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message
+    }, 'error');
+    
+    throw error.response?.data || { success: false, message: 'Failed to perform bulk order assignment' };
+  }
+};
+
 // Get all sellers
 export const getAllSellers = async (queryParams = {}) => {
   try {
@@ -569,6 +601,7 @@ const adminService = {
   getDashboardStats,
   getRecentOrders,
   approveAndAssignOrder,
+  bulkAssignOrders,
   getAllSellers,
   getSellerProfile,
   getAllUsers,

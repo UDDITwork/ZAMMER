@@ -12,6 +12,8 @@ const {
   updateDeliveryAgentProfile,
   getAvailableOrders,
   acceptOrder,
+  bulkAcceptOrders,
+  bulkRejectOrders,
   completePickup,
   completeDelivery,
   updateLocation,
@@ -211,6 +213,36 @@ router.get('/orders/assigned', protectDeliveryAgent, getAssignedOrders);
 // @route   PUT /api/delivery/orders/:id/accept
 // @access  Private (Delivery Agent)
 router.put('/orders/:id/accept', protectDeliveryAgent, acceptOrder);
+
+// @desc    Bulk accept multiple orders
+// @route   POST /api/delivery/orders/bulk-accept
+// @access  Private (Delivery Agent)
+router.post('/orders/bulk-accept', [
+  protectDeliveryAgent,
+  body('orderIds')
+    .isArray({ min: 1 })
+    .withMessage('Order IDs must be a non-empty array'),
+  body('orderIds.*')
+    .isMongoId()
+    .withMessage('Each order ID must be a valid MongoDB ObjectId')
+], bulkAcceptOrders);
+
+// @desc    Bulk reject multiple orders
+// @route   POST /api/delivery/orders/bulk-reject
+// @access  Private (Delivery Agent)
+router.post('/orders/bulk-reject', [
+  protectDeliveryAgent,
+  body('orderIds')
+    .isArray({ min: 1 })
+    .withMessage('Order IDs must be a non-empty array'),
+  body('orderIds.*')
+    .isMongoId()
+    .withMessage('Each order ID must be a valid MongoDB ObjectId'),
+  body('reason')
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage('Reason must be less than 500 characters')
+], bulkRejectOrders);
 
 // @desc    Reject assigned order
 // @route   PUT /api/delivery/orders/:id/reject
