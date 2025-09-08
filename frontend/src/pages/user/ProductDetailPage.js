@@ -34,6 +34,12 @@ const ProductDetailPage = () => {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewForm, setReviewForm] = useState({ rating: 5, review: '' });
   const [submitingReview, setSubmitingReview] = useState(false);
+  const [reviewEligibility, setReviewEligibility] = useState({
+    canReview: false,
+    hasPurchased: false,
+    hasReviewed: false,
+    reason: ''
+  });
   
   // Virtual Try-On state
   const [showVirtualTryOn, setShowVirtualTryOn] = useState(false);
@@ -167,9 +173,22 @@ const ProductDetailPage = () => {
       const response = await checkCanReview(productId);
       if (response.success) {
         setCanReview(response.data.canReview);
+        setReviewEligibility({
+          canReview: response.data.canReview,
+          hasPurchased: response.data.hasPurchased,
+          hasReviewed: response.data.hasReviewed,
+          reason: response.data.reason
+        });
+        debugLog('Review eligibility checked', response.data, 'success');
       }
     } catch (error) {
       console.error('Error checking review eligibility:', error);
+      setReviewEligibility({
+        canReview: false,
+        hasPurchased: false,
+        hasReviewed: false,
+        reason: 'Unable to check review eligibility'
+      });
     }
   };
 
@@ -825,13 +844,23 @@ const ProductDetailPage = () => {
             <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
               Customer Reviews
             </h2>
-            {canReview && (
-              <button
-                onClick={() => setShowReviewForm(true)}
-                className="bg-gradient-to-r from-orange-500 to-pink-500 text-white px-6 py-2 rounded-xl font-semibold hover:from-orange-600 hover:to-pink-600 transition-all duration-300"
-              >
-                Write a Review
-              </button>
+            {userAuth.isAuthenticated ? (
+              canReview ? (
+                <button
+                  onClick={() => setShowReviewForm(true)}
+                  className="bg-gradient-to-r from-orange-500 to-pink-500 text-white px-6 py-2 rounded-xl font-semibold hover:from-orange-600 hover:to-pink-600 transition-all duration-300"
+                >
+                  Write a Review
+                </button>
+              ) : (
+                <div className="text-sm text-gray-600 bg-gray-100 px-4 py-2 rounded-lg">
+                  {reviewEligibility.reason}
+                </div>
+              )
+            ) : (
+              <div className="text-sm text-gray-600 bg-blue-100 px-4 py-2 rounded-lg">
+                Login to write a review
+              </div>
             )}
           </div>
 

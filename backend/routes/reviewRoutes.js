@@ -7,7 +7,8 @@ const {
   updateReview,
   deleteReview,
   getUserReviews,
-  checkCanReview
+  checkCanReview,
+  getPurchasedProducts
 } = require('../controllers/reviewController');
 const { protectUser } = require('../middleware/authMiddleware');
 
@@ -25,6 +26,12 @@ router.post(
 
 // Get all reviews for a product
 router.get('/product/:productId', getProductReviews);
+
+// Check if user can review a product
+router.get('/check/:productId', protectUser, checkCanReview);
+
+// Get user's purchased products
+router.get('/purchased-products', protectUser, getPurchasedProducts);
 
 // Get all reviews by the logged-in user
 router.get('/user', protectUser, getUserReviews);
