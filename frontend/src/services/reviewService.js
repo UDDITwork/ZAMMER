@@ -112,7 +112,7 @@ export const checkCanReview = async (productId) => {
   try {
     debugLog('🔍 Checking review eligibility...', { productId });
     
-    const response = await api.get(`/reviews/can-review/${productId}`);
+    const response = await api.get(`/reviews/check/${productId}`);
     
     debugLog('✅ Review eligibility checked', response.data, 'success');
     return response.data;
