@@ -36,9 +36,6 @@ router.get('/purchased-products', protectUser, getPurchasedProducts);
 // Get all reviews by the logged-in user
 router.get('/user', protectUser, getUserReviews);
 
-// Check if user can review a product
-router.get('/can-review/:productId', protectUser, checkCanReview);
-
 // Update a review
 router.put(
   '/:id',

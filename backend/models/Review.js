@@ -21,6 +21,10 @@ const reviewSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Review text is required']
   },
+  isVerifiedPurchase: {
+    type: Boolean,
+    default: true // Since we only allow reviews from verified purchasers
+  },
   createdAt: {
     type: Date,
     default: Date.now
