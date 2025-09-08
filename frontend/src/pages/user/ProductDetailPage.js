@@ -460,11 +460,7 @@ const ProductDetailPage = () => {
 
     setSubmitingReview(true);
     try {
-      const response = await createReview({
-        product: productId,
-        rating: reviewForm.rating,
-        review: reviewForm.review
-      });
+      const response = await createReview(productId, reviewForm.rating, reviewForm.review);
 
       if (response.success) {
         toast.success('Review submitted successfully');

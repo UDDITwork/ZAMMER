@@ -8,8 +8,16 @@ const { validationResult } = require('express-validator');
 // @access  Private (Users only)
 exports.createReview = async (req, res) => {
   try {
+    console.log('🎯 [REVIEW-CREATE] Starting review creation...', {
+      userId: req.user._id,
+      productId: req.body.product,
+      rating: req.body.rating,
+      reviewLength: req.body.review?.length
+    });
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('❌ [REVIEW-CREATE] Validation errors:', errors.array());
       return res.status(400).json({ 
         success: false, 
         errors: errors.array() 
@@ -17,15 +25,19 @@ exports.createReview = async (req, res) => {
     }
 
     const { product, rating, review } = req.body;
+    console.log('✅ [REVIEW-CREATE] Validation passed, proceeding with review creation...');
 
     // Check if product exists
+    console.log('🔍 [REVIEW-CREATE] Checking if product exists...');
     const productExists = await Product.findById(product);
     if (!productExists) {
+      console.log('❌ [REVIEW-CREATE] Product not found:', product);
       return res.status(404).json({
         success: false,
         message: 'Product not found'
       });
     }
+    console.log('✅ [REVIEW-CREATE] Product found:', productExists.name);
 
     // 🎯 CRITICAL: Check if user has purchased this product with confirmed payment
     const hasPurchased = await Order.findOne({
@@ -36,44 +48,72 @@ exports.createReview = async (req, res) => {
       status: { $nin: ['Cancelled'] }
     });
 
+    console.log('🔍 Review creation - purchase verification:', {
+      userId: req.user._id,
+      productId: product,
+      hasPurchased: !!hasPurchased,
+      orderDetails: hasPurchased ? {
+        orderId: hasPurchased._id,
+        isPaid: hasPurchased.isPaid,
+        paymentStatus: hasPurchased.paymentStatus,
+        orderStatus: hasPurchased.status,
+        orderItems: hasPurchased.orderItems.map(item => ({
+          product: item.product,
+          name: item.name
+        }))
+      } : null
+    });
+
     if (!hasPurchased) {
+      console.log('❌ [REVIEW-CREATE] User has not purchased this product');
       return res.status(403).json({
         success: false,
         message: 'You can only review products you have purchased and paid for'
       });
     }
+    console.log('✅ [REVIEW-CREATE] Purchase verification passed');
 
     // Check if user already reviewed this product
+    console.log('🔍 [REVIEW-CREATE] Checking for existing review...');
     const existingReview = await Review.findOne({
       product,
       user: req.user._id
     });
 
     if (existingReview) {
+      console.log('❌ [REVIEW-CREATE] User has already reviewed this product');
       return res.status(400).json({
         success: false,
         message: 'You have already reviewed this product'
       });
     }
+    console.log('✅ [REVIEW-CREATE] No existing review found, proceeding...');
 
-    // Create new review
+    // Create new review with verified purchase flag
+    console.log('🎯 [REVIEW-CREATE] Creating new review...');
     const newReview = await Review.create({
       product,
       user: req.user._id,
       rating,
-      review
+      review,
+      isVerifiedPurchase: true // Always true since we verify purchase before allowing review
     });
+    console.log('✅ [REVIEW-CREATE] Review created successfully:', newReview._id);
 
     // Populate user data for response
+    console.log('🔍 [REVIEW-CREATE] Populating user data...');
     await newReview.populate('user', 'name profilePicture');
+    console.log('✅ [REVIEW-CREATE] User data populated');
 
+    console.log('🎉 [REVIEW-CREATE] Sending success response...');
     res.status(201).json({
       success: true,
       data: newReview,
       message: 'Review submitted successfully'
     });
   } catch (error) {
-    console.error('Review creation error:', error);
+    console.error('❌ [REVIEW-CREATE] Review creation error:', error);
+    console.error('❌ [REVIEW-CREATE] Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Server Error',
@@ -163,6 +203,22 @@ exports.checkCanReview = async (req, res) => {
       isPaid: true,
       paymentStatus: { $in: ['completed', 'processing'] },
       status: { $nin: ['Cancelled'] }
+    });
+
+    console.log('🔍 Review eligibility check:', {
+      userId: req.user._id,
+      productId,
+      hasPurchased: !!hasPurchased,
+      orderDetails: hasPurchased ? {
+        orderId: hasPurchased._id,
+        isPaid: hasPurchased.isPaid,
+        paymentStatus: hasPurchased.paymentStatus,
+        orderStatus: hasPurchased.status,
+        orderItems: hasPurchased.orderItems.map(item => ({
+          product: item.product,
+          name: item.name
+        }))
+      } : null
     });
 
     // Check if user already reviewed this product
@@ -380,24 +436,6 @@ exports.getUserReviews = async (req, res) => {
       success: false,
       message: 'Server Error',
       error: error.message
-    });
-  }
-};
-
-// @desc    Check if user can review a product
-// @route   GET /api/reviews/can-review/:productId
-// @access  Private (User)
-exports.checkCanReview = async (req, res) => {
-  try {
-    // Basic implementation
-    res.status(200).json({
-      success: true,
-      canReview: true
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server Error'
     });
   }
 };
