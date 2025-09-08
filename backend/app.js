@@ -35,11 +35,14 @@ const PORT = process.env.PORT || 5001;
 // 🎯 UNIVERSAL: Dynamic Frontend URL - Environment Variable Based
 const getFrontendUrl = () => {
   if (process.env.NODE_ENV === 'production') {
-    // Try production-specific variables first, then fallback
-    return process.env.FRONTEND_URL_PROD || 
-           process.env.FRONTEND_URL || 
-           process.env.PUBLIC_URL ||
-           'http://localhost:3000';
+    // Production: Always return HTTPS URLs
+    const prodUrl = process.env.FRONTEND_URL_PROD || 
+                   process.env.FRONTEND_URL || 
+                   process.env.PUBLIC_URL ||
+                   'https://zammer2.uc.r.appspot.com';
+    
+    // Ensure HTTPS in production
+    return prodUrl.startsWith('https://') ? prodUrl : `https://${prodUrl.replace(/^https?:\/\//, '')}`;
   }
   
   // Development environment
@@ -53,36 +56,43 @@ const FRONTEND_URL = getFrontendUrl();
 
 // 🎯 UNIVERSAL: Define allowed origins - Environment Variable Based
 const getAllowedOrigins = () => {
+  if (process.env.NODE_ENV === 'production') {
+    // Production: Only HTTPS URLs
+    const origins = [
+      'https://zammer2.uc.r.appspot.com',
+      process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com',
+      'https://res.cloudinary.com',
+      'https://cloudinary.com'
+    ];
+    
+    // Add any additional origins from environment variables
+    if (process.env.ADDITIONAL_ALLOWED_ORIGINS) {
+      const additionalOrigins = process.env.ADDITIONAL_ALLOWED_ORIGINS.split(',');
+      origins.push(...additionalOrigins.map(url => url.trim()));
+    }
+    
+    // Add environment-specific domains
+    if (process.env.CDN_DOMAINS) {
+      const cdnDomains = process.env.CDN_DOMAINS.split(',');
+      origins.push(...cdnDomains.map(domain => domain.trim()));
+    }
+    
+    return origins;
+  }
+  
+  // Development: HTTP and HTTPS localhost
   const origins = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://localhost:3000'
+    'https://localhost:3000',
+    'https://res.cloudinary.com',
+    'https://cloudinary.com'
   ];
-  
-  // Add production frontend URL from environment variables
-  if (process.env.NODE_ENV === 'production') {
-    const prodUrl = process.env.FRONTEND_URL_PROD || process.env.FRONTEND_URL;
-    if (prodUrl && !prodUrl.includes('localhost')) {
-      origins.push(prodUrl);
-    }
-  }
   
   // Add any additional origins from environment variables
   if (process.env.ADDITIONAL_ALLOWED_ORIGINS) {
     const additionalOrigins = process.env.ADDITIONAL_ALLOWED_ORIGINS.split(',');
     origins.push(...additionalOrigins.map(url => url.trim()));
-  }
-  
-  // Add CDN and service domains
-  origins.push(
-    'https://res.cloudinary.com',
-    'https://cloudinary.com'
-  );
-  
-  // Add environment-specific domains
-  if (process.env.CDN_DOMAINS) {
-    const cdnDomains = process.env.CDN_DOMAINS.split(',');
-    origins.push(...cdnDomains.map(domain => domain.trim()));
   }
   
   return origins;

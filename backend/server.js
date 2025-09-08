@@ -42,26 +42,23 @@ try {
 
   // 🎯 PRODUCTION: Get allowed origins for Socket.IO
   const getAllowedOrigins = () => {
-    const origins = [
-          'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'https://localhost:3000',
-    'https://zammer2.uc.r.appspot.com'
-    ];
-    
-    // Add production frontend URL
-    if (FRONTEND_URL && !FRONTEND_URL.includes('localhost')) {
-      origins.push(FRONTEND_URL);
+    if (process.env.NODE_ENV === 'production') {
+      // Production: Only HTTPS URLs
+      return [
+        'https://zammer2.uc.r.appspot.com',
+        process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com',
+        /https:\/\/.*\.appspot\.com$/,
+        /https:\/\/.*\.googleusercontent\.com$/,
+        'https://onyx-osprey-462815-i9.appspot.com'
+      ];
     }
     
-    // Add Google App Engine URLs
-    origins.push(
-      /https:\/\/.*\.appspot\.com$/,
-      /https:\/\/.*\.googleusercontent\.com$/,
-      'https://onyx-osprey-462815-i9.appspot.com'
-    );
-    
-    return origins;
+    // Development: HTTP and HTTPS localhost
+    return [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'https://localhost:3000'
+    ];
   };
 
   // Setup Socket.IO with enhanced CORS configuration
