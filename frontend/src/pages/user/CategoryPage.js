@@ -3,54 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-
-// 🎯 FIXED: Categories exactly matching your MongoDB Atlas database
-const productCategories = {
-  Men: {
-    title: 'Men',
-    description: 'Find trendy, comfortable men fashion...',
-    subCategories: [
-      // 🚨 MUST MATCH SELLER FORM EXACTLY:
-      { id: 'T-shirts', name: 'T-shirts', image: '/placeholders/men-tshirts.jpg' },
-      { id: 'Shirts', name: 'Shirts', image: '/placeholders/men-shirts.jpg' },
-      { id: 'Jeans', name: 'Jeans', image: '/placeholders/men-jeans.jpg' },
-      { id: 'Ethnic Wear', name: 'Ethnic Wear', image: '/placeholders/men-ethnic.jpg' },
-      { id: 'Jackets', name: 'Jackets', image: '/placeholders/men-jackets.jpg' },
-      { id: 'Tops', name: 'Tops', image: '/placeholders/men-tops.jpg' },
-      { id: 'Tees', name: 'Tees', image: '/placeholders/men-tees.jpg' },
-      { id: 'Sleepwear', name: 'Sleepwear', image: '/placeholders/men-sleepwear.jpg' },
-      { id: 'Top Wear', name: 'Top Wear', image: '/placeholders/men-topwear.jpg' }
-    ]
-  },
-  Women: {
-    title: 'Women',
-    description: 'Find stylish, trendy fashion...',
-    subCategories: [
-      { id: 'Kurties', name: 'Kurties', image: '/placeholders/women-kurties.jpg' },
-      { id: 'Tops', name: 'Tops', image: '/placeholders/women-tops.jpg' },
-      { id: 'Tees', name: 'Tees', image: '/placeholders/women-tees.jpg' },
-      { id: 'Dresses', name: 'Dresses', image: '/placeholders/women-dresses.jpg' },
-      { id: 'Jeans', name: 'Jeans', image: '/placeholders/women-jeans.jpg' },
-      { id: 'Nightwear', name: 'Nightwear', image: '/placeholders/women-nightwear.jpg' },
-      { id: 'Sleepwear', name: 'Sleepwear', image: '/placeholders/women-sleepwear.jpg' },
-      { id: 'Lehengass', name: 'Lehenga', image: '/placeholders/women-lehenga.jpg' },
-      { id: 'Rayon', name: 'Rayon', image: '/placeholders/women-rayon.jpg' },
-      { id: 'Shrugs', name: 'Shrugs', image: '/placeholders/women-shrugs.jpg' }
-    ]
-  },
-  Kids: {
-    title: 'Kids',
-    description: 'Find cute, comfortable kids styles...',
-    subCategories: [
-      { id: 'T-shirts', name: 'T-shirts', image: '/placeholders/kids-tshirts.jpg' },
-      { id: 'Shirts', name: 'Shirts', image: '/placeholders/kids-shirts.jpg' },
-      { id: 'Boys Sets', name: 'Boys Sets', image: '/placeholders/kids-boys.jpg' },
-      { id: 'Top Wear', name: 'Top Wear', image: '/placeholders/kids-topwear.jpg' },
-      { id: 'Nightwear', name: 'Nightwear', image: '/placeholders/kids-nightwear.jpg' },
-      { id: 'Sleepwear', name: 'Sleepwear', image: '/placeholders/kids-sleepwear.jpg' }
-    ]
-  }
-};
+import categoryService from '../../services/categoryService';
 
 const CategoryPage = () => {
   const { category } = useParams();
@@ -63,8 +16,8 @@ const CategoryPage = () => {
     
     console.log('🔍 CategoryPage - Current category:', category);
     
-    // Get the category info or default to Men if not found
-    const categoryInfo = productCategories[category] || productCategories['Men'];
+    // Get the category info using the service
+    const categoryInfo = categoryService.getCategoryInfo(category);
     setSubcategories(categoryInfo.subCategories);
     
     console.log('📂 Available subcategories for', category, ':', 
@@ -75,9 +28,7 @@ const CategoryPage = () => {
 
   // Helper to get proper category display name
   const getCategoryTitle = () => {
-    const categoryInfo = productCategories[category];
-    if (!categoryInfo) return 'Categories';
-    return categoryInfo.title;
+    return categoryService.getCategoryDisplayName(category);
   };
 
   return (
@@ -94,7 +45,7 @@ const CategoryPage = () => {
           </button>
           <div>
             <h1 className="text-2xl font-bold tracking-wide mb-1">{getCategoryTitle()}</h1>
-            <p className="text-orange-100 text-sm">{productCategories[category]?.description || 'Explore products by category...'}</p>
+            <p className="text-orange-100 text-sm">{categoryService.getCategoryDescription(category)}</p>
           </div>
         </div>
       </div>

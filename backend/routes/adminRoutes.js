@@ -17,6 +17,7 @@ const {
   getAllOrders,
   getOrderDetails,
   approveAndAssignOrder,
+  bulkAssignOrders,
   updateOrderStatus,
   // Delivery agent management functions
   getDeliveryAgents,
@@ -190,6 +191,25 @@ router.post('/orders/approve-assign', [
     .isLength({ max: 500 })
     .withMessage('Notes must be less than 500 characters')
 ], validateRequest, approveAndAssignOrder);
+
+// @route   POST /api/admin/orders/bulk-assign
+// @desc    Bulk assign multiple orders to a single delivery agent
+// @access  Private (Admin)
+router.post('/orders/bulk-assign', [
+  body('orderIds')
+    .isArray({ min: 1 })
+    .withMessage('Order IDs must be a non-empty array'),
+  body('orderIds.*')
+    .isMongoId()
+    .withMessage('Each order ID must be a valid MongoDB ObjectId'),
+  body('deliveryAgentId')
+    .isMongoId()
+    .withMessage('Invalid delivery agent ID format'),
+  body('notes')
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage('Notes must be less than 500 characters')
+], validateRequest, bulkAssignOrders);
 
 // @route   PUT /api/admin/orders/:orderId/status
 // @desc    Update order status with admin notes

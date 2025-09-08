@@ -804,6 +804,235 @@ const approveAndAssignOrder = async (req, res) => {
   }
 };
 
+// 🎯 NEW: Bulk assign orders to delivery agent
+// @desc    Assign multiple orders to a single delivery agent
+// @route   POST /api/admin/orders/bulk-assign
+// @access  Private (Admin)
+const bulkAssignOrders = async (req, res) => {
+  try {
+    const { orderIds, deliveryAgentId, notes } = req.body;
+
+    logAdmin('BULK_ASSIGN_ORDERS_START', {
+      adminId: req.admin._id,
+      orderIds: orderIds?.length || 0,
+      deliveryAgentId,
+      hasNotes: !!notes
+    });
+
+    // Validate input
+    if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order IDs array is required and must not be empty'
+      });
+    }
+
+    if (!deliveryAgentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Delivery Agent ID is required'
+      });
+    }
+
+    // Find the delivery agent
+    const deliveryAgent = await DeliveryAgent.findById(deliveryAgentId);
+
+    if (!deliveryAgent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Delivery agent not found'
+      });
+    }
+
+    // Check if agent is available
+    if (!deliveryAgent.isActive || deliveryAgent.status !== 'available') {
+      return res.status(400).json({
+        success: false,
+        message: 'Delivery agent is not available for bulk assignment',
+        agentStatus: deliveryAgent.status,
+        isActive: deliveryAgent.isActive
+      });
+    }
+
+    // Find all orders that can be assigned
+    const orders = await Order.find({
+      _id: { $in: orderIds },
+      status: { $in: ['Pending', 'Processing'] },
+      'deliveryAgent.status': 'unassigned'
+    }).populate('user', 'name email mobileNumber')
+      .populate('seller', 'firstName lastName email shop')
+      .populate('orderItems.product', 'name images');
+
+    if (orders.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No orders found that can be assigned. Orders must be in Pending/Processing status and not already assigned.'
+      });
+    }
+
+    const assignedOrders = [];
+    const failedAssignments = [];
+
+    // Process each order
+    for (const order of orders) {
+      try {
+        // Update order with delivery agent assignment
+        order.deliveryAgent = {
+          agent: deliveryAgentId,
+          assignedAt: new Date(),
+          assignedBy: req.admin._id,
+          status: 'assigned'
+        };
+
+        order.status = 'Pickup_Ready';
+        order.adminApproval = {
+          isRequired: true,
+          status: 'approved',
+          approvedBy: req.admin._id,
+          approvedAt: new Date()
+        };
+        
+        if (notes) {
+          order.adminNotes = notes;
+        }
+
+        // Add to order history
+        order.statusHistory.push({
+          status: 'Pickup_Ready',
+          changedBy: 'admin',
+          changedAt: new Date(),
+          notes: notes || `Bulk assigned to delivery agent: ${deliveryAgent.name}`
+        });
+
+        await order.save();
+
+        // Add to delivery agent's assigned orders
+        deliveryAgent.assignedOrders.push({
+          order: order._id,
+          assignedAt: new Date(),
+          status: 'assigned'
+        });
+
+        assignedOrders.push({
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          customerName: order.user.name,
+          totalPrice: order.totalPrice
+        });
+
+        // Send real-time notification to delivery agent
+        try {
+          if (global.emitToDeliveryAgent) {
+            global.emitToDeliveryAgent(deliveryAgentId, 'bulk-order-assigned', {
+              orderId: order._id,
+              orderNumber: order.orderNumber,
+              customerName: order.user.name,
+              customerPhone: order.user.mobileNumber,
+              pickupAddress: order.seller.shop?.address || 'Address not provided',
+              deliveryAddress: order.shippingAddress.address,
+              totalAmount: order.totalPrice,
+              itemCount: order.orderItems.length,
+              assignedAt: new Date(),
+              message: `Bulk assignment: Order ${order.orderNumber} assigned to you`,
+              isBulkAssignment: true,
+              totalBulkOrders: orders.length
+            });
+          }
+        } catch (notificationError) {
+          logAdmin('BULK_DELIVERY_AGENT_NOTIFICATION_FAILED', { 
+            deliveryAgentId, 
+            orderId: order._id, 
+            error: notificationError.message 
+          }, 'warning');
+        }
+
+      } catch (orderError) {
+        failedAssignments.push({
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          error: orderError.message
+        });
+        logAdmin('BULK_ORDER_ASSIGNMENT_ERROR', {
+          orderId: order._id,
+          error: orderError.message
+        }, 'error');
+      }
+    }
+
+    // Update delivery agent status if any orders were assigned
+    if (assignedOrders.length > 0) {
+      deliveryAgent.status = 'assigned';
+      deliveryAgent.currentOrder = assignedOrders[0].orderId; // Set first order as current
+      await deliveryAgent.save();
+    }
+
+    logAdmin('BULK_ASSIGN_ORDERS_SUCCESS', {
+      adminId: req.admin._id,
+      deliveryAgentId,
+      agentName: deliveryAgent.name,
+      totalOrders: orders.length,
+      assignedCount: assignedOrders.length,
+      failedCount: failedAssignments.length
+    }, 'success');
+
+    // Send bulk assignment notification to delivery agent
+    if (assignedOrders.length > 0 && global.emitToDeliveryAgent) {
+      try {
+        global.emitToDeliveryAgent(deliveryAgentId, 'bulk-assignment-complete', {
+          assignedOrders: assignedOrders,
+          totalOrders: assignedOrders.length,
+          deliveryAgentName: deliveryAgent.name,
+          assignedBy: req.admin._id,
+          assignedAt: new Date(),
+          message: `Bulk assignment complete: ${assignedOrders.length} orders assigned to you`,
+          notes: notes
+        });
+      } catch (notificationError) {
+        logAdmin('BULK_COMPLETE_NOTIFICATION_FAILED', { 
+          deliveryAgentId, 
+          error: notificationError.message 
+        }, 'warning');
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Bulk assignment completed: ${assignedOrders.length} orders assigned successfully`,
+      data: {
+        deliveryAgent: {
+          _id: deliveryAgent._id,
+          name: deliveryAgent.name,
+          email: deliveryAgent.email,
+          vehicleType: deliveryAgent.vehicleType
+        },
+        assignedOrders,
+        failedAssignments,
+        summary: {
+          totalRequested: orderIds.length,
+          totalProcessed: orders.length,
+          successfullyAssigned: assignedOrders.length,
+          failed: failedAssignments.length
+        },
+        assignedAt: new Date(),
+        assignedBy: req.admin._id
+      }
+    });
+
+  } catch (error) {
+    logAdmin('BULK_ASSIGN_ORDERS_ERROR', {
+      adminId: req.admin._id,
+      orderIds: req.body.orderIds,
+      deliveryAgentId: req.body.deliveryAgentId,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to perform bulk order assignment'
+    });
+  }
+};
+
 // 🎯 NEW: Update order status
 // @desc    Update order status with admin notes
 // @route   PUT /api/admin/orders/:orderId/status
@@ -1043,6 +1272,7 @@ module.exports = {
   getAllOrders,
   getOrderDetails,
   approveAndAssignOrder,
+  bulkAssignOrders,
   updateOrderStatus,
   // 🎯 NEW: Delivery agent management exports
   getDeliveryAgents,

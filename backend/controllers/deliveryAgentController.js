@@ -2208,6 +2208,368 @@ const getOrderNotifications = async (req, res) => {
   }
 };
 
+// 🎯 NEW: Bulk accept orders
+// @desc    Accept multiple assigned orders at once
+// @route   POST /api/delivery/orders/bulk-accept
+// @access  Private (Delivery Agent)
+const bulkAcceptOrders = async (req, res) => {
+  try {
+    const { orderIds } = req.body;
+    const agentId = req.deliveryAgent.id;
+    
+    logDelivery('BULK_ACCEPT_ORDERS_START', { 
+      orderIds: orderIds?.length || 0, 
+      agentId,
+      agentName: req.deliveryAgent.name
+    });
+
+    // Validate input
+    if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order IDs array is required and must not be empty'
+      });
+    }
+
+    // Find all orders that can be accepted
+    const orders = await Order.find({
+      _id: { $in: orderIds },
+      'deliveryAgent.agent': agentId,
+      'deliveryAgent.status': 'assigned',
+      status: 'Pickup_Ready'
+    }).populate('user', 'name email mobileNumber')
+      .populate('seller', 'firstName lastName email shop')
+      .populate('orderItems.product', 'name images');
+
+    if (orders.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No orders found that can be accepted. Orders must be assigned to you and in Pickup_Ready status.'
+      });
+    }
+
+    const acceptedOrders = [];
+    const failedAcceptances = [];
+
+    // Process each order
+    for (const order of orders) {
+      try {
+        // Update order delivery agent status
+        order.deliveryAgent.status = 'accepted';
+        order.deliveryAgent.acceptedAt = new Date();
+
+        // Add to order history
+        order.statusHistory.push({
+          status: 'Pickup_Ready',
+          changedBy: 'delivery_agent',
+          changedAt: new Date(),
+          notes: `Order accepted by delivery agent: ${req.deliveryAgent.name}`
+        });
+
+        await order.save();
+
+        acceptedOrders.push({
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          customerName: order.user.name,
+          totalPrice: order.totalPrice,
+          pickupAddress: order.seller.shop?.address || 'Address not provided',
+          deliveryAddress: order.shippingAddress.address
+        });
+
+        // Send notification to seller
+        try {
+          if (global.emitToSeller) {
+            global.emitToSeller(order.seller._id, 'order-accepted-by-agent', {
+              orderId: order._id,
+              orderNumber: order.orderNumber,
+              deliveryAgent: {
+                name: req.deliveryAgent.name,
+                phone: req.deliveryAgent.phoneNumber,
+                vehicleType: req.deliveryAgent.vehicleType
+              },
+              message: `Order ${order.orderNumber} has been accepted by delivery agent`
+            });
+          }
+        } catch (notificationError) {
+          logDelivery('SELLER_NOTIFICATION_FAILED', { 
+            sellerId: order.seller._id, 
+            orderId: order._id, 
+            error: notificationError.message 
+          }, 'warning');
+        }
+
+        // Send notification to buyer
+        try {
+          if (global.emitToBuyer) {
+            global.emitToBuyer(order.user._id, 'order-accepted-by-agent', {
+              orderId: order._id,
+              orderNumber: order.orderNumber,
+              deliveryAgent: {
+                name: req.deliveryAgent.name,
+                phone: req.deliveryAgent.phoneNumber,
+                vehicleType: req.deliveryAgent.vehicleType
+              },
+              message: `Your order ${order.orderNumber} has been accepted and will be picked up soon`
+            });
+          }
+        } catch (notificationError) {
+          logDelivery('BUYER_NOTIFICATION_FAILED', { 
+            userId: order.user._id, 
+            orderId: order._id, 
+            error: notificationError.message 
+          }, 'warning');
+        }
+
+      } catch (orderError) {
+        failedAcceptances.push({
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          error: orderError.message
+        });
+        logDelivery('BULK_ORDER_ACCEPTANCE_ERROR', {
+          orderId: order._id,
+          error: orderError.message
+        }, 'error');
+      }
+    }
+
+    // Update delivery agent status
+    const deliveryAgent = await DeliveryAgent.findById(agentId);
+    if (acceptedOrders.length > 0) {
+      deliveryAgent.status = 'assigned';
+      deliveryAgent.currentOrder = acceptedOrders[0].orderId; // Set first order as current
+      await deliveryAgent.save();
+    }
+
+    logDelivery('BULK_ACCEPT_ORDERS_SUCCESS', {
+      agentId,
+      agentName: req.deliveryAgent.name,
+      totalOrders: orders.length,
+      acceptedCount: acceptedOrders.length,
+      failedCount: failedAcceptances.length
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: `Bulk acceptance completed: ${acceptedOrders.length} orders accepted successfully`,
+      data: {
+        acceptedOrders,
+        failedAcceptances,
+        summary: {
+          totalRequested: orderIds.length,
+          totalProcessed: orders.length,
+          successfullyAccepted: acceptedOrders.length,
+          failed: failedAcceptances.length
+        },
+        acceptedAt: new Date(),
+        acceptedBy: agentId
+      }
+    });
+
+  } catch (error) {
+    logDelivery('BULK_ACCEPT_ORDERS_ERROR', {
+      agentId: req.deliveryAgent?.id,
+      orderIds: req.body.orderIds,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to perform bulk order acceptance'
+    });
+  }
+};
+
+// 🎯 NEW: Bulk reject orders
+// @desc    Reject multiple assigned orders at once
+// @route   POST /api/delivery/orders/bulk-reject
+// @access  Private (Delivery Agent)
+const bulkRejectOrders = async (req, res) => {
+  try {
+    const { orderIds, reason } = req.body;
+    const agentId = req.deliveryAgent.id;
+    
+    logDelivery('BULK_REJECT_ORDERS_START', { 
+      orderIds: orderIds?.length || 0, 
+      agentId,
+      agentName: req.deliveryAgent.name,
+      reason: reason || 'No reason provided'
+    });
+
+    // Validate input
+    if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order IDs array is required and must not be empty'
+      });
+    }
+
+    // Find all orders that can be rejected
+    const orders = await Order.find({
+      _id: { $in: orderIds },
+      'deliveryAgent.agent': agentId,
+      'deliveryAgent.status': 'assigned',
+      status: 'Pickup_Ready'
+    }).populate('user', 'name email mobileNumber')
+      .populate('seller', 'firstName lastName email shop')
+      .populate('orderItems.product', 'name images');
+
+    if (orders.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No orders found that can be rejected. Orders must be assigned to you and in Pickup_Ready status.'
+      });
+    }
+
+    const rejectedOrders = [];
+    const failedRejections = [];
+
+    // Process each order
+    for (const order of orders) {
+      try {
+        // Update order delivery agent status
+        order.deliveryAgent.status = 'rejected';
+        order.deliveryAgent.rejectedAt = new Date();
+        order.deliveryAgent.rejectionReason = reason || 'No reason provided';
+
+        // Reset delivery agent assignment
+        order.deliveryAgent.agent = null;
+        order.deliveryAgent.assignedAt = null;
+        order.deliveryAgent.assignedBy = null;
+
+        // Add to order history
+        order.statusHistory.push({
+          status: 'Processing',
+          changedBy: 'delivery_agent',
+          changedAt: new Date(),
+          notes: `Order rejected by delivery agent: ${req.deliveryAgent.name}. Reason: ${reason || 'No reason provided'}`
+        });
+
+        await order.save();
+
+        rejectedOrders.push({
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          customerName: order.user.name,
+          totalPrice: order.totalPrice,
+          rejectionReason: reason || 'No reason provided'
+        });
+
+        // Send notification to admin about rejection
+        try {
+          if (global.emitToAdmin) {
+            global.emitToAdmin('order-rejected-by-agent', {
+              orderId: order._id,
+              orderNumber: order.orderNumber,
+              deliveryAgent: {
+                name: req.deliveryAgent.name,
+                phone: req.deliveryAgent.phoneNumber,
+                vehicleType: req.deliveryAgent.vehicleType
+              },
+              customer: order.user,
+              seller: order.seller,
+              rejectionReason: reason || 'No reason provided',
+              message: `Order ${order.orderNumber} rejected by delivery agent ${req.deliveryAgent.name}`
+            });
+          }
+        } catch (notificationError) {
+          logDelivery('ADMIN_NOTIFICATION_FAILED', { 
+            orderId: order._id, 
+            error: notificationError.message 
+          }, 'warning');
+        }
+
+        // Send notification to seller
+        try {
+          if (global.emitToSeller) {
+            global.emitToSeller(order.seller._id, 'order-rejected-by-agent', {
+              orderId: order._id,
+              orderNumber: order.orderNumber,
+              deliveryAgent: {
+                name: req.deliveryAgent.name,
+                phone: req.deliveryAgent.phoneNumber
+              },
+              rejectionReason: reason || 'No reason provided',
+              message: `Order ${order.orderNumber} was rejected by delivery agent. It will be reassigned.`
+            });
+          }
+        } catch (notificationError) {
+          logDelivery('SELLER_NOTIFICATION_FAILED', { 
+            sellerId: order.seller._id, 
+            orderId: order._id, 
+            error: notificationError.message 
+          }, 'warning');
+        }
+
+      } catch (orderError) {
+        failedRejections.push({
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          error: orderError.message
+        });
+        logDelivery('BULK_ORDER_REJECTION_ERROR', {
+          orderId: order._id,
+          error: orderError.message
+        }, 'error');
+      }
+    }
+
+    // Update delivery agent status
+    const deliveryAgent = await DeliveryAgent.findById(agentId);
+    if (rejectedOrders.length > 0) {
+      // Check if agent has any remaining assigned orders
+      const remainingAssignedOrders = await Order.countDocuments({
+        'deliveryAgent.agent': agentId,
+        'deliveryAgent.status': { $in: ['assigned', 'accepted'] }
+      });
+
+      if (remainingAssignedOrders === 0) {
+        deliveryAgent.status = 'available';
+        deliveryAgent.currentOrder = null;
+        await deliveryAgent.save();
+      }
+    }
+
+    logDelivery('BULK_REJECT_ORDERS_SUCCESS', {
+      agentId,
+      agentName: req.deliveryAgent.name,
+      totalOrders: orders.length,
+      rejectedCount: rejectedOrders.length,
+      failedCount: failedRejections.length
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: `Bulk rejection completed: ${rejectedOrders.length} orders rejected successfully`,
+      data: {
+        rejectedOrders,
+        failedRejections,
+        summary: {
+          totalRequested: orderIds.length,
+          totalProcessed: orders.length,
+          successfullyRejected: rejectedOrders.length,
+          failed: failedRejections.length
+        },
+        rejectedAt: new Date(),
+        rejectedBy: agentId
+      }
+    });
+
+  } catch (error) {
+    logDelivery('BULK_REJECT_ORDERS_ERROR', {
+      agentId: req.deliveryAgent?.id,
+      orderIds: req.body.orderIds,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to perform bulk order rejection'
+    });
+  }
+};
+
 // 🎯 NEW: Reject order
 // @desc    Reject an assigned order
 // @route   PUT /api/delivery/orders/:id/reject
@@ -2378,6 +2740,8 @@ module.exports = {
   updateDeliveryAgentProfile,
   getAvailableOrders,
   acceptOrder,
+  bulkAcceptOrders,
+  bulkRejectOrders,
   completePickup,
   completeDelivery,
   updateLocation,
