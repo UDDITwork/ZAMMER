@@ -105,6 +105,29 @@ exports.createReview = async (req, res) => {
     await newReview.populate('user', 'name profilePicture');
     console.log('✅ [REVIEW-CREATE] User data populated');
 
+    // 🎯 NEW: Notify seller about the new review
+    try {
+      console.log('🔔 [REVIEW-CREATE] Notifying seller about new review...');
+      if (global.emitToSeller) {
+        global.emitToSeller(productExists.seller, 'new-review', {
+          reviewId: newReview._id,
+          productId: product,
+          productName: productExists.name,
+          customerName: newReview.user.name,
+          rating: rating,
+          review: review,
+          createdAt: newReview.createdAt,
+          message: `New ${rating}-star review received for "${productExists.name}"`
+        });
+        console.log('✅ [REVIEW-CREATE] Seller notification sent successfully');
+      } else {
+        console.log('⚠️ [REVIEW-CREATE] Socket.io not available for seller notification');
+      }
+    } catch (notificationError) {
+      console.error('❌ [REVIEW-CREATE] Error sending seller notification:', notificationError);
+      // Don't fail the review creation if notification fails
+    }
+
     console.log('🎉 [REVIEW-CREATE] Sending success response...');
     res.status(201).json({
       success: true,
@@ -432,6 +455,81 @@ exports.getUserReviews = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get reviews for seller's products
+// @route   GET /api/reviews/seller
+// @access  Private (Sellers only)
+exports.getSellerReviews = async (req, res) => {
+  try {
+    const sellerId = req.user._id;
+    
+    // Basic pagination
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const skip = (page - 1) * limit;
+
+    // Get reviews for seller's products
+    const reviews = await Review.find()
+      .populate({
+        path: 'product',
+        match: { seller: sellerId },
+        select: 'name images seller'
+      })
+      .populate('user', 'name profilePicture')
+      .sort({ createdAt: -1 });
+
+    // Filter out reviews where product is null (not seller's product)
+    const sellerReviews = reviews.filter(review => review.product !== null);
+
+    // Apply pagination
+    const paginatedReviews = sellerReviews.slice(skip, skip + limit);
+    const totalReviews = sellerReviews.length;
+
+    // Calculate average rating for seller's products
+    const avgRatingResult = await Review.aggregate([
+      {
+        $lookup: {
+          from: 'products',
+          localField: 'product',
+          foreignField: '_id',
+          as: 'product'
+        }
+      },
+      {
+        $match: {
+          'product.seller': sellerId
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          avgRating: { $avg: '$rating' },
+          totalCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const avgRating = avgRatingResult.length > 0 ? avgRatingResult[0].avgRating : 0;
+    const totalCount = avgRatingResult.length > 0 ? avgRatingResult[0].totalCount : 0;
+
+    res.status(200).json({
+      success: true,
+      count: paginatedReviews.length,
+      totalPages: Math.ceil(totalReviews / limit),
+      currentPage: page,
+      totalReviews: totalCount,
+      averageRating: Math.round(avgRating * 10) / 10,
+      data: paginatedReviews
+    });
+  } catch (error) {
+    console.error('Get seller reviews error:', error);
     res.status(500).json({
       success: false,
       message: 'Server Error',

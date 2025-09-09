@@ -410,6 +410,33 @@ class SocketService {
     this.eventListeners.set('delivery-assigned', callback);
   }
 
+  // 🎯 NEW: Listen for new review notifications (for sellers)
+  onNewReview(callback) {
+    if (!this.socket) {
+      debugLog('❌ Cannot listen for new reviews - socket not initialized', null, 'error');
+      return;
+    }
+
+    debugLog('👂 Setting up new review listener', null, 'socket');
+    
+    this.socket.on('new-review', (data) => {
+      debugLog('⭐ New review notification received', {
+        reviewId: data.data?.reviewId,
+        productId: data.data?.productId,
+        productName: data.data?.productName,
+        rating: data.data?.rating,
+        customerName: data.data?.customerName
+      }, 'success');
+      
+      if (callback && typeof callback === 'function') {
+        callback(data);
+      }
+    });
+
+    // Store the listener for cleanup
+    this.eventListeners.set('new-review', callback);
+  }
+
   // 🎯 NEW: Listen for admin notifications (for admins)
   onAdminNotification(callback) {
     if (!this.socket) {

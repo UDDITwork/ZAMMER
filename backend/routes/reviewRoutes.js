@@ -8,9 +8,10 @@ const {
   deleteReview,
   getUserReviews,
   checkCanReview,
-  getPurchasedProducts
+  getPurchasedProducts,
+  getSellerReviews
 } = require('../controllers/reviewController');
-const { protectUser } = require('../middleware/authMiddleware');
+const { protectUser, protectSeller } = require('../middleware/authMiddleware');
 
 // Create a review
 router.post(
@@ -35,6 +36,9 @@ router.get('/purchased-products', protectUser, getPurchasedProducts);
 
 // Get all reviews by the logged-in user
 router.get('/user', protectUser, getUserReviews);
+
+// Get reviews for seller's products
+router.get('/seller', protectSeller, getSellerReviews);
 
 // Update a review
 router.put(

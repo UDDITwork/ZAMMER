@@ -64,6 +64,7 @@ const ProductDetailPage = () => {
 
   useEffect(() => {
     fetchProductDetails();
+    fetchReviews(); // Load reviews for the product
     // Only check wishlist if user is authenticated
     if (userAuth.isAuthenticated && userAuth.token) {
       checkProductWishlist();

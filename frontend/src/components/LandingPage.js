@@ -1,333 +1,701 @@
-import React from 'react';
-import LandingNavbar from './LandingNavbar';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '../routes';
 
-const buyerSteps = [
-  { icon: '🔍', title: 'Explore', desc: 'A wide range of latest fashion nearby' },
-  { icon: '🛒', title: 'Select', desc: 'Add to your cart, pay/pay later' },
-  { icon: '🛍️', title: 'Pick', desc: 'Reach the shop, try the outfit & Bring it Home' },
-];
+const LandingPage = () => {
+  const [isVisible, setIsVisible] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-const sellerSteps = [
-  { icon: '📝', title: 'Register', desc: 'Enter your seller account details' },
-  { icon: '📦', title: 'Inventory Upload', desc: 'List your collection & details' },
-  { icon: '💰', title: 'Enjoy Earning', desc: 'Your nearby customers can see your collection' },
-];
+  useEffect(() => {
+    setIsVisible(true);
+  }, []);
 
-const aiFeatures = [
-  { icon: '📈', title: 'Trend Forecasting', desc: 'AI analyzes global fashion trends to predict what will be popular next season', badge: 'Oversized blazers trending +45%' },
-  { icon: '🟢', title: 'Better Fit & Sizing', desc: 'More accurate sizing recommendations using body measurement AI', badge: 'Size M recommended for 89% accuracy' },
-  { icon: '🛡️', title: 'Authentication', desc: 'Authenticating items to prevent knockoffs using advanced image recognition', badge: '100% authentic verified' },
-  { icon: '⚙️', title: 'Manufacturing', desc: 'Streamlining manufacturing processes with AI-driven demand prediction', badge: 'Optimize production by 35%' },
-  { icon: '🔄', title: 'Reducing Returns', desc: 'AI helps reduce returns by better matching customer preferences', badge: 'Returns reduced by 60%' },
-];
+  // Auto-cycling image animation with dramatic timing
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prevIndex) => (prevIndex + 1) % 3);
+    }, 5000); // Change image every 5 seconds for more dramatic effect
 
-const sellerFeatureCards = [
-  { icon: '📢', title: 'Real-time Product Suggestions', desc: `AI-powered insights on what's trending right now.` },
-  { icon: '🧠', title: 'AI-Powered Trend Detection', desc: `We TELL you what to sell with instant market insights.` },
-  { icon: '🎯', title: `Sell What's Hot`, desc: `Get instant insights on what buyers are searching for most.` },
-  { icon: '⏱️', title: '30-Second Listing', desc: 'List your products in just 30 seconds with our streamlined process.' },
-  { icon: '💼', title: 'Scale With You', desc: `Whether you're a homegrown brand or a fashion powerhouse — we scale with you.` },
-  { icon: '💵', title: 'Zero Investment, Maximum Profit', desc: 'Zero upfront investment. Maximum profit potential with hassle-free tools.' },
-  { icon: '📦', title: 'Complete Business Tools', desc: 'Order tracking, payouts, and inventory management tools.' },
-  { icon: '⚡', title: 'Start in Minutes', desc: `Join thousands of smart sellers growing their business. We'll guide you all the way.` },
-];
+    return () => clearInterval(interval);
+  }, []);
 
-const buyerFeatureCards = [
-  { icon: '📷', title: 'Virtual Try-On', desc: `Upload your photo — our smart AI shows how you'll look in any outfit!` },
-  { icon: '🧠', title: 'Smart AI Technology', desc: `No more second-guessing sizes or styles with our intelligent fitting system.` },
-  { icon: '🧚‍♀️', title: 'Realistic Experience', desc: `Realistic virtual try-on experience from the comfort of your home.` },
-  { icon: '💖', title: 'Perfect Confidence', desc: `Choose the perfect outfit with confidence every time.` },
-  { icon: '🚚', title: 'Fast Delivery', desc: `Fast delivery, smooth returns, and styles you'll fall in love with.` },
-  { icon: '❤️', title: 'Wishlist & Alerts', desc: `Add to wishlist, get restock alerts, and earn shopping rewards.` },
-  { icon: '🔔', title: 'Restock Notifications', desc: `Never miss out on your favorite items with smart notifications.` },
-  { icon: '🎁', title: 'Shopping Rewards', desc: `Earn rewards with every purchase and unlock exclusive benefits.` },
-];
+  const stats = [
+    { number: '50K+', label: 'Happy Customers', icon: '👥' },
+    { number: '10K+', label: 'Active Sellers', icon: '🏪' },
+    { number: '100K+', label: 'Products Listed', icon: '👗' },
+    { number: '500+', label: 'Cities Covered', icon: '🌍' },
+  ];
 
-const LandingPage = () => (
-  <div className="min-h-screen bg-gradient-to-br from-blue-100 to-purple-200 flex flex-col">
-    <LandingNavbar />
-    <main className="flex-1 w-full">
-      {/* Benefits Section */}
-      <section className="max-w-7xl mx-auto py-16 px-4">
-        <h2 className="text-4xl md:text-5xl font-extrabold text-center text-gray-900 mb-12">Benefits of Zammer</h2>
-        <div className="grid md:grid-cols-2 gap-12">
-          {/* Buyer Benefits */}
-          <div>
-            <h3 className="text-2xl font-bold text-orange-600 mb-2">As Buyer :</h3>
-            <p className="text-gray-700 mb-2">We understand that as a fashion freak, going from one shop to another can be a tough task plus waiting for deliveries is another big boring story!</p>
-            <p className="text-gray-700 mb-2">Zammer is a space for all the shopaholic souls to discover the latest fashion trends in their nearby stores from the comfort of their homes.</p>
-            <p className="text-gray-900 font-semibold mb-4">Shop from your favorite brand stores at your nearby location.</p>
-            <h4 className="font-bold text-lg mb-4">How Its Work</h4>
-            <div className="flex gap-8 mb-8">
-              {buyerSteps.map((step, i) => (
-                <div key={i} className="flex flex-col items-center">
-                  <span className="text-4xl mb-2">{step.icon}</span>
-                  <span className="font-semibold">{step.title}</span>
-                  <span className="text-xs text-gray-500 text-center mt-1">{step.desc}</span>
+  const features = [
+    { icon: '📱', title: 'Virtual Try-On', desc: 'See how you look before you buy with our AI-powered virtual fitting room' },
+    { icon: '🚀', title: 'Lightning Fast Delivery', desc: 'Get your fashion delivered in record time by our professional delivery team' },
+    { icon: '🧠', title: 'AI Recommendations', desc: 'Smart suggestions based on your style preferences and trending fashion' },
+    { icon: '📍', title: 'Local Discovery', desc: 'Find the best fashion stores right in your neighborhood' },
+  ];
+
+  const testimonials = [
+    { name: 'Priya Sharma', role: 'Fashion Blogger', content: 'ZAMMER revolutionized how I shop for fashion. The virtual try-on feature is absolutely incredible!' },
+    { name: 'Rajesh Kumar', role: 'Store Owner', content: 'My sales increased by 300% since joining ZAMMER. The platform is a game-changer for local businesses.' },
+    { name: 'Ananya Patel', role: 'Fashion Enthusiast', content: 'Finally, a platform that understands fashion lovers. The delivery is super fast and the quality is amazing!' },
+  ];
+
+  const storyIllustrations = [
+    { 
+      image: 'https://pbs.twimg.com/media/G0YAA5QWMAA5sd0?format=jpg&name=4096x4096',
+      title: 'The Shopping Revolution',
+      description: 'Meet our fashion-forward customers who discovered the joy of hyperlocal delivery and instant gratification'
+    },
+    { 
+      image: 'https://pbs.twimg.com/media/G0YA63KWMAA_Yvg?format=jpg&name=4096x4096',
+      title: 'The Business Transformation',
+      description: 'Local store owners embracing the future of retail with ZAMMER\'s quick commerce platform'
+    }
+  ];
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-100 overflow-hidden">
+      {/* Hero Section - The Story Begins */}
+      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        {/* Light Background Elements */}
+        <div className="absolute inset-0 bg-gradient-to-br from-orange-100/30 via-transparent to-orange-200/20"></div>
+        <div className="absolute top-20 left-10 w-72 h-72 bg-orange-200/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-orange-300/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        
+        {/* Main Content */}
+        <div className="relative z-10 max-w-7xl mx-auto px-4 grid lg:grid-cols-2 gap-12 items-center">
+          {/* Left Side - Story Content */}
+          <div className={`space-y-8 transform transition-all duration-1000 ${isVisible ? 'translate-x-0 opacity-100' : '-translate-x-20 opacity-0'}`}>
+
+            {/* Story Headline */}
+            <div className="space-y-6">
+              <h2 className="text-3xl lg:text-5xl font-bold text-gray-800 leading-tight">
+                The Fashion
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-orange-700">
+                  {' '}Revolution
+                </span>
+                <br />Starts Here
+              </h2>
+              <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
+                Once upon a time, fashion shopping meant long queues, limited choices, and endless waiting. 
+                <span className="font-semibold text-orange-600"> ZAMMER changed everything.</span>
+              </p>
+              <p className="text-lg text-gray-700 leading-relaxed max-w-lg">
+                Today, we're revolutionizing how India shops for fashion with hyperlocal delivery, 
+                AI-powered virtual try-ons, and lightning-fast quick commerce that brings the store to your doorstep.
+              </p>
+            </div>
+
+            {/* CTA Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Link 
+                to={ROUTES.USER_REGISTER}
+                className="group relative px-8 py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold text-lg rounded-2xl shadow-2xl hover:shadow-orange-500/25 transition-all duration-300 hover:scale-105 transform"
+              >
+                <span className="relative z-10">Start Your Fashion Journey</span>
+                <div className="absolute inset-0 bg-gradient-to-r from-orange-600 to-orange-700 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              </Link>
+              <Link 
+                to={ROUTES.SELLER_REGISTER}
+                className="group px-8 py-4 border-2 border-orange-500 text-orange-600 font-bold text-lg rounded-2xl hover:bg-orange-500 hover:text-white transition-all duration-300 hover:scale-105 transform"
+              >
+                Join the Revolution
+              </Link>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 pt-8">
+              {stats.map((stat, index) => (
+                <div 
+                  key={index}
+                  className={`text-center transform transition-all duration-1000 delay-${index * 200} ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}
+                >
+                  <div className="text-3xl mb-2">{stat.icon}</div>
+                  <div className="text-2xl font-bold text-gray-800">{stat.number}</div>
+                  <div className="text-orange-600 text-sm font-medium">{stat.label}</div>
                 </div>
               ))}
             </div>
           </div>
-          {/* Seller Benefits */}
-          <div>
-            <h3 className="text-2xl font-bold text-orange-600 mb-2">As Seller :</h3>
-            <p className="text-gray-700 mb-2">The growing fashion market is only dependent on the visibility of the latest fashion available inside the store. This brings everyday challenges in the life of local shopkeepers.</p>
-            <p className="text-gray-700 mb-2">Zammer provides a platform for the sellers to expand their reach and visibility to their nearby customers.</p>
-            <p className="text-gray-900 font-semibold mb-4">Serving Local Shopkeepers to Rise their Sales.</p>
-            <h4 className="font-bold text-lg mb-4">How Its Work</h4>
-            <div className="flex gap-8 mb-8">
-              {sellerSteps.map((step, i) => (
-                <div key={i} className="flex flex-col items-center">
-                  <span className="text-4xl mb-2">{step.icon}</span>
-                  <span className="font-semibold">{step.title}</span>
-                  <span className="text-xs text-gray-500 text-center mt-1">{step.desc}</span>
+
+          {/* Right Side - Bigger Scooter Image */}
+          <div className={`relative transform transition-all duration-1000 delay-500 ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-20 opacity-0'}`}>
+            <div className="relative">
+              {/* Main Image Container - Made Bigger */}
+              <div className="relative z-10">
+                <img 
+                  src="https://pbs.twimg.com/media/G0WyEKwX0AAcHgK?format=png&name=900x900"
+                  alt="ZAMMER Delivery Agent"
+                  className="w-full max-w-2xl mx-auto rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-500"
+                />
+                
+                {/* Floating Elements */}
+                <div className="absolute -top-6 -right-6 w-24 h-24 bg-orange-400 rounded-full flex items-center justify-center text-4xl animate-bounce shadow-lg">
+                  🚀
                 </div>
-              ))}
+                <div className="absolute -bottom-6 -left-6 w-20 h-20 bg-orange-300 rounded-full flex items-center justify-center text-3xl animate-pulse shadow-lg">
+                  ⚡
+                </div>
+              </div>
+
+              {/* Background Glow Effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-orange-400/30 to-orange-600/30 rounded-3xl blur-2xl scale-110 -z-10"></div>
+              
+              {/* Delivery Box Animation */}
+              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-8">
+                <div className="bg-orange-500 text-white px-6 py-3 rounded-lg shadow-lg animate-pulse">
+                  <span className="text-sm font-bold">ZAMMER DELIVERY</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </section>
 
-      {/* Virtual Try-On Experience */}
-      <section className="bg-pink-50 py-16">
-        <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-12 items-center px-4">
-          <div className="flex flex-col items-center">
-            <img src="https://i.imgur.com/0y8Ftya.png" alt="Virtual Try-On" className="w-72 rounded-2xl shadow-lg mb-4" />
-            <h3 className="text-2xl font-bold text-pink-600 mb-2">Virtual Try-On Experience</h3>
-            <p className="text-gray-700 mb-2">"Virtually try out how you will look like in these clothes"</p>
-          </div>
-          <div>
-            <h2 className="text-4xl font-extrabold text-gray-900 mb-4">For Buyers</h2>
-            <h3 className="text-2xl font-bold text-pink-500 mb-4">Try Before You Buy, Virtually</h3>
-            <p className="text-gray-700 mb-6">Only on ZAMMER! Experience the future of fashion shopping.</p>
-            <div className="space-y-4">
-              <div className="bg-white rounded-lg shadow p-4 flex items-center gap-3"><span className="text-xl">🪞</span> Ever wondered how that kurta or dress will actually look on you?</div>
-              <div className="bg-white rounded-lg shadow p-4 flex items-center gap-3"><span className="text-xl">🎉</span> ZAMMER isn't just a marketplace. It's a fashion revolution.</div>
-              <div className="bg-white rounded-lg shadow p-4 flex items-center gap-3"><span className="text-xl">✨</span> Try on. Click. Checkout. Simple as that.</div>
-            </div>
+        {/* Scroll Indicator */}
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
+          <div className="w-6 h-10 border-2 border-orange-500 rounded-full flex justify-center">
+            <div className="w-1 h-3 bg-orange-500 rounded-full mt-2 animate-pulse"></div>
           </div>
         </div>
       </section>
 
-      {/* For Sellers Section */}
-      <section className="bg-orange-50 py-16">
-        <div className="max-w-5xl mx-auto px-4">
-          <h2 className="text-4xl font-extrabold text-gray-900 mb-4">For Sellers</h2>
-          <h3 className="text-3xl font-bold text-orange-500 mb-4">Make More, Worry Less</h3>
-          <p className="text-gray-700 mb-8">Join ZAMMER Today and revolutionize your selling experience!</p>
-          <div className="space-y-4 mb-8">
-            <div className="bg-white rounded-lg shadow p-4 flex items-center gap-3"><span className="text-xl">💬</span> Join thousands of smart sellers growing their business with ZAMMER.</div>
-            <div className="bg-white rounded-lg shadow p-4 flex items-center gap-3"><span className="text-xl">👉</span> Start selling in minutes – we'll guide you all the way.</div>
-          </div>
-        </div>
-      </section>
-
-      {/* AI-Powered Recommendations */}
-      <section className="bg-purple-50 py-16">
+      {/* The Revolution Story - Features Section */}
+      <section className="py-20 bg-gradient-to-br from-orange-50 to-white">
         <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-4xl font-extrabold text-center text-gray-900 mb-2">AI-Powered Recommendations</h2>
-          <h3 className="text-2xl text-center font-bold text-purple-500 mb-6">Elevate Your Revenue with Smart Insights</h3>
-          <p className="text-center text-gray-700 mb-10">ZAMMER uses advanced AI technology to revolutionize fashion retail and maximize your business potential</p>
-          <div className="grid md:grid-cols-3 gap-8">
-            {aiFeatures.map((f, i) => (
-              <div key={i} className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center relative">
-                <span className="absolute top-2 right-2 bg-orange-100 text-orange-600 text-xs px-2 py-1 rounded-full font-semibold">{f.badge}</span>
-                <span className="text-4xl mb-3">{f.icon}</span>
-                <h4 className="font-bold text-lg mb-2 text-center">{f.title}</h4>
-                <p className="text-gray-600 text-center text-sm">{f.desc}</p>
+          <div className="text-center mb-16">
+            <h2 className="text-5xl font-bold text-gray-800 mb-4">How We're Changing the Game</h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              The story of fashion shopping is being rewritten, one innovation at a time
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {features.map((feature, index) => (
+              <div 
+                key={index}
+                className="group bg-white/80 backdrop-blur-md rounded-2xl p-8 text-center hover:bg-white hover:shadow-2xl transition-all duration-300 hover:scale-105 transform border border-orange-100"
+              >
+                <div className="text-5xl mb-4 group-hover:scale-110 transition-transform duration-300">
+                  {feature.icon}
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-3">{feature.title}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{feature.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* App Promotion Section */}
-      <section className="bg-orange-50 py-16">
-        <div className="max-w-4xl mx-auto text-center px-4">
-          <h2 className="text-4xl font-extrabold text-gray-900 mb-2">Searching for Latest Fashion?</h2>
-          <h3 className="text-4xl font-extrabold text-orange-500 mb-2">Get it from your NEAREST STORE!</h3>
-          <p className="text-xl text-orange-400 mb-6">Experience the fashion in a wink</p>
-          <div className="flex justify-center gap-6 mb-4">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" className="h-12" />
-            <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store" className="h-12" />
+      {/* The Story Illustrations */}
+      <section className="py-20 bg-gradient-to-r from-orange-100/50 to-orange-200/50">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-5xl font-bold text-gray-800 mb-4">The Story of Transformation</h2>
+            <p className="text-xl text-gray-600">Visual tales of how ZAMMER is rewriting the fashion narrative</p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-16 items-center mb-20">
+            {storyIllustrations.map((illustration, index) => (
+              <div key={index} className={`${index % 2 === 1 ? 'lg:order-2' : ''}`}>
+                <div className="relative">
+                  <img 
+                    src={illustration.image} 
+                    alt={illustration.title}
+                    className="w-full max-w-lg mx-auto rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-r from-orange-400/20 to-orange-600/20 rounded-3xl blur-2xl scale-110 -z-10"></div>
+                </div>
+                <div className={`mt-8 ${index % 2 === 1 ? 'lg:text-right' : ''}`}>
+                  <h3 className="text-3xl font-bold text-gray-800 mb-4">{illustration.title}</h3>
+                  <p className="text-lg text-gray-600 leading-relaxed">{illustration.description}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Seller Feature Cards */}
-      <section className="bg-orange-50 py-12">
-        <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-4 gap-8">
-          {sellerFeatureCards.map((f, i) => (
-            <div key={i} className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center">
-              <span className="text-4xl mb-3">{f.icon}</span>
-              <h4 className="font-bold text-lg mb-2 text-center">{f.title}</h4>
-              <p className="text-gray-600 text-center text-sm">{f.desc}</p>
-            </div>
-          ))}
+      {/* Customer Stories - Testimonials Section */}
+      <section className="py-20 bg-gradient-to-r from-orange-200/50 to-orange-300/50">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-5xl font-bold text-gray-800 mb-4">Voices from the Revolution</h2>
+            <p className="text-xl text-gray-600">Real people, real stories, real transformation</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {testimonials.map((testimonial, index) => (
+              <div 
+                key={index}
+                className="bg-white/90 backdrop-blur-md rounded-2xl p-8 hover:bg-white hover:shadow-2xl transition-all duration-300 hover:scale-105 transform border border-orange-100"
+              >
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 bg-gradient-to-r from-orange-400 to-orange-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-2xl font-bold text-white">
+                      {testimonial.name.split(' ').map(n => n[0]).join('')}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-gray-700 mb-6 italic text-center">"{testimonial.content}"</p>
+                <div className="text-center">
+                  <div className="font-bold text-gray-800 text-lg">{testimonial.name}</div>
+                  <div className="text-orange-600 text-sm font-medium">{testimonial.role}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Buyer Feature Cards */}
-      <section className="bg-pink-50 py-12">
-        <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-4 gap-8">
-          {buyerFeatureCards.map((f, i) => (
-            <div key={i} className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center">
-              <span className="text-4xl mb-3">{f.icon}</span>
-              <h4 className="font-bold text-lg mb-2 text-center">{f.title}</h4>
-              <p className="text-gray-600 text-center text-sm">{f.desc}</p>
+      {/* The Delivery Revolution Story */}
+      <section className="py-20 bg-gradient-to-br from-orange-50 to-orange-100">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <h2 className="text-5xl font-bold text-gray-800">The Delivery Revolution</h2>
+                <h3 className="text-3xl font-bold text-orange-600">From Store to Door in Minutes</h3>
+                <p className="text-xl text-gray-600 leading-relaxed">
+                  The story of fashion delivery was rewritten when ZAMMER introduced hyperlocal quick commerce. 
+                  Our delivery heroes on scooters bring fashion to your doorstep faster than you can say "I need that outfit!"
+                </p>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="flex items-center space-x-4 bg-white/80 backdrop-blur-md rounded-2xl p-6 border border-orange-100">
+                  <span className="text-3xl">⚡</span>
+                  <p className="text-gray-700">Lightning-fast delivery in under 30 minutes from local stores</p>
+                </div>
+                <div className="flex items-center space-x-4 bg-white/80 backdrop-blur-md rounded-2xl p-6 border border-orange-100">
+                  <span className="text-3xl">📍</span>
+                  <p className="text-gray-700">Hyperlocal network connecting you with nearby fashion stores</p>
+                </div>
+                <div className="flex items-center space-x-4 bg-white/80 backdrop-blur-md rounded-2xl p-6 border border-orange-100">
+                  <span className="text-3xl">🚀</span>
+                  <p className="text-gray-700">Real-time tracking and instant updates on your order</p>
+                </div>
+              </div>
             </div>
-          ))}
+            
+            <div className="relative">
+              <img 
+                src="https://pbs.twimg.com/media/G0WyEKwX0AAcHgK?format=png&name=900x900"
+                alt="ZAMMER Delivery Hero" 
+                className="w-full max-w-2xl mx-auto rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-orange-400/20 to-orange-600/20 rounded-3xl blur-2xl scale-110 -z-10"></div>
+              
+              {/* Story Caption */}
+              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-8">
+                <div className="bg-orange-500 text-white px-6 py-3 rounded-lg shadow-lg">
+                  <span className="text-sm font-bold">Meet Our Delivery Heroes</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
-    </main>
 
-    {/* Professional Footer */}
-    <footer className="bg-white border-t border-gray-200">
-      {/* Main Footer Content */}
-      <div className="max-w-7xl mx-auto px-6 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
-          
-          {/* Company Branding */}
-          <div className="space-y-6">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-white font-bold text-2xl">Z</span>
-              </div>
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900">ZAMMER</h3>
-                <p className="text-orange-500 text-sm font-medium">Fashion Retail Platform</p>
-              </div>
-            </div>
-            <p className="text-gray-600 text-sm leading-relaxed">
-              Revolutionizing fashion retail with AI-powered insights, virtual try-ons, and seamless local shopping experiences. 
-              Connecting buyers with nearby sellers for the ultimate fashion discovery.
+      {/* Customer Love Showcase - Standalone Characters */}
+      <section className="py-16 relative overflow-hidden">
+        
+        <div className="max-w-6xl mx-auto px-4 relative z-10">
+          {/* Section Header */}
+          <div className="text-center mb-12">
+            <h2 className="text-3xl lg:text-4xl font-bold text-gray-800 mb-3">
+              See How People Are
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-orange-700">
+                {' '}Loving ZAMMER
+              </span>
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+              Experience the joy and excitement of our customers as they discover the magic of quick fashion delivery.
             </p>
-            <div className="flex space-x-3">
-              <a href="#" className="w-9 h-9 bg-gray-100 hover:bg-orange-50 rounded-lg flex items-center justify-center transition-colors group">
-                <svg className="w-4 h-4 text-gray-600 group-hover:text-orange-500" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/>
-                </svg>
-              </a>
-              <a href="#" className="w-9 h-9 bg-gray-100 hover:bg-orange-50 rounded-lg flex items-center justify-center transition-colors group">
-                <svg className="w-4 h-4 text-gray-600 group-hover:text-orange-500" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.174-.105-.949-.199-2.403.041-3.439.219-.937 1.406-5.957 1.406-5.957s-.359-.72-.359-1.781c0-1.663.967-2.911 2.168-2.911 1.024 0 1.518.769 1.518 1.688 0 1.029-.653 2.567-.992 3.992-.285 1.193.6 2.165 1.775 2.165 2.128 0 3.768-2.245 3.768-5.487 0-2.861-2.063-4.869-5.008-4.869-3.41 0-5.409 2.562-5.409 5.199 0 1.033.394 2.143.889 2.741.099.12.112.225.085.345-.09.375-.293 1.199-.334 1.363-.053.225-.172.271-.402.165-1.495-.69-2.433-2.878-2.433-4.646 0-3.776 2.748-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.357-.629-2.746-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24.009 12.017 24.009c6.624 0 11.99-5.367 11.99-11.988C24.007 5.367 18.641.001.012.001z"/>
-                </svg>
-              </a>
-              <a href="#" className="w-9 h-9 bg-gray-100 hover:bg-orange-50 rounded-lg flex items-center justify-center transition-colors group">
-                <svg className="w-4 h-4 text-gray-600 group-hover:text-orange-500" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                </svg>
-              </a>
+          </div>
+
+          {/* Standalone Character Images */}
+          <div className="relative max-w-4xl mx-auto h-[600px]">
+            {/* Character 1 - Joy & Excitement */}
+            <div className={`absolute inset-0 transition-all duration-4000 ease-in-out transform-gpu ${
+              currentImageIndex === 0 
+                ? 'opacity-100 scale-100 translate-z-0 rotate-y-0' 
+                : 'opacity-0 scale-110 translate-z-50 rotate-y-12'
+            }`}>
+              <img 
+                src="https://pbs.twimg.com/media/G0avBhoWMAUHkxC?format=jpg&name=large"
+                alt="Young customer expressing joy with ZAMMER delivery - full body character"
+                className="w-full h-full object-contain transform-gpu"
+              />
+            </div>
+
+            {/* Character 2 - Delivery Experience */}
+            <div className={`absolute inset-0 transition-all duration-4000 ease-in-out transform-gpu ${
+              currentImageIndex === 1 
+                ? 'opacity-100 scale-100 translate-z-0 rotate-y-0' 
+                : 'opacity-0 scale-110 translate-z-50 rotate-y-12'
+            }`}>
+              <img 
+                src="https://pbs.twimg.com/media/G0a0WhKacAAw_pS?format=jpg&name=large"
+                alt="Young man receiving ZAMMER delivery with excitement - full body character"
+                className="w-full h-full object-contain transform-gpu"
+              />
+            </div>
+
+            {/* Character 3 - Fashion Satisfaction */}
+            <div className={`absolute inset-0 transition-all duration-4000 ease-in-out transform-gpu ${
+              currentImageIndex === 2 
+                ? 'opacity-100 scale-100 translate-z-0 rotate-y-0' 
+                : 'opacity-0 scale-110 translate-z-50 rotate-y-12'
+            }`}>
+              <img 
+                src="https://pbs.twimg.com/media/G0a3mz2bgAge0zc?format=jpg&name=large"
+                alt="Young woman satisfied with ZAMMER fashion delivery - full body character"
+                className="w-full h-full object-contain transform-gpu"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* The Magic of Virtual Try-On */}
+      <section className="py-20 bg-gradient-to-br from-pink-50 to-orange-50 relative overflow-hidden">
+        {/* Background Elements */}
+        <div className="absolute top-10 left-10 w-32 h-32 bg-pink-200/30 rounded-full blur-2xl animate-pulse"></div>
+        <div className="absolute bottom-10 right-10 w-40 h-40 bg-orange-200/30 rounded-full blur-2xl animate-pulse delay-1000"></div>
+        
+        <div className="max-w-7xl mx-auto px-4 relative z-10">
+          {/* Section Header */}
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center space-x-3 bg-white/80 backdrop-blur-md rounded-full px-6 py-3 mb-6 border border-orange-200">
+              <span className="text-2xl">✨</span>
+              <span className="text-orange-600 font-semibold">AI-Powered Technology</span>
+            </div>
+            <h2 className="text-5xl lg:text-6xl font-bold text-gray-800 mb-4">
+              The Magic of
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-orange-500">
+                {' '}Virtual Try-On
+              </span>
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+              Experience the future of fashion shopping with our revolutionary AI technology that lets you try on clothes virtually before you buy.
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            {/* Left Side - Enhanced Content */}
+            <div className="space-y-8">
+              {/* Main CTA */}
+              <div className="bg-gradient-to-r from-pink-500 to-orange-500 rounded-3xl p-8 text-white">
+                <h3 className="text-3xl font-bold mb-4">Try Before You Buy</h3>
+                <p className="text-lg opacity-90 mb-6">
+                  Upload your photo and see how any outfit looks on you instantly with 95% accuracy
+                </p>
+                <div className="flex items-center space-x-4">
+                  <div className="bg-white/20 rounded-full px-4 py-2">
+                    <span className="text-sm font-semibold">95% Accuracy</span>
+                  </div>
+                  <div className="bg-white/20 rounded-full px-4 py-2">
+                    <span className="text-sm font-semibold">Real-time Results</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Feature Cards - Redesigned */}
+              <div className="space-y-4">
+                <div className="group bg-white/90 backdrop-blur-md rounded-2xl p-6 border border-pink-100 hover:border-pink-300 transition-all duration-300 hover:shadow-lg">
+                  <div className="flex items-start space-x-4">
+                    <div className="bg-gradient-to-r from-pink-400 to-pink-500 rounded-xl p-3 group-hover:scale-110 transition-transform duration-300">
+                      <span className="text-2xl">📸</span>
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-gray-800 mb-2">Instant Photo Upload</h4>
+                      <p className="text-gray-600">Upload your photo and see how any outfit looks on you instantly with our advanced AI technology</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="group bg-white/90 backdrop-blur-md rounded-2xl p-6 border border-orange-100 hover:border-orange-300 transition-all duration-300 hover:shadow-lg">
+                  <div className="flex items-start space-x-4">
+                    <div className="bg-gradient-to-r from-orange-400 to-orange-500 rounded-xl p-3 group-hover:scale-110 transition-transform duration-300">
+                      <span className="text-2xl">🎯</span>
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-gray-800 mb-2">Perfect Fit Guarantee</h4>
+                      <p className="text-gray-600">AI-powered sizing recommendations ensure perfect fit every time, reducing returns by 80%</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="group bg-white/90 backdrop-blur-md rounded-2xl p-6 border border-pink-100 hover:border-pink-300 transition-all duration-300 hover:shadow-lg">
+                  <div className="flex items-start space-x-4">
+                    <div className="bg-gradient-to-r from-pink-400 to-orange-400 rounded-xl p-3 group-hover:scale-110 transition-transform duration-300">
+                      <span className="text-2xl">🏠</span>
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-gray-800 mb-2">Home Comfort</h4>
+                      <p className="text-gray-600">Realistic virtual fitting experience from the comfort of your home, anytime, anywhere</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Right Side - Enhanced Video Display */}
+            <div className="relative">
+              <div className="relative z-10">
+                <video 
+                  src="/TRY.mp4" 
+                  alt="Virtual Try-On Demo" 
+                  className="w-full max-w-lg mx-auto rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-500"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                />
+                
+                {/* Floating Stats */}
+                <div className="absolute -top-4 -right-4 bg-white/90 backdrop-blur-md rounded-2xl p-4 shadow-lg border border-orange-200">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">95%</div>
+                    <div className="text-xs text-gray-600 font-medium">Accuracy</div>
+                  </div>
+                </div>
+                
+                <div className="absolute -bottom-4 -left-4 bg-white/90 backdrop-blur-md rounded-2xl p-4 shadow-lg border border-pink-200">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-pink-600">2M+</div>
+                    <div className="text-xs text-gray-600 font-medium">Users</div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Enhanced Background Glow */}
+              <div className="absolute inset-0 bg-gradient-to-r from-pink-400/30 to-orange-400/30 rounded-3xl blur-3xl scale-110 -z-10"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-pink-300/20 to-orange-300/20 rounded-3xl blur-2xl scale-105 -z-20"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* The Seller's Success Story */}
+      <section className="py-20 bg-gradient-to-r from-orange-100/50 to-orange-200/50">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-5xl font-bold text-gray-800 mb-4">The Seller's Success Story</h2>
+            <h3 className="text-3xl font-bold text-orange-600 mb-4">Make More, Worry Less</h3>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Every great fashion revolution needs great sellers. Join thousands of smart entrepreneurs 
+              who are growing their business with ZAMMER's hyperlocal delivery and quick commerce platform.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {[
+              { icon: '📈', title: '300% Sales Increase', desc: 'Average seller sees 300% increase in sales within first month' },
+              { icon: '⚡', title: '30-Second Setup', desc: 'List your products in just 30 seconds with our streamlined process' },
+              { icon: '🧠', title: 'AI Trend Insights', desc: 'Get real-time insights on what customers are searching for most' },
+              { icon: '💰', title: 'Zero Investment', desc: 'Start with zero upfront costs and scale as you grow' },
+            ].map((feature, index) => (
+              <div 
+                key={index}
+                className="bg-white/80 backdrop-blur-md rounded-2xl p-8 text-center hover:bg-white hover:shadow-2xl transition-all duration-300 hover:scale-105 transform border border-orange-100"
+              >
+                <div className="text-5xl mb-4">{feature.icon}</div>
+                <h4 className="text-xl font-bold text-gray-800 mb-3">{feature.title}</h4>
+                <p className="text-gray-600 text-sm leading-relaxed">{feature.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* The Mobile Revolution */}
+      <section className="py-20 bg-gradient-to-br from-orange-100 to-orange-200">
+        <div className="max-w-4xl mx-auto text-center px-4">
+          <h2 className="text-5xl font-bold text-gray-800 mb-4">The Mobile Revolution</h2>
+          <h3 className="text-3xl font-bold text-orange-600 mb-4">Fashion at Your Fingertips</h3>
+          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+            The story continues on your mobile device. Get the complete ZAMMER experience 
+            and be part of the fashion revolution wherever you go.
+          </p>
+          
+          <div className="flex flex-col sm:flex-row justify-center gap-6 mb-12">
+            <a href="#" className="group hover:scale-105 transition-transform duration-300">
+              <img 
+                src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" 
+                alt="Google Play" 
+                className="h-16 shadow-2xl rounded-2xl"
+              />
+            </a>
+            <a href="#" className="group hover:scale-105 transition-transform duration-300">
+              <img 
+                src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" 
+                alt="App Store" 
+                className="h-16 shadow-2xl rounded-2xl"
+              />
+            </a>
+          </div>
+
+        </div>
+      </section>
+
+      {/* Modern Footer Design */}
+      <footer className="bg-gradient-to-br from-slate-900 via-slate-800 to-orange-900 text-white relative overflow-hidden">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-orange-400/10 to-transparent"></div>
+          <div className="absolute bottom-0 right-0 w-96 h-96 bg-orange-500/5 rounded-full blur-3xl"></div>
+        </div>
+        
+        {/* Main Footer Content */}
+        <div className="relative z-10 max-w-7xl mx-auto px-6 py-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
+            
+            {/* Brand Section */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="flex items-center space-x-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <span className="text-2xl font-bold text-white">Z</span>
+                </div>
+                <div>
+                  <h3 className="text-3xl font-black text-white">ZAMMER</h3>
+                  <p className="text-orange-300 text-sm font-medium">Fashion Revolution</p>
+                </div>
+              </div>
+              <p className="text-gray-300 text-sm leading-relaxed max-w-md">
+                Revolutionizing fashion retail with AI-powered insights, virtual try-ons, and seamless local shopping experiences. 
+                Connecting buyers with nearby sellers for the ultimate fashion discovery.
+              </p>
+              <div className="flex space-x-3">
+                <a href="#" className="w-10 h-10 bg-white/10 hover:bg-orange-500 rounded-lg flex items-center justify-center transition-all duration-300 group hover:scale-110 hover:rotate-3">
+                  <svg className="w-4 h-4 text-gray-300 group-hover:text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/>
+                  </svg>
+                </a>
+                <a href="#" className="w-10 h-10 bg-white/10 hover:bg-orange-500 rounded-lg flex items-center justify-center transition-all duration-300 group hover:scale-110 hover:rotate-3">
+                  <svg className="w-4 h-4 text-gray-300 group-hover:text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.174-.105-.949-.199-2.403.041-3.439.219-.937 1.406-5.957 1.406-5.957s-.359-.72-.359-1.781c0-1.663.967-2.911 2.168-2.911 1.024 0 1.518.769 1.518 1.688 0 1.029-.653 2.567-.992 3.992-.285 1.193.6 2.165 1.775 2.165 2.128 0 3.768-2.245 3.768-5.487 0-2.861-2.063-4.869-5.008-4.869-3.41 0-5.409 2.562-5.409 5.199 0 1.033.394 2.143.889 2.741.099.12.112.225.085.345-.09.375-.293 1.199-.334 1.363-.053.225-.172.271-.402.165-1.495-.69-2.433-2.878-2.433-4.646 0-3.776 2.748-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.357-.629-2.746-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24.009 12.017 24.009c6.624 0 11.99-5.367 11.99-11.988C24.007 5.367 18.641.001.012.001z"/>
+                  </svg>
+                </a>
+                <a href="#" className="w-10 h-10 bg-white/10 hover:bg-orange-500 rounded-lg flex items-center justify-center transition-all duration-300 group hover:scale-110 hover:rotate-3">
+                  <svg className="w-4 h-4 text-gray-300 group-hover:text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                  </svg>
+                </a>
+              </div>
+            </div>
+
+            {/* Quick Links */}
+            <div className="space-y-6">
+              <h4 className="text-lg font-bold text-white relative">
+                Quick Links
+                <div className="absolute -bottom-2 left-0 w-8 h-0.5 bg-gradient-to-r from-orange-400 to-orange-600 rounded-full"></div>
+              </h4>
+              <ul className="space-y-3">
+                {['About Us', 'How It Works', 'Success Stories', 'Press & Media', 'Careers', 'Contact Us'].map((link, index) => (
+                  <li key={index}>
+                    <a href="#" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
+                      <span className="relative z-10">{link}</span>
+                      <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Features */}
+            <div className="space-y-6">
+              <h4 className="text-lg font-bold text-white relative">
+                Features
+                <div className="absolute -bottom-2 left-0 w-8 h-0.5 bg-gradient-to-r from-orange-400 to-orange-600 rounded-full"></div>
+              </h4>
+              <ul className="space-y-3">
+                {['Virtual Try-On', 'AI Recommendations', 'Location-Based Search', 'Secure Payments', 'Fast Delivery', 'Analytics Dashboard'].map((feature, index) => (
+                  <li key={index}>
+                    <a href="#" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
+                      <span className="relative z-10">{feature}</span>
+                      <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                    </a>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
 
-          {/* Quick Links */}
-          <div className="space-y-6">
-            <h4 className="text-lg font-semibold text-gray-900">Quick Links</h4>
-            <ul className="space-y-3">
-              <li><a href="#" className="text-gray-600 hover:text-orange-500 transition-colors text-sm">About Us</a></li>
-              <li><a href="#" className="text-gray-600 hover:text-orange-500 transition-colors text-sm">How It Works</a></li>
-              <li><a href="#" className="text-gray-600 hover:text-orange-500 transition-colors text-sm">Success Stories</a></li>
-              <li><a href="#" className="text-gray-600 hover:text-orange-500 transition-colors text-sm">Press & Media</a></li>
-              <li><a href="#" className="text-gray-600 hover:text-orange-500 transition-colors text-sm">Careers</a></li>
-              <li><a href="#" className="text-gray-600 hover:text-orange-500 transition-colors text-sm">Contact Us</a></li>
-            </ul>
-          </div>
-
-          {/* Features */}
-          <div className="space-y-6">
-            <h4 className="text-lg font-semibold text-gray-900">Features</h4>
-            <ul className="space-y-3">
-              <li><a href="#" className="text-gray-600 hover:text-orange-500 transition-colors text-sm">Virtual Try-On</a></li>
-              <li><a href="#" className="text-gray-600 hover:text-orange-500 transition-colors text-sm">AI Recommendations</a></li>
-              <li><a href="#" className="text-gray-600 hover:text-orange-500 transition-colors text-sm">Location-Based Search</a></li>
-              <li><a href="#" className="text-gray-600 hover:text-orange-500 transition-colors text-sm">Secure Payments</a></li>
-              <li><a href="#" className="text-gray-600 hover:text-orange-500 transition-colors text-sm">Fast Delivery</a></li>
-              <li><a href="#" className="text-gray-600 hover:text-orange-500 transition-colors text-sm">Analytics Dashboard</a></li>
-            </ul>
-          </div>
-
-          {/* Login Access */}
-          <div className="space-y-6">
-            <h4 className="text-lg font-semibold text-gray-900">Get Started</h4>
-            <div className="space-y-4">
-              <a href="/user/login" className="block w-full bg-white border border-gray-300 hover:border-orange-300 hover:bg-orange-50 text-gray-700 py-3 px-4 rounded-lg text-center text-sm font-medium transition-all duration-200">
-                Shop as Buyer
-              </a>
-              <a href="/seller/login" className="block w-full bg-white border border-gray-300 hover:border-orange-300 hover:bg-orange-50 text-gray-700 py-3 px-4 rounded-lg text-center text-sm font-medium transition-all duration-200">
+          {/* CTA Section */}
+          <div className="mt-16 pt-8 border-t border-white/10">
+            <div className="text-center mb-8">
+              <h3 className="text-2xl font-bold text-white mb-2">Ready to Join the Revolution?</h3>
+              <p className="text-gray-300">Choose your role and start your journey with ZAMMER</p>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-2xl mx-auto">
+              <Link 
+                to={ROUTES.USER_LOGIN} 
+                className="group relative px-8 py-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl text-center font-bold transition-all duration-300 hover:scale-105 transform shadow-lg hover:shadow-orange-500/25"
+              >
+                <span className="relative z-10">Shop as Buyer</span>
+                <div className="absolute inset-0 bg-gradient-to-r from-orange-600 to-orange-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              </Link>
+              <Link 
+                to={ROUTES.SELLER_LOGIN} 
+                className="group px-8 py-4 border-2 border-orange-500 hover:bg-orange-500 hover:text-white text-orange-400 rounded-xl text-center font-bold transition-all duration-300 hover:scale-105 transform"
+              >
                 Sell as Seller
-              </a>
-              <a href="/delivery/login" className="block w-full bg-white border border-gray-300 hover:border-orange-300 hover:bg-orange-50 text-gray-700 py-3 px-4 rounded-lg text-center text-sm font-medium transition-all duration-200">
+              </Link>
+              <Link 
+                to="/delivery/login" 
+                className="group px-8 py-4 border-2 border-orange-500 hover:bg-orange-500 hover:text-white text-orange-400 rounded-xl text-center font-bold transition-all duration-300 hover:scale-105 transform"
+              >
                 Deliver as Agent
-              </a>
+              </Link>
+            </div>
+          </div>
+
+          {/* Stats Section */}
+          <div className="mt-16 pt-8 border-t border-white/10">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+              {[
+                { number: '50K+', label: 'Happy Customers' },
+                { number: '10K+', label: 'Active Sellers' },
+                { number: '100K+', label: 'Products Listed' },
+                { number: '500+', label: 'Cities Covered' }
+              ].map((stat, index) => (
+                <div key={index} className="group">
+                  <div className="text-3xl md:text-4xl font-black text-orange-400 group-hover:text-orange-300 transition-colors duration-300">
+                    {stat.number}
+                  </div>
+                  <div className="text-gray-300 text-sm font-medium mt-1">{stat.label}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* App Download Section */}
-        <div className="mt-16 pt-12 border-t border-gray-200">
-          <div className="text-center space-y-6">
-            <div>
-              <h4 className="text-xl font-semibold text-gray-900 mb-2">Download ZAMMER App</h4>
-              <p className="text-gray-600 text-sm">Get the best fashion shopping experience on your mobile device</p>
-            </div>
-            <div className="flex justify-center space-x-4">
-              <a href="#" className="hover:scale-105 transition-transform duration-200">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Google Play" className="h-12" />
-              </a>
-              <a href="#" className="hover:scale-105 transition-transform duration-200">
-                <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store" className="h-12" />
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {/* Stats Section */}
-        <div className="mt-16 pt-12 border-t border-gray-200">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <div className="space-y-2">
-              <div className="text-3xl font-bold text-orange-500">10K+</div>
-              <div className="text-gray-600 text-sm">Active Sellers</div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-3xl font-bold text-orange-500">50K+</div>
-              <div className="text-gray-600 text-sm">Happy Customers</div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-3xl font-bold text-orange-500">100K+</div>
-              <div className="text-gray-600 text-sm">Products Listed</div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-3xl font-bold text-orange-500">500+</div>
-              <div className="text-gray-600 text-sm">Cities Covered</div>
+        {/* Bottom Footer */}
+        <div className="bg-black/20 border-t border-white/10">
+          <div className="max-w-7xl mx-auto px-6 py-6">
+            <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+              <div className="text-center md:text-left">
+                <p className="text-gray-400 text-sm">
+                  © 2025 <span className="text-orange-400 font-bold">ZAMMER RETAIL PRIVATE LIMITED</span> - All Rights Reserved
+                </p>
+                <p className="text-gray-500 text-xs mt-1">
+                  Empowering local fashion businesses with cutting-edge technology
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-center gap-6 text-sm">
+                {['Privacy Policy', 'Terms of Service', 'Cookie Policy', 'Help Center'].map((link, index) => (
+                  <a key={index} href="#" className="text-gray-400 hover:text-orange-400 transition-colors duration-300 font-medium relative group">
+                    <span className="relative z-10">{link}</span>
+                    <div className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </footer>
+    </div>
+  );
+};
 
-      {/* Bottom Footer */}
-      <div className="bg-gray-50 border-t border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-            <div className="text-center md:text-left">
-              <p className="text-gray-600 text-sm">
-                © 2025 <span className="text-orange-500 font-semibold">ZAMMER RETAIL PRIVATE LIMITED</span> - All Rights Reserved
-              </p>
-              <p className="text-gray-500 text-xs mt-1">
-                Empowering local fashion businesses with cutting-edge technology
-              </p>
-            </div>
-            <div className="flex space-x-6 text-sm">
-              <a href="#" className="text-gray-600 hover:text-orange-500 transition-colors">Privacy Policy</a>
-              <a href="#" className="text-gray-600 hover:text-orange-500 transition-colors">Terms of Service</a>
-              <a href="#" className="text-gray-600 hover:text-orange-500 transition-colors">Cookie Policy</a>
-              <a href="#" className="text-gray-600 hover:text-orange-500 transition-colors">Help Center</a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </footer>
-  </div>
-);
-
-export default LandingPage; 
+export default LandingPage;
