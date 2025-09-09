@@ -141,191 +141,279 @@ const LandingPage = () => {
 
             {/* Mobile menu button */}
             <div className="md:hidden">
-              <button
+              <motion.button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-orange-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-orange-500"
-                aria-expanded="false"
+                className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-orange-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-orange-500 transition-all duration-200"
+                aria-expanded={isMobileMenuOpen}
+                whileTap={{ scale: 0.95 }}
               >
                 <span className="sr-only">Open main menu</span>
                 {/* Hamburger icon */}
-                <svg className={`${isMobileMenuOpen ? 'hidden' : 'block'} h-6 w-6`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <motion.svg 
+                  className={`${isMobileMenuOpen ? 'hidden' : 'block'} h-6 w-6`} 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                  initial={{ rotate: 0 }}
+                  animate={{ rotate: isMobileMenuOpen ? 180 : 0 }}
+                  transition={{ duration: 0.3 }}
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+                </motion.svg>
                 {/* Close icon */}
-                <svg className={`${isMobileMenuOpen ? 'block' : 'hidden'} h-6 w-6`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <motion.svg 
+                  className={`${isMobileMenuOpen ? 'block' : 'hidden'} h-6 w-6`} 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                  initial={{ rotate: -180 }}
+                  animate={{ rotate: isMobileMenuOpen ? 0 : -180 }}
+                  transition={{ duration: 0.3 }}
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+                </motion.svg>
+              </motion.button>
             </div>
           </div>
         </div>
 
         {/* Mobile menu */}
-        <div className={`${isMobileMenuOpen ? 'block' : 'hidden'} md:hidden`}>
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t border-gray-200">
-            <Link 
-              to="/" 
-              className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium"
-              onClick={() => setIsMobileMenuOpen(false)}
+        <motion.div 
+          className={`${isMobileMenuOpen ? 'block' : 'hidden'} md:hidden`}
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ 
+            opacity: isMobileMenuOpen ? 1 : 0, 
+            height: isMobileMenuOpen ? 'auto' : 0 
+          }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+        >
+          <motion.div 
+            className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t border-gray-200 shadow-lg"
+            initial={{ y: -20 }}
+            animate={{ y: isMobileMenuOpen ? 0 : -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: isMobileMenuOpen ? 1 : 0, x: isMobileMenuOpen ? 0 : -20 }}
+              transition={{ delay: 0.1, duration: 0.3 }}
             >
-              Home
-            </Link>
-            <Link 
-              to="/about" 
-              className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              About
-            </Link>
-            <Link 
-              to="/features" 
-              className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Features
-            </Link>
-            <Link 
-              to="/contact" 
-              className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Contact
-            </Link>
-            <div className="border-t border-gray-200 pt-4">
               <Link 
-                to={ROUTES.USER_LOGIN}
-                className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium"
+                to="/" 
+                className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium transition-colors duration-200"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                User Login
+                Home
               </Link>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: isMobileMenuOpen ? 1 : 0, x: isMobileMenuOpen ? 0 : -20 }}
+              transition={{ delay: 0.15, duration: 0.3 }}
+            >
               <Link 
-                to={ROUTES.USER_REGISTER}
-                className="bg-orange-500 hover:bg-orange-600 text-white block px-3 py-2 rounded-lg text-base font-medium mx-3 my-2"
+                to="/about" 
+                className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium transition-colors duration-200"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                User Sign Up
+                About
               </Link>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: isMobileMenuOpen ? 1 : 0, x: isMobileMenuOpen ? 0 : -20 }}
+              transition={{ delay: 0.2, duration: 0.3 }}
+            >
               <Link 
-                to={ROUTES.SELLER_LOGIN}
-                className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium"
+                to="/features" 
+                className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium transition-colors duration-200"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                Seller Login
+                Features
               </Link>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: isMobileMenuOpen ? 1 : 0, x: isMobileMenuOpen ? 0 : -20 }}
+              transition={{ delay: 0.25, duration: 0.3 }}
+            >
               <Link 
-                to={ROUTES.SELLER_REGISTER}
-                className="bg-gray-800 hover:bg-gray-900 text-white block px-3 py-2 rounded-lg text-base font-medium mx-3 my-2"
+                to="/contact" 
+                className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium transition-colors duration-200"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                Seller Sign Up
+                Contact
               </Link>
-            </div>
-          </div>
-        </div>
+            </motion.div>
+            <motion.div 
+              className="border-t border-gray-200 pt-4"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: isMobileMenuOpen ? 1 : 0, x: isMobileMenuOpen ? 0 : -20 }}
+              transition={{ delay: 0.3, duration: 0.3 }}
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: isMobileMenuOpen ? 1 : 0, y: isMobileMenuOpen ? 0 : 10 }}
+                transition={{ delay: 0.35, duration: 0.3 }}
+              >
+                <Link 
+                  to={ROUTES.USER_LOGIN}
+                  className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium transition-colors duration-200"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  User Login
+                </Link>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: isMobileMenuOpen ? 1 : 0, y: isMobileMenuOpen ? 0 : 10 }}
+                transition={{ delay: 0.4, duration: 0.3 }}
+              >
+                <Link 
+                  to={ROUTES.USER_REGISTER}
+                  className="bg-orange-500 hover:bg-orange-600 text-white block px-3 py-2 rounded-lg text-base font-medium mx-3 my-2 transition-colors duration-200"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  User Sign Up
+                </Link>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: isMobileMenuOpen ? 1 : 0, y: isMobileMenuOpen ? 0 : 10 }}
+                transition={{ delay: 0.45, duration: 0.3 }}
+              >
+                <Link 
+                  to={ROUTES.SELLER_LOGIN}
+                  className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium transition-colors duration-200"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Seller Login
+                </Link>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: isMobileMenuOpen ? 1 : 0, y: isMobileMenuOpen ? 0 : 10 }}
+                transition={{ delay: 0.5, duration: 0.3 }}
+              >
+                <Link 
+                  to={ROUTES.SELLER_REGISTER}
+                  className="bg-gray-800 hover:bg-gray-900 text-white block px-3 py-2 rounded-lg text-base font-medium mx-3 my-2 transition-colors duration-200"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Seller Sign Up
+                </Link>
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        </motion.div>
       </nav>
 
       {/* Hero Section - The Story Begins */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-white pt-16">
         
         {/* Main Content */}
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
-          {/* Left Side - Story Content */}
-          <div className={`space-y-8 transform transition-all duration-1000 ${isVisible ? 'translate-x-0 opacity-100' : '-translate-x-20 opacity-0'}`}>
-
-            {/* Story Headline */}
-            <div className="space-y-6">
-              {/* Professional ZAMMERNOW Banner */}
-              <motion.div 
-                className="mb-8"
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8 }}
-              >
-                <div className="inline-block bg-gradient-to-r from-orange-500 via-orange-600 to-orange-700 px-8 py-4 rounded-2xl shadow-2xl transform hover:scale-105 transition-transform duration-300">
-                  <motion.h1 
-                    className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white"
-                    initial={{ scale: 0.8 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.2, duration: 0.6 }}
-                  >
-                    {/* ZAMMER with luxury gradient branding */}
-                    <span className="bg-gradient-to-r from-white via-orange-100 to-orange-200 bg-clip-text text-transparent font-[Poppins] drop-shadow-2xl uppercase tracking-wider">
-                      ZAMMER
-                    </span>
-                    {/* NOW with sleek premium feel */}
-                    <motion.span 
-                      className="ml-3 font-[Playfair_Display] text-orange-200 italic drop-shadow-lg tracking-wider"
-                      initial={{ opacity: 0, x: 30 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.6, duration: 0.8 }}
-                    >
-                      NOW
-                    </motion.span>
-                  </motion.h1>
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Mobile: Image First, Desktop: Side by Side */}
+          <div className="flex flex-col lg:grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+            
+            {/* Mobile: Image First (Order 1), Desktop: Right Side (Order 2) */}
+            <div className={`relative transform transition-all duration-1000 delay-500 order-1 lg:order-2 ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-20 opacity-0'}`}>
+              <div className="relative">
+                {/* Main Image Container - Magnified and 3D */}
+                <div className="relative z-10">
+                  <img 
+                    src="https://pbs.twimg.com/media/G0bMKGNXkAAiImA?format=jpg&name=large"
+                    alt="ZAMMERNOW Delivery Agent"
+                    className="w-full max-w-3xl sm:max-w-4xl lg:max-w-5xl mx-auto transform hover:scale-110 transition-transform duration-500"
+                  />
                 </div>
-              </motion.div>
-              
-              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-800 leading-tight">
-                The Fashion
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-orange-700">
-                  {' '}Revolution
-                </span>
-                <br />Starts Here
-              </h2>
-              <p className="text-lg sm:text-xl text-gray-600 leading-relaxed max-w-lg">
-                Once upon a time, fashion shopping meant long queues, limited choices, and endless waiting. 
-                <span className="font-semibold text-orange-600"> ZAMMERNOW changed everything.</span>
-              </p>
-              <p className="text-base sm:text-lg text-gray-700 leading-relaxed max-w-lg">
-                Today, we're revolutionizing how India shops for fashion with hyperlocal delivery, 
-                AI-powered virtual try-ons, and lightning-fast quick commerce that brings the store to your doorstep.
-              </p>
+              </div>
             </div>
 
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link 
-                to={ROUTES.USER_REGISTER}
-                className="group relative px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold text-base sm:text-lg rounded-2xl shadow-2xl hover:shadow-orange-500/25 transition-all duration-300 hover:scale-105 transform text-center"
-              >
-                <span className="relative z-10">Start Your Fashion Journey</span>
-                <div className="absolute inset-0 bg-gradient-to-r from-orange-600 to-orange-700 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-              </Link>
-              <Link 
-                to={ROUTES.SELLER_REGISTER}
-                className="group px-6 sm:px-8 py-3 sm:py-4 border-2 border-orange-500 text-orange-600 font-bold text-base sm:text-lg rounded-2xl hover:bg-orange-500 hover:text-white transition-all duration-300 hover:scale-105 transform text-center"
-              >
-                Join the Revolution
-              </Link>
-            </div>
+            {/* Mobile: Content Second (Order 2), Desktop: Left Side (Order 1) */}
+            <div className={`space-y-8 transform transition-all duration-1000 order-2 lg:order-1 ${isVisible ? 'translate-x-0 opacity-100' : '-translate-x-20 opacity-0'}`}>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 pt-8">
-              {stats.map((stat, index) => (
-                <div 
-                  key={index}
-                  className={`text-center transform transition-all duration-1000 delay-${index * 200} ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}
+              {/* Story Headline */}
+              <div className="space-y-6">
+                {/* Professional ZAMMERNOW Banner */}
+                <motion.div 
+                  className="mb-8"
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8 }}
                 >
-                  <div className="text-xl sm:text-2xl font-bold text-gray-800">{stat.number}</div>
-                  <div className="text-orange-600 text-xs sm:text-sm font-medium">{stat.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Right Side - Magnified 3D Scooter Image */}
-          <div className={`relative transform transition-all duration-1000 delay-500 ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-20 opacity-0'}`}>
-            <div className="relative">
-              {/* Main Image Container - Magnified and 3D */}
-              <div className="relative z-10">
-                <img 
-                  src="https://pbs.twimg.com/media/G0bMKGNXkAAiImA?format=jpg&name=large"
-                  alt="ZAMMERNOW Delivery Agent"
-                  className="w-full max-w-3xl sm:max-w-4xl lg:max-w-5xl mx-auto transform hover:scale-110 transition-transform duration-500"
-                />
+                  <div className="inline-block bg-gradient-to-r from-orange-500 via-orange-600 to-orange-700 px-8 py-4 rounded-2xl shadow-2xl transform hover:scale-105 transition-transform duration-300">
+                    <motion.h1 
+                      className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white"
+                      initial={{ scale: 0.8 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: 0.2, duration: 0.6 }}
+                    >
+                      {/* ZAMMER with luxury gradient branding */}
+                      <span className="bg-gradient-to-r from-white via-orange-100 to-orange-200 bg-clip-text text-transparent font-[Poppins] drop-shadow-2xl uppercase tracking-wider">
+                        ZAMMER
+                      </span>
+                      {/* NOW with sleek premium feel */}
+                      <motion.span 
+                        className="ml-3 font-[Playfair_Display] text-orange-200 italic drop-shadow-lg tracking-wider"
+                        initial={{ opacity: 0, x: 30 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.6, duration: 0.8 }}
+                      >
+                        NOW
+                      </motion.span>
+                    </motion.h1>
+                  </div>
+                </motion.div>
+                
+                <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-800 leading-tight">
+                  The Fashion
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-orange-700">
+                    {' '}Revolution
+                  </span>
+                  <br />Starts Here
+                </h2>
+                <p className="text-lg sm:text-xl text-gray-600 leading-relaxed max-w-lg">
+                  Once upon a time, fashion shopping meant long queues, limited choices, and endless waiting. 
+                  <span className="font-semibold text-orange-600"> ZAMMERNOW changed everything.</span>
+                </p>
+                <p className="text-base sm:text-lg text-gray-700 leading-relaxed max-w-lg">
+                  Today, we're revolutionizing how India shops for fashion with hyperlocal delivery, 
+                  AI-powered virtual try-ons, and lightning-fast quick commerce that brings the store to your doorstep.
+                </p>
               </div>
 
+              {/* CTA Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link 
+                  to={ROUTES.USER_REGISTER}
+                  className="group relative px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold text-base sm:text-lg rounded-2xl shadow-2xl hover:shadow-orange-500/25 transition-all duration-300 hover:scale-105 transform text-center"
+                >
+                  <span className="relative z-10">Start Your Fashion Journey</span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-orange-600 to-orange-700 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                </Link>
+                <Link 
+                  to={ROUTES.SELLER_REGISTER}
+                  className="group px-6 sm:px-8 py-3 sm:py-4 border-2 border-orange-500 text-orange-600 font-bold text-base sm:text-lg rounded-2xl hover:bg-orange-500 hover:text-white transition-all duration-300 hover:scale-105 transform text-center"
+                >
+                  Join the Revolution
+                </Link>
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 pt-8">
+                {stats.map((stat, index) => (
+                  <div 
+                    key={index}
+                    className={`text-center transform transition-all duration-1000 delay-${index * 200} ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}
+                  >
+                    <div className="text-xl sm:text-2xl font-bold text-gray-800">{stat.number}</div>
+                    <div className="text-orange-600 text-xs sm:text-sm font-medium">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
