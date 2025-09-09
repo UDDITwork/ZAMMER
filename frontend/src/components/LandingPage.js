@@ -20,17 +20,17 @@ const LandingPage = () => {
   }, []);
 
   const stats = [
-    { number: '50K+', label: 'Happy Customers', icon: '👥' },
-    { number: '10K+', label: 'Active Sellers', icon: '🏪' },
-    { number: '100K+', label: 'Products Listed', icon: '👗' },
-    { number: '500+', label: 'Cities Covered', icon: '🌍' },
+    { number: '50K+', label: 'Happy Customers' },
+    { number: '10K+', label: 'Active Sellers' },
+    { number: '100K+', label: 'Products Listed' },
+    { number: '500+', label: 'Cities Covered' },
   ];
 
   const features = [
-    { icon: '📱', title: 'Virtual Try-On', desc: 'See how you look before you buy with our AI-powered virtual fitting room' },
-    { icon: '🚀', title: 'Lightning Fast Delivery', desc: 'Get your fashion delivered in record time by our professional delivery team' },
-    { icon: '🧠', title: 'AI Recommendations', desc: 'Smart suggestions based on your style preferences and trending fashion' },
-    { icon: '📍', title: 'Local Discovery', desc: 'Find the best fashion stores right in your neighborhood' },
+    { title: 'Virtual Try-On', desc: 'See how you look before you buy with our AI-powered virtual fitting room' },
+    { title: 'Lightning Fast Delivery', desc: 'Get your fashion delivered in record time by our professional delivery team' },
+    { title: 'AI Recommendations', desc: 'Smart suggestions based on your style preferences and trending fashion' },
+    { title: 'Local Discovery', desc: 'Find the best fashion stores right in your neighborhood' },
   ];
 
   const testimonials = [
@@ -53,13 +53,9 @@ const LandingPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-100 overflow-hidden">
+    <div className="min-h-screen bg-white overflow-hidden">
       {/* Hero Section - The Story Begins */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        {/* Light Background Elements */}
-        <div className="absolute inset-0 bg-gradient-to-br from-orange-100/30 via-transparent to-orange-200/20"></div>
-        <div className="absolute top-20 left-10 w-72 h-72 bg-orange-200/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-orange-300/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+      <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-white">
         
         {/* Main Content */}
         <div className="relative z-10 max-w-7xl mx-auto px-4 grid lg:grid-cols-2 gap-12 items-center">
@@ -109,7 +105,6 @@ const LandingPage = () => {
                   key={index}
                   className={`text-center transform transition-all duration-1000 delay-${index * 200} ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}
                 >
-                  <div className="text-3xl mb-2">{stat.icon}</div>
                   <div className="text-2xl font-bold text-gray-800">{stat.number}</div>
                   <div className="text-orange-600 text-sm font-medium">{stat.label}</div>
                 </div>
@@ -117,43 +112,26 @@ const LandingPage = () => {
             </div>
           </div>
 
-          {/* Right Side - Bigger Scooter Image */}
+          {/* Right Side - Magnified 3D Scooter Image */}
           <div className={`relative transform transition-all duration-1000 delay-500 ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-20 opacity-0'}`}>
             <div className="relative">
-              {/* Main Image Container - Made Bigger */}
+              {/* Main Image Container - Magnified and 3D */}
               <div className="relative z-10">
                 <img 
-                  src="https://pbs.twimg.com/media/G0WyEKwX0AAcHgK?format=png&name=900x900"
+                  src="https://pbs.twimg.com/media/G0bMKGNXkAAiImA?format=jpg&name=large"
                   alt="ZAMMER Delivery Agent"
-                  className="w-full max-w-2xl mx-auto rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-500"
+                  className="w-full max-w-5xl mx-auto transform hover:scale-110 transition-transform duration-500"
                 />
-                
-                {/* Floating Elements */}
-                <div className="absolute -top-6 -right-6 w-24 h-24 bg-orange-400 rounded-full flex items-center justify-center text-4xl animate-bounce shadow-lg">
-                  🚀
-                </div>
-                <div className="absolute -bottom-6 -left-6 w-20 h-20 bg-orange-300 rounded-full flex items-center justify-center text-3xl animate-pulse shadow-lg">
-                  ⚡
-                </div>
               </div>
 
-              {/* Background Glow Effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-orange-400/30 to-orange-600/30 rounded-3xl blur-2xl scale-110 -z-10"></div>
-              
-              {/* Delivery Box Animation */}
-              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-8">
-                <div className="bg-orange-500 text-white px-6 py-3 rounded-lg shadow-lg animate-pulse">
-                  <span className="text-sm font-bold">ZAMMER DELIVERY</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
 
         {/* Scroll Indicator */}
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
-          <div className="w-6 h-10 border-2 border-orange-500 rounded-full flex justify-center">
-            <div className="w-1 h-3 bg-orange-500 rounded-full mt-2 animate-pulse"></div>
+          <div className="w-6 h-10 border-2 border-gray-300 rounded-full flex justify-center">
+            <div className="w-1 h-3 bg-gray-300 rounded-full mt-2 animate-pulse"></div>
           </div>
         </div>
       </section>
@@ -172,11 +150,8 @@ const LandingPage = () => {
             {features.map((feature, index) => (
               <div 
                 key={index}
-                className="group bg-white/80 backdrop-blur-md rounded-2xl p-8 text-center hover:bg-white hover:shadow-2xl transition-all duration-300 hover:scale-105 transform border border-orange-100"
+                className="group bg-white/80 backdrop-blur-md rounded-2xl p-8 text-center hover:bg-white hover:shadow-2xl transition-all duration-300 hover:scale-105 transform"
               >
-                <div className="text-5xl mb-4 group-hover:scale-110 transition-transform duration-300">
-                  {feature.icon}
-                </div>
                 <h3 className="text-xl font-bold text-gray-800 mb-3">{feature.title}</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">{feature.desc}</p>
               </div>
@@ -200,7 +175,7 @@ const LandingPage = () => {
                   <img 
                     src={illustration.image} 
                     alt={illustration.title}
-                    className="w-full max-w-lg mx-auto rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-500"
+                    className="w-full max-w-lg mx-auto rounded-3xl transform hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-r from-orange-400/20 to-orange-600/20 rounded-3xl blur-2xl scale-110 -z-10"></div>
                 </div>
@@ -261,16 +236,13 @@ const LandingPage = () => {
               </div>
               
               <div className="space-y-4">
-                <div className="flex items-center space-x-4 bg-white/80 backdrop-blur-md rounded-2xl p-6 border border-orange-100">
-                  <span className="text-3xl">⚡</span>
+                <div className="flex items-center space-x-4 bg-white/80 backdrop-blur-md rounded-2xl p-6">
                   <p className="text-gray-700">Lightning-fast delivery in under 30 minutes from local stores</p>
                 </div>
-                <div className="flex items-center space-x-4 bg-white/80 backdrop-blur-md rounded-2xl p-6 border border-orange-100">
-                  <span className="text-3xl">📍</span>
+                <div className="flex items-center space-x-4 bg-white/80 backdrop-blur-md rounded-2xl p-6">
                   <p className="text-gray-700">Hyperlocal network connecting you with nearby fashion stores</p>
                 </div>
-                <div className="flex items-center space-x-4 bg-white/80 backdrop-blur-md rounded-2xl p-6 border border-orange-100">
-                  <span className="text-3xl">🚀</span>
+                <div className="flex items-center space-x-4 bg-white/80 backdrop-blur-md rounded-2xl p-6">
                   <p className="text-gray-700">Real-time tracking and instant updates on your order</p>
                 </div>
               </div>
@@ -280,16 +252,9 @@ const LandingPage = () => {
               <img 
                 src="https://pbs.twimg.com/media/G0WyEKwX0AAcHgK?format=png&name=900x900"
                 alt="ZAMMER Delivery Hero" 
-                className="w-full max-w-2xl mx-auto rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-500"
+                className="w-full max-w-4xl mx-auto transform hover:scale-110 transition-transform duration-500"
               />
-              <div className="absolute inset-0 bg-gradient-to-r from-orange-400/20 to-orange-600/20 rounded-3xl blur-2xl scale-110 -z-10"></div>
-              
-              {/* Story Caption */}
-              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-8">
-                <div className="bg-orange-500 text-white px-6 py-3 rounded-lg shadow-lg">
-                  <span className="text-sm font-bold">Meet Our Delivery Heroes</span>
-                </div>
-              </div>
+              <div className="absolute inset-0 bg-gradient-to-r from-orange-400/20 to-orange-600/20 blur-2xl scale-110 -z-10"></div>
             </div>
           </div>
         </div>
@@ -313,7 +278,7 @@ const LandingPage = () => {
           </div>
 
           {/* Standalone Character Images */}
-          <div className="relative max-w-4xl mx-auto h-[600px]">
+          <div className="relative max-w-5xl mx-auto h-[700px]">
             {/* Character 1 - Joy & Excitement */}
             <div className={`absolute inset-0 transition-all duration-4000 ease-in-out transform-gpu ${
               currentImageIndex === 0 
@@ -365,8 +330,7 @@ const LandingPage = () => {
         <div className="max-w-7xl mx-auto px-4 relative z-10">
           {/* Section Header */}
           <div className="text-center mb-16">
-            <div className="inline-flex items-center space-x-3 bg-white/80 backdrop-blur-md rounded-full px-6 py-3 mb-6 border border-orange-200">
-              <span className="text-2xl">✨</span>
+            <div className="inline-flex items-center space-x-3 bg-white/80 backdrop-blur-md rounded-full px-6 py-3 mb-6">
               <span className="text-orange-600 font-semibold">AI-Powered Technology</span>
             </div>
             <h2 className="text-5xl lg:text-6xl font-bold text-gray-800 mb-4">
@@ -401,11 +365,8 @@ const LandingPage = () => {
               
               {/* Feature Cards - Redesigned */}
               <div className="space-y-4">
-                <div className="group bg-white/90 backdrop-blur-md rounded-2xl p-6 border border-pink-100 hover:border-pink-300 transition-all duration-300 hover:shadow-lg">
+                <div className="group bg-white/90 backdrop-blur-md rounded-2xl p-6 hover:shadow-lg transition-all duration-300">
                   <div className="flex items-start space-x-4">
-                    <div className="bg-gradient-to-r from-pink-400 to-pink-500 rounded-xl p-3 group-hover:scale-110 transition-transform duration-300">
-                      <span className="text-2xl">📸</span>
-                    </div>
                     <div>
                       <h4 className="text-lg font-bold text-gray-800 mb-2">Instant Photo Upload</h4>
                       <p className="text-gray-600">Upload your photo and see how any outfit looks on you instantly with our advanced AI technology</p>
@@ -413,11 +374,8 @@ const LandingPage = () => {
                   </div>
                 </div>
                 
-                <div className="group bg-white/90 backdrop-blur-md rounded-2xl p-6 border border-orange-100 hover:border-orange-300 transition-all duration-300 hover:shadow-lg">
+                <div className="group bg-white/90 backdrop-blur-md rounded-2xl p-6 hover:shadow-lg transition-all duration-300">
                   <div className="flex items-start space-x-4">
-                    <div className="bg-gradient-to-r from-orange-400 to-orange-500 rounded-xl p-3 group-hover:scale-110 transition-transform duration-300">
-                      <span className="text-2xl">🎯</span>
-                    </div>
                     <div>
                       <h4 className="text-lg font-bold text-gray-800 mb-2">Perfect Fit Guarantee</h4>
                       <p className="text-gray-600">AI-powered sizing recommendations ensure perfect fit every time, reducing returns by 80%</p>
@@ -425,11 +383,8 @@ const LandingPage = () => {
                   </div>
                 </div>
                 
-                <div className="group bg-white/90 backdrop-blur-md rounded-2xl p-6 border border-pink-100 hover:border-pink-300 transition-all duration-300 hover:shadow-lg">
+                <div className="group bg-white/90 backdrop-blur-md rounded-2xl p-6 hover:shadow-lg transition-all duration-300">
                   <div className="flex items-start space-x-4">
-                    <div className="bg-gradient-to-r from-pink-400 to-orange-400 rounded-xl p-3 group-hover:scale-110 transition-transform duration-300">
-                      <span className="text-2xl">🏠</span>
-                    </div>
                     <div>
                       <h4 className="text-lg font-bold text-gray-800 mb-2">Home Comfort</h4>
                       <p className="text-gray-600">Realistic virtual fitting experience from the comfort of your home, anytime, anywhere</p>
@@ -445,7 +400,7 @@ const LandingPage = () => {
                 <video 
                   src="/TRY.mp4" 
                   alt="Virtual Try-On Demo" 
-                  className="w-full max-w-lg mx-auto rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-500"
+                  className="w-full max-w-2xl mx-auto transform hover:scale-110 transition-transform duration-500"
                   autoPlay
                   loop
                   muted
@@ -453,14 +408,14 @@ const LandingPage = () => {
                 />
                 
                 {/* Floating Stats */}
-                <div className="absolute -top-4 -right-4 bg-white/90 backdrop-blur-md rounded-2xl p-4 shadow-lg border border-orange-200">
+                <div className="absolute -top-4 -right-4 bg-white/90 backdrop-blur-md rounded-2xl p-4">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-orange-600">95%</div>
                     <div className="text-xs text-gray-600 font-medium">Accuracy</div>
                   </div>
                 </div>
                 
-                <div className="absolute -bottom-4 -left-4 bg-white/90 backdrop-blur-md rounded-2xl p-4 shadow-lg border border-pink-200">
+                <div className="absolute -bottom-4 -left-4 bg-white/90 backdrop-blur-md rounded-2xl p-4">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-pink-600">2M+</div>
                     <div className="text-xs text-gray-600 font-medium">Users</div>
@@ -468,9 +423,6 @@ const LandingPage = () => {
                 </div>
               </div>
               
-              {/* Enhanced Background Glow */}
-              <div className="absolute inset-0 bg-gradient-to-r from-pink-400/30 to-orange-400/30 rounded-3xl blur-3xl scale-110 -z-10"></div>
-              <div className="absolute inset-0 bg-gradient-to-br from-pink-300/20 to-orange-300/20 rounded-3xl blur-2xl scale-105 -z-20"></div>
             </div>
           </div>
         </div>
@@ -490,16 +442,15 @@ const LandingPage = () => {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {[
-              { icon: '📈', title: '300% Sales Increase', desc: 'Average seller sees 300% increase in sales within first month' },
-              { icon: '⚡', title: '30-Second Setup', desc: 'List your products in just 30 seconds with our streamlined process' },
-              { icon: '🧠', title: 'AI Trend Insights', desc: 'Get real-time insights on what customers are searching for most' },
-              { icon: '💰', title: 'Zero Investment', desc: 'Start with zero upfront costs and scale as you grow' },
+              { title: '300% Sales Increase', desc: 'Average seller sees 300% increase in sales within first month' },
+              { title: '30-Second Setup', desc: 'List your products in just 30 seconds with our streamlined process' },
+              { title: 'AI Trend Insights', desc: 'Get real-time insights on what customers are searching for most' },
+              { title: 'Zero Investment', desc: 'Start with zero upfront costs and scale as you grow' },
             ].map((feature, index) => (
               <div 
                 key={index}
-                className="bg-white/80 backdrop-blur-md rounded-2xl p-8 text-center hover:bg-white hover:shadow-2xl transition-all duration-300 hover:scale-105 transform border border-orange-100"
+                className="bg-white/80 backdrop-blur-md rounded-2xl p-8 text-center hover:bg-white hover:shadow-2xl transition-all duration-300 hover:scale-105 transform"
               >
-                <div className="text-5xl mb-4">{feature.icon}</div>
                 <h4 className="text-xl font-bold text-gray-800 mb-3">{feature.title}</h4>
                 <p className="text-gray-600 text-sm leading-relaxed">{feature.desc}</p>
               </div>
@@ -523,14 +474,14 @@ const LandingPage = () => {
               <img 
                 src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" 
                 alt="Google Play" 
-                className="h-16 shadow-2xl rounded-2xl"
+                className="h-16 rounded-2xl"
               />
             </a>
             <a href="#" className="group hover:scale-105 transition-transform duration-300">
               <img 
                 src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" 
                 alt="App Store" 
-                className="h-16 shadow-2xl rounded-2xl"
+                className="h-16 rounded-2xl"
               />
             </a>
           </div>
@@ -553,7 +504,7 @@ const LandingPage = () => {
             {/* Brand Section */}
             <div className="lg:col-span-2 space-y-6">
               <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center">
                   <span className="text-2xl font-bold text-white">Z</span>
                 </div>
                 <div>
