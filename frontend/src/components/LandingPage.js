@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { ROUTES } from '../routes';
 
 const LandingPage = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     setIsVisible(true);
@@ -54,28 +56,228 @@ const LandingPage = () => {
 
   return (
     <div className="min-h-screen bg-white overflow-hidden">
+      {/* Navigation Bar */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            {/* Logo */}
+            <div className="flex-shrink-0">
+              <Link to="/" className="flex items-center space-x-3 group">
+                <motion.div 
+                  className="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-lg"
+                  whileHover={{ scale: 1.05, rotate: 3 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <span className="text-xl font-bold text-white font-[Poppins]">Z</span>
+                </motion.div>
+                <div className="flex items-center space-x-1">
+                  {/* ZAMMER with luxury gradient branding */}
+                  <motion.span 
+                    className="bg-gradient-to-r from-orange-500 via-orange-600 to-orange-700 bg-clip-text text-transparent font-[Poppins] drop-shadow-lg uppercase text-2xl font-black tracking-wider"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.6 }}
+                  >
+                    ZAMMER
+                  </motion.span>
+                  {/* NOW with sleek premium feel */}
+                  <motion.span 
+                    className="font-[Playfair_Display] text-orange-300 italic drop-shadow-lg tracking-wider text-xl font-bold"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3, duration: 0.6 }}
+                  >
+                    NOW
+                  </motion.span>
+                </div>
+              </Link>
+            </div>
+
+            {/* Desktop Navigation */}
+            <div className="hidden md:block">
+              <div className="ml-10 flex items-baseline space-x-8">
+                <Link to="/" className="text-gray-700 hover:text-orange-600 px-3 py-2 text-sm font-medium transition-colors duration-200">
+                  Home
+                </Link>
+                <Link to="/about" className="text-gray-700 hover:text-orange-600 px-3 py-2 text-sm font-medium transition-colors duration-200">
+                  About
+                </Link>
+                <Link to="/features" className="text-gray-700 hover:text-orange-600 px-3 py-2 text-sm font-medium transition-colors duration-200">
+                  Features
+                </Link>
+                <Link to="/contact" className="text-gray-700 hover:text-orange-600 px-3 py-2 text-sm font-medium transition-colors duration-200">
+                  Contact
+                </Link>
+              </div>
+            </div>
+
+            {/* Desktop Auth Buttons */}
+            <div className="hidden md:flex items-center space-x-4">
+              <Link 
+                to={ROUTES.USER_LOGIN}
+                className="text-gray-700 hover:text-orange-600 px-4 py-2 text-sm font-medium transition-colors duration-200"
+              >
+                User Login
+              </Link>
+              <Link 
+                to={ROUTES.USER_REGISTER}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+              >
+                User Sign Up
+              </Link>
+              <Link 
+                to={ROUTES.SELLER_LOGIN}
+                className="text-gray-700 hover:text-orange-600 px-4 py-2 text-sm font-medium transition-colors duration-200"
+              >
+                Seller Login
+              </Link>
+              <Link 
+                to={ROUTES.SELLER_REGISTER}
+                className="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+              >
+                Seller Sign Up
+              </Link>
+            </div>
+
+            {/* Mobile menu button */}
+            <div className="md:hidden">
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-orange-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-orange-500"
+                aria-expanded="false"
+              >
+                <span className="sr-only">Open main menu</span>
+                {/* Hamburger icon */}
+                <svg className={`${isMobileMenuOpen ? 'hidden' : 'block'} h-6 w-6`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+                {/* Close icon */}
+                <svg className={`${isMobileMenuOpen ? 'block' : 'hidden'} h-6 w-6`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile menu */}
+        <div className={`${isMobileMenuOpen ? 'block' : 'hidden'} md:hidden`}>
+          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t border-gray-200">
+            <Link 
+              to="/" 
+              className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Home
+            </Link>
+            <Link 
+              to="/about" 
+              className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              About
+            </Link>
+            <Link 
+              to="/features" 
+              className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Features
+            </Link>
+            <Link 
+              to="/contact" 
+              className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Contact
+            </Link>
+            <div className="border-t border-gray-200 pt-4">
+              <Link 
+                to={ROUTES.USER_LOGIN}
+                className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                User Login
+              </Link>
+              <Link 
+                to={ROUTES.USER_REGISTER}
+                className="bg-orange-500 hover:bg-orange-600 text-white block px-3 py-2 rounded-lg text-base font-medium mx-3 my-2"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                User Sign Up
+              </Link>
+              <Link 
+                to={ROUTES.SELLER_LOGIN}
+                className="text-gray-700 hover:text-orange-600 block px-3 py-2 text-base font-medium"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Seller Login
+              </Link>
+              <Link 
+                to={ROUTES.SELLER_REGISTER}
+                className="bg-gray-800 hover:bg-gray-900 text-white block px-3 py-2 rounded-lg text-base font-medium mx-3 my-2"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Seller Sign Up
+              </Link>
+            </div>
+          </div>
+        </div>
+      </nav>
+
       {/* Hero Section - The Story Begins */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-white">
+      <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-white pt-16">
         
         {/* Main Content */}
-        <div className="relative z-10 max-w-7xl mx-auto px-4 grid lg:grid-cols-2 gap-12 items-center">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           {/* Left Side - Story Content */}
           <div className={`space-y-8 transform transition-all duration-1000 ${isVisible ? 'translate-x-0 opacity-100' : '-translate-x-20 opacity-0'}`}>
 
             {/* Story Headline */}
             <div className="space-y-6">
-              <h2 className="text-3xl lg:text-5xl font-bold text-gray-800 leading-tight">
+              {/* Professional ZAMMERNOW Banner */}
+              <motion.div 
+                className="mb-8"
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                <div className="inline-block bg-gradient-to-r from-orange-500 via-orange-600 to-orange-700 px-8 py-4 rounded-2xl shadow-2xl transform hover:scale-105 transition-transform duration-300">
+                  <motion.h1 
+                    className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white"
+                    initial={{ scale: 0.8 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.2, duration: 0.6 }}
+                  >
+                    {/* ZAMMER with luxury gradient branding */}
+                    <span className="bg-gradient-to-r from-white via-orange-100 to-orange-200 bg-clip-text text-transparent font-[Poppins] drop-shadow-2xl uppercase tracking-wider">
+                      ZAMMER
+                    </span>
+                    {/* NOW with sleek premium feel */}
+                    <motion.span 
+                      className="ml-3 font-[Playfair_Display] text-orange-200 italic drop-shadow-lg tracking-wider"
+                      initial={{ opacity: 0, x: 30 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.6, duration: 0.8 }}
+                    >
+                      NOW
+                    </motion.span>
+                  </motion.h1>
+                </div>
+              </motion.div>
+              
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-800 leading-tight">
                 The Fashion
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-orange-700">
                   {' '}Revolution
                 </span>
                 <br />Starts Here
               </h2>
-              <p className="text-xl text-gray-600 leading-relaxed max-w-lg">
+              <p className="text-lg sm:text-xl text-gray-600 leading-relaxed max-w-lg">
                 Once upon a time, fashion shopping meant long queues, limited choices, and endless waiting. 
-                <span className="font-semibold text-orange-600"> ZAMMER changed everything.</span>
+                <span className="font-semibold text-orange-600"> ZAMMERNOW changed everything.</span>
               </p>
-              <p className="text-lg text-gray-700 leading-relaxed max-w-lg">
+              <p className="text-base sm:text-lg text-gray-700 leading-relaxed max-w-lg">
                 Today, we're revolutionizing how India shops for fashion with hyperlocal delivery, 
                 AI-powered virtual try-ons, and lightning-fast quick commerce that brings the store to your doorstep.
               </p>
@@ -85,28 +287,28 @@ const LandingPage = () => {
             <div className="flex flex-col sm:flex-row gap-4">
               <Link 
                 to={ROUTES.USER_REGISTER}
-                className="group relative px-8 py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold text-lg rounded-2xl shadow-2xl hover:shadow-orange-500/25 transition-all duration-300 hover:scale-105 transform"
+                className="group relative px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold text-base sm:text-lg rounded-2xl shadow-2xl hover:shadow-orange-500/25 transition-all duration-300 hover:scale-105 transform text-center"
               >
                 <span className="relative z-10">Start Your Fashion Journey</span>
                 <div className="absolute inset-0 bg-gradient-to-r from-orange-600 to-orange-700 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               </Link>
               <Link 
                 to={ROUTES.SELLER_REGISTER}
-                className="group px-8 py-4 border-2 border-orange-500 text-orange-600 font-bold text-lg rounded-2xl hover:bg-orange-500 hover:text-white transition-all duration-300 hover:scale-105 transform"
+                className="group px-6 sm:px-8 py-3 sm:py-4 border-2 border-orange-500 text-orange-600 font-bold text-base sm:text-lg rounded-2xl hover:bg-orange-500 hover:text-white transition-all duration-300 hover:scale-105 transform text-center"
               >
                 Join the Revolution
               </Link>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 pt-8">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 pt-8">
               {stats.map((stat, index) => (
                 <div 
                   key={index}
                   className={`text-center transform transition-all duration-1000 delay-${index * 200} ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}
                 >
-                  <div className="text-2xl font-bold text-gray-800">{stat.number}</div>
-                  <div className="text-orange-600 text-sm font-medium">{stat.label}</div>
+                  <div className="text-xl sm:text-2xl font-bold text-gray-800">{stat.number}</div>
+                  <div className="text-orange-600 text-xs sm:text-sm font-medium">{stat.label}</div>
                 </div>
               ))}
             </div>
@@ -119,8 +321,8 @@ const LandingPage = () => {
               <div className="relative z-10">
                 <img 
                   src="https://pbs.twimg.com/media/G0bMKGNXkAAiImA?format=jpg&name=large"
-                  alt="ZAMMER Delivery Agent"
-                  className="w-full max-w-5xl mx-auto transform hover:scale-110 transition-transform duration-500"
+                  alt="ZAMMERNOW Delivery Agent"
+                  className="w-full max-w-3xl sm:max-w-4xl lg:max-w-5xl mx-auto transform hover:scale-110 transition-transform duration-500"
                 />
               </div>
 
@@ -137,23 +339,50 @@ const LandingPage = () => {
       </section>
 
       {/* The Revolution Story - Features Section */}
-      <section className="py-20 bg-gradient-to-br from-orange-50 to-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-5xl font-bold text-gray-800 mb-4">How We're Changing the Game</h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+      <section className="py-16 sm:py-20 bg-gradient-to-br from-orange-50 to-white relative overflow-hidden">
+        {/* Professional Background Watermark */}
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5 pointer-events-none">
+          <motion.h1 
+            className="text-9xl font-black text-gray-400"
+            style={{ 
+              fontFamily: 'Poppins, sans-serif',
+              fontWeight: '900',
+              letterSpacing: '0.2em',
+              textTransform: 'uppercase',
+              writingMode: 'vertical-rl',
+              textOrientation: 'mixed'
+            }}
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 0.05 }}
+            transition={{ delay: 1, duration: 2 }}
+          >
+            {/* ZAMMER with luxury gradient branding */}
+            <span className="bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600 bg-clip-text text-transparent">
+              ZAMMER
+            </span>
+            {/* NOW with sleek premium feel */}
+            <span className="text-orange-300 italic ml-2">
+              NOW
+            </span>
+          </motion.h1>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-800 mb-4">How We're Changing the Game</h2>
+            <p className="text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto">
               The story of fashion shopping is being rewritten, one innovation at a time
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
             {features.map((feature, index) => (
               <div 
                 key={index}
-                className="group bg-white/80 backdrop-blur-md rounded-2xl p-8 text-center hover:bg-white hover:shadow-2xl transition-all duration-300 hover:scale-105 transform"
+                className="group bg-white/80 backdrop-blur-md rounded-2xl p-6 sm:p-8 text-center hover:bg-white hover:shadow-2xl transition-all duration-300 hover:scale-105 transform"
               >
-                <h3 className="text-xl font-bold text-gray-800 mb-3">{feature.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{feature.desc}</p>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-3">{feature.title}</h3>
+                <p className="text-gray-600 text-sm sm:text-base leading-relaxed">{feature.desc}</p>
               </div>
             ))}
           </div>
@@ -230,7 +459,7 @@ const LandingPage = () => {
                 <h2 className="text-5xl font-bold text-gray-800">The Delivery Revolution</h2>
                 <h3 className="text-3xl font-bold text-orange-600">From Store to Door in Minutes</h3>
                 <p className="text-xl text-gray-600 leading-relaxed">
-                  The story of fashion delivery was rewritten when ZAMMER introduced hyperlocal quick commerce. 
+                  The story of fashion delivery was rewritten when ZAMMERNOW introduced hyperlocal quick commerce. 
                   Our delivery heroes on scooters bring fashion to your doorstep faster than you can say "I need that outfit!"
                 </p>
               </div>
@@ -251,10 +480,13 @@ const LandingPage = () => {
             <div className="relative">
               <img 
                 src="https://pbs.twimg.com/media/G0WyEKwX0AAcHgK?format=png&name=900x900"
-                alt="ZAMMER Delivery Hero" 
-                className="w-full max-w-4xl mx-auto transform hover:scale-110 transition-transform duration-500"
+                alt="ZAMMERNOW Delivery Hero" 
+                className="w-full max-w-6xl mx-auto transform hover:scale-110 transition-transform duration-500"
+                style={{
+                  filter: 'drop-shadow(0 30px 60px rgba(0,0,0,0.3)) drop-shadow(0 15px 30px rgba(0,0,0,0.2))',
+                  transform: 'perspective(1200px) rotateY(-5deg) rotateX(3deg) translateZ(30px)',
+                }}
               />
-              <div className="absolute inset-0 bg-gradient-to-r from-orange-400/20 to-orange-600/20 blur-2xl scale-110 -z-10"></div>
             </div>
           </div>
         </div>
@@ -269,7 +501,7 @@ const LandingPage = () => {
             <h2 className="text-3xl lg:text-4xl font-bold text-gray-800 mb-3">
               See How People Are
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-orange-700">
-                {' '}Loving ZAMMER
+                {' '}Loving ZAMMERNOW
               </span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
@@ -287,7 +519,7 @@ const LandingPage = () => {
             }`}>
               <img 
                 src="https://pbs.twimg.com/media/G0avBhoWMAUHkxC?format=jpg&name=large"
-                alt="Young customer expressing joy with ZAMMER delivery - full body character"
+                alt="Young customer expressing joy with ZAMMERNOW delivery - full body character"
                 className="w-full h-full object-contain transform-gpu"
               />
             </div>
@@ -300,7 +532,7 @@ const LandingPage = () => {
             }`}>
               <img 
                 src="https://pbs.twimg.com/media/G0a0WhKacAAw_pS?format=jpg&name=large"
-                alt="Young man receiving ZAMMER delivery with excitement - full body character"
+                alt="Young man receiving ZAMMERNOW delivery with excitement - full body character"
                 className="w-full h-full object-contain transform-gpu"
               />
             </div>
@@ -313,7 +545,7 @@ const LandingPage = () => {
             }`}>
               <img 
                 src="https://pbs.twimg.com/media/G0a3mz2bgAge0zc?format=jpg&name=large"
-                alt="Young woman satisfied with ZAMMER fashion delivery - full body character"
+                alt="Young woman satisfied with ZAMMERNOW fashion delivery - full body character"
                 className="w-full h-full object-contain transform-gpu"
               />
             </div>
@@ -432,12 +664,12 @@ const LandingPage = () => {
       <section className="py-20 bg-gradient-to-r from-orange-100/50 to-orange-200/50">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-5xl font-bold text-gray-800 mb-4">The Seller's Success Story</h2>
-            <h3 className="text-3xl font-bold text-orange-600 mb-4">Make More, Worry Less</h3>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Every great fashion revolution needs great sellers. Join thousands of smart entrepreneurs 
-              who are growing their business with ZAMMER's hyperlocal delivery and quick commerce platform.
-            </p>
+              <h2 className="text-5xl font-bold text-gray-800 mb-4">The Seller's Success Story</h2>
+              <h3 className="text-3xl font-bold text-orange-600 mb-4">Make More, Worry Less</h3>
+              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+                Every great fashion revolution needs great sellers. Join thousands of smart entrepreneurs 
+                who are growing their business with ZAMMERNOW's hyperlocal delivery and quick commerce platform.
+              </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -460,12 +692,42 @@ const LandingPage = () => {
       </section>
 
       {/* The Mobile Revolution */}
-      <section className="py-20 bg-gradient-to-br from-orange-100 to-orange-200">
-        <div className="max-w-4xl mx-auto text-center px-4">
+      <section className="py-20 bg-gradient-to-br from-orange-100 to-orange-200 relative overflow-hidden">
+        {/* Professional Badge Background */}
+        <div className="absolute top-10 right-10 opacity-10">
+          <motion.div 
+            className="bg-white/20 backdrop-blur-sm rounded-full p-8 transform rotate-12"
+            initial={{ scale: 0, rotate: 0 }}
+            animate={{ scale: 1, rotate: 12 }}
+            transition={{ delay: 1.5, duration: 1.5 }}
+          >
+            <h1 
+              className="text-6xl font-black text-orange-600"
+              style={{ 
+                fontFamily: 'Poppins, sans-serif',
+                fontWeight: '900',
+                letterSpacing: '0.15em',
+                textTransform: 'uppercase',
+                textShadow: '0 2px 8px rgba(0,0,0,0.2)'
+              }}
+            >
+              {/* ZAMMER with luxury gradient branding */}
+              <span className="bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600 bg-clip-text text-transparent">
+                ZAMMER
+              </span>
+              {/* NOW with sleek premium feel */}
+              <span className="text-orange-300 italic ml-2">
+                NOW
+              </span>
+            </h1>
+          </motion.div>
+        </div>
+        
+        <div className="max-w-4xl mx-auto text-center px-4 relative z-10">
           <h2 className="text-5xl font-bold text-gray-800 mb-4">The Mobile Revolution</h2>
           <h3 className="text-3xl font-bold text-orange-600 mb-4">Fashion at Your Fingertips</h3>
           <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            The story continues on your mobile device. Get the complete ZAMMER experience 
+            The story continues on your mobile device. Get the complete ZAMMERNOW experience 
             and be part of the fashion revolution wherever you go.
           </p>
           
@@ -491,6 +753,36 @@ const LandingPage = () => {
 
       {/* Modern Footer Design */}
       <footer className="bg-gradient-to-br from-slate-900 via-slate-800 to-orange-900 text-white relative overflow-hidden">
+        {/* Professional Stamp Background */}
+        <div className="absolute top-20 left-20 opacity-5">
+          <motion.div 
+            className="bg-gradient-to-r from-orange-500/20 to-orange-600/20 rounded-full p-12 transform -rotate-12"
+            initial={{ scale: 0, rotate: 0 }}
+            animate={{ scale: 1, rotate: -12 }}
+            transition={{ delay: 2, duration: 2 }}
+          >
+            <h1 
+              className="text-8xl font-black text-white"
+              style={{ 
+                fontFamily: 'Poppins, sans-serif',
+                fontWeight: '900',
+                letterSpacing: '0.2em',
+                textTransform: 'uppercase',
+                textShadow: '0 4px 12px rgba(0,0,0,0.5)'
+              }}
+            >
+              {/* ZAMMER with luxury gradient branding */}
+              <span className="bg-gradient-to-r from-white via-orange-100 to-orange-200 bg-clip-text text-transparent">
+                ZAMMER
+              </span>
+              {/* NOW with sleek premium feel */}
+              <span className="text-orange-300 italic ml-2">
+                NOW
+              </span>
+            </h1>
+          </motion.div>
+        </div>
+        
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-5">
           <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-orange-400/10 to-transparent"></div>
@@ -504,11 +796,24 @@ const LandingPage = () => {
             {/* Brand Section */}
             <div className="lg:col-span-2 space-y-6">
               <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center">
-                  <span className="text-2xl font-bold text-white">Z</span>
-                </div>
+                <motion.div 
+                  className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg"
+                  whileHover={{ scale: 1.05, rotate: 3 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <span className="text-2xl font-bold text-white font-[Poppins]">Z</span>
+                </motion.div>
                 <div>
-                  <h3 className="text-3xl font-black text-white">ZAMMER</h3>
+                  <h3 className="text-3xl font-black text-white flex items-center space-x-1">
+                    {/* ZAMMER with luxury gradient branding */}
+                    <span className="bg-gradient-to-r from-white via-orange-100 to-orange-200 bg-clip-text text-transparent font-[Poppins] drop-shadow-2xl uppercase tracking-wider">
+                      ZAMMER
+                    </span>
+                    {/* NOW with sleek premium feel */}
+                    <span className="font-[Playfair_Display] text-orange-300 italic drop-shadow-lg tracking-wider">
+                      NOW
+                    </span>
+                  </h3>
                   <p className="text-orange-300 text-sm font-medium">Fashion Revolution</p>
                 </div>
               </div>
@@ -542,14 +847,42 @@ const LandingPage = () => {
                 <div className="absolute -bottom-2 left-0 w-8 h-0.5 bg-gradient-to-r from-orange-400 to-orange-600 rounded-full"></div>
               </h4>
               <ul className="space-y-3">
-                {['About Us', 'How It Works', 'Success Stories', 'Press & Media', 'Careers', 'Contact Us'].map((link, index) => (
-                  <li key={index}>
-                    <a href="#" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
-                      <span className="relative z-10">{link}</span>
+                <li>
+                  <Link to="/about" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
+                    <span className="relative z-10">About Us</span>
+                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/contact" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
+                    <span className="relative z-10">Contact Us</span>
+                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                  </Link>
+                </li>
+                <li>
+                  <Link to={ROUTES.POLICY_PRIVACY} className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
+                    <span className="relative z-10">Privacy Policy</span>
+                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                  </Link>
+                </li>
+                <li>
+                  <Link to={ROUTES.POLICY_TERMS} className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
+                    <span className="relative z-10">Terms of Service</span>
+                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                  </Link>
+                </li>
+                <li>
+                  <Link to={ROUTES.POLICY_SHIPPING} className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
+                    <span className="relative z-10">Shipping Policy</span>
+                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                  </Link>
+                </li>
+                <li>
+                  <Link to={ROUTES.POLICY_REFUND} className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
+                    <span className="relative z-10">Refund Policy</span>
                       <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                    </a>
+                  </Link>
                   </li>
-                ))}
               </ul>
             </div>
 
@@ -560,14 +893,42 @@ const LandingPage = () => {
                 <div className="absolute -bottom-2 left-0 w-8 h-0.5 bg-gradient-to-r from-orange-400 to-orange-600 rounded-full"></div>
               </h4>
               <ul className="space-y-3">
-                {['Virtual Try-On', 'AI Recommendations', 'Location-Based Search', 'Secure Payments', 'Fast Delivery', 'Analytics Dashboard'].map((feature, index) => (
-                  <li key={index}>
-                    <a href="#" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
-                      <span className="relative z-10">{feature}</span>
+                <li>
+                  <a href="#virtual-tryon" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
+                    <span className="relative z-10">Virtual Try-On</span>
+                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                  </a>
+                </li>
+                <li>
+                  <a href="#ai-recommendations" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
+                    <span className="relative z-10">AI Recommendations</span>
+                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                  </a>
+                </li>
+                <li>
+                  <a href="#location-search" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
+                    <span className="relative z-10">Location-Based Search</span>
+                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                  </a>
+                </li>
+                <li>
+                  <a href="#secure-payments" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
+                    <span className="relative z-10">Secure Payments</span>
                       <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
                     </a>
                   </li>
-                ))}
+                <li>
+                  <Link to={ROUTES.POLICY_SHIPPING} className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
+                    <span className="relative z-10">Fast Delivery</span>
+                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                  </Link>
+                </li>
+                <li>
+                  <Link to={ROUTES.POLICY_CONTACT} className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
+                    <span className="relative z-10">Support Center</span>
+                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                  </Link>
+                </li>
               </ul>
             </div>
           </div>
@@ -576,7 +937,7 @@ const LandingPage = () => {
           <div className="mt-16 pt-8 border-t border-white/10">
             <div className="text-center mb-8">
               <h3 className="text-2xl font-bold text-white mb-2">Ready to Join the Revolution?</h3>
-              <p className="text-gray-300">Choose your role and start your journey with ZAMMER</p>
+              <p className="text-gray-300">Choose your role and start your journey with ZAMMERNOW</p>
             </div>
             <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-2xl mx-auto">
               <Link 
@@ -627,19 +988,33 @@ const LandingPage = () => {
             <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
               <div className="text-center md:text-left">
                 <p className="text-gray-400 text-sm">
-                  © 2025 <span className="text-orange-400 font-bold">ZAMMER RETAIL PRIVATE LIMITED</span> - All Rights Reserved
+                  © 2025 <span className="text-orange-400 font-bold">ZAMMERNOW RETAIL PRIVATE LIMITED</span> - All Rights Reserved
                 </p>
                 <p className="text-gray-500 text-xs mt-1">
                   Empowering local fashion businesses with cutting-edge technology
                 </p>
               </div>
               <div className="flex flex-wrap justify-center gap-6 text-sm">
-                {['Privacy Policy', 'Terms of Service', 'Cookie Policy', 'Help Center'].map((link, index) => (
-                  <a key={index} href="#" className="text-gray-400 hover:text-orange-400 transition-colors duration-300 font-medium relative group">
-                    <span className="relative z-10">{link}</span>
+                <Link to={ROUTES.POLICY_PRIVACY} className="text-gray-400 hover:text-orange-400 transition-colors duration-300 font-medium relative group">
+                  <span className="relative z-10">Privacy Policy</span>
+                  <div className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                </Link>
+                <Link to={ROUTES.POLICY_TERMS} className="text-gray-400 hover:text-orange-400 transition-colors duration-300 font-medium relative group">
+                  <span className="relative z-10">Terms of Service</span>
+                  <div className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                </Link>
+                <Link to={ROUTES.POLICY_SHIPPING} className="text-gray-400 hover:text-orange-400 transition-colors duration-300 font-medium relative group">
+                  <span className="relative z-10">Shipping Policy</span>
+                  <div className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                </Link>
+                <Link to={ROUTES.POLICY_REFUND} className="text-gray-400 hover:text-orange-400 transition-colors duration-300 font-medium relative group">
+                  <span className="relative z-10">Refund Policy</span>
+                  <div className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
+                </Link>
+                <Link to={ROUTES.POLICY_CONTACT} className="text-gray-400 hover:text-orange-400 transition-colors duration-300 font-medium relative group">
+                  <span className="relative z-10">Contact Us</span>
                     <div className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                  </a>
-                ))}
+                </Link>
               </div>
             </div>
           </div>
