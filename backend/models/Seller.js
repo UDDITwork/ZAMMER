@@ -74,6 +74,18 @@ const sellerSchema = new mongoose.Schema({
         default: [0, 0]
       }
     },
+    city: {
+      type: String,
+      default: 'Mumbai'
+    },
+    state: {
+      type: String,
+      default: 'Maharashtra'
+    },
+    postalCode: {
+      type: String,
+      default: '400001'
+    },
     images: {
       type: [String],
       default: []

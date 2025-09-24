@@ -131,6 +131,103 @@ const OrderSchema = new mongoose.Schema({
       default: null
     }
   }],
+
+  // 🆕 CASHFREE PAYOUT INTEGRATION
+  payout: {
+    // Payout Status
+    status: {
+      type: String,
+      enum: ['not_eligible', 'eligible', 'processing', 'completed', 'failed', 'cancelled'],
+      default: 'not_eligible'
+    },
+    
+    // Commission Calculation
+    commission: {
+      platformCommission: {
+        type: Number,
+        default: 0
+      },
+      gstAmount: {
+        type: Number,
+        default: 0
+      },
+      totalCommission: {
+        type: Number,
+        default: 0
+      },
+      sellerAmount: {
+        type: Number,
+        default: 0
+      }
+    },
+    
+    // Payout Processing
+    processed: {
+      type: Boolean,
+      default: false
+    },
+    
+    processedAt: {
+      type: Date,
+      default: null
+    },
+    
+    // Payout Reference
+    payoutId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Payout',
+      default: null
+    },
+    
+    transferId: {
+      type: String,
+      default: null
+    },
+    
+    cfTransferId: {
+      type: String,
+      default: null
+    },
+    
+    transferUtr: {
+      type: String,
+      default: null
+    },
+    
+    // Batch Processing
+    batchTransferId: {
+      type: String,
+      default: null
+    },
+    
+    // Eligibility Check
+    eligibilityCheckedAt: {
+      type: Date,
+      default: null
+    },
+    
+    eligibilityNotes: {
+      type: String,
+      default: ''
+    },
+    
+    // Error Handling
+    payoutError: {
+      code: {
+        type: String,
+        default: null
+      },
+      message: {
+        type: String,
+        default: null
+      },
+      retryable: {
+        type: Boolean,
+        default: true
+      }
+    }
+  },
+
   taxPrice: {
     type: Number,
     required: true,

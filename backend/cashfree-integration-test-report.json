@@ -1,0 +1,45 @@
+{
+  "timestamp": "2025-09-20T10:15:45.194Z",
+  "summary": {
+    "passed": 46,
+    "failed": 7,
+    "warnings": 0,
+    "mismatches": 0,
+    "inconsistencies": 0
+  },
+  "details": {
+    "errors": [
+      {
+        "test": "API Endpoints Test",
+        "error": "Route.post() requires a callback function but got a [object Undefined]"
+      },
+      {
+        "test": "Payout Model Field Names",
+        "error": "Missing or mismatched payout fields: adminApproval"
+      },
+      {
+        "test": "Webhook Signature Test",
+        "error": "CashfreePayoutService is not a constructor"
+      },
+      {
+        "test": "Database Connection",
+        "error": "Database not connected"
+      },
+      {
+        "test": "Payout Routes Registration",
+        "error": "Payout routes not registered in server.js"
+      },
+      {
+        "test": "Payout Routes Import",
+        "error": "Payout routes not imported in server.js"
+      },
+      {
+        "test": "Payout Routes Mounting",
+        "error": "Payout routes not mounted at /api/payouts"
+      }
+    ],
+    "warnings": [],
+    "mismatches": [],
+    "inconsistencies": []
+  }
+}

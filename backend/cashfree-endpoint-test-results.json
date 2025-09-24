@@ -1,0 +1,172 @@
+{
+  "timestamp": "2025-09-20T14:58:55.381Z",
+  "baseURL": "https://api.cashfree.com/payout",
+  "summary": {
+    "total": 13,
+    "successful": 8,
+    "failed": 5
+  },
+  "results": [
+    {
+      "endpoint": "/beneficiary",
+      "method": "POST",
+      "version": "2024-01-01",
+      "success": false,
+      "status": 404,
+      "error": "Request failed with status code 404",
+      "data": {
+        "message": "something went wrong, please try after some time",
+        "code": "api_error",
+        "type": "internal_error"
+      }
+    },
+    {
+      "endpoint": "/beneficiaries",
+      "method": "POST",
+      "version": "2024-01-01",
+      "success": true,
+      "status": 200,
+      "data": {
+        "subCode": "403",
+        "message": "Token is not valid",
+        "status": "ERROR"
+      }
+    },
+    {
+      "endpoint": "/v2/beneficiary",
+      "method": "POST",
+      "version": "2024-01-01",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/v2/beneficiaries",
+      "method": "POST",
+      "version": "2024-01-01",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/api/v2/beneficiary",
+      "method": "POST",
+      "version": "2024-01-01",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/api/v2/beneficiaries",
+      "method": "POST",
+      "version": "2024-01-01",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/beneficiary",
+      "method": "POST",
+      "version": "2023-01-01",
+      "success": false,
+      "status": 404,
+      "error": "Request failed with status code 404",
+      "data": {
+        "message": "something went wrong, please try after some time",
+        "code": "api_error",
+        "type": "internal_error"
+      }
+    },
+    {
+      "endpoint": "/beneficiary",
+      "method": "POST",
+      "version": "2022-01-01",
+      "success": false,
+      "status": 404,
+      "error": "Request failed with status code 404",
+      "data": {
+        "message": "something went wrong, please try after some time",
+        "code": "api_error",
+        "type": "internal_error"
+      }
+    },
+    {
+      "endpoint": "/beneficiary",
+      "method": "POST",
+      "version": "2021-01-01",
+      "success": false,
+      "status": 404,
+      "error": "Request failed with status code 404",
+      "data": {
+        "message": "something went wrong, please try after some time",
+        "code": "api_error",
+        "type": "internal_error"
+      }
+    },
+    {
+      "endpoint": "/beneficiary",
+      "method": "GET",
+      "version": "2024-01-01",
+      "success": false,
+      "status": 404,
+      "error": "Request failed with status code 404",
+      "data": {
+        "message": "something went wrong, please try after some time",
+        "code": "api_error",
+        "type": "internal_error"
+      }
+    },
+    {
+      "endpoint": "/beneficiaries",
+      "method": "GET",
+      "version": "2024-01-01",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/account/balance",
+      "method": "GET",
+      "version": "2024-01-01",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/credentials/verify",
+      "method": "GET",
+      "version": "2024-01-01",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    }
+  ]
+}

@@ -1,0 +1,1533 @@
+To extract the **complete documentation needed to integrate Cashfree Payouts V2 APIs** for your use case (where you run a platform, receive payments from buyers, and must automate payouts to multiple online sellers/vendors), follow these steps for **production environment-ready integration**:
+
+***
+
+### 1. **Overview & Use Cases**
+**Cashfree Payouts APIs** are designed to let businesses like yours automate vendor payments, customer refunds, and bulk disbursals, supporting various methods (IMPS, NEFT, UPI, Card, Wallets, etc.). They eliminate the need for complex manual uploads and let you settle seller payments programmatically.[1]
+
+***
+
+### 2. **Endpoints**
+- **Production Base URL**:  
+  `https://api.cashfree.com/payout`
+- **Test Base URL**:  
+  `https://sandbox.cashfree.com/payout`
+- Use the Production base URL for your live platform.
+
+***
+
+### 3. **How to Generate V2 API Keys (for Production Use)**
+- Log in to your **Cashfree Payouts Dashboard**.
+- Go to **Developers > API Keys**.
+- Click **Generate API Keys**. You will get a Client ID and Secret Key (keep them confidential!).
+- **For production**, an OTP authentication is needed.  
+- Maximum 10 API keys can be generated at the same time.
+
+***
+
+### 4. **Whitelisting IP Address**
+- From the dashboard: **Developers > Two-Factor Authentication > IP Whitelist**.
+- Add your server’s IPv4 for production (not required for sandbox).
+- You can add up to 25 IPs.
+- Whitelisting is mandatory for production API requests.
+
+***
+
+### 5. **API Signature (if IP is not whitelisted)**
+- Public Key: **Developers > Two-Factor Authentication > Public Key**. Download and use to generate the signature.
+- Each request should then carry:
+  - **X-Client-Id**, **X-Client-Secret**, **X-Api-Version** (e.g. `2024-01-01`), and optionally **X-Cf-Signature**.
+
+***
+
+### 6. **Key API Documentation for Settling Seller Payments**
+You’ll mostly need:
+- **Create Beneficiary V2**: Register sellers’ bank accounts.
+- **Standard Transfer V2**: Settle payments to each seller, specifying:
+  - Unique transfer reference
+  - Seller (beneficiary) details
+  - Transfer amount, mode (bank/imps/upi/etc)
+- **Batch Transfer V2**: Pay multiple sellers in one API call.
+- **Get Transfer Status V2**/**Get Batch Transfer Status V2**: Check settlement status.
+
+**See example cURL/JSON request for Standard Transfer V2:**
+```bash
+curl --request POST \
+  --url https://api.cashfree.com/payout/transfers \
+  --header 'Content-Type: application/json' \
+  --header 'x-api-version: 2024-01-01' \
+  --header 'x-client-id: <YOUR-CLIENT-ID>' \
+  --header 'x-client-secret: <YOUR-SECRET-KEY>' \
+  --data '{
+      "transfer_id": "ORDER123",
+      "transfer_amount": 1000.50,
+      "beneficiary_details": {
+          "beneficiary_id": "SELLER789"
+      }
+    }'
+```
+Full parameter details for each API are available in the [Standard Transfer V2 documentation].
+
+**Complete production documentation for all V2 APIs (including body/response/headers) is linked below**:
+- [Create Beneficiary V2]
+- [Get Beneficiary V2]
+- [Remove Beneficiary V2]
+- [Standard Transfer V2]
+- [Batch Transfer V2]
+- [Get Transfer Status V2]
+- [Get Batch Transfer Status V2]
+
+***
+
+### 7. **Complete API Documentation Access**
+Each API endpoint provides all headers, request/response body, code samples, and authentication requirements in the official Cashfree developer docs.
+
+For **full export**:
+- **Download the Payouts Postman collection**: [Cashfree Payouts Collection](https://gocashassets.s3.ap-south-1.amazonaws.com/repostmancollection/Cashfree_Payouts_Collection.json.zip)  
+- Import in Postman for quick export, testing, and viewing structure.
+
+***
+
+### How to Extract All This Data Completely:
+- Open all the links above for V2 APIs (production environment).
+- Download the official Postman Collection for full ready-to-use endpoint definitions.
+- If you wish to fully scrape/archive, use tools like wget or site downloaders on the Cashfree docs root or manually compile from the open API documentation.
+
+***
+
+**Summary:**  
+You have the full step-by-step workflow for production-ready vendor payouts using Cashfree V2 APIs. You can extract, document, and integrate without missing any API details by using both the live docs and Postman collection.[1]
+
+***
+
+**References:**  
+:
+
+**References:**  
+
+Standard Transfer V2 (API docs)  
+:reate Beneficiary V2  
+:et Beneficiary V2  
+Remove Beneficiary V2  
+Batch Transfer V2  
+Get Transfer Status V2  
+Get Batch Transfer Status V2
+
+[1](https://www.cashfree.com/docs/api-reference/payouts/overview)
+Overview
+In this article, you will learn the benefits of using v2 APIs and the list of APIs that have the version 2 capabilities.
+
+
+In today’s fast-paced digital landscape, businesses are constantly seeking innovative solutions to streamline their payout integrations, processes, and eventually enhance their customer experiences. At Cashfree Payments, we understand the importance of offering robust and efficient APIs to empower developers and businesses alike. That’s why we’re thrilled to introduce v2 APIs – the next evolution in our mission to revolutionise payouts integration.
+​
+What are the benefits of using v2 APIs?
+Enhanced versioning
+Our v2 APIs allow for a seamless incorporation of future breaking and non-breaking changes on existing endpoints. In essence, the improved versioning strategies aim to provide a balance between innovation and stability.
+Standardised API request and response
+The request and response parameters of version 2 APIs follow a particular standard for clarity and consistency. The idea behind the standardisation is to make it easy for you to understand and work with the APIs, simplifying the integration processes.
+Standardised error code
+The error codes too follow a particular standard. They give you a quick diagnosis of the issue and provide a resolution to troubleshoot the error. This reduced your need to raise support tickets and enhances your experience with Cashfree Payments.
+Standardised Cashfree Payments
+We are working towards the standardisation of our services across the platform that facilitates easy onboarding and ease in the idea of familiarity for you even with other services.
+Consolidating transfer APIs
+The version 2 APIs simplifies the process of selecting the correct API for merchants, streamlines transfer APIs, and reduces integration issues.
+​
+End Points
+Environment	Base URL
+Production	https://api.cashfree.com/payout
+Test	https://sandbox.cashfree.com/payout
+​
+Version 2 APIs
+Find the respective version 2 APIs.
+​
+Beneficiary V2
+API	Description
+Create Beneficiary	Use this API to add a beneficiary to your Cashfree Payments account by providing the bank account number, IFSC, and other required details.
+Get Beneficiary	Use this API to get the details of a particular beneficiary from your account.
+Remove Beneficiary	Use this API to remove an existing beneficiary from the list of added beneficiaries.
+​
+Transfers V2
+API	Description
+Standard Transfer V2	Use this API to initiate an amount transfer at Cashfree Payments. It is an async request by default.
+Get Transfer Status V2	Use this API to get the status of the initiated transfer.
+Batch Transfer V2	Use this API to initiate a batch transfer request at Cashfree Payments. You can transfer money to multiple beneficiaries.
+Get Batch Transfer Status V2	Use this API to get the status of the initiated batch transfer.
+Create Beneficiary V2
+Use this API to add a beneficiary to your Cashfree Payments account by providing the bank account number, IFSC, and other required details. Ensure the successful creation of the benficiary in your account before initiating a transfer.
+
+POST request - https://api.cashfree.com/payout/beneficiary
+const url = 'https://api.cashfree.com/payout/beneficiary';
+const options = {
+  method: 'POST',
+  headers: {
+    'x-api-version': '2024-01-01',
+    'x-client-id': '<api-key>',
+    'x-client-secret': '<api-key>',
+    'Content-Type': 'application/json'
+  },
+  body: '{"beneficiary_id":"JOHN18011343","beneficiary_name":"John Doe","beneficiary_instrument_details":{"bank_account_number":"1223334444","bank_ifsc":"HDFC0000001","vpa":"test@upi"},"beneficiary_contact_details":{"beneficiary_email":"sample@cashfree.com","beneficiary_phone":"9876543210","beneficiary_country_code":"+91","beneficiary_address":"177A Bleecker Street","beneficiary_city":"New York City","beneficiary_state":"New York","beneficiary_postal_code":"560011"}}'
+};
+
+try {
+  const response = await fetch(url, options);
+  const data = await response.json();
+  console.log(data);
+} catch (error) {
+  console.error(error);
+}
+Beneficiary V2
+Create Beneficiary V2
+Use this API to add a beneficiary to your Cashfree Payments account by providing the bank account number, IFSC, and other required details. Ensure the successful creation of the benficiary in your account before initiating a transfer.
+POST 
+https://api.cashfree.com/payout/beneficiary
+const url = 'https://api.cashfree.com/payout/beneficiary';
+const options = {
+  method: 'POST',
+  headers: {
+    'x-api-version': '2024-01-01',
+    'x-client-id': '<api-key>',
+    'x-client-secret': '<api-key>',
+    'Content-Type': 'application/json'
+  },
+  body: '{"beneficiary_id":"JOHN18011343","beneficiary_name":"John Doe","beneficiary_instrument_details":{"bank_account_number":"1223334444","bank_ifsc":"HDFC0000001","vpa":"test@upi"},"beneficiary_contact_details":{"beneficiary_email":"sample@cashfree.com","beneficiary_phone":"9876543210","beneficiary_country_code":"+91","beneficiary_address":"177A Bleecker Street","beneficiary_city":"New York City","beneficiary_state":"New York","beneficiary_postal_code":"560011"}}'
+};
+
+try {
+  const response = await fetch(url, options);
+  const data = await response.json();
+  console.log(data);
+} catch (error) {
+  console.error(error);
+}
+RESPONSE 201
+{
+  "beneficiary_id": "JOHN18011343",
+  "beneficiary_name": "John Doe",
+  "beneficiary_instrument_details": {
+    "bank_account_number": "1223334444",
+    "bank_ifsc": "HDFC0000001",
+    "vpa": "test@upi"
+  },
+  "beneficiary_contact_details": {
+    "beneficiary_email": "sample@cashfree.com",
+    "beneficiary_phone": "9876543210",
+    "beneficiary_country_code": "+91",
+    "beneficiary_address": "177A Bleecker Street",
+    "beneficiary_city": "New York City",
+    "beneficiary_state": "New York",
+    "beneficiary_postal_code": "560011"
+  },
+  "beneficiary_status": "VERIFIED",
+  "added_on": "2023-12-04T15:50:00Z"
+}
+RESPONSE 400
+{
+  "type": "invalid_request_error",
+  "code": "beneficiary_id_length_exceeded",
+  "message": "beneficiary_id : should not be more than 50 characters long. value received: kl12b3rkh1bv234lkbr3jl24tbrlk234bkt234t134kbr1hk34jr"
+}
+Note: Cashfree no longer support adding beneficiaries with Paytm UPI handles.
+HTTP Status Code	Error Code	Message	Next Action
+201	-	-	-
+400	beneficiary_id_length_exceeded	beneficiary_id : should not be more than 50 characters long. value received: test_bene_id	Enter a valid beneficiary_id.
+400	beneficiary_id_invalid	beneficiary_id : should contain only letters, numbers, hyphen, underscore, pipe, and dot. Value received: .\qewqefwqev	Enter a valid beneficiary_id.
+400	bank_ifsc_missing	bank_ifsc : should be provided with the request if bank_account_number is provided	Provide a valid bank_ifsc if bank_account_number is provided.
+400	bank_account_number_missing	bank_account_number: should be provided with the request if bank_ifsc is provided	Provide a valid bank_account_number is bank_ifsc is provided.
+400	bank_account_number_length_exceeded	bank_account_number : should not be more than 25 characters long. value received: 235142352346523462456345263452345	Provide a valid bank_account_number.
+400	bank_account_number_length_short	bank_account_number : should not be less than 4 characters long. value received: 12	Provide a valid bank_account_number.
+400	bank_account_number_invalid	bank_account_number : should be alphanumeric. value received: 123@	Provide a valid bank_account_number.
+400	bank_ifsc_invalid	bank_ifsc : please provide a valid IFSC. value received: SBIN00708410	Provide a valid bank_ifsc.
+400	beneficiary_purpose_invalid	beneficiary_purpose : invalid value provided. Value received: paytm	Provide a valid beneficiary_purpose.
+409	beneficiary_id_already_exists	Beneficiary already exists with the given beneficiary_id	Provide a beneficiary_id that is not in use
+409	beneficiary_already_exists	Beneficiary already exists with the given bank_account_number and bank_ifsc	Use the GET API to get the details of the existing beneficiary using bank_account_number and bank_ifsc
+422	bank_account_number_same_as_source	bank_account_number provided is the same as source bank account	Enter a bank_account_number that is different from the source bank account
+422	vba_beneficiary_not_allowed	Virtual bank account as bank_account_number for the beneficiary is not allowed	Enter the actual bank_account_number instead of the virtual account number
+Authorizations
+​
+x-client-id
+stringheaderrequired
+Client ID. You can find your app id in the Merchant Dashboard.
+
+​
+x-client-secret
+stringheaderrequired
+Client secret key. You can find your secret in the Merchant Dashboard.
+
+Headers
+​
+x-api-version
+stringdefault:2024-01-01required
+It is the API version to be used. The accepted format is YYYY-MM-DD.
+
+​
+x-request-id
+string
+It is the request ID for the API call. This ID can be used to resolve tech realted issues. Communicate this in your tech related queries to Cashfree Payments.
+
+​
+x-cf-signature
+string
+Signature to be sent if IP is not whitelisted.
+
+Body
+application/json
+Find the request parameters to create a beneficiary
+
+​
+beneficiary_id
+stringrequired
+It is the unique ID you create to identify the beneficiary. Alphanumeric, underscore ( _ ), pipe ( | ), and dot ( . ) are allowed.
+
+Maximum length: 50
+Example:
+"JOHN18011343"
+
+​
+beneficiary_name
+stringrequired
+It is the name of the beneficiary. The maximum character limit is 100. Only alphabets and whitespaces are allowed.
+
+Maximum length: 100
+Example:
+"John Doe"
+
+​
+beneficiary_instrument_details
+object
+Beneficiary instrument details
+
+Hide child attributes
+
+​
+beneficiary_contact_details
+object
+It should contain the contact details of the beneficiary.
+
+Hide child attributes
+
+Response
+
+201
+
+application/json
+OK
+
+Contains the information of the created beneficiary
+
+​
+beneficiary_id
+string
+It displays the unique Id you created to identify the beneficiary.
+
+Example:
+"JOHN18011343"
+
+​
+beneficiary_name
+string
+It displays the name of the beneficiary.
+
+Example:
+"John Doe"
+
+​
+beneficiary_instrument_details
+object
+It displays the payment instrument details of the beneficiary.
+
+Show child attributes
+
+​
+beneficiary_contact_details
+object
+It displays the contact details of the beneficiary.
+
+Show child attributes
+
+​
+beneficiary_status
+enum<string>
+It displays the current status of the beneficiary. Possible values are as follows
+
+VERIFIED: Beneficiary is verified and is available for payouts
+INVALID: Beneficiary is invalid
+INITIATED: Beneficiary verification initiated
+CANCELLED: Beneficiary verification cancelled
+FAILED: Failed to verify beneficiary
+DELETED: Beneficiary is deleted
+Available options: VERIFIED, INVALID, INITIATED, CANCELLED, FAILED, DELETED 
+Example:
+"VERIFIED"
+
+​
+added_on
+string
+It displays the time of the addition of the beneficiary in UTC.
+
+Example:
+"2023-11-22T12:38:22Z"
+Beneficiary V2
+Get Beneficiary V2
+Use this API to get the details of a particular beneficiary from your account. You can pass either beneficiary_id or the combination of bank_account_number and bank_ifsc to fetch the details.
+POST
+https://api.cashfree.com/payout/beneficiary
+const url = 'https://api.cashfree.com/payout/beneficiary';
+const options = {
+  method: 'GET',
+  headers: {
+    'x-api-version': '<x-api-version>',
+    'x-client-id': '<api-key>',
+    'x-client-secret': '<api-key>'
+  },
+  body: undefined
+};
+
+try {
+  const response = await fetch(url, options);
+  const data = await response.json();
+  console.log(data);
+} catch (error) {
+  console.error(error);
+}
+200 RESPONSE CODE 
+{
+  "beneficiary_id": "JOHN18011343",
+  "beneficiary_name": "John Doe",
+  "beneficiary_instrument_details": {
+    "bank_account_number": "1223334444",
+    "bank_ifsc": "HDFC0000001",
+    "vpa": "test@upi"
+  },
+  "beneficiary_contact_details": {
+    "beneficiary_email": "sample@cashfree.com",
+    "beneficiary_phone": "9876543210",
+    "beneficiary_country_code": "+91",
+    "beneficiary_address": "177A Bleecker Street",
+    "beneficiary_city": "New York City",
+    "beneficiary_state": "New York",
+    "beneficiary_postal_code": "560011"
+  },
+  "beneficiary_status": "VERIFIED",
+  "added_on": "2023-12-04T15:50:00Z"
+}
+400 
+{
+  "type": "invalid_request_error",
+  "code": "beneficiary_not_found",
+  "message": "Beneficiary does not exist"
+}
+404 RESPONSE 
+{
+  "type": "invalid_request_error",
+  "code": "beneficiary_not_found",
+  "message": "Beneficiary does not exist"
+}
+500 ERROR 
+{
+  "type": "api_error",
+  "code": "internal_server_error",
+  "message": "Error at cashfree's server"
+}
+HTTP Status Code	Error Code	Message	Next Action
+200	-	-	-
+400	too_many_parameters_in_request	Please provide either bank_account_number and bank_ifsc together or beneficiary_id alone. Do not include all three parameters in the request	Please provide either bank_account_number and bank_ifsc together or beneficiary_id alone. Do not include all three parameters in the request.
+400	bank_ifsc_missing	bank_ifsc : should be provided with the request if bank_account_number is provided	Provide a valid bank_ifsc if bank_account_number is provided.
+400	bank_account_number_missing	bank_account_number: should be provided with the request if bank_ifsc is provided	Provide a valid bank_account_number is bank_ifsc is provided.
+400	beneficiary_identifiers_missing	beneficiary_identifiers_missing beneficiary_identifiers : Either beneficiary_id or the combination of bank_account_number and bank_ifsc has to be provided with the request	Please provide either beneficiary_id or the combination of bank_account_number and bank_ifsc.
+400	beneficiary_id_length_exceeded	beneficiary_id : should not be more than 50 characters long. value received: test_bene_id	Enter a valid beneficiary_id
+400	beneficiary_id_invalid	beneficiary_id : should contain only letters, numbers, hyphen, underscore, pipe, and dot. Value received: .\qewqefwqev	Enter a valid beneficiary_id.
+400	bank_account_number_length_exceeded	bank_account_number : should not be more than 25 characters long. value received: 235142352346523462456345263452345	Provide a valid bank_account_number.
+400	bank_account_number_length_short	bank_account_number : should not be less than 4 characters long. value received: 12	Provide a valid bank_account_number.
+.400	bank_account_number_invalid	bank_account_number : should be alphanumeric. value received: 123@	Provide a valid bank_account_number.
+400	bank_ifsc_invalid	bank_ifsc : please provide a valid IFSC. value received: SBIN00708410	Provide a valid bank_ifsc.
+404	beneficiary_not_found	Beneficiary does not exist	Provide the details of an existing beneficiary. If such a beneficiary does not exist, use CREATE API to create a new beneficiary.
+404	beneficiary_not_found	Beneficiary with the given bank_account_number and bank_ifsc does not exist	Provide the details of an existing beneficiary. If such a beneficiary does not exist, use CREATE API to create a new beneficiary
+404	beneficiary_not_found	Beneficiary exists with the given bank_account_number but a different bank_ifsc	If the required a beneficiary does not exist, use CREATE API to create a new beneficiary
+Authorizations
+​
+x-client-id
+stringheaderrequired
+Client ID. You can find your app id in the Merchant Dashboard.
+
+​
+x-client-secret
+stringheaderrequired
+Client secret key. You can find your secret in the Merchant Dashboard.
+
+Headers
+​
+x-api-version
+stringdefault:2024-01-01required
+It is the API version to be used. The accepted format is YYYY-MM-DD.
+
+​
+x-request-id
+string
+It is the request ID for the API call. This ID can be used to resolve tech realted issues. Communicate this in your tech related queries to Cashfree Payments.
+
+​
+x-cf-signature
+string
+Signature to be sent if IP is not whitelisted.
+
+Query Parameters
+​
+beneficiary_id
+string
+It is the unique ID you created to identify the beneficiary while creating the beneficiary.
+
+Maximum length: 50
+​
+bank_account_number
+string
+It is the bank account number of the beneficiary. If bank_account_number is passed in query, bank_ifsc should also be passed.
+
+Required string length: 4 - 25
+​
+bank_ifsc
+string
+It is the IFSC information as present in the beneficiary's bank account information. If bank_ifsc is passed in query, bank_account_number should also be passed.
+
+Required string length: 11
+Response
+
+200
+
+application/json
+OK
+
+Contains the information of the created beneficiary
+
+​
+beneficiary_id
+string
+It displays the unique Id you created to identify the beneficiary.
+
+Example:
+"JOHN18011343"
+
+​
+beneficiary_name
+string
+It displays the name of the beneficiary.
+
+Example:
+"John Doe"
+
+​
+beneficiary_instrument_details
+object
+It displays the payment instrument details of the beneficiary.
+beneficiary_contact_details
+object
+It displays the contact details of the beneficiary.
+
+Hide child attributes
+
+​
+beneficiary_status
+enum<string>
+It displays the current status of the beneficiary. Possible values are as follows
+
+VERIFIED: Beneficiary is verified and is available for payouts
+INVALID: Beneficiary is invalid
+INITIATED: Beneficiary verification initiated
+CANCELLED: Beneficiary verification cancelled
+FAILED: Failed to verify beneficiary
+DELETED: Beneficiary is deleted
+Available options: VERIFIED, INVALID, INITIATED, CANCELLED, FAILED, DELETED 
+Example:
+"VERIFIED"
+
+​
+added_on
+string
+It displays the time of the addition of the beneficiary in UTC.
+
+Example:
+"2023-11-22T12:38:22Z"
+
+Transfers V2
+Get Transfer Status V2
+
+Open in ChatGPT
+
+Use this API to get the status of the initiated transfer. You can use either the transfer_id or cf_transfer_id to fetch the details.
+const url = 'https://api.cashfree.com/payout/transfers';
+const options = {
+  method: 'GET',
+  headers: {
+    'x-api-version': '<x-api-version>',
+    'x-client-id': '<api-key>',
+    'x-client-secret': '<api-key>'
+  },
+  body: undefined
+};
+
+try {
+  const response = await fetch(url, options);
+  const data = await response.json();
+  console.log(data);
+} catch (error) {
+  console.error(error);
+}
+200 RESPONSE CODE 
+{
+  "transfer_id": "JUNOB2018",
+  "cf_transfer_id": "123456",
+  "status": "RECEIVED",
+  "status_code": "RECEIVED",
+  "status_description": "The transfer has been received by Cashfree successfully for further processing. You should use Check Status API response or Webhooks to know the terminal state of the transfer request.",
+  "beneficiary_details": {
+    "beneficiary_id": "JOHN18011"
+  },
+  "transfer_amount": 1,
+  "transfer_mode": "BANK",
+  "fundsource_id": "CASHFREE_1",
+  "added_on": "2021-11-24T13:39:25Z",
+  "updated_on": "2021-11-24T13:40:27Z"
+}
+403 RESPONSE CODE 
+
+{
+  "type": "invalid_request_error",
+  "code": "apis_not_enabled",
+  "message": "APIs not enabled. Please fill out the [Support Form](https://merchant.cashfree.com/merchants/landing?env=prod&raise_issue=1)"
+}
+For batch transfers, check the status of individual transfers only after the batch status is PROCESSED.
+HTTP Status Code	Status	Status Code	Status Description	Next Action	Try again via Cashfree - Yes or No
+200	APPROVAL_PENDING	VELOCITY_CHECK_FAILED	The transfer requires an approval as the count of transfers to a particular beneficiary etc have breached the limit. You can approve or reject the transfer request from the Cashfree Merchant Dashboard.	You can approve/reject the transfer on the Merchant Dashboard. Go to: Transfers > Approve tab. Post the transfer is approved, the request is sent to the partner bank for further processing.	-
+200	APPROVAL_PENDING	TRANSFER_LIMIT_BREACH	The transfer requires an approval as the transfer amount etc have breached the limit. You can approve or reject the transfer request from the Cashfree Merchant Dashboard.	You can approve/reject the transfer on the Merchant Dashboard. Go to: Transfers > Approve tab. Post the transfer is approved, the request is sent to the partner bank for further processing.	-
+200	APPROVAL_PENDING	APPROVAL_PENDING	The transfer requires approval. You can approve or reject the transfer request from the Cashfree Merchant Dashboard.	You can approve/reject the transfer on the Merchant Dashboard. Go to: Transfers > Approve tab. Post the transfer is approved, the request is sent to the partner bank for further processing.	-
+200	APPROVAL_PENDING	ANOMALY_DETECTION	The transfer requires approval as it is a high risk transaction detected by Payout Protect model. You can approve or reject the transfer request from the Cashfree Merchant Dashboard under Payout Protect > Risky Transfers > Flagged transfers	You can approve/reject the transfer on the Merchant Dashboard. Go to: Payout Protect > Risky Transfers > Flagged Transfers tab. Post the transfer is approved, the request is sent to the partner bank for further processing.	
+200	FAILED	WAIT_TIME_EXCEEDED	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	FAILED	BENE	The transfer has failed because the beneficiary bank has declined the transfer. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with the partner bank(s).	-	Yes
+200	FAILED	IMPS_MODE_FAIL	The transfer has failed because the beneficiary account doesnot support IMPS transfers. This rejection is done by the partner bank for the specific beneficiary account. You can try NEFT or other channels to do the disbursals.	You can try NEFT or other channels to do the disbursals.	Yes, via a different mode
+200	FAILED	SOURCE_BENE_DECLINED	The transfer has failed because our partner bank has declined the transfer because of their internal checks, technical declines etc. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with other partner bank(s).	Yes
+200	FAILED	CONNECTION_TIMEOUT	The transfer has failed because there was a connection timeout between the bank and Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with the partner bank(s).	YES
+200	FAILED	PAYOUT_INTERNAL_ERROR	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	-	Yes
+200	FAILED	NPCI_UNAVAILABLE	The transfer has failed because NPCI was unavailable to complete the transfer request. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree. The success of the request is contingent on NPCI services being up.	-	Yes, after some time.
+200	FAILED	DEST_LIMIT_REACHED	The transfer has failed because the beneficiary account has breached the limit of receiving funds. This rejection is done by the beneficiary bank for the specific beneficiary account. You can reinitiate the transfer after a while via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s). The success of the request is contingent on beneficiary’s limit being available to receive incoming funds.	-	Yes, after some time.
+200	FAILED	RETURNED_FROM_BENEFICIARY	The transfer has failed because the beneficiary bank has returned the transfer and has not need able to credit funds to the end beneficiary. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with the partner bank(s).	-	-
+200	FAILED	PAYOUT_INTERNAL_ERROR	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	-	-
+200	FAILED	INVALID_BENE_ACCOUNT_OR_IFSC	The transfer has failed because the beneficiary account or IFSC is invalid. After correcting the beneficiary account or IFSC, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	-	-
+200	FAILED	PAYOUT_INTERNAL_ERROR	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	-	-
+200	FAILED	FAILED	The transfer has failed because there was an intermittent issue at the partner bank’s end. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after some time.
+200	FAILED	PAYOUT_INTERNAL_ERROR	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	-	-
+200	FAILED	INSUFFICIENT_BALANCE	The transfer has failed because of low balance in your Cashfree Wallet/ Bank Account. After recharging the account, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After recharging the account, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after recharging.
+200	FAILED	INVALID_BENE_VPA	The transfer has failed because the beneficiary VPA is invalid. After correcting the VPA handle, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the VPA handle, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after correcting VPA handle.
+200	FAILED	INVALID_IFSC_FAIL	The transfer has failed because the IFSC is invalid. After correcting the IFSC, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the IFSC, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after correcting IFSC
+200	FAILED	BAD_GATEWAY	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	FAILED	INVALID_AMOUNT_FAIL	The transfer has failed because the amount entered is invalid. After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after correcting the amount
+200	FAILED	INVALID_ACCOUNT_FAIL	The transfer has failed because the Account Number of the beneficiary is invalid, as per our partner bank. After correcting the account number, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the account number, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after correcting the account number
+200	FAILED	INVALID_REQUEST	The transfer has failed because the transfer request is invalid, as per our partner bank, because of exceeding the character limit of certain parameter, wrong input etc. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	-	-
+200	FAILED	ACCOUNT_BLOCKED	The transfer has failed because the account is blocked, as per our partner bank. After getting the account unblocked, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After getting the account unblocked, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after unblocking the account number
+200	FAILED	DEBIT_FAILURE	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	FAILED	BENEFICIARY_BANK_OFFLINE	The transfer has failed because the respective beneficiary bank is offline. After some time, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After some time, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s)	Yes
+200	FAILED	AUTHENTICATION_FAILURE	The transfer has failed because there was an authentication failure at the partner bank’s end. After checking with the partner bank, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	This is a scenario when the API access is not working at the partner bank’s end. After checking with the partner bank, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	FAILED	NRE_ACCOUNT_FAIL	The transfer has failed because the beneficiary account is an NRE Account and transfers to NRE Accounts are not supported, as per our partner bank.	Get a new account(non-NRE account) from the beneficiary; you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	No
+200	FAILED	SOURCE_LIMIT_REACHED	The transfer has been failed by the partner bank as the source bank account has reached a limit of transferring funds. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	If you are on Cashfree Wallet, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s). If you are on Connected Bank, you need to recharge your bank account and then reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after some time.
+200	FAILED	BANK_GATEWAY_ERROR	The transfer has failed because there was an intermittent issue at the partner bank’s end. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	FAILED	BAD_REQUEST	The transfer has failed because the details of the transfer request is invalid, as per our partner bank. After correcting the details in the transfer request, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the details in the transfer request, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	FAILED	REINITIALIZE_TRANSFER_LATER	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	MANUALLY_REJECTED	MANUALLY_REJECTED	The transfer has failed because it has been manually rejected by the merchant or any team member user who has the permissions to do the same on Merchant Dashboard. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with the partner bank(s).	If the merchant wants to reinitiate the transfer, they can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with the partner bank(s).	Yes, if you want to reinitiate the transfer
+200	PENDING	SENT_TO_BANK	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. This has been sent to the bank by our banking operations team. Please do check statuses or await webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks.	-
+200	PENDING	BANK_GATEWAY_ERROR	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks	-
+200	PENDING	NO_SUCH_REQUEST	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. The bank is not able to find the request at their end as of now, and it has been sent to the bank by our banking operations team. Please do check statuses or await webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks.	-
+200	PENDING	IN_PROCESS	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. Please do check statuses or await webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks	-
+200	PENDING	ERROR_FETCHING_STATUS	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. The response received from the partner bank has a new code. This has been raised with the bank to understand the new code. Please do check statuses or await webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks	-
+200	PENDING	TRANSACTION_PROCESSED	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks	-
+200	PENDING	REQUEST_TIMEDOUT	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. The bank is not able to find the request at their end as of now as the request between the partner bank has probably timed out, and it has been highlighted to the bank by our banking operations team. Please do check statuses or await webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks	-
+200	PENDING	DUPLICATE	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. The bank claims of receiving a duplicate request at their end as of now. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks	-
+200	PENDING	-	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks	-
+200	PENDING	SCHEDULED_FOR_NEXT_WORKINGDAY	The transfer is currently in a Pending state, as the bank has scheduled the transfer for the next working day. This typically happens for NEFT/RTGS transfers if they are initiated beyond the cut-off hours or during bank holidays. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks	-
+200	PENDING	SUSPECT	The transfer is currently in a Pending state, as the bank has scheduled the transfer for the next working day. This typically happens for NEFT/RTGS transfers if they are initiated beyond the cut-off hours or during bank holidays. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks	-
+200	PENDING	IMPLEMENTATION_ERROR	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks	-
+200	PENDING	UNKNOWN_ERROR_CODE	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. The response received from the partner bank has a new code. This has been raised with the bank to understand the new code. Please do check statuses or await webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks	-
+200	QUEUED	QUEUED	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks	-
+200	RECEIVED	RECEIVED	The transfer has been received by Cashfree successfully for further processing. You should use Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks	-
+200	REJECTED	BENE_NOT_EXIST	The transfer has been rejected because the beneficiary, added in the transfer request, does not exist. After adding the right beneficiary, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After adding the right beneficiary, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after adding the correct beneficiary
+200	REJECTED	INSUFFICIENT_BALANCE	The transfer has been rejected because of low balance in your Cashfree Wallet. After recharging the account, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After recharging the account, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after recharging the account
+200	REJECTED	INSIDE_BLACKOUT_WINDOW	The transfer has been rejected because the transfer falls under the blackout window defined by you in Payout Protect. You can reinitiate the transfer via Cashfree, after the blackout window or after modifying the blackout window from the Merchant Dashboard, so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree, after the blackout window or after modifying the blackout window from the Merchant Dashboard, so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	REJECTED	INVALID_MODE_FOR_PYID	The transfer has been rejected because the payment instrument does not support this mode of transfer. You should get this mode activated on the payment instrument ID by contacting Cashfree, and then initiate a new transfer request.	You should get this mode activated on the payment instrument ID by contacting Cashfree, and then initiate a new transfer request.	Yes, after activating mode
+200	REJECTED	BENE_BLACKLISTED	The transfer has been rejected because the beneficiary’s bank account and/or VPA handles have been blacklisted by Risk team. You should get a different bank account and/or VPA to send the transfer, or you can connect with Cashfree Team to understand more about this.	You should get a different bank account and/or VPA to send the transfer, or you can connect with Cashfree Team to understand more about this.	Yes, after correcting beneficiary details
+200	REJECTED	TRANSFER_NOT_ATTEMPTED	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	REJECTED	INVALID_TRANSFER_AMOUNT	The transfer has been rejected because the amount entered is invalid. After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after correcting the amount
+200	REJECTED	TRANSFER_LIMIT_BREACH	The transfer has been rejected because the amount entered breaches the limits set for your payout account. After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s). You can connect with Cashfree if you are not sure about the transfer limits set for your payout account.	After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s). You can connect with Cashfree if you are not sure about the transfer limits set for your payout account.	Yes, after adhering to the transfer limits
+200	REJECTED	INVALID_PAYMENT_INSTRUMENT	The transfer has been rejected because the payment instrument (fundsource_id parameter in the API request) used for attempting the transfer is invalid. After correcting the payment instrument, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After correcting the payment instrument, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting the payment instrument
+200	REJECTED	PAYOUT_INTERNAL_ERROR	The transfer has been rejected because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	REJECTED	VELOCITY_CHECK_FAILED	The transfer has been rejected because the amount entered breaches the limits set for your payout account. After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s). You can connect with Cashfree if you are not sure about the transfer limits set for your payout account.	After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s). You can connect with Cashfree if you are not sure about the transfer limits set for your payout account.	Yes, after adhering to the transfer limits
+200	REJECTED	PAYOUT_INTERNAL_ERROR	The transfer has been rejected because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	REJECTED	PAYOUT_INTERNAL_PEOPLE	The transfer has been rejected because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	REJECTED	DISABLED_MODE	The transfer has been rejected because your payout account does not support this mode of transfer. You should get this mode activated on your payout account by contacting Cashfree, and then initiate a new transfer request.	You should get this mode activated on your payout account by contacting Cashfree, and then initiate a new transfer request.	Yes, after activating the mode
+200	REJECTED	BANK_ACCOUNT_INVALID	The transfer has been rejected because there is a mismatch in the Bank Account Number of the beneficiary ID and the Bank Account Number in the transfer request. After correcting the Bank Account Number, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After correcting the Bank Account Number, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting the bank account number.
+200	REJECTED	BANK_IFSC_INVALID	The transfer has been rejected because there is a mismatch in the IFSC of the beneficiary ID and the IFSC in the transfer request. After correcting the IFSC, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After correcting the IFSC, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting the IFSC
+200	REJECTED	VPA_INVALID	The transfer has been rejected because there is a mismatch in the VPA handle of the beneficiary ID and the VPA handle in the transfer request. After correcting the VPA handle, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After correcting the VPA handle, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting the VPA handle
+200	REJECTED	PHONE_INVALID	The transfer has been rejected because there is a mismatch in the Phone Number of the beneficiary ID and the Phone Number in the transfer request. After correcting the Phone Number, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After correcting the Phone Number, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting the phone number
+200	REJECTED	BANK_ACCOUNT_DETAILS_MISSING	The transfer has been rejected because the Bank Account Details are missing in the transfer request. After adding the Bank Account Details, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After adding the Bank Account Details, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after adding the bank account details
+200	REJECTED	BENE_INVALID_MODE	The transfer has been rejected because the mode is invalid for the given beneficiary. After correcting the mode and beneficiary, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After correcting the mode and beneficiary, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting the details
+200	REJECTED	INVALID_PHONE_BENEFICIARY	The transfer has been rejected because the beneficiary is Invalid. After correcting the beneficiary, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After correcting the beneficiary, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting beneficiary details
+200	REJECTED	INVALID_BENE_ACCOUNT_OR_IFSC	The transfer has been rejected because the beneficiary account or ifsc is Invalid. After correcting the beneficiary details, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After correcting the beneficiary details, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting beneficiary details
+200	REJECTED	NAME_INVALID	The transfer has been rejected because the name is Invalid. Please refer Cashfree official documentation and after correcting the name, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Please refer Cashfree official documentation and after correcting the name, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting the name
+200	REJECTED	EMAIL_INVALID	The transfer has been rejected because the email is Invalid. Please refer Cashfree official documentation and after correcting the email, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Please refer Cashfree official documentation and after correcting the email, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting the email
+200	REJECTED	REMARKS_INVALID	The transfer has been rejected because the remark is Invalid. Please refer Cashfree official documentation and after correcting the remarks, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Please refer Cashfree official documentation and after correcting the remarks, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting the remarks
+200	REVERSED	ACCOUNT_BLOCKED	The transfer has been reversed by the beneficiary bank as the end-beneficiary’s account is blocked for receiving incoming funds. After correcting the account number or getting the account unblocked, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the account number or getting the account unblocked, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after adding new details or getting the account unblocked
+200	REVERSED	FAILED	The transfer has been reversed by the beneficiary bank as they were unable to credit the end beneficiary’s bank account. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	-	Yes
+200	REVERSED	NRE_ACCOUNT_FAIL	The transfer has been reversed by the beneficiary bank as they were unable to credit the end beneficiary’s bank account as it is an NRE Account and transfers to NRE Accounts are not supported.	Get a new account(non-NRE account) from the beneficiary; you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	No
+200	REVERSED	RETURNED_FROM_BENEFICIARY	The transfer has been reversed by the beneficiary bank as they were unable to credit the end beneficiary’s bank account. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	REVERSED	BENE_BANK_DECLINED	The transfer has been declined by the beneficiary bank and they were unable to credit the end beneficiary’s bank account. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	REVERSED	IMPS_MODE_FAIL	The transfer has been reversed by the beneficiary bank because the beneficiary bank account doesnot support IMPS transfers. This rejection is done by the beneficiary bank for the specific beneficiary account. You can try NEFT or other channels to do the disbursals.	You can reinitiate the transfer via Cashfree by changing the mode so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after changing the mode.
+200	REVERSED	DEST_LIMIT_REACHED	The transfer has been reversed by the beneficiary bank as the end-beneficiary’s account has reached a limit of receiving incoming funds. This rejection is done by the beneficiary bank for the specific beneficiary account. You can reinitiate the transfer after a while via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s). The success of the request is contingent on beneficiary’s limit being available to receive incoming	The limits on the beneficiary account are typically refreshed every 24 hours. Its not clear when the 24 hour window shall elpase so you can then reinitiate the transfer via Cashfree after some time so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after some time.
+200	REVERSED	INVALID_ACCOUNT_FAIL	The transfer has been reversed by the beneficiary bank because the Account Number of the beneficiary is invalid. After correcting the account number, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the account number, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after correcting the account number.
+200	REVERSED	BENE_NAME_DIFFERS	The transfer has been reversed by the beneficiary bank because the Account Name of the beneficiary is different. After correcting the beneficiary name, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the beneficiary name, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after correcting the account name
+200	SUCCESS	SENT_TO_BENEFICIARY	The transfer has been initiated via the partner bank successfully. The request is waiting to be processed at the beneficiary bank to do the credit to the end beneficiary.	-	-
+200	SUCCESS	COMPLETED	The transfer has been initiated via the partner bank successfully, hence your account is debited and the request is successfuly processed by the beneficiary bank and has been credited to the end beneficiary.	-	-
+​
+4XX errors
+HTTP Status Code	Error Code	Message	Next Action
+400	transfer_id_missing	transfer_id is missing in the request	Enter a transfer_id in the request.
+400	transfer_id_invalid	transfer_id should be alphanumeric	Enter a valid transfer_id.
+400	transfer_amount_invalid	transfer_amount should be greater then 1.00	Enter a transfer_amount greater than 1.00.
+400	transfer_amount_missing	transfer_amount is missing in the request	Enter a transfer_amount in the request.
+400	transfer_mode_invalid	transfer_mode is invalid allowed values are : bank, imps, neft, rtgs, upi, paytm, amazonpay, card and cardupi	Provide a valid transfer_mode in the request.
+400	transfer_mode_invalid	transfer_mode_invalid transfer_mode is invalid allowed values are : bank, imps, neft, rtgs, upi, paytm, amazonpay, card and cardupi	Provide a valid transfer_mode in the request.
+400	beneficiary_details.beneficiary_id_invalid	beneficiary_id should be alphanumeric	Provide a valid beneficiary_id in the request.
+400	beneficiary_details.beneficiary_name_invalid	beneficiary_name is invalid. only alphabets and whitespaces are allowed	Provide a valid beneficiary_name in the request.
+400	beneficiary_details.beneficiary_instrument_details.bank_account_number_invalid	bank_account_number should be alphanumeric	Provide a valid bank_account_number in the request
+400	beneficiary_details.beneficiary_instrument_details.bank_account_number_invalid	Bank account number passed in the request does not match with the beneficiary with beneficiary_id :: test_beneId	Provide the correct bank_account_number in the request.
+400	beneficiary_details.beneficiary_instrument_details.bank_ifsc_invalid	bank_ifsc should be in standard ifsc format	Provide a valid bank_ifsc.
+400	beneficiary_details.beneficiary_instrument_details.bank_ifsc_invalid	Bank ifsc passed in the request does not match with the beneficiary with beneficiary_id :: test_beneId	Provide the correct bank_ifsc for the beneficiary.
+400	beneficiary_details.beneficiary_instrument_details.vpa_invalid	vpa is in invalid format	Provide a valid vpa.
+400	beneficiary_details.beneficiary_instrument_details.vpa_invalid	Vpa passed in the request does not match with the beneficiary with beneficiary_id :: test_beneId	Provide the correct vpa for the beneficiary.
+404	beneficiary_not_found	Beneficiary does not exist	Provide an existing beneficiary.
+Authorizations
+​
+x-client-id
+stringheaderrequired
+Client ID. You can find your app id in the Merchant Dashboard.
+
+​
+x-client-secret
+stringheaderrequired
+Client secret key. You can find your secret in the Merchant Dashboard.
+
+Headers
+​
+x-api-version
+stringdefault:2024-01-01required
+It is the API version to be used. The accepted format is YYYY-MM-DD.
+
+​
+x-request-id
+string
+It is the request ID for the API call. This ID can be used to resolve tech realted issues. Communicate this in your tech related queries to Cashfree Payments.
+
+​
+x-cf-signature
+string
+Signature to be sent if IP is not whitelisted.
+
+Query Parameters
+​
+cf_transfer_id
+string
+It is the unique ID created by Cashfree Payments. You receive it in the response of the initiated standard transfer request. (Either cf_transfer_id or transfer_id is mandatory)
+
+​
+transfer_id
+string
+It is the unique ID you created to identify the standard transfer request.
+
+Response
+
+200
+
+application/json
+OK
+
+Standard Transfer V2 Response
+
+​
+transfer_id
+string
+It displays the unique ID you created to identify the transfer.
+
+​
+cf_transfer_id
+string
+It displays the unique ID created by Cashfree Payments. You receive this ID in the response after initiating the standard transfer request.
+
+​
+status
+string
+It displays the status of the transfer.
+
+​
+beneficiary_details
+object
+It displays the details of the beneficiary.
+
+Show child attributes
+
+​
+transfer_amount
+number
+It displays the transfer amount initiated in the request.
+
+​
+transfer_service_charge
+number
+It displays the service charge applicable for the successful transfer request.
+
+​
+transfer_service_tax
+number
+It displays the service tax applicable for the successful transfer request.
+
+​
+transfer_mode
+string
+It displays the mode of the transfer.
+
+​
+transfer_utr
+string
+It displays the unique number that is generated to recognise any fund transfer that is created by the bank that facilitates the transfer.
+
+​
+fundsource_id
+string
+It displays the ID of the fund source from where the money was debited for this transfer request.
+
+​
+added_on
+string
+It displays the time of when the transfer request was added to the system.
+
+​
+updated_on
+string
+It displays the updated time for the transfer.
+Transfers V2
+Standard Transfer V2
+Use this API to initiate an amount transfer at Cashfree Payments. It is an async request by default.
+POST
+const url = 'https://api.cashfree.com/payout/transfers';
+const options = {
+  method: 'POST',
+  headers: {
+    'x-api-version': '<x-api-version>',
+    'x-client-id': '<api-key>',
+    'x-client-secret': '<api-key>',
+    'Content-Type': 'application/json'
+  },
+  body: '{"transfer_id":"JUNOB2018","transfer_amount":1,"beneficiary_details":{"beneficiary_id":"JOHN18011"}}'
+};
+
+try {
+  const response = await fetch(url, options);
+  const data = await response.json();
+  console.log(data);
+} catch (error) {
+  console.error(error);
+}
+
+200 response 
+{
+  "transfer_id": "JUNOB2018",
+  "cf_transfer_id": "123456",
+  "status": "RECEIVED",
+  "status_code": "RECEIVED",
+  "status_description": "The transfer has been received by Cashfree successfully for further processing. You should use Check Status API response or Webhooks to know the terminal state of the transfer request.",
+  "beneficiary_details": {
+    "beneficiary_id": "JOHN18011"
+  },
+  "transfer_amount": 1,
+  "transfer_mode": "BANK",
+  "fundsource_id": "CASHFREE_1",
+  "added_on": "2021-11-24T13:39:25Z",
+  "updated_on": "2021-11-24T13:40:27Z"
+}
+
+400 
+{
+  "type": "invalid_request_error",
+  "code": "transfer_id_missing",
+  "message": "transfer_id is missing in the request"
+}
+403 response
+{
+  "type": "invalid_request_error",
+  "code": "apis_not_enabled",
+  "message": "APIs not enabled. Please fill out the [Support Form](https://merchant.cashfree.com/merchants/landing?env=prod&raise_issue=1)"
+}
+404 response
+{
+  "type": "invalid_request_error",
+  "code": "beneficiary_not_found",
+  "message": "Beneficiary does not exist"
+}
+500 response 
+{
+  "type": "api_error",
+  "code": "internal_server_error",
+  "message": "Error at cashfree's server"
+}
+HTTP Status Code	Status	Status Code	Status Description	Next Action	Try again via Cashfree Payments
+200	APPROVAL_PENDING	VELOCITY_CHECK_FAILED	The transfer requires an approval as the count of transfers to a particular beneficiary etc have breached the limit. You can approve or reject the transfer request from the Cashfree Merchant Dashboard.	You can approve/reject the transfer on the Merchant Dashboard. Go to: Transfers > Approve. Post the transfer is approved, the request is sent to the partner bank for further processing.	-
+200	APPROVAL_PENDING	TRANSFER_LIMIT_BREACH	The transfer requires an approval as the transfer amount etc have breached the limit. You can approve or reject the transfer request from the Cashfree Merchant Dashboard.	You can approve/reject the transfer on the Merchant Dashboard. Go to: Transfers > Approve. Post the transfer is approved, the request is sent to the partner bank for further processing.	-
+200	APPOVAL_PENDING	APPROVAL_PENDING	The transfer requires approval. You can approve or reject the transfer request from the Cashfree Merchant Dashboard.	You can approve/reject the transfer on the Merchant Dashboard. Go to: Transfers > Approve. Post the transfer is approved, the request is sent to the partner bank for further processing.	-
+200	FAILED	WAIT_TIME_EXCEEDED	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree Payments to reattempt with the partner bank(s).	Yes
+200	FAILED	BENE_BANK_DECLINED	The transfer has failed because the beneficiary bank has declined the transfer. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with the partner bank(s).	-	Yes
+200	FAILED	IMPS_MODE_FAIL	The transfer has failed because the beneficiary account doesnot support IMPS transfers. This rejection is done by the partner bank for the specific beneficiary account. You can try NEFT or other channels to do the disbursals.	You can try NEFT or other channels to do the disbursals.	Yes, via a different mode.
+200	FAILED	SOURCE_BANK_DECLINED	The transfer has failed because our partner bank has declined the transfer because of their internal checks, technical declines etc. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with other partner bank(s).	Yes
+200	FAILED	CONNECTION_TIMEOUT	The transfer has failed because there was a connection timeout between the bank and Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with the partner bank(s).	Yes
+200	FAILED	PAYOUT_INTERNAL_ERROR	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	-	Yes
+200	FAILED	NPCI_UNAVAILABLE	The transfer has failed because NPCI was unavailable to complete the transfer request. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree. The success of the request is contingent on NPCI services being up.	-	Yes, after some time.
+200	FAILED	DEST_LIMIT_REACHED	The transfer has failed because the beneficiary account has breached the limit of receiving funds. This rejection is done by the beneficiary bank for the specific beneficiary account. You can reinitiate the transfer after a while via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s). The success of the request is contingent on beneficiary’s limit being available to receive incoming funds.	-	Yes, after some time.
+200	FAILED	RETURNED_FROM_BENEFICIARY	The transfer has failed because the beneficiary bank has returned the transfer and has not need able to credit funds to the end beneficiary. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with the partner bank(s).	-	-
+200	FAILED	PAYOUT_INTERNAL_ERROR	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	-	-
+200	FAILED	INVALID_BENE_ACCOUNT_OR_IFSC	The transfer has failed because the beneficiary account or IFSC is invalid. After correcting the beneficiary account or IFSC, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	-	-
+200	FAILED	PAYOUT_INTERNAL_ERROR	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	-	-
+200	FAILED	FAILED	The transfer has failed because there was an intermittent issue at the partner bank’s end. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after some time.
+200	FAILED	PAYOUT_INTERNAL_ERROR	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	-	-
+200	FAILED	INSUFFICIENT_BALANCE	The transfer has failed because of low balance in your Cashfree Wallet/ Bank Account. After recharging the account, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After recharging the account, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after recharging.
+200	FAILED	INVALID_BENE_VPA	The transfer has failed because the beneficiary VPA is invalid. After correcting the VPA handle, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the VPA handle, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after correcting VPA handle.
+200	FAILED	INVALID_IFSC_FAIL	The transfer has failed because the IFSC is invalid. After correcting the IFSC, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the IFSC, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after correcting IFSC.
+200	FAILED	BAD_GATEWAY	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	FAILED	INVALID_AMOUNT_FAIL	The transfer has failed because the amount entered is invalid. After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after correcting amount
+200	FAILED	INVALID_ACCOUNT_FAIL	The transfer has failed because the Account Number of the beneficiary is invalid, as per our partner bank. After correcting the account number, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the account number, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after correcting account number
+200	FAILED	INVALID_REQUEST	The transfer has failed because the transfer request is invalid, as per our partner bank, because of exceeding the character limit of certain parameter, wrong input etc. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	-	-
+200	FAILED	ACCOUNT_BLOCKED	The transfer has failed because the account is blocked, as per our partner bank. After getting the account unblocked, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After getting the account unblocked, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after unblocking the account number
+200	FAILED	DEBIT_FAILURE	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	FAILED	BENEFICIARY_BANK_OFFLINE	The transfer has failed because the respective beneficiary bank is offline. After some time, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After some time, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after some time
+200	FAILED	AUTHENTICATION_FAILURE	The transfer has failed because there was an authentication failure at the partner bank’s end. After checking with the partner bank, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	This is a scenario when the API access is not working at the partner bank’s end. After checking with the partner bank, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	FAILED	NRE_ACCOUNT_FAIL	The transfer has failed because the beneficiary account is an NRE Account and transfers to NRE Accounts are not supported, as per our partner bank.	Get a new account(non-NRE account) from the beneficiary; you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	FAILED	SOURCE_LIMIT_REACHED	The transfer has been failed by the partner bank as the source bank account has reached a limit of transferring funds. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	If you are on Cashfree Wallet, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s). If you are on Connected Bank, you need to recharge your bank account and then reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after some time
+200	FAILED	BANK_GATEWAY_ERROR	The transfer has failed because there was an intermittent issue at the partner bank’s end. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	FAILED	BAD_REQUEST	The transfer has failed because the details of the transfer request is invalid, as per our partner bank. After correcting the details in the transfer request, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the details in the transfer request, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	FAILED	REINITIALIZE_TRANSFER_LATER	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	MANUALLY_REJECTED	MANUALLY_REJECTED	The transfer has failed because it has been manually rejected by the merchant or any team member user who has the permissions to do the same on Merchant Dashboard. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with the partner bank(s).	If the merchant wants to reinitiate the transfer, they can reinitiate the transfer via Cashfree so that the transfer can be reattempted again with the partner bank(s).	Yes, if you want to reinitiate the transfer
+200	PENDING	SENT_TO_BANK	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. This has been sent to the bank by our banking operations team. Please do check statuses or await webhooks to know the terminal state of the transfer request.	Rely on Check Status API or Webhooks.	-
+200	PENDING	BANK_GATEWAY_ERROR	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or Webhooks.	-
+200	PENDING	NO_SUCH_REQUEST	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. The bank is not able to find the request at their end as of now, and it has been sent to the bank by our banking operations team. Please do check statuses or await webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks.	-
+200	PENDING	IN_PROCESS	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. Please do check statuses or await webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks.	-
+200	PENDING	ERROR_FETCHING_STATUS	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. The response received from the partner bank has a new code. This has been raised with the bank to understand the new code. Please do check statuses or await webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks.	-
+200	PENDING	TRANSACTION_PROCESSED	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks.	-
+200	PENDING	REQUEST_TIMEDOUT	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. The bank is not able to find the request at their end as of now as the request between the partner bank has probably timed out, and it has been highlighted to the bank by our banking operations team. Please do check statuses or await webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks.	-
+200	PENDING	DUPLICATE	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. The bank claims of receiving a duplicate request at their end as of now. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks.	-
+200	PENDING	PENDING	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks.	-
+200	PENDING	SCHEDULED_FOR_NEXT_WORKINGDAY	The transfer is currently in a Pending state, as the bank has scheduled the transfer for the next working day. This typically happens for NEFT/RTGS transfers if they are initiated beyond the cut-off hours or during bank holidays. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	-	-
+200	PENDING	SUSPECT	The transfer is currently in a Pending state, as the bank has scheduled the transfer for the next working day. This typically happens for NEFT/RTGS transfers if they are initiated beyond the cut-off hours or during bank holidays. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	-	-
+200	PENDING	IMPLEMENTATION_ERROR	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	-	-
+200	PENDING	UNKNOWN_ERROR_CODE	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. The response received from the partner bank has a new code. This has been raised with the bank to understand the new code. Please do check statuses or await webhooks to know the terminal state of the transfer request.	-	-
+200	QUEUED	QUEUED	The transfer is currently in a Pending state, as Cashfree is awaiting a final confirmation from the partner bank for a terminal status. You should rely only on Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks.	-
+200	RECEIVED	RECEIVED	The transfer has been received by Cashfree successfully for further processing. You should use Check Status API response or Webhooks to know the terminal state of the transfer request.	Rely on Check Status API or webhooks.	-
+200	REJECTED	BENE_NOT_EXIST	The transfer has been rejected because the beneficiary, added in the transfer request, does not exist. After adding the right beneficiary, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After adding the right beneficiary, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after adding the correct beneficiary.
+200	REJECTED	INSUFFICIENT_BALANCE	The transfer has been rejected because of low balance in your Cashfree Wallet. After recharging the account, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After recharging the account, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after recharging.
+200	REJECTED	INSIDE_BLACKOUT_WINDOW	The transfer has been rejected because the transfer falls under the blackout window defined by you in Payout Protect. You can reinitiate the transfer via Cashfree, after the blackout window or after modifying the blackout window from the Merchant Dashboard, so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree, after the blackout window or after modifying the blackout window from the Merchant Dashboard, so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	REJECTED	INVALID_MODE_FOR_PYID	The transfer has been rejected because the payment instrument does not support this mode of transfer. You should get this mode activated on the payment instrument ID by contacting Cashfree, and then initiate a new transfer request.	You should get this mode activated on the payment instrument ID by contacting Cashfree, and then initiate a new transfer request.	Yes, after activating model
+200	REJECTED	BENE_BLACKLISTED	The transfer has been rejected because the beneficiary’s bank account and/or VPA handles have been blacklisted by Risk team. You should get a different bank account and/or VPA to send the transfer, or you can connect with Cashfree Team to understand more about this.	You should get a different bank account and/or VPA to send the transfer, or you can connect with Cashfree Team to understand more about this.	Yes, after correcting beneficiary details
+200	REJECTED	TRANSFER_NOT_ATTEMPTED	The transfer has failed because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	REJECTED	INVALID_TRANSFER_AMOUNT	The transfer has been rejected because the amount entered is invalid. After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after correcting the amount
+200	REJECTED	TRANSFER_LIMIT_BREACH	The transfer has been rejected because the amount entered breaches the limits set for your payout account. After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s). You can connect with Cashfree if you are not sure about the transfer limits set for your payout account.	After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s). You can connect with Cashfree if you are not sure about the transfer limits set for your payout account.	Yes, after adhering to the transfer limits.
+200	REJECTED	INVALID_PAYMENT_INSTRUMENT	The transfer has been rejected because the payment instrument (fundsource_id parameter in the API request) used for attempting the transfer is invalid. After correcting the payment instrument, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After correcting the payment instrument, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting payment instrument
+200	REJECTED	PAYOUT_INTERNAL_ERROR	The transfer has been rejected because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	REJECTED	VELOCITY_CHECK_FAILED	The transfer has been rejected because the amount entered breaches the limits set for your payout account. After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s). You can connect with Cashfree if you are not sure about the transfer limits set for your payout account.	After correcting the amount, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s). You can connect with Cashfree if you are not sure about the transfer limits set for your payout account.	Yes, after adhering to the transfer limits.
+200	REJECTED	PAYOUT_INTERNAL_ERROR	The transfer has been rejected because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	REJECTED	PAYOUT_INTERNAL_ERROR	The transfer has been rejected because there was an intermittent internal error at Cashfree. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	REJECTED	DISABLED_MODE	The transfer has been rejected because your payout account does not support this mode of transfer. You should get this mode activated on your payout account by contacting Cashfree, and then initiate a new transfer request.	You should get this mode activated on your payout account by contacting Cashfree, and then initiate a new transfer request.	Yes, after activating mode.
+200	REJECTED	BANK_ACCOUNT_INVALID	The transfer has been rejected because there is a mismatch in the Bank Account Number of the beneficiary ID and the Bank Account Number in the transfer request. After correcting the Bank Account Number, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After correcting the Bank Account Number, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting the bank account number.
+200	REJECTED	BANK_IFSC_INVALID	The transfer has been rejected because there is a mismatch in the IFSC of the beneficiary ID and the IFSC in the transfer request. After correcting the IFSC, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After correcting the IFSC, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting the IFSC
+200	REJECTED	VPA_INVALID	The transfer has been rejected because there is a mismatch in the VPA handle of the beneficiary ID and the VPA handle in the transfer request. After correcting the VPA handle, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After correcting the VPA handle, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting the VPA handle
+200	REJECTED	PHONE_INVALID	The transfer has been rejected because there is a mismatch in the Phone Number of the beneficiary ID and the Phone Number in the transfer request. After correcting the Phone Number, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After correcting the Phone Number, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after correcting the phone number.
+200	REJECTED	BANK_ACCOUNT_DETAILS_MISSING	The transfer has been rejected because the Bank Account Details are missing in the transfer request. After adding the Bank Account Details, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	After adding the Bank Account Details, you can reinitiate the transfer via Cashfree so that the transfer can be attempted by Cashfree with the partner bank(s).	Yes, after adding the bank account details.
+200	REVERSED	ACCOUNT_BLOCKED	The transfer has been reversed by the beneficiary bank as the end-beneficiary’s account is blocked for receiving incoming funds. After correcting the account number or getting the account unblocked, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the account number or getting the account unblocked, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after adding new details or getting account unblocked.
+200	REVERSED	FAILED	The transfer has been reversed by the beneficiary bank as they were unable to credit the end beneficiary’s bank account. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	-	Yes
+200	REVERSED	NRE_ACCOUNT_FAIL	The transfer has been reversed by the beneficiary bank as they were unable to credit the end beneficiary’s bank account as it is an NRE Account and transfers to NRE Accounts are not supported.	Get a new account(non-NRE account) from the beneficiary; you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	No
+200	REVERSED	RETURNED_FROM_BENEFICIARY	The transfer has been reversed by the beneficiary bank as they were unable to credit the end beneficiary’s bank account. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	REVERSED	BENE_BANK_DECLINED	The transfer has been declined by the beneficiary bank and they were unable to credit the end beneficiary’s bank account. You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	You can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes
+200	REVERSED	IMPS_MODE_FAIL	The transfer has been reversed by the beneficiary bank because the beneficiary bank account doesnot support IMPS transfers. This rejection is done by the beneficiary bank for the specific beneficiary account. You can try NEFT or other channels to do the disbursals.	You can reinitiate the transfer via Cashfree by changing the mode so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after changing mode.
+200	REVERSED	DEST_LIMIT_REACHED	The transfer has been reversed by the beneficiary bank as the end-beneficiary’s account has reached a limit of receiving incoming funds. This rejection is done by the beneficiary bank for the specific beneficiary account. You can reinitiate the transfer after a while via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s). The success of the request is contingent on beneficiary’s limit being available to receive incoming funds.	The limits on the beneficiary account are typically refreshed every 24 hours. Its not clear when the 24 hour window shall elpase so you can then reinitiate the transfer via Cashfree after some time so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after some time.
+200	REVERSED	INVALID_ACCOUNT_FAIL	The transfer has been reversed by the beneficiary bank because the Account Number of the beneficiary is invalid. After correcting the account number, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	After correcting the account number, you can reinitiate the transfer via Cashfree so that the transfer can be reattempted again by Cashfree with the partner bank(s).	Yes, after correcting the account number
+200	SUCCESS	SENT_TO_BENEFICIARY	The transfer has been initiated via the partner bank successfully. The request is waiting to be processed at the beneficiary bank to do the credit to the end beneficiary.	-	-
+200	SUCCESS	COMPLETED	The transfer has been initiated via the partner bank successfully, hence your account is debited and the request is successfuly processed by the beneficiary bank and has been credited to the end beneficiary.	-	-
+​
+4XX errors
+HTTP Status Code	Error Code	Message	Next Action
+400	transfer_id_missing	transfer_id is missing in the request	Enter a valid transfer_id in the request.
+400	transfer_id_invalid	transfer_id should be alphanumeric	Enter a valid transfer_id in the request.
+400	transfer_amount_invalid	transfer_amount should be greater then 1.00	Enter an amount greater than 1.00.
+400	transfer_amount_missing	transfer_amount is missing in the request	Provide a value for the transfer_amount parameter in the request.
+400	transfer_mode_invalid	transfer_mode is invalid allowed values are : bank, imps, neft, rtgs, upi, paytm, amazonpay, card and cardupi	Provide a valid transfer_mode in the request.
+400	beneficiary_details.beneficiary_id_invalid	beneficiary_id should be alphanumeric	Enter a valid beneficiary_id.
+400	beneficiary_details.beneficiary_name_invalid	beneficiary_name is invalid. only alphabets and whitespaces are allowed	Enter a valid beneficiary_id.
+400	beneficiary_details.beneficiary_instrument_details.bank_account_number_invalid	bank_account_number should be alphanumeric	Enter a valid bank_account_number.
+400	beneficiary_details.beneficiary_instrument_details.bank_account_number_invalid	Bank account number passed in the request does not match with the beneficiary with beneficiary_id :: test_beneId	Enter the correct bank_account_number associated with the beneficiary_id.
+400	beneficiary_details.beneficiary_instrument_details.bank_ifsc_invalid	bank_ifsc should be in standard ifsc format	Enter a valid bank_ifsc.
+400	beneficiary_details.beneficiary_instrument_details.bank_ifsc_invalid	Bank ifsc passed in the request does not match with the beneficiary with beneficiary_id :: test_beneId	Enter the correct bank_ifsc associated with the beneficiary_id.
+400	beneficiary_details.beneficiary_instrument_details.vpa_invalid	vpa is in invalid format	Enter a valid VPA.
+400	beneficiary_details.beneficiary_instrument_details.vpa_invalid	Vpa passed in the request does not match with the beneficiary with beneficiary_id :: test_beneId	Enter the correct vpa associated with the beneficiary_id.
+404	beneficiary_not_found	Beneficiary does not exist	Enter a valid beneficiary_id.
+
+Authorizations
+​
+x-client-id
+stringheaderrequired
+Client ID. You can find your app id in the Merchant Dashboard.
+
+​
+x-client-secret
+stringheaderrequired
+Client secret key. You can find your secret in the Merchant Dashboard.
+
+Headers
+​
+x-api-version
+stringdefault:2024-01-01required
+It is the API version to be used. The accepted format is YYYY-MM-DD.
+
+​
+x-request-id
+string
+It is the request ID for the API call. This ID can be used to resolve tech realted issues. Communicate this in your tech related queries to Cashfree Payments.
+
+​
+x-cf-signature
+string
+Signature to be sent if IP is not whitelisted.
+
+Body
+application/json
+Find the request parameters of the API request to transfer money to a beneficiary.
+
+Standard Transfer V2
+
+​
+transfer_id
+stringrequired
+It is the unique ID you create to identify the transfer. You can use a maximum of 40 characters to create a transfer_id. Alphanumeric and underscore ( _ ) are allowed.
+
+Maximum length: 40
+​
+transfer_amount
+numberrequired
+It is the transfer amount. Decimal values are allowed. The minimum value should be equal to or greater than 1.00. (>= 1.00)
+
+​
+beneficiary_details
+objectrequired
+It should contain the details of the beneficiary who receives the transfer amount.
+
+Show child attributes
+It displays the details of the beneficiary.
+
+Hide child attributes
+
+​
+beneficiary_details.beneficiary_id
+string
+It displays the unique ID to identify the beneficiary to whom you initiated the transfer request.
+
+​
+beneficiary_details.beneficiary_instrument_details
+object
+It displays the details of where the beneficiary will receive the money.
+
+
+
+​
+beneficiary_details.beneficiary_instrument_details.bank_account_number
+string
+It displays the bank account number of the beneficiary.
+
+​
+beneficiary_details.beneficiary_instrument_details.ifsc
+string
+It displays the IFSC information of the beneficiary's bank account.
+
+​
+beneficiary_details.beneficiary_instrument_details.vpa
+string
+It displays the UPI VPA information of the beneficiary.
+​
+transfer_currency
+string
+It is the currency of the transfer amount. The default value is INR.
+
+​
+transfer_mode
+enum<string>
+It is the mode of transfer. Allowed values are banktransfer, imps, neft, rtgs, upi, paytm, amazonpay, card. The default transfer_mode is banktransfer.
+
+Available options: banktransfer, imps, neft, rtgs, upi, paytm, amazonpay, card, cardupi 
+​
+transfer_remarks
+string
+It can contain any additional remarks for the transfer. Alphanumeric and whitespaces are allowed. The maximum character limit is 70.
+
+Maximum length: 70
+​
+fundsource_id
+string
+It is the ID of the fund source from which the transfer amount will be debited.
+
+Response
+
+200
+
+application/json
+OK
+
+Standard Transfer V2 Response
+
+​
+transfer_id
+string
+It displays the unique ID you created to identify the transfer.
+
+​
+cf_transfer_id
+string
+It displays the unique ID created by Cashfree Payments. You receive this ID in the response after initiating the standard transfer request.
+
+​
+status
+string
+It displays the status of the transfer.
+
+​
+beneficiary_details
+object
+It displays the details of the beneficiary.
+
+It displays the details of the beneficiary.
+
+
+
+​
+transfer_amount
+number
+It displays the transfer amount initiated in the request.
+
+​
+transfer_service_charge
+number
+It displays the service charge applicable for the successful transfer request.
+
+​
+transfer_service_tax
+number
+It displays the service tax applicable for the successful transfer request.
+
+​
+transfer_mode
+string
+It displays the mode of the transfer.
+
+​
+transfer_utr
+string
+It displays the unique number that is generated to recognise any fund transfer that is created by the bank that facilitates the transfer.
+
+​
+fundsource_id
+string
+It displays the ID of the fund source from where the money was debited for this transfer request.
+
+​
+added_on
+string
+It displays the time of when the transfer request was added to the system.
+
+​
+updated_on
+string
+It displays the updated time for the transfer.
+
+
+​
+transfer_amount
+number
+It displays the transfer amount initiated in the request.
+
+​
+transfer_service_charge
+number
+It displays the service charge applicable for the successful transfer request.
+
+​
+transfer_service_tax
+number
+It displays the service tax applicable for the successful transfer request.
+
+​
+transfer_mode
+string
+It displays the mode of the transfer.
+
+​
+transfer_utr
+string
+It displays the unique number that is generated to recognise any fund transfer that is created by the bank that facilitates the transfer.
+
+​
+fundsource_id
+string
+It displays the ID of the fund source from where the money was debited for this transfer request.
+
+​
+added_on
+string
+It displays the time of when the transfer request was added to the system.
+
+​
+updated_on
+string
+It displays the updated time for the transfer.
+
+
+Cashfree Payments Developer Documentation home pagelight logo
+Search...
+
+
+Navigation
+Transfers V2
+Get Batch Transfer Status V2
+Transfers V2
+Get Batch Transfer Status V2
+Use this API to get the status of the initiated batch transfer. You can use either the batch_transfer_id or cf_batch_transfer_id to fetch the details.
+
+
+Open in ChatGPT
+
+GET
+
+https://api.cashfree.com/payout
+/
+transfers
+/
+batch
+
+Try it
+Get Batch Transfer Status V2
+
+
+Copy
+
+Ask AI
+const url = 'https://api.cashfree.com/payout/transfers/batch';
+const options = {
+  method: 'GET',
+  headers: {
+    'x-api-version': '<x-api-version>',
+    'x-client-id': '<api-key>',
+    'x-client-secret': '<api-key>'
+  },
+  body: undefined
+};
+
+try {
+  const response = await fetch(url, options);
+  const data = await response.json();
+  console.log(data);
+} catch (error) {
+  console.error(error);
+}
+
+
+
+Copy
+
+Ask AI
+{
+  "type": "api_error",
+  "code": "internal_server_error",
+  "message": "Error at cashfree's server"
+}
+Note: To check the status of batch transfers, use the Get Batch Transfer Status API. Do not use the Get Transfer Status API; it applies only to individual transfers and may not provide accurate results for batch transactions.
+Click to view the response codes.
+
+Authorizations
+​
+x-client-id
+stringheaderrequired
+Client ID. You can find your app id in the Merchant Dashboard.
+
+​
+x-client-secret
+stringheaderrequired
+Client secret key. You can find your secret in the Merchant Dashboard.
+
+Headers
+​
+x-api-version
+stringdefault:2024-01-01required
+It is the API version to be used. The accepted format is YYYY-MM-DD.
+
+​
+x-request-id
+string
+It is the request ID for the API call. This ID can be used to resolve tech realted issues. Communicate this in your tech related queries to Cashfree Payments.
+
+​
+x-cf-signature
+string
+Signature to be sent if IP is not whitelisted.
+
+Query Parameters
+​
+cf_batch_transfer_id
+string
+It is the unique ID created by Cashfree Payments. You receive it in the response of the initiated batch transfer request. (Either cf_batch_transfer_id or batch_transfer_id is mandatory)
+
+​
+batch_transfer_id
+string
+It is the unique ID you created to identify the batch transfer request.
+
+Response
+
+200
+
+application/json
+OK
+
+Batch Transfer Status V2 Response
+
+​
+batch_transfer_id
+string
+It displays the unique ID you created to identify the batch transfer.
+
+​
+cf_batch_transfer_id
+string
+It displays the unique ID created by Cashfree Payments. You receive this ID in the response after initiating the batch transfer request.
+
+​
+status
+string
+It displays the status of the batch transfer.
+
+​
+transfers
+Standard Transfer V2 Response · object[]
+Show child attributes
+
+transfer_id
+string
+It displays the unique ID you created to identify the transfer.
+
+​
+cf_transfer_id
+string
+It displays the unique ID created by Cashfree Payments. You receive this ID in the response after initiating the standard transfer request.
+
+​
+status
+string
+It displays the status of the transfer.
+
+​
+beneficiary_details
+object
+It displays the details of the beneficiary.
+
+Show child attributes
+
+​
+transfer_amount
+number
+It displays the transfer amount initiated in the request.
+
+​
+transfer_service_charge
+number
+It displays the service charge applicable for the successful transfer request.
+
+​
+transfer_service_tax
+number
+It displays the service tax applicable for the successful transfer request.
+
+​
+transfer_mode
+string
+It displays the mode of the transfer.
+
+​
+transfer_utr
+string
+It displays the unique number that is generated to recognise any fund transfer that is created by the bank that facilitates the transfer.
+
+​
+fundsource_id
+string
+It displays the ID of the fund source from where the money was debited for this transfer request.
+
+​
+added_on
+string
+It displays the time of when the transfer request was added to the system.
+
+​
+updated_on
+string
+It displays the updated time for the transfer.
+No
+Standard Transfer V2
+Batch Transfer V2
+Use this API to initiate a batch transfer request at Cashfree Payments. You can transfer money to multiple beneficiaries. The batch transfer limit is 5,000 in the production environment and 1,000 by default in the test environment.
+POST https://api.cashfree.com/payout/transfers/batch
+REQUEST in javascript
+const url = 'https://api.cashfree.com/payout/transfers/batch';
+const options = {
+  method: 'POST',
+  headers: {
+    'x-api-version': '<x-api-version>',
+    'x-client-id': '<api-key>',
+    'x-client-secret': '<api-key>',
+    'Content-Type': 'application/json'
+  },
+  body: '{"batch_transfer_id":"test_batch_transfer_id","transfers":[{"transfer_id":"JUNOB2018","transfer_amount":1,"beneficiary_details":{"beneficiary_id":"JOHN18011"}},{"transfer_id":"JUNOB2018","transfer_amount":1,"transfer_mode":"imps","beneficiary_details":{"beneficiary_details":{"beneficiary_instrument_details":{"bank_account_number":"1234554321","bank_ifsc":"SBIN0001161"}}}},{"transfer_id":"JUNOB2018","transfer_amount":1,"transfer_mode":"imps","beneficiary_details":{"beneficiary_details":{"beneficiary_id":"JOHN18011"}},"fundsource_id":"CASHFREE_1"}]}'
+};
+
+try {
+  const response = await fetch(url, options);
+  const data = await response.json();
+  console.log(data);
+} catch (error) {
+  console.error(error);
+}
+200 RESPONSE 
+{
+  "batch_transfer_id": "test_batch_transfer_id",
+  "cf_batch_transfer_id": "123456",
+  "status": "RECEIVED"
+}
+400 RESPONSE 
+{
+  "type": "invalid_request_error",
+  "code": "batch_transfer_id_missing",
+  "message": "batch_transfer_id is missing in the request"
+}
+409 RSPONSE 
+{
+  "type": "invalid_request_error",
+  "code": "batch_transfer_id_already_exists",
+  "message": "batch_transfer_id already exists. please pass unique id in each request"
+}
+500 RESPONSE 
+{
+  "type": "api_error",
+  "code": "internal_server_error",
+  "message": "Error at cashfree's server"
+}
+Authorizations
+​
+x-client-id
+stringheaderrequired
+Client ID. You can find your app id in the Merchant Dashboard.
+
+​
+x-client-secret
+stringheaderrequired
+Client secret key. You can find your secret in the Merchant Dashboard.
+
+Headers
+​
+x-api-version
+stringdefault:2024-01-01required
+It is the API version to be used. The accepted format is YYYY-MM-DD.
+
+​
+x-request-id
+string
+It is the request ID for the API call. This ID can be used to resolve tech realted issues. Communicate this in your tech related queries to Cashfree Payments.
+
+​
+x-cf-signature
+string
+Signature to be sent if IP is not whitelisted.
+
+Body
+application/json
+Find the request parameters of the API request to transfer money to multiple beneficiaries.
+
+Batch Transfer V2
+
+​
+batch_transfer_id
+stringrequired
+It is the unique ID you create to identify the batch transfer request. The maximum character limit is 60. Alphanumeric and underscore ( _ ) characters are allowed.
+
+Maximum length: 60
+​
+transfers
+object[]
+Show child attributes
+transfer_id
+stringrequired
+It is the unique ID you create to identify the transfer. You can use a maximum of 40 characters to create a transfer_id. Alphanumeric and underscore ( _ ) are allowed.
+
+Maximum length: 40
+​
+transfer_amount
+numberrequired
+It is the transfer amount. Decimal values are allowed. The minimum value should be equal to or greater than 1.00. (>= 1.00)
+
+​
+transfer_currency
+string
+It is the currency of the transfer amount. The default value is INR.
+
+​
+transfer_mode
+enum<string>
+It is the mode of transfer. Allowed values are banktransfer, imps, neft, rtgs, upi, paytm, amazonpay, card. The default transfer_mode is banktransfer.
+
+Available options: banktransfer, imps, neft, rtgs, upi, paytm, amazonpay, card, cardupi 
+​
+beneficiary_details
+object
+It should contain the details of the beneficiary who receives the transfer amount.
+
+Show child attributes
+
+​
+transfer_remarks
+string
+It can contain any additional remarks for the transfer. Alphanumeric and whitespaces are allowed. The maximum character limit is 70.
+
+Maximum length: 70
+​
+fundsource_id
+string
+It is the ID of the fund source from where you want to debit the transfer amount.
+Response
+
+200
+
+application/json
+OK
+
+Batch Transfer V2 Response
+
+​
+batch_transfer_id
+string
+It displays the unique ID you created to identify the batch transfer request.
+
+​
+cf_batch_transfer_id
+string
+It displays the unique ID created by Cashfree Payments. You receive this ID in the response after initiating the batch transfer request.
+
+​
+status
+string
+It displays the status of the API request.
+
+
+

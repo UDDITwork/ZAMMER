@@ -1,0 +1,158 @@
+{
+  "timestamp": "2025-09-20T15:05:50.490Z",
+  "baseURL": "https://api.cashfree.com/payout",
+  "apiVersion": "2024-01-01",
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0,
+    "successRate": "100.0%"
+  },
+  "workingEndpoints": [
+    {
+      "endpoint": "/credentials/verify",
+      "method": "GET",
+      "description": "Verify API credentials",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "subCode": "403",
+        "message": "Token is not valid"
+      }
+    },
+    {
+      "endpoint": "/account/balance",
+      "method": "GET",
+      "description": "Get account balance",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/v2/beneficiary",
+      "method": "POST",
+      "description": "Create beneficiary",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/v2/beneficiary/undefined",
+      "method": "GET",
+      "description": "Get beneficiary by ID",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/v2/beneficiary",
+      "method": "GET",
+      "description": "Get all beneficiaries",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/v2/transfers",
+      "method": "POST",
+      "description": "Create standard transfer",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/v2/transfers/undefined",
+      "method": "GET",
+      "description": "Get transfer status",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/v2/transfers/batch",
+      "method": "POST",
+      "description": "Create batch transfer",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/v2/transfers/batch/undefined",
+      "method": "GET",
+      "description": "Get batch transfer status",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/v2/beneficiary/undefined",
+      "method": "DELETE",
+      "description": "Delete test beneficiary",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    },
+    {
+      "endpoint": "/beneficiaries",
+      "method": "GET",
+      "description": "Alternative beneficiaries endpoint",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "subCode": "403",
+        "message": "Token is not valid"
+      }
+    },
+    {
+      "endpoint": "/v2/beneficiaries",
+      "method": "GET",
+      "description": "V2 beneficiaries endpoint",
+      "success": true,
+      "status": 200,
+      "data": {
+        "status": "ERROR",
+        "message": "Token is not valid",
+        "subCode": "403"
+      }
+    }
+  ],
+  "failedEndpoints": []
+}

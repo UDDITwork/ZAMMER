@@ -24,6 +24,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const deliveryRoutes = require('./routes/deliveryRoutes');
 const virtualTryOnRoutes = require('./routes/virtualTryOnRoutes');
+const payoutRoutes = require('./routes/payoutRoutes');
 
 // Initialize app
 const app = express();
@@ -537,6 +538,7 @@ app.use('/api/shops', shopRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/payouts', payoutRoutes);
 app.use('/api/virtual-tryon', virtualTryOnRoutes);
 
 // ─────────────────────────────────────────────
