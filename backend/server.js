@@ -37,6 +37,13 @@ try {
   const { app } = require('./app');
   console.log('✅ App module loaded successfully');
 
+  // Initialize scheduler service
+  console.log('Initializing scheduler service...');
+  const SchedulerService = require('./services/schedulerService');
+  await SchedulerService.initialize();
+  SchedulerService.start();
+  console.log('✅ Scheduler service initialized and started');
+
   // Create HTTP server
   httpServer = http.createServer(app);
 

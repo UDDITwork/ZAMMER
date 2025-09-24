@@ -731,6 +731,30 @@ const acceptOrder = async (req, res) => {
       });
     }
 
+    // 🎯 NEW: Instant admin notification when order is accepted
+    if (global.emitToAdmin) {
+      global.emitToAdmin('order-accepted-by-agent', {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        deliveryAgent: {
+          name: req.deliveryAgent.name,
+          phone: req.deliveryAgent.phoneNumber,
+          vehicleType: req.deliveryAgent.vehicleDetails?.type
+        },
+        customer: {
+          name: order.user.name,
+          phone: order.user.phone
+        },
+        seller: {
+          name: order.seller.firstName,
+          shopName: order.seller.shop?.name
+        },
+        acceptedAt: order.deliveryAgent.acceptedAt,
+        message: `Order ${order.orderNumber} has been accepted by delivery agent ${req.deliveryAgent.name}`
+      });
+    }
+
     res.status(200).json({
       success: true,
       message: 'Order accepted successfully',
@@ -1167,6 +1191,36 @@ const completePickup = async (req, res) => {
       });
     }
 
+    // 🎯 ORDER ID VERIFICATION: Verify order ID provided by seller
+    const { orderIdVerification } = req.body;
+    
+    if (!orderIdVerification) {
+      logDeliveryError('PICKUP_MISSING_ORDER_ID', new Error('Order ID verification missing'), { orderId });
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID verification is required for pickup',
+        code: 'MISSING_ORDER_ID_VERIFICATION'
+      });
+    }
+
+    // Verify order ID matches the actual order number
+    if (orderIdVerification.trim() !== order.orderNumber) {
+      logDeliveryError('PICKUP_ORDER_ID_MISMATCH', new Error('Order ID verification failed'), { 
+        orderId, 
+        providedId: orderIdVerification.trim(), 
+        actualOrderNumber: order.orderNumber 
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID verification failed. Please check with seller and try again.',
+        code: 'ORDER_ID_MISMATCH',
+        details: {
+          provided: orderIdVerification.trim(),
+          expected: order.orderNumber
+        }
+      });
+    }
+
     // 🎯 BUSINESS LOGIC: Update order status and pickup details
     const pickupNotes = req.body.pickupNotes || '';
     const pickupTime = new Date();
@@ -1253,6 +1307,32 @@ const completePickup = async (req, res) => {
             name: req.deliveryAgent.name,
             phone: req.deliveryAgent.phoneNumber
           }
+        });
+      }
+
+      // 🎯 NEW: Instant admin notification when pickup is completed
+      if (global.emitToAdmin) {
+        global.emitToAdmin('order-pickup-completed', {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          pickupTime: pickupTime,
+          deliveryAgent: {
+            name: req.deliveryAgent.name,
+            phone: req.deliveryAgent.phoneNumber,
+            vehicleType: req.deliveryAgent.vehicleDetails?.type
+          },
+          customer: {
+            name: order.user.name,
+            phone: order.user.phone
+          },
+          seller: {
+            name: order.seller.firstName,
+            shopName: order.seller.shop?.name,
+            address: order.seller.shop?.address
+          },
+          pickupNotes: pickupNotes,
+          message: `Order ${order.orderNumber} pickup completed by delivery agent ${req.deliveryAgent.name} at seller location`
         });
       }
     } catch (socketError) {

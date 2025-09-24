@@ -1,0 +1,77 @@
+{
+  "timestamp": "2025-09-20T06:04:22.370Z",
+  "summary": {
+    "missingServices": 0,
+    "missingDependencies": 1,
+    "inconsistencies": 2,
+    "warnings": 7
+  },
+  "details": {
+    "missingServices": [],
+    "missingDependencies": [
+      {
+        "type": "dependency",
+        "package": "crypto",
+        "description": "Required dependency crypto not found in package.json"
+      }
+    ],
+    "inconsistencies": [
+      {
+        "type": "route_registration",
+        "file": "./server.js",
+        "issue": "Payout routes not registered in server",
+        "description": "payoutRoutes not found in server.js"
+      },
+      {
+        "type": "route_mounting",
+        "file": "./server.js",
+        "issue": "Payout routes not mounted at /api/payouts",
+        "description": "Routes should be mounted at /api/payouts"
+      }
+    ],
+    "warnings": [
+      {
+        "type": "import",
+        "file": "./services/cashfreePayoutService.js",
+        "warning": "Missing import for mongoose",
+        "description": "Service may need to import mongoose"
+      },
+      {
+        "type": "import",
+        "file": "./services/batchPayoutService.js",
+        "warning": "Missing import for mongoose",
+        "description": "Service may need to import mongoose"
+      },
+      {
+        "type": "import",
+        "file": "./services/batchPayoutService.js",
+        "warning": "Missing import for axios",
+        "description": "Service may need to import axios"
+      },
+      {
+        "type": "import",
+        "file": "./services/payoutCalculationService.js",
+        "warning": "Missing import for mongoose",
+        "description": "Service may need to import mongoose"
+      },
+      {
+        "type": "import",
+        "file": "./services/payoutCalculationService.js",
+        "warning": "Missing import for axios",
+        "description": "Service may need to import axios"
+      },
+      {
+        "type": "import",
+        "file": "./services/payoutNotificationService.js",
+        "warning": "Missing import for mongoose",
+        "description": "Service may need to import mongoose"
+      },
+      {
+        "type": "import",
+        "file": "./services/payoutNotificationService.js",
+        "warning": "Missing import for axios",
+        "description": "Service may need to import axios"
+      }
+    ]
+  }
+}

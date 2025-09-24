@@ -9,8 +9,13 @@ const Seller = require('../models/Seller');
 const Product = require('../models/Product');
 const Admin = require('../models/Admin');
 const DeliveryAgent = require('../models/DeliveryAgent');
+const CashfreeBeneficiary = require('../models/CashfreeBeneficiary');
+const Payout = require('../models/Payout');
+const PayoutBatch = require('../models/PayoutBatch');
 const { generateAdminToken } = require('../utils/jwtToken');
 const { validationResult } = require('express-validator');
+const BatchPayoutService = require('../services/batchPayoutService');
+const PayoutCalculationService = require('../services/payoutCalculationService');
 
 // Enhanced logging for admin operations
 const logAdmin = (action, data, level = 'info') => {
@@ -1262,6 +1267,467 @@ const getAllUsers = async (req, res) => {
   }
 };
 
+// 🎯 NEW: Get payout analytics and statistics
+// @desc    Get comprehensive payout analytics for admin dashboard
+// @route   GET /api/admin/payouts/analytics
+// @access  Private (Admin)
+const getPayoutAnalytics = async (req, res) => {
+  try {
+    const { period = '30d', sellerId } = req.query;
+
+    logAdmin('GET_PAYOUT_ANALYTICS_START', {
+      adminId: req.admin._id,
+      period,
+      sellerId
+    });
+
+    // Calculate date range based on period
+    const endDate = new Date();
+    const startDate = new Date();
+    
+    switch (period) {
+      case '7d':
+        startDate.setDate(endDate.getDate() - 7);
+        break;
+      case '30d':
+        startDate.setDate(endDate.getDate() - 30);
+        break;
+      case '90d':
+        startDate.setDate(endDate.getDate() - 90);
+        break;
+      case '1y':
+        startDate.setFullYear(endDate.getFullYear() - 1);
+        break;
+      default:
+        startDate.setDate(endDate.getDate() - 30);
+    }
+
+    // Build filter
+    const filter = {
+      createdAt: { $gte: startDate, $lte: endDate }
+    };
+
+    if (sellerId) {
+      filter.seller = sellerId;
+    }
+
+    // Get payout statistics
+    const [
+      totalPayouts,
+      totalAmount,
+      completedPayouts,
+      failedPayouts,
+      pendingPayouts,
+      beneficiariesCount,
+      topSellers,
+      dailyPayouts,
+      payoutTrends
+    ] = await Promise.all([
+      Payout.countDocuments(filter),
+      Payout.aggregate([
+        { $match: filter },
+        { $group: { _id: null, total: { $sum: '$payoutAmount' } } }
+      ]),
+      Payout.countDocuments({ ...filter, status: 'SUCCESS' }),
+      Payout.countDocuments({ ...filter, status: 'FAILED' }),
+      Payout.countDocuments({ ...filter, status: 'PENDING' }),
+      CashfreeBeneficiary.countDocuments({ status: 'VERIFIED' }),
+      Payout.aggregate([
+        { $match: filter },
+        { $group: { 
+          _id: '$seller', 
+          totalPayouts: { $sum: '$payoutAmount' },
+          payoutCount: { $sum: 1 }
+        }},
+        { $lookup: {
+          from: 'sellers',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'seller'
+        }},
+        { $unwind: '$seller' },
+        { $project: {
+          sellerName: { $concat: ['$seller.firstName', ' ', '$seller.lastName'] },
+          shopName: '$seller.shop.name',
+          totalPayouts: 1,
+          payoutCount: 1
+        }},
+        { $sort: { totalPayouts: -1 } },
+        { $limit: 10 }
+      ]),
+      Payout.aggregate([
+        { $match: filter },
+        { $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          totalAmount: { $sum: '$payoutAmount' },
+          count: { $sum: 1 }
+        }},
+        { $sort: { _id: 1 } }
+      ]),
+      Payout.aggregate([
+        { $match: filter },
+        { $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$payoutAmount' }
+        }}
+      ])
+    ]);
+
+    const totalAmountValue = totalAmount[0]?.total || 0;
+    const successRate = totalPayouts > 0 ? ((completedPayouts / totalPayouts) * 100).toFixed(2) : 0;
+
+    const analytics = {
+      overview: {
+        totalPayouts,
+        totalAmount: totalAmountValue,
+        completedPayouts,
+        failedPayouts,
+        pendingPayouts,
+        successRate: parseFloat(successRate),
+        beneficiariesCount
+      },
+      topSellers,
+      dailyPayouts,
+      payoutTrends,
+      period: {
+        startDate,
+        endDate,
+        days: Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
+      }
+    };
+
+    logAdmin('GET_PAYOUT_ANALYTICS_SUCCESS', {
+      adminId: req.admin._id,
+      totalPayouts,
+      totalAmount: totalAmountValue,
+      successRate
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Payout analytics retrieved successfully',
+      data: analytics
+    });
+
+  } catch (error) {
+    logAdmin('GET_PAYOUT_ANALYTICS_ERROR', {
+      adminId: req.admin._id,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch payout analytics'
+    });
+  }
+};
+
+// 🎯 NEW: Get all payouts with filtering
+// @desc    Get all payouts with advanced filtering
+// @route   GET /api/admin/payouts
+// @access  Private (Admin)
+const getAllPayouts = async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 20, 
+      status, 
+      sellerId,
+      dateFrom, 
+      dateTo,
+      batchTransferId,
+      orderId
+    } = req.query;
+
+    logAdmin('GET_ALL_PAYOUTS_START', {
+      adminId: req.admin._id,
+      filters: { page, limit, status, sellerId, dateFrom, dateTo }
+    });
+
+    const skip = (page - 1) * limit;
+
+    // Build query filter
+    const filter = {};
+
+    if (status && status !== 'all') {
+      filter.status = status;
+    }
+
+    if (sellerId) {
+      filter.seller = sellerId;
+    }
+
+    if (batchTransferId) {
+      filter.batchTransferId = batchTransferId;
+    }
+
+    if (orderId) {
+      filter.order = orderId;
+    }
+
+    if (dateFrom || dateTo) {
+      filter.createdAt = {};
+      if (dateFrom) {
+        filter.createdAt.$gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        filter.createdAt.$lte = new Date(dateTo);
+      }
+    }
+
+    // Get payouts with populated data
+    const payouts = await Payout.find(filter)
+      .populate('order', 'orderNumber totalPrice status')
+      .populate('seller', 'firstName lastName email shop')
+      .populate('beneficiary', 'beneficiaryName bankAccountNumber bankIfsc status')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const totalPayouts = await Payout.countDocuments(filter);
+    const totalPages = Math.ceil(totalPayouts / limit);
+
+    logAdmin('GET_ALL_PAYOUTS_SUCCESS', {
+      adminId: req.admin._id,
+      payoutsCount: payouts.length,
+      totalPayouts,
+      filters: filter
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Payouts retrieved successfully',
+      data: payouts,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalPayouts,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
+    });
+
+  } catch (error) {
+    logAdmin('GET_ALL_PAYOUTS_ERROR', {
+      adminId: req.admin._id,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch payouts'
+    });
+  }
+};
+
+// 🎯 NEW: Get payout batch details
+// @desc    Get detailed information about a payout batch
+// @route   GET /api/admin/payouts/batch/:batchTransferId
+// @access  Private (Admin)
+const getPayoutBatchDetails = async (req, res) => {
+  try {
+    const { batchTransferId } = req.params;
+
+    logAdmin('GET_PAYOUT_BATCH_DETAILS_START', {
+      adminId: req.admin._id,
+      batchTransferId
+    });
+
+    const batch = await PayoutBatch.findOne({ batchTransferId })
+      .populate('payouts')
+      .populate('processedBy', 'name email');
+
+    if (!batch) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payout batch not found'
+      });
+    }
+
+    // Get detailed payout information
+    const payouts = await Payout.find({ batchTransferId })
+      .populate('order', 'orderNumber totalPrice status')
+      .populate('seller', 'firstName lastName email shop')
+      .populate('beneficiary', 'beneficiaryName bankAccountNumber bankIfsc status')
+      .sort({ createdAt: -1 });
+
+    const batchDetails = {
+      ...batch.toObject(),
+      payouts,
+      summary: {
+        totalPayouts: payouts.length,
+        successfulPayouts: payouts.filter(p => p.status === 'SUCCESS').length,
+        failedPayouts: payouts.filter(p => p.status === 'FAILED').length,
+        pendingPayouts: payouts.filter(p => p.status === 'PENDING').length,
+        successRate: payouts.length > 0 ? 
+          ((payouts.filter(p => p.status === 'SUCCESS').length / payouts.length) * 100).toFixed(2) : 0
+      }
+    };
+
+    logAdmin('GET_PAYOUT_BATCH_DETAILS_SUCCESS', {
+      adminId: req.admin._id,
+      batchTransferId,
+      totalPayouts: payouts.length,
+      status: batch.status
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Payout batch details retrieved successfully',
+      data: batchDetails
+    });
+
+  } catch (error) {
+    logAdmin('GET_PAYOUT_BATCH_DETAILS_ERROR', {
+      adminId: req.admin._id,
+      batchTransferId: req.params.batchTransferId,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch payout batch details'
+    });
+  }
+};
+
+// 🎯 NEW: Process manual batch payout
+// @desc    Manually trigger batch payout processing
+// @route   POST /api/admin/payouts/process-batch
+// @access  Private (Admin)
+const processManualBatchPayout = async (req, res) => {
+  try {
+    const { date, sellerIds, force = false } = req.body;
+
+    logAdmin('PROCESS_MANUAL_BATCH_PAYOUT_START', {
+      adminId: req.admin._id,
+      date,
+      sellerIds: sellerIds?.length || 0,
+      force
+    });
+
+    const result = await BatchPayoutService.processManualBatchPayout({
+      date,
+      sellerIds,
+      force,
+      processedBy: req.admin._id
+    });
+
+    logAdmin('PROCESS_MANUAL_BATCH_PAYOUT_SUCCESS', {
+      adminId: req.admin._id,
+      batchTransferId: result.batchTransferId,
+      transferCount: result.transferCount,
+      totalAmount: result.totalAmount
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Batch payout processed successfully',
+      data: result
+    });
+
+  } catch (error) {
+    logAdmin('PROCESS_MANUAL_BATCH_PAYOUT_ERROR', {
+      adminId: req.admin._id,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process batch payout',
+      error: error.message
+    });
+  }
+};
+
+// 🎯 NEW: Update order payout eligibility
+// @desc    Manually update payout eligibility for orders
+// @route   POST /api/admin/payouts/update-eligibility
+// @access  Private (Admin)
+const updateOrderPayoutEligibility = async (req, res) => {
+  try {
+    const { orderIds, eligible, reason } = req.body;
+
+    logAdmin('UPDATE_ORDER_PAYOUT_ELIGIBILITY_START', {
+      adminId: req.admin._id,
+      orderIds: orderIds?.length || 0,
+      eligible,
+      reason
+    });
+
+    const result = await PayoutCalculationService.updateOrderPayoutEligibility({
+      orderIds,
+      eligible,
+      reason,
+      updatedBy: req.admin._id
+    });
+
+    logAdmin('UPDATE_ORDER_PAYOUT_ELIGIBILITY_SUCCESS', {
+      adminId: req.admin._id,
+      updatedOrders: result.updatedOrders,
+      eligibleCount: result.eligibleCount,
+      notEligibleCount: result.notEligibleCount
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Order payout eligibility updated successfully',
+      data: result
+    });
+
+  } catch (error) {
+    logAdmin('UPDATE_ORDER_PAYOUT_ELIGIBILITY_ERROR', {
+      adminId: req.admin._id,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update order payout eligibility',
+      error: error.message
+    });
+  }
+};
+
+// 🎯 NEW: Get payout eligibility statistics
+// @desc    Get statistics about payout eligibility
+// @route   GET /api/admin/payouts/eligibility-stats
+// @access  Private (Admin)
+const getPayoutEligibilityStats = async (req, res) => {
+  try {
+    logAdmin('GET_PAYOUT_ELIGIBILITY_STATS_START', {
+      adminId: req.admin._id
+    });
+
+    const stats = await PayoutCalculationService.getPayoutEligibilityStats();
+
+    logAdmin('GET_PAYOUT_ELIGIBILITY_STATS_SUCCESS', {
+      adminId: req.admin._id,
+      totalOrders: stats.totalOrders,
+      eligibleOrders: stats.eligibleOrders,
+      notEligibleOrders: stats.notEligibleOrders
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Payout eligibility statistics retrieved successfully',
+      data: stats
+    });
+
+  } catch (error) {
+    logAdmin('GET_PAYOUT_ELIGIBILITY_STATS_ERROR', {
+      adminId: req.admin._id,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch payout eligibility statistics'
+    });
+  }
+};
+
 module.exports = {
   loginAdmin,
   getDashboardStats,
@@ -1276,5 +1742,12 @@ module.exports = {
   updateOrderStatus,
   // 🎯 NEW: Delivery agent management exports
   getDeliveryAgents,
-  getDeliveryAgentProfile
+  getDeliveryAgentProfile,
+  // 🎯 NEW: Payout management exports
+  getPayoutAnalytics,
+  getAllPayouts,
+  getPayoutBatchDetails,
+  processManualBatchPayout,
+  updateOrderPayoutEligibility,
+  getPayoutEligibilityStats
 };

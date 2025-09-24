@@ -1,0 +1,918 @@
+{
+  "timestamp": "2025-09-20T06:01:50.321Z",
+  "summary": {
+    "mismatches": 95,
+    "inconsistencies": 0,
+    "warnings": 6
+  },
+  "details": {
+    "mismatches": [
+      {
+        "type": "variable_naming",
+        "file": "models\\Admin.js",
+        "line": 84,
+        "expected": "camelCase",
+        "actual": "Admin",
+        "context": "Variable should be camelCase: const Admin = mongoose.model('Admin', adminSchema);",
+        "timestamp": "2025-09-20T06:01:49.967Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\Cart.js",
+        "line": 3,
+        "expected": "camelCase",
+        "actual": "CartItemSchema",
+        "context": "Variable should be camelCase: const CartItemSchema = new mongoose.Schema({",
+        "timestamp": "2025-09-20T06:01:49.968Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\Cart.js",
+        "line": 30,
+        "expected": "camelCase",
+        "actual": "CartSchema",
+        "context": "Variable should be camelCase: const CartSchema = new mongoose.Schema({",
+        "timestamp": "2025-09-20T06:01:49.968Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\CashfreeBeneficiary.js",
+        "line": 4,
+        "expected": "camelCase",
+        "actual": "CashfreeBeneficiarySchema",
+        "context": "Variable should be camelCase: const CashfreeBeneficiarySchema = new mongoose.Schema({",
+        "timestamp": "2025-09-20T06:01:49.970Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\CashfreeBeneficiary.js",
+        "line": 259,
+        "expected": "camelCase",
+        "actual": "CashfreeBeneficiary",
+        "context": "Variable should be camelCase: const CashfreeBeneficiary = mongoose.model('CashfreeBeneficiary', CashfreeBeneficiarySchema);",
+        "timestamp": "2025-09-20T06:01:49.970Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\DeliveryAgent.js",
+        "line": 9,
+        "expected": "camelCase",
+        "actual": "DeliveryAgentSchema",
+        "context": "Variable should be camelCase: const DeliveryAgentSchema = new mongoose.Schema({",
+        "timestamp": "2025-09-20T06:01:49.975Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\DeliveryAgent.js",
+        "line": 521,
+        "expected": "camelCase",
+        "actual": "R",
+        "context": "Variable should be camelCase: const R = 6371; // Earth's radius in kilometers",
+        "timestamp": "2025-09-20T06:01:49.978Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\Order.js",
+        "line": 4,
+        "expected": "camelCase",
+        "actual": "OrderItemSchema",
+        "context": "Variable should be camelCase: const OrderItemSchema = new mongoose.Schema({",
+        "timestamp": "2025-09-20T06:01:49.985Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\Order.js",
+        "line": 37,
+        "expected": "camelCase",
+        "actual": "OrderSchema",
+        "context": "Variable should be camelCase: const OrderSchema = new mongoose.Schema({",
+        "timestamp": "2025-09-20T06:01:49.985Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\OtpVerification.js",
+        "line": 394,
+        "expected": "camelCase",
+        "actual": "OtpVerification",
+        "context": "Variable should be camelCase: const OtpVerification = mongoose.model('OtpVerification', otpVerificationSchema);",
+        "timestamp": "2025-09-20T06:01:49.990Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\Payout.js",
+        "line": 4,
+        "expected": "camelCase",
+        "actual": "PayoutSchema",
+        "context": "Variable should be camelCase: const PayoutSchema = new mongoose.Schema({",
+        "timestamp": "2025-09-20T06:01:49.991Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\Payout.js",
+        "line": 410,
+        "expected": "camelCase",
+        "actual": "Payout",
+        "context": "Variable should be camelCase: const Payout = mongoose.model('Payout', PayoutSchema);",
+        "timestamp": "2025-09-20T06:01:49.992Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\PayoutBatch.js",
+        "line": 4,
+        "expected": "camelCase",
+        "actual": "PayoutBatchSchema",
+        "context": "Variable should be camelCase: const PayoutBatchSchema = new mongoose.Schema({",
+        "timestamp": "2025-09-20T06:01:49.995Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\PayoutBatch.js",
+        "line": 284,
+        "expected": "camelCase",
+        "actual": "Payout",
+        "context": "Variable should be camelCase: const Payout = mongoose.model('Payout');",
+        "timestamp": "2025-09-20T06:01:49.996Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\PayoutBatch.js",
+        "line": 428,
+        "expected": "camelCase",
+        "actual": "PayoutBatch",
+        "context": "Variable should be camelCase: const PayoutBatch = mongoose.model('PayoutBatch', PayoutBatchSchema);",
+        "timestamp": "2025-09-20T06:01:49.996Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\Product.js",
+        "line": 3,
+        "expected": "camelCase",
+        "actual": "VariantSchema",
+        "context": "Variable should be camelCase: const VariantSchema = new mongoose.Schema({",
+        "timestamp": "2025-09-20T06:01:50.000Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\Product.js",
+        "line": 26,
+        "expected": "camelCase",
+        "actual": "InventoryHistorySchema",
+        "context": "Variable should be camelCase: const InventoryHistorySchema = new mongoose.Schema({",
+        "timestamp": "2025-09-20T06:01:50.000Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\Product.js",
+        "line": 73,
+        "expected": "camelCase",
+        "actual": "ProductSchema",
+        "context": "Variable should be camelCase: const ProductSchema = new mongoose.Schema({",
+        "timestamp": "2025-09-20T06:01:50.000Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\Review.js",
+        "line": 37,
+        "expected": "camelCase",
+        "actual": "Review",
+        "context": "Variable should be camelCase: const Review = mongoose.model('Review', reviewSchema);",
+        "timestamp": "2025-09-20T06:01:50.003Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\Seller.js",
+        "line": 210,
+        "expected": "camelCase",
+        "actual": "Seller",
+        "context": "Variable should be camelCase: const Seller = mongoose.model('Seller', sellerSchema);",
+        "timestamp": "2025-09-20T06:01:50.004Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "models\\User.js",
+        "line": 585,
+        "expected": "camelCase",
+        "actual": "User",
+        "context": "Variable should be camelCase: const User = mongoose.model('User', userSchema);",
+        "timestamp": "2025-09-20T06:01:50.006Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\batchPayoutService.js",
+        "line": 3,
+        "expected": "camelCase",
+        "actual": "CashfreePayoutService",
+        "context": "Variable should be camelCase: const CashfreePayoutService = require('./cashfreePayoutService');",
+        "timestamp": "2025-09-20T06:01:50.008Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\batchPayoutService.js",
+        "line": 4,
+        "expected": "camelCase",
+        "actual": "PayoutCalculationService",
+        "context": "Variable should be camelCase: const PayoutCalculationService = require('./payoutCalculationService');",
+        "timestamp": "2025-09-20T06:01:50.008Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\batchPayoutService.js",
+        "line": 6,
+        "expected": "camelCase",
+        "actual": "PayoutBatch",
+        "context": "Variable should be camelCase: const PayoutBatch = require('../models/PayoutBatch');",
+        "timestamp": "2025-09-20T06:01:50.008Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\batchPayoutService.js",
+        "line": 7,
+        "expected": "camelCase",
+        "actual": "Payout",
+        "context": "Variable should be camelCase: const Payout = require('../models/Payout');",
+        "timestamp": "2025-09-20T06:01:50.008Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\batchPayoutService.js",
+        "line": 8,
+        "expected": "camelCase",
+        "actual": "Order",
+        "context": "Variable should be camelCase: const Order = require('../models/Order');",
+        "timestamp": "2025-09-20T06:01:50.008Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\batchPayoutService.js",
+        "line": 9,
+        "expected": "camelCase",
+        "actual": "CashfreeBeneficiary",
+        "context": "Variable should be camelCase: const CashfreeBeneficiary = require('../models/CashfreeBeneficiary');",
+        "timestamp": "2025-09-20T06:01:50.008Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\cashfreePayoutService.js",
+        "line": 16,
+        "expected": "camelCase",
+        "actual": "CashfreeBeneficiary",
+        "context": "Variable should be camelCase: const CashfreeBeneficiary = require('../models/CashfreeBeneficiary');",
+        "timestamp": "2025-09-20T06:01:50.010Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\cashfreePayoutService.js",
+        "line": 17,
+        "expected": "camelCase",
+        "actual": "Payout",
+        "context": "Variable should be camelCase: const Payout = require('../models/Payout');",
+        "timestamp": "2025-09-20T06:01:50.010Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\cashfreePayoutService.js",
+        "line": 18,
+        "expected": "camelCase",
+        "actual": "PayoutBatch",
+        "context": "Variable should be camelCase: const PayoutBatch = require('../models/PayoutBatch');",
+        "timestamp": "2025-09-20T06:01:50.010Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\cashfreePayoutService.js",
+        "line": 19,
+        "expected": "camelCase",
+        "actual": "Order",
+        "context": "Variable should be camelCase: const Order = require('../models/Order');",
+        "timestamp": "2025-09-20T06:01:50.010Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\cashfreePayoutService.js",
+        "line": 20,
+        "expected": "camelCase",
+        "actual": "Seller",
+        "context": "Variable should be camelCase: const Seller = require('../models/Seller');",
+        "timestamp": "2025-09-20T06:01:50.010Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\inventoryHistoryService.js",
+        "line": 1,
+        "expected": "camelCase",
+        "actual": "InventoryHistory",
+        "context": "Variable should be camelCase: const InventoryHistory = require('../models/InventoryHistory');",
+        "timestamp": "2025-09-20T06:01:50.013Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\inventoryHistoryService.js",
+        "line": 2,
+        "expected": "camelCase",
+        "actual": "Product",
+        "context": "Variable should be camelCase: const Product = require('../models/Product');",
+        "timestamp": "2025-09-20T06:01:50.013Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\labelGenerationService.js",
+        "line": 2,
+        "expected": "camelCase",
+        "actual": "PDFDocument",
+        "context": "Variable should be camelCase: const PDFDocument = require('pdfkit');",
+        "timestamp": "2025-09-20T06:01:50.017Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\otpService.js",
+        "line": 5,
+        "expected": "camelCase",
+        "actual": "OtpVerification",
+        "context": "Variable should be camelCase: const OtpVerification = require('../models/OtpVerification');",
+        "timestamp": "2025-09-20T06:01:50.022Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\payoutCalculationService.js",
+        "line": 2,
+        "expected": "camelCase",
+        "actual": "Order",
+        "context": "Variable should be camelCase: const Order = require('../models/Order');",
+        "timestamp": "2025-09-20T06:01:50.025Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\payoutCalculationService.js",
+        "line": 3,
+        "expected": "camelCase",
+        "actual": "Seller",
+        "context": "Variable should be camelCase: const Seller = require('../models/Seller');",
+        "timestamp": "2025-09-20T06:01:50.025Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\payoutCalculationService.js",
+        "line": 4,
+        "expected": "camelCase",
+        "actual": "CashfreeBeneficiary",
+        "context": "Variable should be camelCase: const CashfreeBeneficiary = require('../models/CashfreeBeneficiary');",
+        "timestamp": "2025-09-20T06:01:50.025Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\schedulerService.js",
+        "line": 2,
+        "expected": "camelCase",
+        "actual": "BatchPayoutService",
+        "context": "Variable should be camelCase: const BatchPayoutService = require('./batchPayoutService');",
+        "timestamp": "2025-09-20T06:01:50.031Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\schedulerService.js",
+        "line": 3,
+        "expected": "camelCase",
+        "actual": "CashfreePayoutService",
+        "context": "Variable should be camelCase: const CashfreePayoutService = require('./cashfreePayoutService');",
+        "timestamp": "2025-09-20T06:01:50.031Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\schedulerService.js",
+        "line": 4,
+        "expected": "camelCase",
+        "actual": "PayoutCalculationService",
+        "context": "Variable should be camelCase: const PayoutCalculationService = require('./payoutCalculationService');",
+        "timestamp": "2025-09-20T06:01:50.031Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\trackingService.js",
+        "line": 3,
+        "expected": "camelCase",
+        "actual": "Order",
+        "context": "Variable should be camelCase: const Order = require('../models/Order');",
+        "timestamp": "2025-09-20T06:01:50.042Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\trackingService.js",
+        "line": 4,
+        "expected": "camelCase",
+        "actual": "DeliveryAgent",
+        "context": "Variable should be camelCase: const DeliveryAgent = require('../models/DeliveryAgent');",
+        "timestamp": "2025-09-20T06:01:50.042Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\trackingService.js",
+        "line": 5,
+        "expected": "camelCase",
+        "actual": "OtpVerification",
+        "context": "Variable should be camelCase: const OtpVerification = require('../models/OtpVerification');",
+        "timestamp": "2025-09-20T06:01:50.042Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "services\\trackingService.js",
+        "line": 670,
+        "expected": "camelCase",
+        "actual": "R",
+        "context": "Variable should be camelCase: const R = 6371; // Earth's radius in kilometers",
+        "timestamp": "2025-09-20T06:01:50.043Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\adminController.js",
+        "line": 6,
+        "expected": "camelCase",
+        "actual": "Order",
+        "context": "Variable should be camelCase: const Order = require('../models/Order');",
+        "timestamp": "2025-09-20T06:01:50.046Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\adminController.js",
+        "line": 7,
+        "expected": "camelCase",
+        "actual": "User",
+        "context": "Variable should be camelCase: const User = require('../models/User');",
+        "timestamp": "2025-09-20T06:01:50.046Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\adminController.js",
+        "line": 8,
+        "expected": "camelCase",
+        "actual": "Seller",
+        "context": "Variable should be camelCase: const Seller = require('../models/Seller');",
+        "timestamp": "2025-09-20T06:01:50.046Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\adminController.js",
+        "line": 9,
+        "expected": "camelCase",
+        "actual": "Product",
+        "context": "Variable should be camelCase: const Product = require('../models/Product');",
+        "timestamp": "2025-09-20T06:01:50.046Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\adminController.js",
+        "line": 10,
+        "expected": "camelCase",
+        "actual": "Admin",
+        "context": "Variable should be camelCase: const Admin = require('../models/Admin');",
+        "timestamp": "2025-09-20T06:01:50.046Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\adminController.js",
+        "line": 11,
+        "expected": "camelCase",
+        "actual": "DeliveryAgent",
+        "context": "Variable should be camelCase: const DeliveryAgent = require('../models/DeliveryAgent');",
+        "timestamp": "2025-09-20T06:01:50.046Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\adminController.js",
+        "line": 12,
+        "expected": "camelCase",
+        "actual": "CashfreeBeneficiary",
+        "context": "Variable should be camelCase: const CashfreeBeneficiary = require('../models/CashfreeBeneficiary');",
+        "timestamp": "2025-09-20T06:01:50.046Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\adminController.js",
+        "line": 13,
+        "expected": "camelCase",
+        "actual": "Payout",
+        "context": "Variable should be camelCase: const Payout = require('../models/Payout');",
+        "timestamp": "2025-09-20T06:01:50.046Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\adminController.js",
+        "line": 14,
+        "expected": "camelCase",
+        "actual": "PayoutBatch",
+        "context": "Variable should be camelCase: const PayoutBatch = require('../models/PayoutBatch');",
+        "timestamp": "2025-09-20T06:01:50.046Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\adminController.js",
+        "line": 17,
+        "expected": "camelCase",
+        "actual": "BatchPayoutService",
+        "context": "Variable should be camelCase: const BatchPayoutService = require('../services/batchPayoutService');",
+        "timestamp": "2025-09-20T06:01:50.046Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\adminController.js",
+        "line": 18,
+        "expected": "camelCase",
+        "actual": "PayoutCalculationService",
+        "context": "Variable should be camelCase: const PayoutCalculationService = require('../services/payoutCalculationService');",
+        "timestamp": "2025-09-20T06:01:50.046Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\cartController.js",
+        "line": 1,
+        "expected": "camelCase",
+        "actual": "Cart",
+        "context": "Variable should be camelCase: const Cart = require('../models/Cart');",
+        "timestamp": "2025-09-20T06:01:50.050Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\cartController.js",
+        "line": 2,
+        "expected": "camelCase",
+        "actual": "Product",
+        "context": "Variable should be camelCase: const Product = require('../models/Product');",
+        "timestamp": "2025-09-20T06:01:50.050Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\deliveryAgentController.js",
+        "line": 9,
+        "expected": "camelCase",
+        "actual": "DeliveryAgent",
+        "context": "Variable should be camelCase: const DeliveryAgent = require('../models/DeliveryAgent');",
+        "timestamp": "2025-09-20T06:01:50.054Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\deliveryAgentController.js",
+        "line": 10,
+        "expected": "camelCase",
+        "actual": "Order",
+        "context": "Variable should be camelCase: const Order = require('../models/Order');",
+        "timestamp": "2025-09-20T06:01:50.054Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\deliveryAgentController.js",
+        "line": 11,
+        "expected": "camelCase",
+        "actual": "OtpVerification",
+        "context": "Variable should be camelCase: const OtpVerification = require('../models/OtpVerification');",
+        "timestamp": "2025-09-20T06:01:50.054Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\orderController.js",
+        "line": 1,
+        "expected": "camelCase",
+        "actual": "Order",
+        "context": "Variable should be camelCase: const Order = require('../models/Order');",
+        "timestamp": "2025-09-20T06:01:50.062Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\orderController.js",
+        "line": 2,
+        "expected": "camelCase",
+        "actual": "Product",
+        "context": "Variable should be camelCase: const Product = require('../models/Product');",
+        "timestamp": "2025-09-20T06:01:50.062Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\orderController.js",
+        "line": 3,
+        "expected": "camelCase",
+        "actual": "User",
+        "context": "Variable should be camelCase: const User = require('../models/User');",
+        "timestamp": "2025-09-20T06:01:50.062Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\orderController.js",
+        "line": 4,
+        "expected": "camelCase",
+        "actual": "Seller",
+        "context": "Variable should be camelCase: const Seller = require('../models/Seller');",
+        "timestamp": "2025-09-20T06:01:50.062Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\paymentController.js",
+        "line": 3,
+        "expected": "camelCase",
+        "actual": "Order",
+        "context": "Variable should be camelCase: const Order = require('../models/Order');",
+        "timestamp": "2025-09-20T06:01:50.066Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\payoutController.js",
+        "line": 2,
+        "expected": "camelCase",
+        "actual": "CashfreePayoutService",
+        "context": "Variable should be camelCase: const CashfreePayoutService = require('../services/cashfreePayoutService');",
+        "timestamp": "2025-09-20T06:01:50.068Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\payoutController.js",
+        "line": 3,
+        "expected": "camelCase",
+        "actual": "BatchPayoutService",
+        "context": "Variable should be camelCase: const BatchPayoutService = require('../services/batchPayoutService');",
+        "timestamp": "2025-09-20T06:01:50.068Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\payoutController.js",
+        "line": 4,
+        "expected": "camelCase",
+        "actual": "PayoutCalculationService",
+        "context": "Variable should be camelCase: const PayoutCalculationService = require('../services/payoutCalculationService');",
+        "timestamp": "2025-09-20T06:01:50.068Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\payoutController.js",
+        "line": 6,
+        "expected": "camelCase",
+        "actual": "CashfreeBeneficiary",
+        "context": "Variable should be camelCase: const CashfreeBeneficiary = require('../models/CashfreeBeneficiary');",
+        "timestamp": "2025-09-20T06:01:50.068Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\payoutController.js",
+        "line": 7,
+        "expected": "camelCase",
+        "actual": "Payout",
+        "context": "Variable should be camelCase: const Payout = require('../models/Payout');",
+        "timestamp": "2025-09-20T06:01:50.069Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\payoutController.js",
+        "line": 8,
+        "expected": "camelCase",
+        "actual": "PayoutBatch",
+        "context": "Variable should be camelCase: const PayoutBatch = require('../models/PayoutBatch');",
+        "timestamp": "2025-09-20T06:01:50.069Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\payoutController.js",
+        "line": 9,
+        "expected": "camelCase",
+        "actual": "Order",
+        "context": "Variable should be camelCase: const Order = require('../models/Order');",
+        "timestamp": "2025-09-20T06:01:50.069Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\payoutController.js",
+        "line": 10,
+        "expected": "camelCase",
+        "actual": "Seller",
+        "context": "Variable should be camelCase: const Seller = require('../models/Seller');",
+        "timestamp": "2025-09-20T06:01:50.069Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\productController.js",
+        "line": 3,
+        "expected": "camelCase",
+        "actual": "Product",
+        "context": "Variable should be camelCase: const Product = require('../models/Product');",
+        "timestamp": "2025-09-20T06:01:50.072Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\productController.js",
+        "line": 4,
+        "expected": "camelCase",
+        "actual": "Seller",
+        "context": "Variable should be camelCase: const Seller = require('../models/Seller');",
+        "timestamp": "2025-09-20T06:01:50.072Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\productController.js",
+        "line": 5,
+        "expected": "camelCase",
+        "actual": "InventoryHistoryService",
+        "context": "Variable should be camelCase: const InventoryHistoryService = require('../services/inventoryHistoryService');",
+        "timestamp": "2025-09-20T06:01:50.072Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\reviewController.js",
+        "line": 1,
+        "expected": "camelCase",
+        "actual": "Review",
+        "context": "Variable should be camelCase: const Review = require('../models/Review');",
+        "timestamp": "2025-09-20T06:01:50.074Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\reviewController.js",
+        "line": 2,
+        "expected": "camelCase",
+        "actual": "Product",
+        "context": "Variable should be camelCase: const Product = require('../models/Product');",
+        "timestamp": "2025-09-20T06:01:50.074Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\reviewController.js",
+        "line": 3,
+        "expected": "camelCase",
+        "actual": "Order",
+        "context": "Variable should be camelCase: const Order = require('../models/Order');",
+        "timestamp": "2025-09-20T06:01:50.074Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\sellerController.js",
+        "line": 2,
+        "expected": "camelCase",
+        "actual": "Seller",
+        "context": "Variable should be camelCase: const Seller = require('../models/Seller');",
+        "timestamp": "2025-09-20T06:01:50.081Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\sellerController.js",
+        "line": 9,
+        "expected": "camelCase",
+        "actual": "Order",
+        "context": "Variable should be camelCase: const Order = require('../models/Order'); // Added Order model import",
+        "timestamp": "2025-09-20T06:01:50.081Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\userController.js",
+        "line": 3,
+        "expected": "camelCase",
+        "actual": "User",
+        "context": "Variable should be camelCase: const User = require('../models/User');",
+        "timestamp": "2025-09-20T06:01:50.086Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\userController.js",
+        "line": 4,
+        "expected": "camelCase",
+        "actual": "Seller",
+        "context": "Variable should be camelCase: const Seller = require('../models/Seller');",
+        "timestamp": "2025-09-20T06:01:50.086Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\userController.js",
+        "line": 5,
+        "expected": "camelCase",
+        "actual": "Product",
+        "context": "Variable should be camelCase: const Product = require('../models/Product');",
+        "timestamp": "2025-09-20T06:01:50.086Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "controllers\\userController.js",
+        "line": 876,
+        "expected": "camelCase",
+        "actual": "R",
+        "context": "Variable should be camelCase: const R = 6371;",
+        "timestamp": "2025-09-20T06:01:50.087Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "routes\\adminRoutes.js",
+        "line": 35,
+        "expected": "camelCase",
+        "actual": "Order",
+        "context": "Variable should be camelCase: const Order = require('../models/Order');",
+        "timestamp": "2025-09-20T06:01:50.090Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "routes\\adminRoutes.js",
+        "line": 36,
+        "expected": "camelCase",
+        "actual": "User",
+        "context": "Variable should be camelCase: const User = require('../models/User');",
+        "timestamp": "2025-09-20T06:01:50.090Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "routes\\adminRoutes.js",
+        "line": 37,
+        "expected": "camelCase",
+        "actual": "Seller",
+        "context": "Variable should be camelCase: const Seller = require('../models/Seller');",
+        "timestamp": "2025-09-20T06:01:50.090Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "routes\\adminRoutes.js",
+        "line": 38,
+        "expected": "camelCase",
+        "actual": "Product",
+        "context": "Variable should be camelCase: const Product = require('../models/Product');",
+        "timestamp": "2025-09-20T06:01:50.090Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "routes\\adminRoutes.js",
+        "line": 39,
+        "expected": "camelCase",
+        "actual": "DeliveryAgent",
+        "context": "Variable should be camelCase: const DeliveryAgent = require('../models/DeliveryAgent');",
+        "timestamp": "2025-09-20T06:01:50.090Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "routes\\deliveryRoutes.js",
+        "line": 297,
+        "expected": "camelCase",
+        "actual": "DeliveryAgent",
+        "context": "Variable should be camelCase: const DeliveryAgent = require('../models/DeliveryAgent');",
+        "timestamp": "2025-09-20T06:01:50.093Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "routes\\sellerRoutes.js",
+        "line": 24,
+        "expected": "camelCase",
+        "actual": "Seller",
+        "context": "Variable should be camelCase: const Seller = require('../models/Seller');",
+        "timestamp": "2025-09-20T06:01:50.106Z"
+      },
+      {
+        "type": "variable_naming",
+        "file": "routes\\shopRoutes.js",
+        "line": 5,
+        "expected": "camelCase",
+        "actual": "Seller",
+        "context": "Variable should be camelCase: const Seller = require('../models/Seller');",
+        "timestamp": "2025-09-20T06:01:50.108Z"
+      }
+    ],
+    "inconsistencies": [],
+    "warnings": [
+      {
+        "type": "missing_extension",
+        "file": "services\\batchPayoutService.js",
+        "line": 3,
+        "warning": "Import path missing .js extension: ./cashfreePayoutService",
+        "context": "const CashfreePayoutService = require('./cashfreePayoutService');",
+        "timestamp": "2025-09-20T06:01:50.009Z"
+      },
+      {
+        "type": "missing_extension",
+        "file": "services\\batchPayoutService.js",
+        "line": 4,
+        "warning": "Import path missing .js extension: ./payoutCalculationService",
+        "context": "const PayoutCalculationService = require('./payoutCalculationService');",
+        "timestamp": "2025-09-20T06:01:50.009Z"
+      },
+      {
+        "type": "missing_extension",
+        "file": "services\\batchPayoutService.js",
+        "line": 5,
+        "warning": "Import path missing .js extension: ./payoutNotificationService",
+        "context": "const payoutNotificationService = require('./payoutNotificationService');",
+        "timestamp": "2025-09-20T06:01:50.009Z"
+      },
+      {
+        "type": "missing_extension",
+        "file": "services\\schedulerService.js",
+        "line": 2,
+        "warning": "Import path missing .js extension: ./batchPayoutService",
+        "context": "const BatchPayoutService = require('./batchPayoutService');",
+        "timestamp": "2025-09-20T06:01:50.032Z"
+      },
+      {
+        "type": "missing_extension",
+        "file": "services\\schedulerService.js",
+        "line": 3,
+        "warning": "Import path missing .js extension: ./cashfreePayoutService",
+        "context": "const CashfreePayoutService = require('./cashfreePayoutService');",
+        "timestamp": "2025-09-20T06:01:50.032Z"
+      },
+      {
+        "type": "missing_extension",
+        "file": "services\\schedulerService.js",
+        "line": 4,
+        "warning": "Import path missing .js extension: ./payoutCalculationService",
+        "context": "const PayoutCalculationService = require('./payoutCalculationService');",
+        "timestamp": "2025-09-20T06:01:50.032Z"
+      }
+    ]
+  }
+}

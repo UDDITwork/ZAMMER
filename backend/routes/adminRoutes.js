@@ -21,7 +21,14 @@ const {
   updateOrderStatus,
   // Delivery agent management functions
   getDeliveryAgents,
-  getDeliveryAgentProfile
+  getDeliveryAgentProfile,
+  // Payout management functions
+  getPayoutAnalytics,
+  getAllPayouts,
+  getPayoutBatchDetails,
+  processManualBatchPayout,
+  updateOrderPayoutEligibility,
+  getPayoutEligibilityStats
 } = require('../controllers/adminController');
 
 // Import all required models
@@ -651,6 +658,115 @@ router.get('/analytics/orders', [
     });
   }
 });
+
+// 🎯 NEW: Payout Management Routes
+
+// @route   GET /api/admin/payouts/analytics
+// @desc    Get comprehensive payout analytics
+// @access  Private (Admin)
+router.get('/payouts/analytics', [
+  query('period')
+    .optional()
+    .isIn(['7d', '30d', '90d', '1y'])
+    .withMessage('Invalid period. Use 7d, 30d, 90d, or 1y'),
+  query('sellerId')
+    .optional()
+    .isMongoId()
+    .withMessage('Invalid seller ID format')
+], validateRequest, getPayoutAnalytics);
+
+// @route   GET /api/admin/payouts
+// @desc    Get all payouts with filtering
+// @access  Private (Admin)
+router.get('/payouts', [
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Page must be a positive integer'),
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Limit must be between 1 and 100'),
+  query('status')
+    .optional()
+    .isIn(['ELIGIBLE', 'NOT_ELIGIBLE', 'PENDING', 'RECEIVED', 'APPROVAL_PENDING', 'SENT_TO_BANK', 'SUCCESS', 'FAILED', 'REJECTED', 'REVERSED', 'CANCELLED', 'all'])
+    .withMessage('Invalid payout status'),
+  query('sellerId')
+    .optional()
+    .isMongoId()
+    .withMessage('Invalid seller ID format'),
+  query('dateFrom')
+    .optional()
+    .isISO8601()
+    .withMessage('Invalid date format for dateFrom'),
+  query('dateTo')
+    .optional()
+    .isISO8601()
+    .withMessage('Invalid date format for dateTo'),
+  query('batchTransferId')
+    .optional()
+    .isString()
+    .withMessage('Invalid batch transfer ID format'),
+  query('orderId')
+    .optional()
+    .isMongoId()
+    .withMessage('Invalid order ID format')
+], validateRequest, getAllPayouts);
+
+// @route   GET /api/admin/payouts/batch/:batchTransferId
+// @desc    Get detailed information about a payout batch
+// @access  Private (Admin)
+router.get('/payouts/batch/:batchTransferId', [
+  param('batchTransferId')
+    .notEmpty()
+    .withMessage('Batch transfer ID is required')
+], validateRequest, getPayoutBatchDetails);
+
+// @route   POST /api/admin/payouts/process-batch
+// @desc    Manually trigger batch payout processing
+// @access  Private (Admin)
+router.post('/payouts/process-batch', [
+  body('date')
+    .optional()
+    .isISO8601()
+    .withMessage('Invalid date format'),
+  body('sellerIds')
+    .optional()
+    .isArray()
+    .withMessage('Seller IDs must be an array'),
+  body('sellerIds.*')
+    .optional()
+    .isMongoId()
+    .withMessage('Each seller ID must be a valid MongoDB ObjectId'),
+  body('force')
+    .optional()
+    .isBoolean()
+    .withMessage('Force must be a boolean')
+], validateRequest, processManualBatchPayout);
+
+// @route   POST /api/admin/payouts/update-eligibility
+// @desc    Manually update payout eligibility for orders
+// @access  Private (Admin)
+router.post('/payouts/update-eligibility', [
+  body('orderIds')
+    .isArray({ min: 1 })
+    .withMessage('Order IDs must be a non-empty array'),
+  body('orderIds.*')
+    .isMongoId()
+    .withMessage('Each order ID must be a valid MongoDB ObjectId'),
+  body('eligible')
+    .isBoolean()
+    .withMessage('Eligible must be a boolean'),
+  body('reason')
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage('Reason must be less than 500 characters')
+], validateRequest, updateOrderPayoutEligibility);
+
+// @route   GET /api/admin/payouts/eligibility-stats
+// @desc    Get statistics about payout eligibility
+// @access  Private (Admin)
+router.get('/payouts/eligibility-stats', getPayoutEligibilityStats);
 
 // 🎯 NEW: System Health and Monitoring
 
