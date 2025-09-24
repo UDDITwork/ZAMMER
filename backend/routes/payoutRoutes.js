@@ -30,8 +30,8 @@ const {
 } = require('../controllers/payoutController');
 
 // Import middleware
-const { protect: sellerProtect } = require('../middleware/authMiddleware');
-const { adminProtect } = require('../middleware/adminMiddleware');
+const { protectSeller: sellerProtect } = require('../middleware/authMiddleware');
+const { protectAdmin: adminProtect } = require('../middleware/adminMiddleware');
 
 // ========================================
 // SELLER ROUTES

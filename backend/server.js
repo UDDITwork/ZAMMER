@@ -5,12 +5,22 @@ const socketIo = require('socket.io');
 const path = require('path');
 const express = require('express');
 
-// Environment variables
-const NODE_ENV = process.env.NODE_ENV || 'development';
-const PORT = Number(process.env.PORT) || 5001; // FIXED: Use 5001 for localhost development
-// Dynamic frontend URL based on environment
+// 🎯 ROBUST: Smart Environment Detection
+const detectEnvironment = () => {
+  // Auto-detect if running locally (has localhost in process.env)
+  const isLocal = process.env.PORT === '5001' || 
+                  process.env.NODE_ENV === 'development' ||
+                  process.env.FRONTEND_URL_LOCAL ||
+                  !process.env.FRONTEND_URL_PROD;
+  
+  return isLocal ? 'development' : 'production';
+};
+
+const NODE_ENV = process.env.NODE_ENV || detectEnvironment();
+const PORT = Number(process.env.PORT) || 5001;
+// 🎯 ROBUST: Smart Frontend URL Detection
 const getFrontendUrl = () => {
-  if (process.env.NODE_ENV === 'production') {
+  if (NODE_ENV === 'production') {
     return process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com';
   }
   return process.env.FRONTEND_URL_LOCAL || 'http://localhost:3000';
@@ -31,26 +41,30 @@ console.log(`
 // Define server variable in the global scope
 let httpServer;
 
-try {
-  // Load app module
-  console.log('Loading app module...');
-  const { app } = require('./app');
-  console.log('✅ App module loaded successfully');
+// Wrap the main initialization in an async function
+async function initializeServer() {
+  try {
+    // Load app module
+    console.log('Loading app module...');
+    const { app } = require('./app');
+    console.log('✅ App module loaded successfully');
 
-  // Initialize scheduler service
-  console.log('Initializing scheduler service...');
-  const SchedulerService = require('./services/schedulerService');
-  await SchedulerService.initialize();
-  SchedulerService.start();
-  console.log('✅ Scheduler service initialized and started');
+    // Initialize scheduler service
+    console.log('Initializing scheduler service...');
+    const SchedulerService = require('./services/schedulerService');
+    await SchedulerService.initialize();
+    SchedulerService.start();
+    console.log('✅ Scheduler service initialized and started');
 
   // Create HTTP server
   httpServer = http.createServer(app);
 
-  // 🎯 PRODUCTION: Get allowed origins for Socket.IO
+  // 🎯 ROBUST: Smart Socket.IO Origins - Auto-detects environment
   const getAllowedOrigins = () => {
-    if (process.env.NODE_ENV === 'production') {
-      // Production: Only HTTPS URLs
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    if (isProduction) {
+      // Production: HTTPS URLs + patterns
       return [
         'https://zammer2.uc.r.appspot.com',
         process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com',
@@ -58,14 +72,16 @@ try {
         /https:\/\/.*\.googleusercontent\.com$/,
         'https://onyx-osprey-462815-i9.appspot.com'
       ];
+    } else {
+      // Development: Localhost + production URLs for testing
+      return [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'https://localhost:3000',
+        // Also allow production URL in dev for testing
+        'https://zammer2.uc.r.appspot.com'
+      ];
     }
-    
-    // Development: HTTP and HTTPS localhost
-    return [
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'https://localhost:3000'
-    ];
   };
 
   // Setup Socket.IO with enhanced CORS configuration
@@ -155,12 +171,16 @@ try {
       process.exit(1);
     });
 
-} catch (error) {
-  console.error('❌ CRITICAL ERROR DURING SERVER STARTUP:');
-  console.error('Error details:', error.message);
-  console.error('Stack trace:', error.stack);
-  process.exit(1);
+  } catch (error) {
+    console.error('❌ CRITICAL ERROR DURING SERVER STARTUP:');
+    console.error('Error details:', error.message);
+    console.error('Stack trace:', error.stack);
+    process.exit(1);
+  }
 }
+
+// Start the server
+initializeServer();
 
 // 🎯 PRODUCTION: Enhanced error handling
 process.on('unhandledRejection', (err, promise) => {

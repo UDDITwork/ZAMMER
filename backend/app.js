@@ -55,48 +55,46 @@ const getFrontendUrl = () => {
 
 const FRONTEND_URL = getFrontendUrl();
 
-// 🎯 UNIVERSAL: Define allowed origins - Environment Variable Based
+// 🎯 ROBUST: Smart CORS Origins - Auto-detects environment
 const getAllowedOrigins = () => {
-  if (process.env.NODE_ENV === 'production') {
-    // Production: Only HTTPS URLs
-    const origins = [
-      'https://zammer2.uc.r.appspot.com',
-      process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com',
-      'https://res.cloudinary.com',
-      'https://cloudinary.com'
-    ];
-    
-    // Add any additional origins from environment variables
-    if (process.env.ADDITIONAL_ALLOWED_ORIGINS) {
-      const additionalOrigins = process.env.ADDITIONAL_ALLOWED_ORIGINS.split(',');
-      origins.push(...additionalOrigins.map(url => url.trim()));
-    }
-    
-    // Add environment-specific domains
-    if (process.env.CDN_DOMAINS) {
-      const cdnDomains = process.env.CDN_DOMAINS.split(',');
-      origins.push(...cdnDomains.map(domain => domain.trim()));
-    }
-    
-    return origins;
-  }
+  // Smart detection: Check if running locally
+  const isLocal = process.env.PORT === '5001' || 
+                  process.env.NODE_ENV === 'development' ||
+                  process.env.FRONTEND_URL_LOCAL ||
+                  !process.env.FRONTEND_URL_PROD;
   
-  // Development: HTTP and HTTPS localhost
-  const origins = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'https://localhost:3000',
+  // Base origins for all environments
+  const baseOrigins = [
     'https://res.cloudinary.com',
     'https://cloudinary.com'
   ];
   
-  // Add any additional origins from environment variables
-  if (process.env.ADDITIONAL_ALLOWED_ORIGINS) {
-    const additionalOrigins = process.env.ADDITIONAL_ALLOWED_ORIGINS.split(',');
-    origins.push(...additionalOrigins.map(url => url.trim()));
+  if (isLocal) {
+    // Local Development: Allow localhost + production URLs for testing
+    const localOrigins = [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'https://localhost:3000',
+      // Also allow production URL in dev for testing
+      'https://zammer2.uc.r.appspot.com'
+    ];
+    
+    return [...localOrigins, ...baseOrigins];
+  } else {
+    // Production: HTTPS URLs only
+    const prodOrigins = [
+      'https://zammer2.uc.r.appspot.com',
+      process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com'
+    ];
+    
+    // Add environment-specific domains
+    if (process.env.CDN_DOMAINS) {
+      const cdnDomains = process.env.CDN_DOMAINS.split(',').map(d => d.trim());
+      prodOrigins.push(...cdnDomains);
+    }
+    
+    return [...prodOrigins, ...baseOrigins];
   }
-  
-  return origins;
 };
 
 console.log(`
