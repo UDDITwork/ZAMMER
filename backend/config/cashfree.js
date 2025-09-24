@@ -1,5 +1,16 @@
 // backend/config/cashfree.js - Cashfree Payouts V2 Configuration
+require('dotenv').config();
+
 const config = {
+  development: {
+    baseUrl: 'https://api.cashfree.com/payout',
+    clientId: process.env.CASHFREE_PAYOUT_CLIENT_ID_PROD || '',
+    secretKey: process.env.CASHFREE_PAYOUT_SECRET_KEY_PROD || '',
+    apiVersion: '2024-01-01',
+    webhookSecret: process.env.CASHFREE_PAYOUT_WEBHOOK_SECRET_PROD || '',
+    publicKey: process.env.CASHFREE_PAYOUT_PUBLIC_KEY_PROD || '',
+    environment: 'development'
+  },
   
   production: {
     baseUrl: 'https://api.cashfree.com/payout',
@@ -12,17 +23,21 @@ const config = {
   }
 };
 
-// Get current environment configuration
+// Get current environment configuration - ROBUST VERSION
 const getConfig = () => {
-  const env = process.env.NODE_ENV || 'production';
-  const currentConfig = config[env];
+  // Always use production credentials (they work for both dev and prod)
+  const productionConfig = config.production;
   
   // Validate required configuration
-  if (!currentConfig.clientId || !currentConfig.secretKey) {
-    throw new Error(`Cashfree Payouts configuration missing for ${env} environment`);
+  if (!productionConfig.clientId || !productionConfig.secretKey) {
+    throw new Error(`Cashfree Payouts configuration missing - check environment variables`);
   }
   
-  return currentConfig;
+  // Return production config for both environments (Cashfree API is the same)
+  return {
+    ...productionConfig,
+    environment: process.env.NODE_ENV || 'production'
+  };
 };
 
 // API Endpoints
