@@ -1,0 +1,18 @@
+# This workflow disables CodeQL analysis
+# GitHub's default CodeQL will be disabled when this file exists
+name: "Disable CodeQL"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  disable-codeql:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Disable CodeQL Analysis
+      run: |
+        echo "CodeQL analysis disabled for this repository"
+        echo "This workflow exists solely to prevent GitHub's automatic CodeQL from running"
