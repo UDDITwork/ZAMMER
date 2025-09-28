@@ -40,6 +40,7 @@ const sellerSchema = new mongoose.Schema({
     phoneNumber: {
       main: {
         type: String,
+        required: [true, 'Shop phone number is required'],
         default: ''
       },
       alternate: {

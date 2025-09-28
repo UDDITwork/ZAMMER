@@ -708,6 +708,171 @@ class SMEPayService {
       };
     }
   }
+
+  // 🎯 NEW: Generate Dynamic QR Code for COD Payments
+  async generateDynamicQR(paymentData) {
+    try {
+      terminalLog('GENERATE_QR_START', 'PROCESSING', {
+        amount: paymentData.amount,
+        orderId: paymentData.orderId,
+        description: paymentData.description
+      });
+
+      // Authenticate first
+      await this.authenticate();
+
+      const qrEndpoint = `${this.baseURL}${smepayConfig.endpoints.generateQR}`;
+      
+      const qrPayload = {
+        amount: paymentData.amount,
+        order_id: paymentData.orderId,
+        description: paymentData.description || `Payment for Order #${paymentData.orderId}`,
+        currency: 'INR',
+        payment_method: 'UPI',
+        expiry_minutes: 30 // QR expires in 30 minutes
+      };
+
+      terminalLog('QR_GENERATION_REQUEST', 'PROCESSING', {
+        endpoint: qrEndpoint,
+        payload: {
+          ...qrPayload,
+          amount: paymentData.amount,
+          order_id: paymentData.orderId
+        }
+      });
+
+      const response = await axios({
+        method: 'POST',
+        url: qrEndpoint,
+        data: qrPayload,
+        timeout: 15000,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${this.accessToken}`,
+          'X-Client-ID': this.clientId
+        }
+      });
+
+      if (response.data && response.data.success) {
+        const qrData = response.data.data;
+        
+        terminalLog('QR_GENERATION_SUCCESS', 'SUCCESS', {
+          paymentId: qrData.payment_id,
+          qrCode: qrData.qr_code ? 'Generated' : 'Not provided',
+          amount: qrData.amount,
+          expiry: qrData.expiry_time
+        });
+
+        return {
+          success: true,
+          paymentId: qrData.payment_id,
+          qrCode: qrData.qr_code,
+          qrData: qrData.qr_data || qrData.qr_string,
+          amount: qrData.amount,
+          currency: qrData.currency || 'INR',
+          expiryTime: qrData.expiry_time,
+          status: 'pending',
+          timestamp: new Date().toISOString()
+        };
+      } else {
+        throw new Error(response.data?.message || 'Failed to generate QR code');
+      }
+
+    } catch (error) {
+      terminalLog('QR_GENERATION_FAILED', 'ERROR', {
+        error: error.message,
+        orderId: paymentData.orderId,
+        amount: paymentData.amount
+      });
+
+      // Fallback: Generate mock QR data for development
+      if (this.mode === 'development') {
+        terminalLog('QR_FALLBACK_MODE', 'PROCESSING', {
+          message: 'Using mock QR data for development'
+        });
+
+        return {
+          success: true,
+          paymentId: `QR_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          qrCode: `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==`, // 1x1 transparent PNG
+          qrData: `upi://pay?pa=test@paytm&pn=Test%20Merchant&am=${paymentData.amount}&cu=INR&tr=${paymentData.orderId}`,
+          amount: paymentData.amount,
+          currency: 'INR',
+          expiryTime: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes from now
+          status: 'pending',
+          timestamp: new Date().toISOString(),
+          isMock: true
+        };
+      }
+
+      throw error;
+    }
+  }
+
+  // 🎯 NEW: Check QR Payment Status
+  async checkQRPaymentStatus(paymentId) {
+    try {
+      terminalLog('CHECK_QR_PAYMENT_START', 'PROCESSING', { paymentId });
+
+      await this.authenticate();
+
+      const statusEndpoint = `${this.baseURL}${smepayConfig.endpoints.paymentStatus}`;
+      
+      const response = await axios({
+        method: 'GET',
+        url: `${statusEndpoint}/${paymentId}`,
+        timeout: 15000,
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${this.accessToken}`,
+          'X-Client-ID': this.clientId
+        }
+      });
+
+      if (response.data && response.data.success) {
+        const paymentData = response.data.data;
+        
+        terminalLog('QR_PAYMENT_STATUS_SUCCESS', 'SUCCESS', {
+          paymentId,
+          status: paymentData.status,
+          amount: paymentData.amount
+        });
+
+        return {
+          success: true,
+          paymentId: paymentData.payment_id,
+          status: paymentData.status, // pending, completed, failed, expired
+          amount: paymentData.amount,
+          currency: paymentData.currency || 'INR',
+          transactionId: paymentData.transaction_id,
+          paidAt: paymentData.paid_at,
+          timestamp: new Date().toISOString()
+        };
+      } else {
+        throw new Error(response.data?.message || 'Failed to check payment status');
+      }
+
+    } catch (error) {
+      terminalLog('QR_PAYMENT_STATUS_FAILED', 'ERROR', {
+        error: error.message,
+        paymentId
+      });
+
+      // Fallback for development
+      if (this.mode === 'development') {
+        return {
+          success: true,
+          paymentId,
+          status: 'pending', // Always return pending in dev mode
+          timestamp: new Date().toISOString(),
+          isMock: true
+        };
+      }
+
+      throw error;
+    }
+  }
 }
 
 // Create singleton instance

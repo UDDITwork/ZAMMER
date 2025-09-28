@@ -10,6 +10,17 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
 const { errorHandler } = require('./middleware/errorMiddleware');
+const { 
+  globalRequestLogger,
+  adminOperationLogger,
+  deliveryOperationLogger,
+  userOperationLogger,
+  paymentOperationLogger,
+  orderOperationLogger,
+  errorLogger,
+  performanceLogger,
+  securityLogger
+} = require('./middleware/comprehensiveLoggingMiddleware');
 
 // Routes imports
 const orderRoutes = require('./routes/orderRoutes');
@@ -25,6 +36,7 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const deliveryRoutes = require('./routes/deliveryRoutes');
 const virtualTryOnRoutes = require('./routes/virtualTryOnRoutes');
 const payoutRoutes = require('./routes/payoutRoutes');
+const logRoutes = require('./routes/logRoutes');
 
 // Initialize app
 const app = express();
@@ -524,6 +536,18 @@ if (NODE_ENV === 'development') {
   });
 }
 
+// 🎯 COMPREHENSIVE LOGGING MIDDLEWARE - Apply to all routes
+app.use(globalRequestLogger);
+app.use(securityLogger);
+app.use(performanceLogger);
+
+// Apply specialized logging middleware to specific route groups
+app.use('/api/admin', adminOperationLogger);
+app.use('/api/delivery', deliveryOperationLogger);
+app.use('/api/users', userOperationLogger);
+app.use('/api/payments', paymentOperationLogger);
+app.use('/api/orders', orderOperationLogger);
+
 // Mount API routes
 app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
@@ -538,6 +562,7 @@ app.use('/api/delivery', deliveryRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/virtual-tryon', virtualTryOnRoutes);
+app.use('/api/admin/logs', logRoutes);
 
 // ─────────────────────────────────────────────
 // UNIVERSAL: Serve React static assets from multiple possible paths
@@ -710,6 +735,8 @@ if (frontendBuildPath && indexPath) {
 }
 
 // Enhanced error handling middleware
+// Apply comprehensive error logging before default error handler
+app.use(errorLogger);
 app.use(errorHandler);
 
 // 🎯 PRODUCTION: Enhanced graceful shutdown handling

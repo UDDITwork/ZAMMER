@@ -255,3 +255,113 @@ export const getEarningsSummary = async (period = '30') => {
     throw error.response?.data || error;
   }
 };
+
+// 🎯 NEW: Payout Management Functions
+
+// Create beneficiary for seller
+export const createBeneficiary = async (bankDetails) => {
+  try {
+    console.log('🏦 Creating beneficiary with bank details:', {
+      hasAccountNumber: !!bankDetails.accountNumber,
+      hasIfscCode: !!bankDetails.ifscCode,
+      hasAccountHolderName: !!bankDetails.accountHolderName,
+      hasBankName: !!bankDetails.bankName
+    });
+    
+    const response = await api.post('/api/payouts/beneficiary', bankDetails);
+    
+    console.log('✅ Beneficiary created successfully:', {
+      beneficiaryId: response.data.data?.beneficiaryId,
+      status: response.data.data?.status
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('❌ Beneficiary creation error:', error.response?.data || error);
+    throw error.response?.data || error;
+  }
+};
+
+// Get seller's beneficiary details
+export const getBeneficiary = async () => {
+  try {
+    console.log('🔍 Fetching beneficiary details...');
+    
+    const response = await api.get('/api/payouts/beneficiary');
+    
+    console.log('✅ Beneficiary details fetched:', {
+      beneficiaryId: response.data.data?.beneficiaryId,
+      status: response.data.data?.status,
+      hasBankDetails: !!response.data.data?.bankDetails
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('❌ Beneficiary fetch error:', error.response?.data || error);
+    throw error.response?.data || error;
+  }
+};
+
+// Update beneficiary details
+export const updateBeneficiary = async (bankDetails) => {
+  try {
+    console.log('🔄 Updating beneficiary with bank details:', {
+      hasAccountNumber: !!bankDetails.accountNumber,
+      hasIfscCode: !!bankDetails.ifscCode,
+      hasAccountHolderName: !!bankDetails.accountHolderName,
+      hasBankName: !!bankDetails.bankName
+    });
+    
+    const response = await api.put('/api/payouts/beneficiary', bankDetails);
+    
+    console.log('✅ Beneficiary updated successfully:', {
+      beneficiaryId: response.data.data?.beneficiaryId,
+      status: response.data.data?.status
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('❌ Beneficiary update error:', error.response?.data || error);
+    throw error.response?.data || error;
+  }
+};
+
+// Get seller's payout history
+export const getPayoutHistory = async (queryParams = {}) => {
+  try {
+    console.log('📊 Fetching payout history with params:', queryParams);
+    
+    const response = await api.get('/api/payouts/history', { params: queryParams });
+    
+    console.log('✅ Payout history fetched:', {
+      payoutsCount: response.data.data?.payouts?.length || 0,
+      totalPayouts: response.data.data?.summary?.totalPayouts,
+      pagination: response.data.data?.pagination
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('❌ Payout history fetch error:', error.response?.data || error);
+    throw error.response?.data || error;
+  }
+};
+
+// Get seller's payout statistics
+export const getPayoutStats = async () => {
+  try {
+    console.log('📈 Fetching payout statistics...');
+    
+    const response = await api.get('/api/payouts/stats');
+    
+    console.log('✅ Payout statistics fetched:', {
+      hasSummary: !!response.data.data?.summary,
+      hasStatusBreakdown: !!response.data.data?.statusBreakdown,
+      hasPendingPayouts: !!response.data.data?.pendingPayouts
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('❌ Payout statistics fetch error:', error.response?.data || error);
+    throw error.response?.data || error;
+  }
+};

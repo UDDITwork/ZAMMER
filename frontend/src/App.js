@@ -29,6 +29,7 @@ import ViewSellerProfile from './pages/admin/ViewSellerProfile';
 import ViewAllUsers from './pages/admin/ViewAllUsers';
 import ViewUserProfile from './pages/admin/ViewUserProfile';
 import DeliveryAgents from './pages/admin/DeliveryAgents';
+import PayoutDashboard from './pages/admin/PayoutDashboard';
 
 // Admin Layout
 import AdminLayout from './components/layouts/AdminLayout';
@@ -47,6 +48,8 @@ import ViewProducts from './pages/seller/ViewProducts';
 import EditProfile from './pages/seller/EditProfile';
 import Orders from './pages/seller/Orders';
 import PaymentTracking from './pages/seller/PaymentTracking';
+import BeneficiaryManagement from './pages/seller/BeneficiaryManagement';
+import PayoutDashboard from './pages/seller/PayoutDashboard';
 
 // Delivery Agent Auth Pages
 import DeliveryAgentLogin from './pages/auth/DeliveryAgentLogin';
@@ -148,6 +151,7 @@ function App() {
             <Route path="/admin/sellers" element={<AdminLayout><ViewAllSellers /></AdminLayout>} />
             <Route path="/admin/sellers/:id" element={<AdminLayout><ViewSellerProfile /></AdminLayout>} />
             <Route path="/admin/users/:id" element={<AdminLayout><ViewUserProfile /></AdminLayout>} />
+            <Route path="/admin/payouts" element={<AdminLayout><PayoutDashboard /></AdminLayout>} />
             
             {/* 🆕 ADMIN ROUTE ALIASES - Point to main dashboard sections */}
             <Route path="/admin/orders" element={<AdminLayout><AdminDashboard /></AdminLayout>} />
@@ -167,6 +171,8 @@ function App() {
             <Route path="/seller/edit-profile" element={<EditProfile />} />
             <Route path="/seller/orders" element={<Orders />} />
             <Route path="/seller/payment-tracking" element={<PaymentTracking />} />
+            <Route path="/seller/beneficiary" element={<BeneficiaryManagement />} />
+            <Route path="/seller/payouts" element={<PayoutDashboard />} />
               
             {/* Legacy route redirects for backward compatibility */}
             <Route path="/seller/products/add" element={<Navigate replace to="/seller/add-product" />} />

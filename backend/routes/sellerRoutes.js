@@ -33,6 +33,7 @@ router.post(
     body('mobileNumber').notEmpty().withMessage('Mobile number is required'),
     body('shop.name').notEmpty().withMessage('Shop name is required'),
     body('shop.address').notEmpty().withMessage('Shop address is required'),
+    body('shop.phoneNumber.main').notEmpty().withMessage('Shop phone number is required'),
     body('shop.category').notEmpty().withMessage('Shop category is required')
   ],
   registerSeller

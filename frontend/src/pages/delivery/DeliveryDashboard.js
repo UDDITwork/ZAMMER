@@ -23,15 +23,18 @@ const DeliveryDashboard = () => {
   // Modal states
   const [showPickupModal, setShowPickupModal] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [showReachedLocationModal, setShowReachedLocationModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   
   // Form states
   const [pickupData, setPickupData] = useState({ orderId: '', notes: '' });
   const [deliveryData, setDeliveryData] = useState({ orderId: '', otp: '', notes: '' });
+  const [reachedLocationData, setReachedLocationData] = useState({ notes: '' });
   
   // Processing states
   const [accepting, setAccepting] = useState(false);
   const [processingPickup, setProcessingPickup] = useState(false);
+  const [processingReachedLocation, setProcessingReachedLocation] = useState(false);
   const [processingDelivery, setProcessingDelivery] = useState(false);
   const [processingReject, setProcessingReject] = useState(false);
   
@@ -251,6 +254,56 @@ const DeliveryDashboard = () => {
     }
   };
 
+  // Handle reached location completion
+  const handleReachedLocationComplete = async () => {
+    if (!selectedOrder) {
+      toast.error('No order selected');
+      return;
+    }
+
+    try {
+      setProcessingReachedLocation(true);
+      console.log('📍 Marking location as reached for order:', selectedOrder._id);
+
+      const response = await makeApiCall(`/delivery/orders/${selectedOrder._id}/reached-location`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          locationNotes: reachedLocationData.notes
+        })
+      });
+
+      if (response && response.success) {
+        toast.success('Location marked as reached successfully!');
+        console.log('✅ Location marked as reached');
+        
+        // Show payment information based on order type
+        if (response.data.paymentData.type === 'COD') {
+          toast.info(`QR code generated for ₹${response.data.paymentData.amount}. Customer can now scan and pay.`);
+        } else {
+          toast.info(`OTP sent to customer's phone for delivery verification.`);
+        }
+        
+        // Reset form and close modal
+        setReachedLocationData({ notes: '' });
+        setShowReachedLocationModal(false);
+        setSelectedOrder(null);
+        
+        // Refresh orders
+        await Promise.all([
+          fetchAssignedOrders(),
+          fetchStats()
+        ]);
+      } else {
+        throw new Error(response?.message || 'Failed to mark location as reached');
+      }
+    } catch (error) {
+      console.error('❌ Failed to mark location as reached:', error);
+      toast.error(error.message || 'Failed to mark location as reached');
+    } finally {
+      setProcessingReachedLocation(false);
+    }
+  };
+
   // Handle delivery completion
   const handleDeliveryComplete = async () => {
     if (!selectedOrder || !deliveryData.otp.trim()) {
@@ -467,6 +520,13 @@ const DeliveryDashboard = () => {
     setShowDeliveryModal(true);
   };
 
+  // Open reached location modal
+  const openReachedLocationModal = (order) => {
+    setSelectedOrder(order);
+    setReachedLocationData({ notes: '' });
+    setShowReachedLocationModal(true);
+  };
+
   // Format currency
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -490,7 +550,8 @@ const DeliveryDashboard = () => {
   // Get next action for order
   const getNextAction = (order) => {
     if (!order.pickup?.isCompleted) return 'pickup';
-    if (!order.delivery?.isCompleted) return 'delivery';
+    if (order.pickup?.isCompleted && order.deliveryAgent?.status !== 'location_reached') return 'reached-location';
+    if (order.deliveryAgent?.status === 'location_reached' && !order.delivery?.isCompleted) return 'delivery';
     return null;
   };
 
@@ -595,6 +656,15 @@ const DeliveryDashboard = () => {
                   className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
                 >
                   📦 Complete Pickup
+                </button>
+              )}
+              
+              {nextAction === 'reached-location' && (
+                <button
+                  onClick={() => openReachedLocationModal(order)}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
+                >
+                  📍 I've Reached Location
                 </button>
               )}
               
@@ -927,6 +997,62 @@ const DeliveryDashboard = () => {
                 className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white py-2 px-4 rounded-md font-medium transition-colors"
               >
                 {processingPickup ? 'Processing...' : 'Complete Pickup'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reached Location Modal */}
+      {showReachedLocationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">📍 Reached Customer Location</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Order: <strong>#{selectedOrder?.orderNumber || selectedOrder?._id?.slice(-6)}</strong>
+            </p>
+            
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="text-sm font-medium text-blue-900 mb-2">What happens next?</h3>
+                <ul className="text-xs text-blue-800 space-y-1">
+                  <li>• For COD orders: QR code will be generated for payment</li>
+                  <li>• For prepaid orders: OTP will be sent to customer</li>
+                  <li>• Customer will be notified that you've arrived</li>
+                </ul>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Location Notes (optional)
+                </label>
+                <textarea
+                  value={reachedLocationData.notes}
+                  onChange={(e) => setReachedLocationData(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows="3"
+                  placeholder="Any notes about reaching the location..."
+                />
+              </div>
+            </div>
+
+            <div className="flex space-x-4 mt-6">
+              <button
+                onClick={() => {
+                  setShowReachedLocationModal(false);
+                  setSelectedOrder(null);
+                  setReachedLocationData({ notes: '' });
+                }}
+                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-md font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReachedLocationComplete}
+                disabled={processingReachedLocation}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white py-2 px-4 rounded-md font-medium transition-colors"
+              >
+                {processingReachedLocation ? 'Processing...' : 'Mark as Reached'}
               </button>
             </div>
           </div>

@@ -9,6 +9,36 @@ const LOGO_URL = "https://zammernow.com/assets/logo.svg";
 const steps = ["Personal", "Shop", "Payment"];
 const categories = ["Men", "Women", "Kids"]; // enum backend schema
 
+/**
+ * SELLER REGISTRATION DATA COLLECTION
+ * 
+ * This form collects the following information during seller registration:
+ * 
+ * STEP 1 - Personal Details:
+ * - firstName (required)
+ * - email (required, unique)
+ * - password (required, min 6 chars)
+ * - mobile (required, 10 digits, unique)
+ * 
+ * STEP 2 - Shop Details:
+ * - shopName (required)
+ * - shopPhone (required, 10 digits) - NEW: Added for customer contact
+ * - address (required, with Google Places autocomplete)
+ * - coordinates (auto-extracted from Google Places)
+ * - gst (optional)
+ * - category (required: Men/Women/Kids)
+ * 
+ * STEP 3 - Payment Details:
+ * - upi (required, stored as bankDetails.accountNumber)
+ * 
+ * Fields NOT collected during registration (managed later via profile updates):
+ * - Shop operating hours, working days, description
+ * - Shop images and main image
+ * - Complete bank details (IFSC, bank name, account type)
+ * - Location details (city, state, postal code - defaults to Mumbai)
+ * - Alternate phone number
+ */
+
 const SellerRegister = () => {
   const navigate = useNavigate();
   
@@ -24,6 +54,7 @@ const SellerRegister = () => {
     mobile: "",
     address: "",
     shopName: "",
+    shopPhone: "",
     gst: "",
     category: "",
     upi: "",
@@ -56,6 +87,9 @@ const SellerRegister = () => {
         shop: {
           name: formData.shopName.trim(),
           address: formData.address.trim(),
+          phoneNumber: {
+            main: formData.shopPhone.trim()
+          },
           gstNumber: formData.gst.trim(),
           category: formData.category,
           // 🎯 NEW: Add coordinates if available
@@ -351,6 +385,19 @@ const SellerRegister = () => {
               name="shopName"
               placeholder="Shop / Brand Name"
               value={formData.shopName}
+              onChange={handleChange}
+              required
+            />
+
+            <input
+              style={styles.inputField}
+              className="register-input"
+              name="shopPhone"
+              type="tel"
+              pattern="[0-9]{10}"
+              maxLength={10}
+              placeholder="Shop Phone Number (10 digits)"
+              value={formData.shopPhone}
               onChange={handleChange}
               required
             />

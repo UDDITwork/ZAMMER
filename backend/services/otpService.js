@@ -99,8 +99,7 @@ class OTPService {
 
       const verification = await this.verifyService.verifications.create({
         to: formattedPhone,
-        channel: 'sms',
-        customMessage: message
+        channel: 'sms'
       });
 
       terminalLog('SEND_OTP_SUCCESS', 'SUCCESS', {

@@ -26,8 +26,9 @@ const smepayConfig = {
     auth: '/external/auth',                    // POST - Get access token
     createOrder: '/external/create-order',     // POST - Create payment order
     validateOrder: '/external/validate-order', // POST - Validate payment status
-    generateQR: '/external/generate-qr',       // POST - Generate QR code (if available)
-    checkQRStatus: '/external/check-qr-status' // POST - Check QR payment status (if available)
+    generateQR: '/external/generate-qr',       // POST - Generate QR code
+    paymentStatus: '/external/payment-status', // GET - Check payment status
+    checkQRStatus: '/external/check-qr-status' // POST - Check QR payment status
   },
   
   // Widget script configuration
