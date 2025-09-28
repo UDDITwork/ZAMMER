@@ -365,3 +365,24 @@ export const getPayoutStats = async () => {
     throw error.response?.data || error;
   }
 };
+
+// Default export for backward compatibility
+const sellerService = {
+  registerSeller,
+  loginSeller,
+  getSellerProfile,
+  updateSellerProfile,
+  uploadShopImages,
+  uploadShopImageToCloudinary,
+  requestPasswordReset,
+  checkEmailExists,
+  resetPasswordDirect,
+  verifyResetToken,
+  resetPassword,
+  deleteImage,
+  getPaymentTracking,
+  getEarningsSummary,
+  getPayoutStats
+};
+
+export default sellerService;
