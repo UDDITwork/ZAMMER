@@ -12,10 +12,10 @@ const {
   cleanupLogs,
   getLogStream
 } = require('../controllers/logController');
-const { adminMiddleware } = require('../middleware/adminMiddleware');
+const { protectAdmin } = require('../middleware/adminMiddleware');
 
 // Apply admin middleware to all routes
-router.use(adminMiddleware);
+router.use(protectAdmin);
 
 // @route   GET /api/admin/logs
 // @desc    Get comprehensive system logs with filtering

@@ -97,7 +97,7 @@ const getSystemLogs = async (req, res) => {
 // @desc    Get active operations for real-time monitoring
 // @route   GET /api/admin/logs/active
 // @access  Private (Admin)
-const getActiveOperations = async (req, res) => {
+const getActiveOperationsController = async (req, res) => {
   try {
     logger.admin('GET_ACTIVE_OPERATIONS', {
       adminId: req.admin._id
@@ -456,7 +456,7 @@ const getLogStream = async (req, res) => {
 
 module.exports = {
   getSystemLogs,
-  getActiveOperations,
+  getActiveOperations: getActiveOperationsController,
   getOperationLogs,
   getLogStats,
   downloadLogs,
