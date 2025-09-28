@@ -594,6 +594,171 @@ export const testAdminEndpoint = async () => {
   }
 };
 
+// 🎯 NEW: Payout Management Functions
+export const getPayoutBeneficiaries = async (queryParams = {}) => {
+  try {
+    debugLog('💰 FETCHING PAYOUT BENEFICIARIES', { queryParams }, 'request');
+    
+    const response = await api.get('/api/payouts/admin/beneficiaries', { params: queryParams });
+    
+    debugLog('✅ PAYOUT BENEFICIARIES RECEIVED', {
+      beneficiariesCount: response.data.data?.length || 0,
+      pagination: response.data.pagination
+    }, 'success');
+
+    return response.data;
+  } catch (error) {
+    debugLog('❌ PAYOUT BENEFICIARIES ERROR', {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      queryParams
+    }, 'error');
+    
+    throw error.response?.data || { success: false, message: 'Failed to fetch payout beneficiaries' };
+  }
+};
+
+export const getPayoutHistory = async (queryParams = {}) => {
+  try {
+    debugLog('💰 FETCHING PAYOUT HISTORY', { queryParams }, 'request');
+    
+    const response = await api.get('/api/payouts/admin/payouts', { params: queryParams });
+    
+    debugLog('✅ PAYOUT HISTORY RECEIVED', {
+      payoutsCount: response.data.data?.length || 0,
+      pagination: response.data.pagination
+    }, 'success');
+
+    return response.data;
+  } catch (error) {
+    debugLog('❌ PAYOUT HISTORY ERROR', {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      queryParams
+    }, 'error');
+    
+    throw error.response?.data || { success: false, message: 'Failed to fetch payout history' };
+  }
+};
+
+export const getPayoutAnalytics = async () => {
+  try {
+    debugLog('📊 FETCHING PAYOUT ANALYTICS', {}, 'request');
+    
+    const response = await api.get('/api/payouts/admin/analytics');
+    
+    debugLog('✅ PAYOUT ANALYTICS RECEIVED', {
+      hasAnalytics: !!response.data.data,
+      analyticsKeys: response.data.data ? Object.keys(response.data.data) : []
+    }, 'success');
+
+    return response.data;
+  } catch (error) {
+    debugLog('❌ PAYOUT ANALYTICS ERROR', {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message
+    }, 'error');
+    
+    throw error.response?.data || { success: false, message: 'Failed to fetch payout analytics' };
+  }
+};
+
+export const processBatchPayouts = async (batchData) => {
+  try {
+    debugLog('💰 PROCESSING BATCH PAYOUTS', {
+      orderIds: batchData.orderIds?.length || 0,
+      hasNotes: !!batchData.notes
+    }, 'request');
+    
+    const response = await api.post('/api/payouts/admin/process-batch', batchData);
+    
+    debugLog('✅ BATCH PAYOUTS PROCESSED', {
+      success: response.data.success,
+      batchTransferId: response.data.data?.batchTransferId,
+      processedCount: response.data.data?.processedCount || 0
+    }, 'success');
+
+    return response.data;
+  } catch (error) {
+    debugLog('❌ BATCH PAYOUTS ERROR', {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      batchData
+    }, 'error');
+    
+    throw error.response?.data || { success: false, message: 'Failed to process batch payouts' };
+  }
+};
+
+export const processSinglePayout = async (orderId) => {
+  try {
+    debugLog('💰 PROCESSING SINGLE PAYOUT', { orderId }, 'request');
+    
+    const response = await api.post(`/api/payouts/admin/process-single/${orderId}`);
+    
+    debugLog('✅ SINGLE PAYOUT PROCESSED', {
+      orderId,
+      success: response.data.success,
+      payoutId: response.data.data?.payoutId
+    }, 'success');
+
+    return response.data;
+  } catch (error) {
+    debugLog('❌ SINGLE PAYOUT ERROR', {
+      orderId,
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message
+    }, 'error');
+    
+    throw error.response?.data || { success: false, message: 'Failed to process single payout' };
+  }
+};
+
+export const getBatchPayoutHistory = async (queryParams = {}) => {
+  try {
+    debugLog('💰 FETCHING BATCH PAYOUT HISTORY', { queryParams }, 'request');
+    
+    const response = await api.get('/api/payouts/admin/batch-history', { params: queryParams });
+    
+    debugLog('✅ BATCH PAYOUT HISTORY RECEIVED', {
+      batchesCount: response.data.data?.length || 0,
+      pagination: response.data.pagination
+    }, 'success');
+
+    return response.data;
+  } catch (error) {
+    debugLog('❌ BATCH PAYOUT HISTORY ERROR', {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      queryParams
+    }, 'error');
+    
+    throw error.response?.data || { success: false, message: 'Failed to fetch batch payout history' };
+  }
+};
+
+export const getPayoutEligibilityStats = async () => {
+  try {
+    debugLog('📊 FETCHING PAYOUT ELIGIBILITY STATS', {}, 'request');
+    
+    const response = await api.get('/api/payouts/admin/eligibility-stats');
+    
+    debugLog('✅ PAYOUT ELIGIBILITY STATS RECEIVED', {
+      hasStats: !!response.data.data,
+      statsKeys: response.data.data ? Object.keys(response.data.data) : []
+    }, 'success');
+
+    return response.data;
+  } catch (error) {
+    debugLog('❌ PAYOUT ELIGIBILITY STATS ERROR', {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message
+    }, 'error');
+    
+    throw error.response?.data || { success: false, message: 'Failed to fetch payout eligibility stats' };
+  }
+};
+
 // Default export with all methods
 const adminService = {
   loginAdmin,
@@ -609,7 +774,15 @@ const adminService = {
   getDeliveryAgents,
   getDeliveryAgentProfile,
   getDeliveryAgentHistory,
-  updateDeliveryAgentStatus
+  updateDeliveryAgentStatus,
+  // Payout Management
+  getPayoutBeneficiaries,
+  getPayoutHistory,
+  getPayoutAnalytics,
+  processBatchPayouts,
+  processSinglePayout,
+  getBatchPayoutHistory,
+  getPayoutEligibilityStats
 };
 
 // 🎯 Development debugging

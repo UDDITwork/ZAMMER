@@ -1,5 +1,8 @@
 // backend/config/twilio.js - Twilio OTP Service Configuration
 
+// Load environment variables
+require('dotenv').config();
+
 const twilioConfig = {
     // Credentials from environment
     accountSid: process.env.TWILIO_ACCOUNT_SID,

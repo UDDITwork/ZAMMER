@@ -15,6 +15,7 @@ const {
   bulkAcceptOrders,
   bulkRejectOrders,
   completePickup,
+  markReachedLocation,
   completeDelivery,
   updateLocation,
   getAssignedOrders,
@@ -259,6 +260,17 @@ router.get('/notifications', protectDeliveryAgent, getOrderNotifications);
 // @access  Private (Delivery Agent)
 router.put('/orders/:id/pickup', protectDeliveryAgent, pickupValidation, completePickup);
 
+// @desc    Mark delivery agent as reached customer location
+// @route   PUT /api/delivery/orders/:id/reached-location
+// @access  Private (Delivery Agent)
+router.put('/orders/:id/reached-location', [
+  protectDeliveryAgent,
+  body('locationNotes')
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage('Location notes cannot exceed 500 characters')
+], markReachedLocation);
+
 // @desc    Complete order delivery
 // @route   PUT /api/delivery/orders/:id/deliver
 // @access  Private (Delivery Agent)
@@ -326,6 +338,7 @@ router.get('/health', async (req, res) => {
         assignedOrders: 'GET /api/delivery/orders/assigned',
         acceptOrder: 'PUT /api/delivery/orders/:id/accept',
         completePickup: 'PUT /api/delivery/orders/:id/pickup',
+        markReachedLocation: 'PUT /api/delivery/orders/:id/reached-location',
         completeDelivery: 'PUT /api/delivery/orders/:id/deliver',
         updateLocation: 'PUT /api/delivery/location',
         toggleAvailability: 'PUT /api/delivery/availability',

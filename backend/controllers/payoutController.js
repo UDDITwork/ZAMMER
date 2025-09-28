@@ -1,4 +1,4 @@
-// backend/controllers/payoutController.js - Payout Management Controller
+// backend/controllers/payoutController.js - COMPREHENSIVE LOGGING PAYOUT MANAGEMENT CONTROLLER
 const CashfreePayoutService = require('../services/cashfreePayoutService');
 const BatchPayoutService = require('../services/batchPayoutService');
 const PayoutCalculationService = require('../services/payoutCalculationService');
@@ -9,6 +9,14 @@ const PayoutBatch = require('../models/PayoutBatch');
 const Order = require('../models/Order');
 const Seller = require('../models/Seller');
 const { utils } = require('../config/cashfree');
+const { 
+  logger,
+  startOperation,
+  endOperation,
+  logPaymentOperation,
+  logExternalAPI,
+  logDatabaseOperation
+} = require('../utils/logger');
 
 // ========================================
 // SELLER ENDPOINTS
@@ -20,15 +28,32 @@ const { utils } = require('../config/cashfree');
  * @access  Private (Seller)
  */
 exports.createBeneficiary = async (req, res) => {
+  const correlationId = req.correlationId;
+  const operationId = startOperation('CREATE_BENEFICIARY', req.seller._id, {
+    sellerId: req.seller._id,
+    sellerEmail: req.seller.email,
+    correlationId
+  });
+
   try {
-    console.log('🏦 [CREATE_BENEFICIARY] Request received', {
+    logger.payment('CREATE_BENEFICIARY_STARTED', {
       sellerId: req.seller._id,
-      sellerEmail: req.seller.email
-    });
+      sellerEmail: req.seller.email,
+      correlationId
+    }, 'info', correlationId);
 
     // Check if seller has complete bank details
+    logDatabaseOperation('FIND', 'Seller', { sellerId: req.seller._id }, correlationId);
     const seller = await Seller.findById(req.seller._id);
+    
     if (!seller.bankDetails.accountNumber || !seller.bankDetails.ifscCode) {
+      logger.payment('CREATE_BENEFICIARY_INCOMPLETE_BANK_DETAILS', {
+        sellerId: req.seller._id,
+        missingFields: ['accountNumber', 'ifscCode'].filter(field => !seller.bankDetails[field]),
+        correlationId
+      }, 'warning', correlationId);
+
+      endOperation(operationId, 'FAILED', { reason: 'Incomplete bank details' });
       return res.status(400).json({
         success: false,
         message: 'Please complete your bank details before creating beneficiary',
@@ -37,12 +62,23 @@ exports.createBeneficiary = async (req, res) => {
     }
 
     // Create beneficiary using Cashfree service
+    logExternalAPI('CASHFREE', 'CREATE_BENEFICIARY', {
+      sellerId: req.seller._id,
+      bankDetails: {
+        accountNumber: seller.bankDetails.accountNumber,
+        ifscCode: seller.bankDetails.ifscCode,
+        accountHolderName: seller.bankDetails.accountHolderName
+      }
+    }, correlationId);
+
     const beneficiary = await CashfreePayoutService.createBeneficiary(req.seller._id);
 
-    console.log('✅ [CREATE_BENEFICIARY] Beneficiary created successfully', {
+    logger.payment('CREATE_BENEFICIARY_SUCCESS', {
+      sellerId: req.seller._id,
       beneficiaryId: beneficiary.beneficiaryId,
-      status: beneficiary.beneficiaryStatus
-    });
+      status: beneficiary.beneficiaryStatus,
+      correlationId
+    }, 'success', correlationId);
 
     // Send notification to seller about beneficiary creation
     try {
@@ -419,14 +455,19 @@ exports.getAllBeneficiaries = async (req, res) => {
           id: beneficiary._id,
           seller: {
             id: beneficiary.seller._id,
-            name: beneficiary.seller.firstName,
+            firstName: beneficiary.seller.firstName,
+            lastName: beneficiary.seller.lastName || '',
             email: beneficiary.seller.email,
-            shopName: beneficiary.seller.shop.name,
+            shop: {
+              name: beneficiary.seller.shop.name
+            },
             mobileNumber: beneficiary.seller.mobileNumber
           },
           beneficiaryId: beneficiary.beneficiaryId,
           status: beneficiary.beneficiaryStatus,
           verificationStatus: beneficiary.verificationStatus,
+          accountNumber: beneficiary.maskedAccountNumber,
+          bankName: beneficiary.bankName,
           bankDetails: {
             accountNumber: beneficiary.maskedAccountNumber,
             ifscCode: beneficiary.bankIfsc,
@@ -506,16 +547,22 @@ exports.getAllPayouts = async (req, res) => {
           },
           seller: {
             id: payout.seller._id,
-            name: payout.seller.firstName,
+            firstName: payout.seller.firstName,
+            lastName: payout.seller.lastName || '',
             email: payout.seller.email,
-            shopName: payout.seller.shop.name
+            shop: {
+              name: payout.seller.shop.name
+            }
           },
           transferId: payout.transferId,
           cfTransferId: payout.cfTransferId,
           orderAmount: payout.orderAmount,
+          amount: payout.formattedPayoutAmount,
           payoutAmount: payout.formattedPayoutAmount,
+          commissionAmount: payout.formattedCommission,
           commission: payout.formattedCommission,
           status: payout.status,
+          isProcessed: payout.status === 'SUCCESS' || payout.status === 'COMPLETED',
           transferUtr: payout.transferUtr,
           initiatedAt: payout.initiatedAt,
           completedAt: payout.completedAt,

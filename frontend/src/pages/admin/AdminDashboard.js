@@ -8,6 +8,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import adminService from '../../services/adminService';
 import socketService from '../../services/socketService';
 import { checkAdminAuth, fixAdminAuth } from '../../utils/adminAuthFix';
+import LogViewer from '../../components/admin/LogViewer';
+import frontendLogger from '../../services/loggingService';
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -30,6 +32,9 @@ const AdminDashboard = () => {
   const [bulkSelectedAgent, setBulkSelectedAgent] = useState('');
   const [bulkAssigning, setBulkAssigning] = useState(false);
   const [bulkNotes, setBulkNotes] = useState('');
+  
+  // 🎯 NEW: Tab management
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   // 🔒 SECURITY: Get auth context and navigation
   const { adminAuth } = useAuth();
@@ -38,6 +43,16 @@ const AdminDashboard = () => {
   // 🔒 CRITICAL: Authentication protection with auto-fix capability
   useEffect(() => {
     const handleAuthCheck = async () => {
+      // Initialize frontend logging for admin
+      if (adminAuth.admin) {
+        frontendLogger.setUser(adminAuth.admin._id, 'admin');
+        frontendLogger.logEvent('ADMIN_DASHBOARD_ACCESS', {
+          adminId: adminAuth.admin._id,
+          adminName: adminAuth.admin.name,
+          adminEmail: adminAuth.admin.email
+        }, 'info');
+      }
+
       console.log('🔒 [ADMIN-DASHBOARD] Authentication check started...', {
         isAuthenticated: adminAuth.isAuthenticated,
         hasAdmin: !!adminAuth.admin,
@@ -965,8 +980,44 @@ const AdminDashboard = () => {
             >
               Refresh Orders
             </button>
+            <button
+              onClick={() => setActiveTab('logs')}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+            >
+              View Logs
+            </button>
           </div>
         </div>
+
+        {/* Tab Navigation */}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'dashboard'
+                  ? 'border-orange-500 text-orange-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => setActiveTab('logs')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'logs'
+                  ? 'border-orange-500 text-orange-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              System Logs
+            </button>
+          </nav>
+        </div>
+
+        {/* Dashboard Content */}
+        {activeTab === 'dashboard' && (
+          <>
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1073,7 +1124,7 @@ const AdminDashboard = () => {
             <h2 className="text-lg font-medium text-gray-900">Quick Actions</h2>
           </div>
           <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Link
                 to="/admin/sellers"
                 className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
@@ -1103,9 +1154,48 @@ const AdminDashboard = () => {
                   <p className="text-sm text-gray-500">View and manage delivery personnel</p>
                 </div>
               </Link>
+
+              <Link
+                to="/admin/payouts"
+                className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-sm font-medium text-gray-900">Vendor Payouts</h3>
+                  <p className="text-sm text-gray-500">Manage seller payouts and Cashfree integration</p>
+                </div>
+              </Link>
+
+              <button
+                onClick={() => setActiveTab('logs')}
+                className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left w-full"
+              >
+                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-sm font-medium text-gray-900">System Logs</h3>
+                  <p className="text-sm text-gray-500">Monitor system operations and events in real-time</p>
+                </div>
+              </button>
             </div>
           </div>
         </div>
+          </>
+        )}
+
+        {/* 🎯 NEW: Log Viewer Tab */}
+        {activeTab === 'logs' && (
+          <div className="mt-8">
+            <LogViewer />
+          </div>
+        )}
       </div>
 
       {/* 🎯 NEW: Order Details Modal */}

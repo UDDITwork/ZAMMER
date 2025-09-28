@@ -1,11 +1,7 @@
-// backend/controllers/deliveryAgentController.js - FIXED VERSION
-// 🚚 FIXED: Field mapping and proper error handling
+// backend/controllers/deliveryAgentController.js - COMPREHENSIVE LOGGING DELIVERY AGENT CONTROLLER
+// 🚚 ENHANCED: Comprehensive logging for all delivery operations
 
-// 🔥 CONTROLLER FILE LOADING TEST
-console.log('🔥 CONTROLLER FILE LOADING - deliveryAgentController.js');
-console.log('🔥 Available functions:', Object.keys(module.exports || {}));
-
-const mongoose = require('mongoose'); // Add this if not already present
+const mongoose = require('mongoose');
 const DeliveryAgent = require('../models/DeliveryAgent');
 const Order = require('../models/Order');
 const OtpVerification = require('../models/OtpVerification');
@@ -13,6 +9,14 @@ const { generateDeliveryAgentToken, verifyDeliveryAgentToken } = require('../uti
 const { validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { 
+  logger,
+  startOperation,
+  endOperation,
+  logDeliveryOperation,
+  logDatabaseOperation,
+  logExternalAPI
+} = require('../utils/logger');
 
 // 🚚 DELIVERY AGENT LOGGING UTILITIES - FIXED
 const logDelivery = (action, data, type = 'info') => {
@@ -1374,6 +1378,281 @@ const completePickup = async (req, res) => {
       message: 'Failed to complete pickup',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
       code: 'PICKUP_COMPLETE_ERROR'
+    });
+  }
+};
+
+// @desc    Mark delivery agent as reached customer location
+// @route   PUT /api/delivery/orders/:id/reached-location
+// @access  Private (Delivery Agent)
+const markReachedLocation = async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    const agentId = req.deliveryAgent.id;
+    const orderId = req.params.id;
+    
+    logDelivery('REACHED_LOCATION_STARTED', { agentId, orderId });
+    
+    console.log(`
+📍 ===============================
+   REACHED CUSTOMER LOCATION
+===============================
+📋 Order ID: ${orderId}
+🚚 Agent: ${req.deliveryAgent.name}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    // 🎯 VALIDATION: Check if order exists and is assigned to this agent
+    const order = await Order.findById(orderId)
+      .populate('user', 'name phone email')
+      .populate('seller', 'firstName shop')
+      .populate('orderItems.product', 'name images');
+
+    if (!order) {
+      logDeliveryError('REACHED_LOCATION_ORDER_NOT_FOUND', new Error('Order not found'), { orderId });
+      return res.status(404).json({
+        success: false, 
+        message: 'Order not found',
+        code: 'ORDER_NOT_FOUND'
+      });
+    }
+
+    // 🎯 AUTHORIZATION: Verify order is assigned to this agent
+    if (order.deliveryAgent.agent.toString() !== agentId) {
+      logDeliveryError('REACHED_LOCATION_UNAUTHORIZED', new Error('Order not assigned to this agent'), { 
+        orderId, 
+        assignedAgent: order.deliveryAgent.agent, 
+        currentAgent: agentId 
+      });
+      return res.status(403).json({
+        success: false,
+        message: 'Order is not assigned to you',
+        code: 'UNAUTHORIZED_ORDER'
+      });
+    }
+
+    // 🎯 STATUS VALIDATION: Check if agent can mark location as reached
+    if (order.deliveryAgent.status !== 'pickup_completed') {
+      logDeliveryError('REACHED_LOCATION_PICKUP_NOT_COMPLETED', new Error('Pickup not completed yet'), { 
+        orderId, 
+        currentStatus: order.deliveryAgent.status 
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Order pickup must be completed before reaching location',
+        code: 'PICKUP_NOT_COMPLETED'
+      });
+    }
+
+    if (order.deliveryAgent.status === 'location_reached') {
+      logDeliveryError('REACHED_LOCATION_ALREADY_REACHED', new Error('Location already marked as reached'), { orderId });
+      return res.status(400).json({
+        success: false,
+        message: 'Location has already been marked as reached for this order',
+        code: 'LOCATION_ALREADY_REACHED'
+      });
+    }
+
+    // 🎯 BUSINESS LOGIC: Update order status and generate required data
+    const reachedTime = new Date();
+    const locationNotes = req.body.locationNotes || '';
+
+    // Update order delivery status
+    order.deliveryAgent.status = 'location_reached';
+    order.deliveryAgent.locationReachedAt = reachedTime;
+
+    // Update delivery details
+    if (!order.delivery) order.delivery = {};
+    order.delivery.locationReachedAt = reachedTime;
+    order.delivery.locationNotes = locationNotes;
+
+    // Update order timeline
+    if (!order.orderTimeline) order.orderTimeline = [];
+    order.orderTimeline.push({
+      status: 'location_reached',
+      timestamp: reachedTime,
+      description: 'Delivery agent reached customer location',
+      agentId: agentId,
+      notes: locationNotes
+    });
+
+    // 🎯 GENERATE PAYMENT DATA BASED ON ORDER TYPE
+    let paymentData = {};
+    
+    if (order.paymentMethod === 'COD') {
+      // Generate SMEPay QR code for COD orders
+      try {
+        const smepayService = require('../services/smepayService');
+        const qrData = await smepayService.generateDynamicQR({
+          amount: order.totalAmount,
+          orderId: order.orderNumber,
+          description: `Payment for Order #${order.orderNumber}`
+        });
+        
+        paymentData = {
+          type: 'COD',
+          qrCode: qrData.qrCode,
+          qrData: qrData.qrData,
+          amount: order.totalAmount,
+          paymentId: qrData.paymentId
+        };
+        
+        // Store QR payment details in order
+        order.paymentDetails = {
+          ...order.paymentDetails,
+          codQR: qrData,
+          paymentMethod: 'COD',
+          amount: order.totalAmount
+        };
+      } catch (qrError) {
+        console.error('❌ QR Code Generation Failed:', qrError);
+        // Continue without QR code - frontend will handle fallback
+      }
+    } else {
+      // Generate OTP for prepaid orders
+      try {
+        const otpService = require('../services/otpService');
+        const otpData = await otpService.generateOTP({
+          phoneNumber: order.user.phone,
+          orderId: order.orderNumber,
+          purpose: 'delivery_verification'
+        });
+        
+        paymentData = {
+          type: 'PREPAID',
+          otp: otpData.otp,
+          otpId: otpData.otpId,
+          expiresAt: otpData.expiresAt,
+          phoneNumber: order.user.phone
+        };
+        
+        // Store OTP details in order
+        if (!order.otpVerification) order.otpVerification = {};
+        order.otpVerification = {
+          isRequired: true,
+          otpId: otpData.otpId,
+          generatedAt: new Date(),
+          expiresAt: otpData.expiresAt,
+          isVerified: false
+        };
+      } catch (otpError) {
+        console.error('❌ OTP Generation Failed:', otpError);
+        // Continue without OTP - frontend will handle fallback
+      }
+    }
+
+    await order.save();
+
+    const processingTime = Date.now() - startTime;
+    
+    logDelivery('REACHED_LOCATION_SUCCESS', { 
+      agentId, 
+      orderId,
+      reachedTime: reachedTime.toISOString(),
+      paymentType: order.paymentMethod,
+      processingTime: `${processingTime}ms`
+    }, 'success');
+
+    console.log(`
+✅ ===============================
+   LOCATION REACHED SUCCESSFULLY!
+===============================
+📦 Order: ${order.orderNumber}
+🚚 Agent: ${req.deliveryAgent.name}
+🏪 Seller: ${order.seller.firstName}
+👤 Customer: ${order.user.name}
+📅 Reached Time: ${reachedTime.toLocaleString()}
+💳 Payment Type: ${order.paymentMethod}
+${paymentData.type === 'COD' ? `💰 COD Amount: ₹${paymentData.amount}` : `📱 OTP Sent to: ${paymentData.phoneNumber}`}
+===============================`);
+
+    // 🔔 EMIT REAL-TIME NOTIFICATIONS
+    try {
+      if (global.emitToBuyer) {
+        global.emitToBuyer(order.user._id, 'delivery-agent-reached', {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          deliveryStatus: order.deliveryAgent.status,
+          reachedTime: reachedTime,
+          deliveryAgent: {
+            name: req.deliveryAgent.name,
+            phone: req.deliveryAgent.phoneNumber
+          },
+          paymentData: paymentData
+        });
+      }
+
+      if (global.emitToSeller) {
+        global.emitToSeller(order.seller._id, 'delivery-agent-reached', {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          deliveryStatus: order.deliveryAgent.status,
+          reachedTime: reachedTime,
+          deliveryAgent: {
+            name: req.deliveryAgent.name,
+            phone: req.deliveryAgent.phoneNumber
+          }
+        });
+      }
+
+      // Notify admin
+      if (global.emitToAdmin) {
+        global.emitToAdmin('delivery-agent-reached', {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          deliveryStatus: order.deliveryAgent.status,
+          reachedTime: reachedTime,
+          deliveryAgent: {
+            name: req.deliveryAgent.name,
+            phone: req.deliveryAgent.phoneNumber
+          },
+          customer: {
+            name: order.user.name,
+            phone: order.user.phone
+          }
+        });
+      }
+    } catch (socketError) {
+      console.log('Socket notification failed:', socketError.message);
+    }
+
+    // 📤 SUCCESS RESPONSE
+    res.status(200).json({
+      success: true,
+      message: 'Location marked as reached successfully',
+      data: {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        deliveryStatus: order.deliveryAgent.status,
+        reachedTime: reachedTime,
+        paymentData: paymentData,
+        nextStep: order.paymentMethod === 'COD' 
+          ? 'Wait for customer to scan QR code and make payment'
+          : 'Wait for customer to provide OTP for delivery verification'
+      }
+    });
+
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+    
+    logDeliveryError('REACHED_LOCATION_FAILED', error, { 
+      agentId: req.deliveryAgent?.id,
+      orderId: req.params.id,
+      processingTime: `${processingTime}ms`
+    });
+
+    console.error('❌ Mark Reached Location Error:', error);
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mark location as reached',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: 'REACHED_LOCATION_ERROR'
     });
   }
 };
@@ -2823,6 +3102,7 @@ module.exports = {
   bulkAcceptOrders,
   bulkRejectOrders,
   completePickup,
+  markReachedLocation,
   completeDelivery,
   updateLocation,
   getAssignedOrders,
