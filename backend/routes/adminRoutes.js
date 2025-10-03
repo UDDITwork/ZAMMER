@@ -21,6 +21,7 @@ const {
   updateOrderStatus,
   // Delivery agent management functions
   getDeliveryAgents,
+  getAvailableDeliveryAgents,
   getDeliveryAgentProfile,
   // Payout management functions
   getPayoutAnalytics,
@@ -261,6 +262,24 @@ router.get('/delivery-agents', [
     .isInt({ min: 1, max: 100 })
     .withMessage('Limit must be between 1 and 100')
 ], validateRequest, getDeliveryAgents);
+
+// @route   GET /api/admin/delivery-agents/available
+// @desc    Get available delivery agents with capacity information
+// @access  Private (Admin)
+router.get('/delivery-agents/available', [
+  query('vehicleType')
+    .optional()
+    .isIn(['bike', 'scooter', 'car', 'bicycle', 'all'])
+    .withMessage('Invalid vehicle type'),
+  query('area')
+    .optional()
+    .isLength({ max: 100 })
+    .withMessage('Area must be less than 100 characters'),
+  query('maxCapacity')
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Max capacity must be between 1 and 10')
+], validateRequest, getAvailableDeliveryAgents);
 
 // @route   GET /api/admin/delivery-agents/:agentId
 // @desc    Get detailed information about a specific delivery agent

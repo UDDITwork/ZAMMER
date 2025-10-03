@@ -532,13 +532,36 @@ DeliveryAgentSchema.methods.distanceFrom = function(latitude, longitude) {
   return Math.round(distance * 100) / 100; // Round to 2 decimal places
 };
 
-// Check if agent is available for assignment
-DeliveryAgentSchema.methods.isAvailableForAssignment = function() {
+// 🔧 ENHANCED: Check if agent is available for assignment with capacity management
+DeliveryAgentSchema.methods.isAvailableForAssignment = function(maxOrdersPerAgent = 5) {
+  const currentOrderCount = this.assignedOrders?.length || 0;
   return this.isActive && 
          this.isVerified && 
-         this.status === 'available' && 
-         !this.currentOrder &&
-         !this.isBlocked;
+         (this.status === 'available' || this.status === 'assigned') && 
+         !this.isBlocked &&
+         currentOrderCount < maxOrdersPerAgent;
+};
+
+// 🔧 NEW: Get capacity information
+DeliveryAgentSchema.methods.getCapacityInfo = function(maxOrdersPerAgent = 5) {
+  const currentOrderCount = this.assignedOrders?.length || 0;
+  const availableCapacity = maxOrdersPerAgent - currentOrderCount;
+  const capacityPercentage = (currentOrderCount / maxOrdersPerAgent) * 100;
+  
+  return {
+    current: currentOrderCount,
+    max: maxOrdersPerAgent,
+    available: availableCapacity,
+    percentage: Math.round(capacityPercentage),
+    isAtCapacity: currentOrderCount >= maxOrdersPerAgent,
+    isAvailable: availableCapacity > 0
+  };
+};
+
+// 🔧 NEW: Check if agent can handle specific number of orders
+DeliveryAgentSchema.methods.canHandleOrders = function(orderCount, maxOrdersPerAgent = 5) {
+  const currentOrderCount = this.assignedOrders?.length || 0;
+  return (currentOrderCount + orderCount) <= maxOrdersPerAgent;
 };
 
 // Update delivery stats
@@ -566,13 +589,12 @@ DeliveryAgentSchema.methods.updateDeliveryStats = function(action, earnings = 0)
 
 // Static Methods
 
-// Find available agents near a location
-DeliveryAgentSchema.statics.findNearbyAvailable = function(latitude, longitude, radiusKm = 10) {
+// 🔧 ENHANCED: Find available agents near a location with capacity management
+DeliveryAgentSchema.statics.findNearbyAvailable = function(latitude, longitude, radiusKm = 10, maxOrdersPerAgent = 5) {
   return this.find({
     isActive: true,
     isVerified: true,
-    status: 'available',
-    currentOrder: null,
+    status: { $in: ['available', 'assigned'] },
     isBlocked: false,
     'currentLocation.latitude': {
       $gte: latitude - (radiusKm / 111), // Approximate conversion
@@ -582,16 +604,25 @@ DeliveryAgentSchema.statics.findNearbyAvailable = function(latitude, longitude, 
       $gte: longitude - (radiusKm / (111 * Math.cos(latitude * Math.PI / 180))),
       $lte: longitude + (radiusKm / (111 * Math.cos(latitude * Math.PI / 180)))
     }
-  }).sort({ 'deliveryStats.averageRating': -1, 'deliveryStats.completedDeliveries': -1 });
+  })
+  .populate('assignedOrders.order', 'orderNumber status')
+  .sort({ 'deliveryStats.averageRating': -1, 'deliveryStats.completedDeliveries': -1 })
+  .then(agents => {
+    // Filter by capacity
+    return agents.filter(agent => {
+      const currentOrderCount = agent.assignedOrders?.length || 0;
+      return currentOrderCount < maxOrdersPerAgent;
+    });
+  });
 };
 
-// Get agents by vehicle type and area
-DeliveryAgentSchema.statics.findByVehicleAndArea = function(vehicleType, area) {
+// 🔧 ENHANCED: Get agents by vehicle type and area with capacity management
+DeliveryAgentSchema.statics.findByVehicleAndArea = function(vehicleType, area, maxOrdersPerAgent = 5) {
   const query = {
     isActive: true,
     isVerified: true,
-    status: 'available',
-    currentOrder: null
+    status: { $in: ['available', 'assigned'] },
+    isBlocked: false
   };
 
   if (vehicleType && vehicleType !== 'all') {
@@ -602,7 +633,16 @@ DeliveryAgentSchema.statics.findByVehicleAndArea = function(vehicleType, area) {
     query.area = new RegExp(area, 'i');
   }
 
-  return this.find(query).sort({ 'deliveryStats.averageRating': -1 });
+  return this.find(query)
+    .populate('assignedOrders.order', 'orderNumber status')
+    .sort({ 'deliveryStats.averageRating': -1 })
+    .then(agents => {
+      // Filter by capacity
+      return agents.filter(agent => {
+        const currentOrderCount = agent.assignedOrders?.length || 0;
+        return currentOrderCount < maxOrdersPerAgent;
+      });
+    });
 };
 
 // Reset weekly/monthly stats (call via cron job)

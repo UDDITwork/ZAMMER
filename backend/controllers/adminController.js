@@ -18,17 +18,24 @@ const BatchPayoutService = require('../services/batchPayoutService');
 const PayoutCalculationService = require('../services/payoutCalculationService');
 
 // Enhanced logging for admin operations
-const logAdmin = (action, data, level = 'info') => {
-  const timestamp = new Date().toISOString();
-  const logLevels = {
-    info: '🔧',
-    success: '✅',
-    warning: '⚠️',
-    error: '❌'
-  };
-  
-  console.log(`${logLevels[level]} [ADMIN-CONTROLLER] ${timestamp} - ${action}`, 
-    data ? JSON.stringify(data, null, 2) : '');
+const { logger } = require('../utils/logger');
+const { 
+  orderAssignmentLogger, 
+  logAgentAvailability, 
+  logCapacityCheck, 
+  logAssignmentAttempt, 
+  logBulkAttempt, 
+  logSuccess, 
+  logFailure, 
+  logNotification, 
+  logStatusUpdate 
+} = require('../utils/orderAssignmentLogger');
+
+const logAdmin = (action, data, level = 'info', correlationId = null) => {
+  logger.admin(`ADMIN_${action}`, {
+    ...data,
+    timestamp: new Date().toISOString()
+  }, level, correlationId);
 };
 
 // @desc    Admin login
@@ -510,6 +517,112 @@ const getDeliveryAgents = async (req, res) => {
   }
 };
 
+// 🎯 NEW: Get available delivery agents with capacity information
+// @desc    Get delivery agents available for assignment with capacity details
+// @route   GET /api/admin/delivery-agents/available
+// @access  Private (Admin)
+const getAvailableDeliveryAgents = async (req, res) => {
+  try {
+    const { vehicleType, area, maxCapacity } = req.query;
+    
+    logAdmin('GET_AVAILABLE_DELIVERY_AGENTS_START', {
+      adminId: req.admin._id,
+      filters: { vehicleType, area, maxCapacity }
+    });
+
+    const MAX_ORDERS_PER_AGENT = process.env.MAX_ORDERS_PER_AGENT || 5;
+    
+    // Build query filter for available agents
+    const filter = {
+      isActive: true,
+      isVerified: true,
+      isBlocked: false,
+      status: { $in: ['available', 'assigned'] }
+    };
+
+    if (vehicleType && vehicleType !== 'all') {
+      filter.vehicleType = vehicleType;
+    }
+
+    if (area) {
+      filter.area = new RegExp(area, 'i');
+    }
+
+    // Get agents with capacity information
+    const agents = await DeliveryAgent.find(filter)
+      .select('-password')
+      .populate('assignedOrders.order', 'orderNumber status totalPrice createdAt')
+      .sort({ 'deliveryStats.averageRating': -1, 'deliveryStats.completedDeliveries': -1 });
+
+    // Filter by capacity and add capacity information
+    const availableAgents = agents.map(agent => {
+      const currentOrderCount = agent.assignedOrders?.length || 0;
+      const availableCapacity = MAX_ORDERS_PER_AGENT - currentOrderCount;
+      const capacityPercentage = (currentOrderCount / MAX_ORDERS_PER_AGENT) * 100;
+      
+      return {
+        ...agent.toObject(),
+        capacity: {
+          current: currentOrderCount,
+          max: MAX_ORDERS_PER_AGENT,
+          available: availableCapacity,
+          percentage: Math.round(capacityPercentage),
+          isAtCapacity: currentOrderCount >= MAX_ORDERS_PER_AGENT,
+          isAvailable: availableCapacity > 0
+        }
+      };
+    }).filter(agent => {
+      // Filter by requested max capacity if specified
+      if (maxCapacity && parseInt(maxCapacity) > 0) {
+        return agent.capacity.available >= parseInt(maxCapacity);
+      }
+      return agent.capacity.isAvailable;
+    });
+
+    // Sort by availability and rating
+    availableAgents.sort((a, b) => {
+      // First by availability (more available capacity first)
+      if (a.capacity.available !== b.capacity.available) {
+        return b.capacity.available - a.capacity.available;
+      }
+      // Then by rating
+      return b.deliveryStats.averageRating - a.deliveryStats.averageRating;
+    });
+
+    logAdmin('GET_AVAILABLE_DELIVERY_AGENTS_SUCCESS', {
+      adminId: req.admin._id,
+      totalAgents: agents.length,
+      availableAgents: availableAgents.length,
+      filters: filter
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Available delivery agents retrieved successfully',
+      data: {
+        agents: availableAgents,
+        capacity: {
+          maxOrdersPerAgent: MAX_ORDERS_PER_AGENT,
+          totalAgents: agents.length,
+          availableAgents: availableAgents.length,
+          agentsAtCapacity: agents.length - availableAgents.length
+        }
+      }
+    });
+
+  } catch (error) {
+    logAdmin('GET_AVAILABLE_DELIVERY_AGENTS_ERROR', {
+      adminId: req.admin._id,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch available delivery agents'
+    });
+  }
+};
+
 // 🎯 NEW: Get delivery agent profile with history
 // @desc    Get detailed delivery agent profile
 // @route   GET /api/admin/delivery-agents/:agentId
@@ -581,6 +694,13 @@ const getDeliveryAgentProfile = async (req, res) => {
 // @route   POST /api/admin/orders/approve-assign
 // @access  Private (Admin)
 const approveAndAssignOrder = async (req, res) => {
+  const operationId = orderAssignmentLogger.startAssignmentOperation('SINGLE_ORDER_ASSIGNMENT', {
+    adminId: req.admin._id,
+    orderId: req.body.orderId,
+    deliveryAgentId: req.body.deliveryAgentId,
+    hasNotes: !!req.body.notes
+  });
+
   try {
     const { orderId, deliveryAgentId, notes } = req.body;
 
@@ -589,7 +709,7 @@ const approveAndAssignOrder = async (req, res) => {
       orderId,
       deliveryAgentId,
       hasNotes: !!notes
-    });
+    }, 'info', operationId);
 
     // Validate input
     if (!orderId || !deliveryAgentId) {
@@ -637,21 +757,65 @@ const approveAndAssignOrder = async (req, res) => {
     const deliveryAgent = await DeliveryAgent.findById(deliveryAgentId);
 
     if (!deliveryAgent) {
+      logFailure(orderId, deliveryAgentId, {
+        code: 'AGENT_NOT_FOUND',
+        message: 'Delivery agent not found',
+        type: 'validation_error'
+      });
       return res.status(404).json({
         success: false,
         message: 'Delivery agent not found'
       });
     }
 
+    // 🔧 FIXED: Enhanced availability check with capacity management
+    const MAX_ORDERS_PER_AGENT = process.env.MAX_ORDERS_PER_AGENT || 5; // Configurable capacity
+    const currentOrderCount = deliveryAgent.assignedOrders?.length || 0;
+    const isWithinCapacity = currentOrderCount < MAX_ORDERS_PER_AGENT;
+    const isAvailable = deliveryAgent.isActive && 
+                       deliveryAgent.isVerified && 
+                       !deliveryAgent.isBlocked &&
+                       (deliveryAgent.status === 'available' || deliveryAgent.status === 'assigned') &&
+                       isWithinCapacity;
+
+    // Log capacity check
+    logCapacityCheck(deliveryAgentId, currentOrderCount, 1, MAX_ORDERS_PER_AGENT, isWithinCapacity);
+
+    // Log agent availability check with detailed reasoning
+    let unavailabilityReason = '';
+    if (!deliveryAgent.isActive) unavailabilityReason = 'Agent is inactive';
+    else if (!deliveryAgent.isVerified) unavailabilityReason = 'Agent is not verified';
+    else if (deliveryAgent.isBlocked) unavailabilityReason = 'Agent is blocked';
+    else if (!isWithinCapacity) unavailabilityReason = `Agent at capacity (${currentOrderCount}/${MAX_ORDERS_PER_AGENT})`;
+    else if (deliveryAgent.status === 'offline') unavailabilityReason = 'Agent is offline';
+    
+    logAgentAvailability(deliveryAgentId, deliveryAgent, isAvailable, unavailabilityReason);
+
     // Check if agent is available
-    if (!deliveryAgent.isActive || deliveryAgent.status !== 'available') {
+    if (!isAvailable) {
+      logFailure(orderId, deliveryAgentId, {
+        code: 'AGENT_NOT_AVAILABLE',
+        message: `Delivery agent is not available: ${unavailabilityReason}`,
+        type: 'availability_error',
+        agentStatus: deliveryAgent.status,
+        isActive: deliveryAgent.isActive,
+        currentOrderCount,
+        maxCapacity: MAX_ORDERS_PER_AGENT,
+        isWithinCapacity
+      });
       return res.status(400).json({
         success: false,
-        message: 'Delivery agent is not available',
+        message: `Delivery agent is not available: ${unavailabilityReason}`,
         agentStatus: deliveryAgent.status,
-        isActive: deliveryAgent.isActive
+        isActive: deliveryAgent.isActive,
+        currentOrderCount,
+        maxCapacity: MAX_ORDERS_PER_AGENT,
+        capacityUsed: `${currentOrderCount}/${MAX_ORDERS_PER_AGENT}`
       });
     }
+
+    // Log assignment attempt
+    logAssignmentAttempt(orderId, deliveryAgentId, order, deliveryAgent);
 
     // ✅ SET ALL FIELDS ATOMICALLY BEFORE SAVING
     order.deliveryAgent = {
@@ -683,9 +847,23 @@ const approveAndAssignOrder = async (req, res) => {
 
     await order.save();
 
-    // Update delivery agent status
-    deliveryAgent.status = 'assigned';
-    deliveryAgent.currentOrder = orderId;
+    // Log order status update
+    logStatusUpdate(orderId, order.status, 'Pickup_Ready', 'order', 'admin', 'Order approved and assigned');
+
+    // 🔧 FIXED: Update delivery agent status to support multiple orders
+    const oldAgentStatus = deliveryAgent.status;
+    
+    // Only change status to 'assigned' if this is the first order
+    if (deliveryAgent.assignedOrders?.length === 0) {
+      deliveryAgent.status = 'assigned';
+    }
+    // Keep status as 'assigned' for additional orders
+    
+    // 🔧 FIXED: Don't set currentOrder - agents can handle multiple orders
+    // Only set currentOrder if this is the first order or if currentOrder is null
+    if (!deliveryAgent.currentOrder) {
+      deliveryAgent.currentOrder = orderId;
+    }
     
     // Add to assigned orders
     deliveryAgent.assignedOrders.push({
@@ -696,18 +874,32 @@ const approveAndAssignOrder = async (req, res) => {
     
     await deliveryAgent.save();
 
+    // Log agent status update with capacity info
+    const newOrderCount = deliveryAgent.assignedOrders?.length || 0;
+    logStatusUpdate(deliveryAgentId, oldAgentStatus, deliveryAgent.status, 'agent', 'admin', 
+      `Order assigned. Total orders: ${newOrderCount}/${MAX_ORDERS_PER_AGENT}`);
+
+    // Log successful assignment
+    logSuccess(orderId, deliveryAgentId, {
+      orderNumber: order.orderNumber,
+      agentName: deliveryAgent.name,
+      customerName: order.user.name,
+      totalPrice: order.totalPrice,
+      agentNewOrderCount: deliveryAgent.assignedOrders.length
+    });
+
     logAdmin('APPROVE_ASSIGN_ORDER_SUCCESS', {
       adminId: req.admin._id,
       orderId,
       orderNumber: order.orderNumber,
       deliveryAgentId,
       agentName: deliveryAgent.name
-    }, 'success');
+    }, 'success', operationId);
 
     // 🎯 NEW: Send real-time notification to delivery agent
     try {
       if (global.emitToDeliveryAgent) {
-        global.emitToDeliveryAgent(deliveryAgentId, 'order-assigned', {
+        const notificationData = {
           orderId: order._id,
           orderNumber: order.orderNumber,
           customerName: order.user.name,
@@ -718,15 +910,19 @@ const approveAndAssignOrder = async (req, res) => {
           itemCount: order.orderItems.length,
           assignedAt: new Date(),
           message: 'New order assigned to you'
-        });
-        logAdmin('DELIVERY_AGENT_NOTIFICATION_SENT', { deliveryAgentId, orderId });
+        };
+        
+        global.emitToDeliveryAgent(deliveryAgentId, 'order-assigned', notificationData);
+        logNotification(deliveryAgentId, 'order-assigned', notificationData, true);
+        logAdmin('DELIVERY_AGENT_NOTIFICATION_SENT', { deliveryAgentId, orderId }, 'success', operationId);
       }
     } catch (notificationError) {
+      logNotification(deliveryAgentId, 'order-assigned', { error: notificationError.message }, false);
       logAdmin('DELIVERY_AGENT_NOTIFICATION_FAILED', { 
         deliveryAgentId, 
         orderId, 
         error: notificationError.message 
-      }, 'warning');
+      }, 'warning', operationId);
     }
 
     // 🎯 NEW: Send notification to seller
@@ -774,6 +970,19 @@ const approveAndAssignOrder = async (req, res) => {
       }, 'warning');
     }
 
+    // Log performance metrics and end operation
+    orderAssignmentLogger.logPerformanceMetrics('SINGLE_ORDER_ASSIGNMENT', {
+      totalOrders: 1,
+      successfulAssignments: 1,
+      failedAssignments: 0
+    });
+    
+    const finalMetrics = orderAssignmentLogger.endAssignmentOperation('COMPLETED', {
+      orderId,
+      deliveryAgentId,
+      assignmentTime: new Date().toISOString()
+    });
+
     res.status(200).json({
       success: true,
       message: 'Order approved and assigned successfully',
@@ -791,16 +1000,31 @@ const approveAndAssignOrder = async (req, res) => {
         assignedAt: order.deliveryAgent.assignedAt,
         approvedBy: req.admin._id,
         approvedAt: order.approvedAt
-      }
+      },
+      metrics: finalMetrics
     });
 
   } catch (error) {
+    // Log assignment failure
+    logFailure(req.body.orderId, req.body.deliveryAgentId, {
+      code: 'ASSIGNMENT_ERROR',
+      message: error.message,
+      type: 'system_error'
+    });
+
     logAdmin('APPROVE_ASSIGN_ORDER_ERROR', {
       adminId: req.admin._id,
       orderId: req.body.orderId,
       deliveryAgentId: req.body.deliveryAgentId,
       error: error.message
-    }, 'error');
+    }, 'error', operationId);
+
+    // End operation with failure
+    orderAssignmentLogger.endAssignmentOperation('FAILED', {
+      error: error.message,
+      orderId: req.body.orderId,
+      deliveryAgentId: req.body.deliveryAgentId
+    });
 
     res.status(500).json({
       success: false,
@@ -814,6 +1038,13 @@ const approveAndAssignOrder = async (req, res) => {
 // @route   POST /api/admin/orders/bulk-assign
 // @access  Private (Admin)
 const bulkAssignOrders = async (req, res) => {
+  const operationId = orderAssignmentLogger.startAssignmentOperation('BULK_ORDER_ASSIGNMENT', {
+    adminId: req.admin._id,
+    orderIds: req.body.orderIds?.length || 0,
+    deliveryAgentId: req.body.deliveryAgentId,
+    hasNotes: !!req.body.notes
+  });
+
   try {
     const { orderIds, deliveryAgentId, notes } = req.body;
 
@@ -822,7 +1053,7 @@ const bulkAssignOrders = async (req, res) => {
       orderIds: orderIds?.length || 0,
       deliveryAgentId,
       hasNotes: !!notes
-    });
+    }, 'info', operationId);
 
     // Validate input
     if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
@@ -843,19 +1074,69 @@ const bulkAssignOrders = async (req, res) => {
     const deliveryAgent = await DeliveryAgent.findById(deliveryAgentId);
 
     if (!deliveryAgent) {
+      logBulkAttempt(orderIds, deliveryAgentId, {});
+      logFailure('BULK_ASSIGNMENT', deliveryAgentId, {
+        code: 'AGENT_NOT_FOUND',
+        message: 'Delivery agent not found',
+        type: 'validation_error'
+      });
       return res.status(404).json({
         success: false,
         message: 'Delivery agent not found'
       });
     }
 
+    // Log bulk assignment attempt
+    logBulkAttempt(orderIds, deliveryAgentId, deliveryAgent);
+
+    // 🔧 FIXED: Enhanced availability check for bulk assignment with capacity management
+    const MAX_ORDERS_PER_AGENT = process.env.MAX_ORDERS_PER_AGENT || 5; // Configurable capacity
+    const currentOrderCount = deliveryAgent.assignedOrders?.length || 0;
+    const requestedOrderCount = orderIds.length;
+    const totalAfterAssignment = currentOrderCount + requestedOrderCount;
+    const canHandleAllOrders = totalAfterAssignment <= MAX_ORDERS_PER_AGENT;
+    
+    const isAvailable = deliveryAgent.isActive && 
+                       deliveryAgent.isVerified && 
+                       !deliveryAgent.isBlocked &&
+                       (deliveryAgent.status === 'available' || deliveryAgent.status === 'assigned') &&
+                       canHandleAllOrders;
+
+    // Log capacity check for bulk assignment
+    logCapacityCheck(deliveryAgentId, currentOrderCount, requestedOrderCount, MAX_ORDERS_PER_AGENT, canHandleAllOrders);
+
+    // Log agent availability check with detailed reasoning
+    let unavailabilityReason = '';
+    if (!deliveryAgent.isActive) unavailabilityReason = 'Agent is inactive';
+    else if (!deliveryAgent.isVerified) unavailabilityReason = 'Agent is not verified';
+    else if (deliveryAgent.isBlocked) unavailabilityReason = 'Agent is blocked';
+    else if (!canHandleAllOrders) unavailabilityReason = `Agent cannot handle ${requestedOrderCount} orders. Capacity: ${currentOrderCount}/${MAX_ORDERS_PER_AGENT}`;
+    else if (deliveryAgent.status === 'offline') unavailabilityReason = 'Agent is offline';
+    
+    logAgentAvailability(deliveryAgentId, deliveryAgent, isAvailable, unavailabilityReason);
+
     // Check if agent is available
-    if (!deliveryAgent.isActive || deliveryAgent.status !== 'available') {
+    if (!isAvailable) {
+      logFailure('BULK_ASSIGNMENT', deliveryAgentId, {
+        code: 'AGENT_NOT_AVAILABLE',
+        message: `Delivery agent is not available for bulk assignment: ${unavailabilityReason}`,
+        type: 'availability_error',
+        agentStatus: deliveryAgent.status,
+        isActive: deliveryAgent.isActive,
+        currentOrderCount,
+        requestedOrderCount,
+        maxCapacity: MAX_ORDERS_PER_AGENT,
+        canHandleAllOrders
+      });
       return res.status(400).json({
         success: false,
-        message: 'Delivery agent is not available for bulk assignment',
+        message: `Delivery agent is not available for bulk assignment: ${unavailabilityReason}`,
         agentStatus: deliveryAgent.status,
-        isActive: deliveryAgent.isActive
+        isActive: deliveryAgent.isActive,
+        currentOrderCount,
+        requestedOrderCount,
+        maxCapacity: MAX_ORDERS_PER_AGENT,
+        capacityAfterAssignment: `${totalAfterAssignment}/${MAX_ORDERS_PER_AGENT}`
       });
     }
 
@@ -964,11 +1245,25 @@ const bulkAssignOrders = async (req, res) => {
       }
     }
 
-    // Update delivery agent status if any orders were assigned
+    // 🔧 FIXED: Update delivery agent status for bulk assignment with capacity management
     if (assignedOrders.length > 0) {
-      deliveryAgent.status = 'assigned';
-      deliveryAgent.currentOrder = assignedOrders[0].orderId; // Set first order as current
+      // Only change status to 'assigned' if this was the first assignment
+      if (deliveryAgent.assignedOrders?.length === assignedOrders.length) {
+        deliveryAgent.status = 'assigned';
+      }
+      // Keep status as 'assigned' for additional orders
+      
+      // Only set currentOrder if it's not already set
+      if (!deliveryAgent.currentOrder) {
+        deliveryAgent.currentOrder = assignedOrders[0].orderId; // Set first order as current
+      }
+      
       await deliveryAgent.save();
+      
+      // Log agent status update with capacity info
+      const finalOrderCount = deliveryAgent.assignedOrders?.length || 0;
+      logStatusUpdate(deliveryAgentId, 'bulk_assignment', deliveryAgent.status, 'agent', 'admin', 
+        `Bulk assignment completed. Total orders: ${finalOrderCount}/${MAX_ORDERS_PER_AGENT}`);
     }
 
     logAdmin('BULK_ASSIGN_ORDERS_SUCCESS', {
@@ -1742,6 +2037,7 @@ module.exports = {
   updateOrderStatus,
   // 🎯 NEW: Delivery agent management exports
   getDeliveryAgents,
+  getAvailableDeliveryAgents,
   getDeliveryAgentProfile,
   // 🎯 NEW: Payout management exports
   getPayoutAnalytics,
