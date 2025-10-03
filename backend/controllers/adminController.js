@@ -556,7 +556,8 @@ const getAvailableDeliveryAgents = async (req, res) => {
 
     // Filter by capacity and add capacity information
     const availableAgents = agents.map(agent => {
-      const currentOrderCount = agent.assignedOrders?.length || 0;
+      // 🔧 CRITICAL FIX: Only count orders that are still 'assigned' (not accepted/pickedUp/delivered)
+      const currentOrderCount = agent.assignedOrders?.filter(order => order.status === 'assigned').length || 0;
       const availableCapacity = MAX_ORDERS_PER_AGENT - currentOrderCount;
       const capacityPercentage = (currentOrderCount / MAX_ORDERS_PER_AGENT) * 100;
       
@@ -770,7 +771,8 @@ const approveAndAssignOrder = async (req, res) => {
 
     // 🔧 FIXED: Enhanced availability check with capacity management
     const MAX_ORDERS_PER_AGENT = process.env.MAX_ORDERS_PER_AGENT || 5; // Configurable capacity
-    const currentOrderCount = deliveryAgent.assignedOrders?.length || 0;
+    // 🔧 CRITICAL FIX: Only count orders that are still 'assigned' (not accepted/pickedUp/delivered)
+    const currentOrderCount = deliveryAgent.assignedOrders?.filter(order => order.status === 'assigned').length || 0;
     const isWithinCapacity = currentOrderCount < MAX_ORDERS_PER_AGENT;
     const isAvailable = deliveryAgent.isActive && 
                        deliveryAgent.isVerified && 
@@ -1091,7 +1093,8 @@ const bulkAssignOrders = async (req, res) => {
 
     // 🔧 FIXED: Enhanced availability check for bulk assignment with capacity management
     const MAX_ORDERS_PER_AGENT = process.env.MAX_ORDERS_PER_AGENT || 5; // Configurable capacity
-    const currentOrderCount = deliveryAgent.assignedOrders?.length || 0;
+    // 🔧 CRITICAL FIX: Only count orders that are still 'assigned' (not accepted/pickedUp/delivered)
+    const currentOrderCount = deliveryAgent.assignedOrders?.filter(order => order.status === 'assigned').length || 0;
     const requestedOrderCount = orderIds.length;
     const totalAfterAssignment = currentOrderCount + requestedOrderCount;
     const canHandleAllOrders = totalAfterAssignment <= MAX_ORDERS_PER_AGENT;

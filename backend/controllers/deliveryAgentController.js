@@ -685,11 +685,23 @@ const acceptOrder = async (req, res) => {
       });
     }
 
-    // Update delivery agent status
+    // Update delivery agent status and assignedOrders array
     const deliveryAgent = await DeliveryAgent.findById(agentId);
     if (deliveryAgent) {
+      // Update stats
       deliveryAgent.stats.acceptedOrders += 1;
       deliveryAgent.stats.assignedOrders -= 1;
+      
+      // 🔧 CRITICAL FIX: Update the assignedOrders array to reflect accepted status
+      const assignedOrderIndex = deliveryAgent.assignedOrders.findIndex(
+        assignedOrder => assignedOrder.order.toString() === orderId
+      );
+      
+      if (assignedOrderIndex !== -1) {
+        deliveryAgent.assignedOrders[assignedOrderIndex].status = 'accepted';
+        deliveryAgent.assignedOrders[assignedOrderIndex].acceptedAt = new Date();
+      }
+      
       await deliveryAgent.save();
     }
 
@@ -2693,11 +2705,24 @@ const bulkAcceptOrders = async (req, res) => {
       }
     }
 
-    // Update delivery agent status
+    // Update delivery agent status and assignedOrders array
     const deliveryAgent = await DeliveryAgent.findById(agentId);
     if (acceptedOrders.length > 0) {
       deliveryAgent.status = 'assigned';
       deliveryAgent.currentOrder = acceptedOrders[0].orderId; // Set first order as current
+      
+      // 🔧 CRITICAL FIX: Update the assignedOrders array to reflect accepted status for all accepted orders
+      acceptedOrders.forEach(acceptedOrder => {
+        const assignedOrderIndex = deliveryAgent.assignedOrders.findIndex(
+          assignedOrder => assignedOrder.order.toString() === acceptedOrder.orderId
+        );
+        
+        if (assignedOrderIndex !== -1) {
+          deliveryAgent.assignedOrders[assignedOrderIndex].status = 'accepted';
+          deliveryAgent.assignedOrders[assignedOrderIndex].acceptedAt = new Date();
+        }
+      });
+      
       await deliveryAgent.save();
     }
 
