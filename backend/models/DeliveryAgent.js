@@ -534,7 +534,8 @@ DeliveryAgentSchema.methods.distanceFrom = function(latitude, longitude) {
 
 // 🔧 ENHANCED: Check if agent is available for assignment with capacity management
 DeliveryAgentSchema.methods.isAvailableForAssignment = function(maxOrdersPerAgent = 5) {
-  const currentOrderCount = this.assignedOrders?.length || 0;
+  // 🔧 CRITICAL FIX: Only count orders that are still 'assigned' (not accepted/pickedUp/delivered)
+  const currentOrderCount = this.assignedOrders?.filter(order => order.status === 'assigned').length || 0;
   return this.isActive && 
          this.isVerified && 
          (this.status === 'available' || this.status === 'assigned') && 
@@ -544,7 +545,8 @@ DeliveryAgentSchema.methods.isAvailableForAssignment = function(maxOrdersPerAgen
 
 // 🔧 NEW: Get capacity information
 DeliveryAgentSchema.methods.getCapacityInfo = function(maxOrdersPerAgent = 5) {
-  const currentOrderCount = this.assignedOrders?.length || 0;
+  // 🔧 CRITICAL FIX: Only count orders that are still 'assigned' (not accepted/pickedUp/delivered)
+  const currentOrderCount = this.assignedOrders?.filter(order => order.status === 'assigned').length || 0;
   const availableCapacity = maxOrdersPerAgent - currentOrderCount;
   const capacityPercentage = (currentOrderCount / maxOrdersPerAgent) * 100;
   
@@ -560,7 +562,8 @@ DeliveryAgentSchema.methods.getCapacityInfo = function(maxOrdersPerAgent = 5) {
 
 // 🔧 NEW: Check if agent can handle specific number of orders
 DeliveryAgentSchema.methods.canHandleOrders = function(orderCount, maxOrdersPerAgent = 5) {
-  const currentOrderCount = this.assignedOrders?.length || 0;
+  // 🔧 CRITICAL FIX: Only count orders that are still 'assigned' (not accepted/pickedUp/delivered)
+  const currentOrderCount = this.assignedOrders?.filter(order => order.status === 'assigned').length || 0;
   return (currentOrderCount + orderCount) <= maxOrdersPerAgent;
 };
 
