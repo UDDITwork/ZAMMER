@@ -327,6 +327,34 @@ export const getDeliveryAgents = async (queryParams = {}) => {
   }
 };
 
+// 🎯 NEW: Get available delivery agents with capacity information
+export const getAvailableDeliveryAgents = async (queryParams = {}) => {
+  try {
+    debugLog('🚚 FETCHING AVAILABLE DELIVERY AGENTS WITH CAPACITY', { 
+      queryParams,
+      endpoint: '/admin/delivery-agents/available'
+    }, 'request');
+    
+    const response = await api.get('/admin/delivery-agents/available', { params: queryParams });
+    
+    debugLog('✅ AVAILABLE DELIVERY AGENTS WITH CAPACITY RECEIVED', {
+      agentsCount: response.data.data?.agents?.length || 0,
+      capacityInfo: response.data.data?.capacity,
+      availableAgents: response.data.data?.agents?.filter(agent => agent.capacity?.isAvailable).length || 0
+    }, 'success');
+
+    return response.data;
+  } catch (error) {
+    debugLog('❌ AVAILABLE DELIVERY AGENTS ERROR', {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      queryParams
+    }, 'error');
+    
+    throw error.response?.data || { success: false, message: 'Failed to fetch available delivery agents' };
+  }
+};
+
 // 🎯 Enhanced approve and assign order
 export const approveAndAssignOrder = async (orderData) => {
   try {
@@ -772,6 +800,7 @@ const adminService = {
   getAllUsers,
   getUserProfile,
   getDeliveryAgents,
+  getAvailableDeliveryAgents,
   getDeliveryAgentProfile,
   getDeliveryAgentHistory,
   updateDeliveryAgentStatus,

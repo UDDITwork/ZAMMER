@@ -223,19 +223,22 @@ const AdminDashboard = () => {
     }
   };
 
-  // 🎯 NEW: Fetch available delivery agents
+  // 🎯 ENHANCED: Fetch available delivery agents with capacity information
   const fetchDeliveryAgents = async () => {
     try {
-      console.log('🚚 Fetching delivery agents...');
+      console.log('🚚 Fetching available delivery agents with capacity...');
       
-      const response = await adminService.getDeliveryAgents({
-        status: 'available',
+      const response = await adminService.getAvailableDeliveryAgents({
         isActive: true
       });
 
       if (response.success) {
-        setDeliveryAgents(response.data);
-        console.log('✅ Delivery agents loaded:', response.data.length);
+        setDeliveryAgents(response.data.agents || []);
+        console.log('✅ Available delivery agents loaded:', {
+          totalAgents: response.data.agents?.length || 0,
+          capacityInfo: response.data.capacity,
+          availableAgents: response.data.agents?.filter(agent => agent.capacity?.isAvailable).length || 0
+        });
       } else {
         throw new Error(response.message || 'Failed to fetch delivery agents');
       }
@@ -727,7 +730,7 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* Agent Assignment */}
+            {/* 🔧 ENHANCED: Agent Assignment with Capacity Information */}
             <div className="border-t pt-6">
               <h3 className="font-semibold text-gray-900 mb-4">Assign Delivery Agent</h3>
               
@@ -744,9 +747,16 @@ const AdminDashboard = () => {
                   {deliveryAgents.map((agent) => (
                     <option key={agent._id} value={agent._id}>
                       {agent.name} - {agent.vehicleType} ({agent.area || 'All areas'})
+                      {agent.capacity ? ` - ${agent.capacity.current}/${agent.capacity.max} orders` : ''}
+                      {agent.capacity?.isAvailable ? ' ✅' : ' ❌'}
                     </option>
                   ))}
                 </select>
+                {deliveryAgents.length > 0 && (
+                  <div className="mt-2 text-sm text-gray-600">
+                    💡 Only showing agents with available capacity for new orders
+                  </div>
+                )}
               </div>
 
               <div className="flex space-x-4">
@@ -828,7 +838,7 @@ const AdminDashboard = () => {
               )}
             </div>
 
-            {/* Delivery Agent Selection */}
+            {/* 🔧 ENHANCED: Delivery Agent Selection with Capacity Information */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Select Delivery Agent *
@@ -842,11 +852,17 @@ const AdminDashboard = () => {
                 <option value="">Choose a delivery agent...</option>
                 {deliveryAgents.map(agent => (
                   <option key={agent._id} value={agent._id}>
-                    {agent.firstName} {agent.lastName} - {agent.phone} 
-                    {agent.status === 'available' ? ' (Available)' : ` (${agent.status})`}
+                    {agent.name} - {agent.mobileNumber || agent.phone} 
+                    {agent.capacity ? ` (${agent.capacity.current}/${agent.capacity.max} orders)` : ''}
+                    {agent.capacity?.isAvailable ? ' ✅ Available' : ' ❌ At Capacity'}
                   </option>
                 ))}
               </select>
+              {deliveryAgents.length > 0 && (
+                <div className="mt-2 text-sm text-gray-600">
+                  💡 Showing agents with available capacity for new orders
+                </div>
+              )}
             </div>
 
             {/* Optional Notes */}

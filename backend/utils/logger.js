@@ -30,7 +30,8 @@ class Logger {
       performance: '⚡',
       socket: '🔌',
       file: '📁',
-      external: '🌍'
+      external: '🌍',
+      assignment: '🎯'
     };
     
     this.logDir = path.join(__dirname, '../logs');
@@ -416,6 +417,14 @@ class Logger {
       operation,
       ...data
     }, 'info', correlationId);
+  }
+
+  // Assignment Operations
+  assignment(operation, data, level = 'info', correlationId = null) {
+    this.log('assignment', `[ASSIGNMENT] ${operation}`, {
+      ...data,
+      timestamp: new Date().toISOString()
+    }, level === 'error', correlationId);
   }
 
   // ENHANCED ERROR LOGGING WITH CORRELATION
