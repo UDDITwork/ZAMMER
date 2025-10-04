@@ -18,23 +18,29 @@ const OrderConfirmationPage = () => {
         const orderFromState = location.state.order;
         console.log('✅ Order data received from navigation state:', orderFromState);
         
-        // 🎯 FIX: Fetch fresh order data to get updated payment status
-        try {
-          console.log('🔄 Fetching fresh order data for updated payment status...');
-          const freshOrderResponse = await orderService.getOrderById(orderFromState._id);
-          
-          if (freshOrderResponse.success) {
-            setOrder(freshOrderResponse.data);
-            console.log('✅ Fresh order data loaded with updated payment status:', freshOrderResponse.data);
-          } else {
-            // Fallback to state data if fresh fetch fails
+        // 🚀 OPTIMIZED: Use state data first, only fetch fresh if payment status is pending
+        if (!orderFromState.isPaid || orderFromState.paymentStatus !== 'completed') {
+          try {
+            console.log('🔄 Payment not confirmed, fetching fresh order data...');
+            const freshOrderResponse = await orderService.getOrderById(orderFromState._id);
+            
+            if (freshOrderResponse.success) {
+              setOrder(freshOrderResponse.data);
+              console.log('✅ Fresh order data loaded with updated payment status:', freshOrderResponse.data);
+            } else {
+              // Fallback to state data if fresh fetch fails
+              setOrder(orderFromState);
+              console.log('⚠️ Using state data as fallback');
+            }
+          } catch (error) {
+            console.error('❌ Error fetching fresh order data:', error);
+            // Fallback to state data
             setOrder(orderFromState);
-            console.log('⚠️ Using state data as fallback');
           }
-        } catch (error) {
-          console.error('❌ Error fetching fresh order data:', error);
-          // Fallback to state data
+        } else {
+          // 🚀 OPTIMIZED: Payment already confirmed, use state data directly
           setOrder(orderFromState);
+          console.log('✅ Payment already confirmed, using state data directly');
         }
         
         setLoading(false);

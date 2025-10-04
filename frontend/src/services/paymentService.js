@@ -351,11 +351,12 @@ class PaymentService {
   }
 
   // 🎯 NEW: Poll payment confirmation
-  async pollPaymentConfirmation(orderId, maxAttempts = 20, interval = 3000) {
+  async pollPaymentConfirmation(orderId, maxAttempts = 12, interval = 2000) {
     logPayment('Starting Payment Confirmation Polling', {
       orderId,
       maxAttempts,
-      interval
+      interval,
+      totalTimeout: maxAttempts * interval / 1000 + 's'
     }, 'info');
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -371,7 +372,8 @@ class PaymentService {
         if (statusResult.success && statusResult.data?.isPaymentSuccessful) {
           logPayment('Payment Confirmed via Polling', {
             attempts: attempt,
-            orderId
+            orderId,
+            totalTime: attempt * interval / 1000 + 's'
           }, 'success');
           return statusResult;
         }
@@ -380,9 +382,12 @@ class PaymentService {
           throw new Error('Payment failed');
         }
 
+        // 🚀 OPTIMIZED: Progressive polling - faster intervals for first few attempts
+        const dynamicInterval = attempt <= 3 ? 1500 : interval;
+        
         // Wait before next attempt
         if (attempt < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, interval));
+          await new Promise(resolve => setTimeout(resolve, dynamicInterval));
         }
 
       } catch (error) {
@@ -425,7 +430,8 @@ class PaymentService {
     try {
       logPayment('Checking Payment Status', { orderId }, 'info');
 
-      const response = await api.post('/payments/smepay/check-qr-status', {
+      // 🚀 OPTIMIZED: Use fast confirmation endpoint for better performance
+      const response = await api.post('/payments/smepay/fast-confirm', {
         orderId: orderId
       });
 
@@ -461,7 +467,7 @@ class PaymentService {
   }
 
   // Start payment status polling with cleanup
-  startPaymentPolling(orderId, callback, interval = 5000) {
+  startPaymentPolling(orderId, callback, interval = 3000) { // 🚀 OPTIMIZED: Reduced from 5s to 3s
     if (this.pollingIntervals.has(orderId)) {
       this.stopPaymentPolling(orderId);
     }

@@ -13,7 +13,8 @@ const {
   handleSMEPayWebhook,
   getPaymentMethods,
   getPaymentHistory,
-  autoConfirmSMEPayPayment
+  autoConfirmSMEPayPayment,
+  fastConfirmSMEPayPayment // 🚀 OPTIMIZED: New fast confirmation endpoint
 } = require('../controllers/paymentController');
 
 // Import authentication middleware
@@ -118,6 +119,23 @@ router.post(
       .withMessage('Invalid order ID format')
   ],
   autoConfirmSMEPayPayment
+);
+
+// 🚀 OPTIMIZED: Fast payment confirmation route
+// @desc    Fast payment confirmation for SMEpay
+// @route   POST /api/payments/smepay/fast-confirm
+// @access  Private (User)
+router.post(
+  '/smepay/fast-confirm',
+  protectUser,
+  [
+    body('orderId')
+      .notEmpty()
+      .withMessage('Order ID is required')
+      .isMongoId()
+      .withMessage('Invalid order ID format')
+  ],
+  fastConfirmSMEPayPayment
 );
 
 // @desc    Handle SMEPay webhook callback

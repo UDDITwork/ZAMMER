@@ -656,6 +656,135 @@ const autoConfirmSMEPayPayment = async (req, res) => {
   }
 };
 
+// 🚀 OPTIMIZED: Fast payment confirmation endpoint
+// @desc    Fast payment confirmation for SMEpay
+// @route   POST /api/payments/smepay/fast-confirm
+// @access  Private (User)
+const fastConfirmSMEPayPayment = async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    const userId = req.user._id;
+
+    logPayment('FAST_CONFIRM_PAYMENT_START', { orderId, userId: userId.toString() });
+
+    // Find the order with minimal population for speed
+    const order = await Order.findById(orderId).select('user smepayOrderSlug isPaid paymentStatus totalPrice orderNumber status');
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Check ownership
+    if (order.user.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access to order'
+      });
+    }
+
+    // If already paid, return immediately
+    if (order.isPaid) {
+      return res.status(200).json({
+        success: true,
+        message: 'Payment already confirmed',
+        data: {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          isPaymentSuccessful: true,
+          paymentStatus: 'completed',
+          isPaid: true,
+          orderStatus: order.status
+        }
+      });
+    }
+
+    if (!order.smepayOrderSlug) {
+      return res.status(400).json({
+        success: false,
+        message: 'No SMEPay payment found for this order'
+      });
+    }
+
+    // 🚀 OPTIMIZED: Quick validation with cached results
+    const confirmResult = await smepayService.validateOrder({
+      slug: order.smepayOrderSlug,
+      amount: order.totalPrice
+    });
+
+    if (!confirmResult.success) {
+      logPayment('FAST_CONFIRM_FAILED', {
+        orderId,
+        error: confirmResult.error
+      }, 'error');
+
+      return res.status(400).json({
+        success: false,
+        message: confirmResult.error || 'Failed to confirm payment'
+      });
+    }
+
+    // 🚀 OPTIMIZED: Update order if payment is confirmed
+    if (confirmResult.isPaymentSuccessful) {
+      console.log(`🎉 Fast payment confirmation for order: ${order.orderNumber}`);
+      
+      // Update payment status
+      order.isPaid = true;
+      order.paidAt = new Date();
+      order.paymentStatus = 'completed';
+      order.paymentResult = {
+        gateway: 'smepay',
+        transactionId: confirmResult.data.transactionId || 'smepay_' + Date.now(),
+        paidAt: new Date(),
+        paymentMethod: 'SMEPay'
+      };
+
+      // Update order status
+      order.status = 'Processing';
+      order.statusHistory.push({
+        status: 'Processing',
+        changedBy: 'system',
+        changedAt: new Date(),
+        notes: 'Payment confirmed via SMEPay fast confirmation'
+      });
+
+      await order.save();
+
+      logPayment('FAST_CONFIRM_SUCCESS', {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        paymentStatus: order.paymentStatus,
+        newStatus: order.status
+      }, 'success');
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment confirmation completed',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        isPaymentSuccessful: confirmResult.isPaymentSuccessful,
+        paymentStatus: confirmResult.data.paymentStatus,
+        isPaid: order.isPaid,
+        orderStatus: order.status,
+        smepayData: confirmResult.data
+      }
+    });
+
+  } catch (error) {
+    logPayment('FAST_CONFIRM_ERROR', { error: error.message }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error while confirming payment',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 // @desc    Handle SMEPay webhook callback
 // @route   POST /api/payments/smepay/webhook
 // @access  Public (Called by SMEPay)
@@ -942,5 +1071,6 @@ module.exports = {
   handleSMEPayWebhook,
   getPaymentMethods,
   getPaymentHistory,
-  autoConfirmSMEPayPayment // 🎯 Add this new function
+  autoConfirmSMEPayPayment, // 🎯 Add this new function
+  fastConfirmSMEPayPayment // 🚀 OPTIMIZED: New fast confirmation endpoint
 };
