@@ -16,6 +16,7 @@ const OrderConfirmationPage = () => {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnEligibility, setReturnEligibility] = useState(null);
   const [socket, setSocket] = useState(null);
+  const [isPollingPayment, setIsPollingPayment] = useState(false);
 
   useEffect(() => {
     const fetchOrderData = async () => {
@@ -24,29 +25,63 @@ const OrderConfirmationPage = () => {
         const orderFromState = location.state.order;
         console.log('✅ Order data received from navigation state:', orderFromState);
         
-        // 🚀 OPTIMIZED: Use state data first, only fetch fresh if payment status is pending
-        if (!orderFromState.isPaid || orderFromState.paymentStatus !== 'completed') {
-          try {
-            console.log('🔄 Payment not confirmed, fetching fresh order data...');
-            const freshOrderResponse = await orderService.getOrderById(orderFromState._id);
+        // 🎯 CRITICAL FIX: Always fetch fresh data to ensure payment status is current
+        try {
+          console.log('🔄 Fetching fresh order data to verify payment status...');
+          const freshOrderResponse = await orderService.getOrderById(orderFromState._id);
+          
+          if (freshOrderResponse.success) {
+            const freshOrder = freshOrderResponse.data;
+            setOrder(freshOrder);
             
-            if (freshOrderResponse.success) {
-              setOrder(freshOrderResponse.data);
-              console.log('✅ Fresh order data loaded with updated payment status:', freshOrderResponse.data);
-            } else {
-              // Fallback to state data if fresh fetch fails
-              setOrder(orderFromState);
-              console.log('⚠️ Using state data as fallback');
+            // Log payment status comparison
+            console.log('📊 Payment Status Comparison:');
+            console.log('  - State Data:', {
+              isPaid: orderFromState.isPaid,
+              paymentStatus: orderFromState.paymentStatus
+            });
+            console.log('  - Fresh Data:', {
+              isPaid: freshOrder.isPaid,
+              paymentStatus: freshOrder.paymentStatus
+            });
+            
+            // Show notification if payment status changed
+            if (!orderFromState.isPaid && freshOrder.isPaid) {
+              console.log('🎉 Payment status updated from pending to completed!');
+              toast.success(
+                <div className="flex items-center">
+                  <div className="bg-green-100 rounded-full p-2 mr-3">
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-medium">Payment Confirmed! 🎉</p>
+                    <p className="text-sm text-gray-600">Order #{freshOrder.orderNumber}</p>
+                    <p className="text-xs text-blue-600">Status updated on page load</p>
+                  </div>
+                </div>,
+                {
+                  position: "top-center",
+                  autoClose: 5000,
+                  hideProgressBar: false,
+                  closeOnClick: true,
+                  pauseOnHover: true,
+                }
+              );
             }
-          } catch (error) {
-            console.error('❌ Error fetching fresh order data:', error);
-            // Fallback to state data
+            
+            console.log('✅ Fresh order data loaded:', freshOrder);
+          } else {
+            // Fallback to state data if fresh fetch fails
             setOrder(orderFromState);
+            console.log('⚠️ Using state data as fallback due to API error');
           }
-        } else {
-          // 🚀 OPTIMIZED: Payment already confirmed, use state data directly
+        } catch (error) {
+          console.error('❌ Error fetching fresh order data:', error);
+          // Fallback to state data
           setOrder(orderFromState);
-          console.log('✅ Payment already confirmed, using state data directly');
+          console.log('⚠️ Using state data as fallback due to network error');
         }
         
         setLoading(false);
@@ -95,6 +130,71 @@ const OrderConfirmationPage = () => {
           const userId = localStorage.getItem('userId');
           if (userId) {
             socketConnection.emit('buyer-join', userId);
+          }
+        });
+
+        // 🎯 CRITICAL FIX: Listen for payment completion events
+        socketConnection.on('payment-completed', (data) => {
+          console.log('💳 Payment completed event received:', data);
+          
+          // Update order state with payment completion data
+          if (order && data.data && data.data._id === order._id) {
+            console.log('✅ Updating order payment status in real-time');
+            
+            setOrder(prevOrder => ({
+              ...prevOrder,
+              isPaid: true,
+              paymentStatus: 'completed',
+              status: data.data.status || prevOrder.status,
+              paidAt: new Date(),
+              paymentResult: {
+                gateway: 'smepay',
+                transactionId: data.data.transactionId || 'smepay_transaction',
+                paidAt: new Date(),
+                paymentMethod: 'SMEPay'
+              }
+            }));
+
+            // Show success notification
+            toast.success(
+              <div className="flex items-center">
+                <div className="bg-green-100 rounded-full p-2 mr-3">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-medium">Payment Confirmed! 🎉</p>
+                  <p className="text-sm text-gray-600">Order #{data.data.orderNumber}</p>
+                </div>
+              </div>,
+              {
+                position: "top-center",
+                autoClose: 5000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+              }
+            );
+          }
+        });
+
+        // Listen for order status updates (including payment status changes)
+        socketConnection.on('order-status-update', (data) => {
+          console.log('📦 Order status update received:', data);
+          
+          if (order && data.data && data.data._id === order._id) {
+            console.log('🔄 Updating order status in real-time');
+            
+            setOrder(prevOrder => ({
+              ...prevOrder,
+              status: data.data.status || prevOrder.status,
+              paymentStatus: data.data.paymentStatus || prevOrder.paymentStatus,
+              isPaid: data.data.isPaid !== undefined ? data.data.isPaid : prevOrder.isPaid
+            }));
+
+            // Show status update notification
+            toast.info(`Order ${data.data.orderNumber} status updated to ${data.data.status}`);
           }
         });
 
@@ -160,7 +260,82 @@ const OrderConfirmationPage = () => {
     };
 
     initializeSocket();
-  }, []);
+  }, [order]); // 🎯 FIX: Add order dependency to ensure socket events work with current order
+
+  // 🎯 CRITICAL FIX: Add polling mechanism for payment status updates
+  useEffect(() => {
+    if (!order || order.isPaid) {
+      setIsPollingPayment(false);
+      return; // Don't poll if already paid
+    }
+
+    console.log('🔄 Starting payment status polling for order:', order.orderNumber);
+    setIsPollingPayment(true);
+    
+    const pollPaymentStatus = async () => {
+      try {
+        console.log('🔍 Polling payment status...');
+        const response = await orderService.getOrderById(order._id);
+        
+        if (response.success && response.data) {
+          const updatedOrder = response.data;
+          
+          // Check if payment status has changed
+          if (updatedOrder.isPaid && !order.isPaid) {
+            console.log('✅ Payment status updated via polling!');
+            
+            setOrder(updatedOrder);
+            setIsPollingPayment(false); // Stop polling once payment is confirmed
+            
+            // Show success notification
+            toast.success(
+              <div className="flex items-center">
+                <div className="bg-green-100 rounded-full p-2 mr-3">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-medium">Payment Confirmed! 🎉</p>
+                  <p className="text-sm text-gray-600">Order #{updatedOrder.orderNumber}</p>
+                  <p className="text-xs text-blue-600">Updated via polling</p>
+                </div>
+              </div>,
+              {
+                position: "top-center",
+                autoClose: 5000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+              }
+            );
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error polling payment status:', error);
+      }
+    };
+
+    // Poll every 3 seconds for the first 30 seconds, then every 10 seconds
+    const initialPolling = setInterval(pollPaymentStatus, 3000);
+    const extendedPolling = setTimeout(() => {
+      clearInterval(initialPolling);
+      const longPolling = setInterval(pollPaymentStatus, 10000);
+      
+      // Stop polling after 5 minutes
+      setTimeout(() => {
+        clearInterval(longPolling);
+        setIsPollingPayment(false);
+        console.log('⏹️ Stopped payment status polling after 5 minutes');
+      }, 300000); // 5 minutes
+    }, 30000); // 30 seconds
+
+    return () => {
+      clearInterval(initialPolling);
+      clearTimeout(extendedPolling);
+      setIsPollingPayment(false);
+    };
+  }, [order]);
 
   // Check return eligibility when order is loaded
   useEffect(() => {
@@ -541,27 +716,36 @@ const OrderConfirmationPage = () => {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-slate-600 font-medium">Payment Status:</span>
-                      <span className={`font-semibold px-3 py-1 rounded-lg ${
-                        order.isPaid 
-                          ? 'text-emerald-700 bg-emerald-100' 
-                          : 'text-amber-700 bg-amber-100'
-                      }`}>
-                        {order.isPaid ? (
-                          <span className="flex items-center gap-1">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                            Paid
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Pending
-                          </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`font-semibold px-3 py-1 rounded-lg ${
+                          order.isPaid 
+                            ? 'text-emerald-700 bg-emerald-100' 
+                            : 'text-amber-700 bg-amber-100'
+                        }`}>
+                          {order.isPaid ? (
+                            <span className="flex items-center gap-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Paid
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Pending
+                            </span>
+                          )}
+                        </span>
+                        {/* 🎯 CRITICAL FIX: Show polling indicator when actively checking payment status */}
+                        {isPollingPayment && !order.isPaid && (
+                          <div className="flex items-center gap-1 text-blue-600 text-xs">
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                            <span>Checking...</span>
+                          </div>
                         )}
-                      </span>
+                      </div>
                     </div>
                   </div>
                 </div>
