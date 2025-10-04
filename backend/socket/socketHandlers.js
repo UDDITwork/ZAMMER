@@ -206,6 +206,62 @@ global.emitToDeliveryAgent = (agentId, eventType, data) => {
   }
 };
 
+// 🎯 NEW: Emit to admin
+global.emitToAdmin = (eventType, data) => {
+  if (!global.io) {
+    logSocketOperation('EmitToAdmin', {
+      error: 'Socket.io not initialized',
+      eventType
+    }, 'error');
+    return false;
+  }
+
+  try {
+    const roomName = 'admin-dashboard';
+    logSocketOperation('EmitToAdmin', {
+      eventType,
+      roomName,
+      orderNumber: data.orderNumber || 'N/A',
+      timestamp: new Date().toISOString()
+    }, 'info');
+    
+    const payload = {
+      type: eventType,
+      data: data,
+      timestamp: new Date().toISOString(),
+      source: 'server'
+    };
+    
+    // Emit to the admin room
+    global.io.to(roomName).emit(eventType, payload);
+    
+    // Also emit to all admin sockets
+    const adminSockets = Array.from(global.io.sockets.sockets.values())
+      .filter(socket => socket.userType === 'admin');
+    
+    adminSockets.forEach(socket => {
+      socket.emit(eventType, payload);
+    });
+    
+    logSocketOperation('EmitToAdmin', {
+      success: true,
+      eventType,
+      roomTargets: 1,
+      socketTargets: adminSockets.length,
+      totalTargets: adminSockets.length + 1
+    }, 'success');
+    
+    return true;
+  } catch (error) {
+    logSocketOperation('EmitToAdmin', {
+      error: error.message,
+      eventType,
+      stack: error.stack
+    }, 'error');
+    return false;
+  }
+};
+
 // 🎯 NEW: Get connection statistics
 global.getSocketStats = () => {
   if (!global.io) return null;
@@ -215,6 +271,8 @@ global.getSocketStats = () => {
     totalConnections: sockets.length,
     sellers: sockets.filter(s => s.userType === 'seller').length,
     buyers: sockets.filter(s => s.userType === 'buyer').length,
+    admins: sockets.filter(s => s.userType === 'admin').length,
+    deliveryAgents: sockets.filter(s => s.userType === 'delivery_agent').length,
     unauthenticated: sockets.filter(s => !s.userType).length,
     rooms: Object.keys(global.io.sockets.adapter.rooms).length
   };
@@ -767,6 +825,458 @@ const setupSocketHandlers = (io) => {
         serverStats: stats,
         uptime: process.uptime()
       });
+    });
+
+    // 🎯 NEW: Admin room joining
+    socket.on('admin-join', async (adminId) => {
+      try {
+        logSocketOperation('AdminJoin', {
+          adminId,
+          socketId: socket.id,
+          clientIP: socket.handshake.address
+        }, 'info');
+
+        // Validate admin ID format
+        if (!adminId || typeof adminId !== 'string') {
+          logSocketOperation('AdminJoin', {
+            error: 'Invalid admin ID format',
+            receivedId: adminId,
+            type: typeof adminId
+          }, 'error');
+          socket.emit('error', { message: 'Invalid admin ID' });
+          return;
+        }
+
+        // Validate admin exists
+        const admin = await Admin.findById(adminId);
+        if (!admin) {
+          logSocketOperation('AdminJoin', {
+            error: 'Admin not found in database',
+            adminId
+          }, 'error');
+          socket.emit('error', { message: 'Admin not found' });
+          return;
+        }
+
+        const roomName = 'admin-dashboard';
+        
+        // Leave any previous rooms for this socket
+        socket.rooms.forEach(room => {
+          if (room !== socket.id) {
+            socket.leave(room);
+          }
+        });
+        
+        // Join the admin room
+        socket.join(roomName);
+        socket.adminId = adminId;
+        socket.userType = 'admin';
+        socket.joinedAt = new Date();
+
+        logSocketOperation('AdminJoin', {
+          success: true,
+          adminId,
+          roomName,
+          adminName: admin.firstName + ' ' + admin.lastName
+        }, 'success');
+
+        // Confirm join with detailed info
+        socket.emit('admin-joined', {
+          adminId,
+          roomName,
+          message: 'Successfully joined admin room',
+          timestamp: new Date().toISOString(),
+          socketId: socket.id
+        });
+
+      } catch (error) {
+        logSocketOperation('AdminJoin', {
+          error: error.message,
+          adminId,
+          stack: error.stack
+        }, 'error');
+        socket.emit('error', { message: 'Failed to join admin room' });
+      }
+    });
+
+    // 🎯 NEW: Delivery agent room joining
+    socket.on('delivery-agent-join', async (agentId) => {
+      try {
+        logSocketOperation('DeliveryAgentJoin', {
+          agentId,
+          socketId: socket.id,
+          clientIP: socket.handshake.address
+        }, 'info');
+
+        // Validate agent ID format
+        if (!agentId || typeof agentId !== 'string') {
+          logSocketOperation('DeliveryAgentJoin', {
+            error: 'Invalid agent ID format',
+            receivedId: agentId,
+            type: typeof agentId
+          }, 'error');
+          socket.emit('error', { message: 'Invalid agent ID' });
+          return;
+        }
+
+        // Validate delivery agent exists
+        const deliveryAgent = await DeliveryAgent.findById(agentId);
+        if (!deliveryAgent) {
+          logSocketOperation('DeliveryAgentJoin', {
+            error: 'Delivery agent not found in database',
+            agentId
+          }, 'error');
+          socket.emit('error', { message: 'Delivery agent not found' });
+          return;
+        }
+
+        const roomName = `delivery-agent-${agentId}`;
+        
+        // Leave any previous rooms for this socket
+        socket.rooms.forEach(room => {
+          if (room !== socket.id) {
+            socket.leave(room);
+          }
+        });
+        
+        // Join the delivery agent room
+        socket.join(roomName);
+        socket.deliveryAgentId = agentId;
+        socket.userType = 'delivery_agent';
+        socket.joinedAt = new Date();
+
+        logSocketOperation('DeliveryAgentJoin', {
+          success: true,
+          agentId,
+          roomName,
+          agentName: deliveryAgent.firstName + ' ' + deliveryAgent.lastName
+        }, 'success');
+
+        // Confirm join with detailed info
+        socket.emit('delivery-agent-joined', {
+          agentId,
+          roomName,
+          message: 'Successfully joined delivery agent room',
+          timestamp: new Date().toISOString(),
+          socketId: socket.id
+        });
+
+      } catch (error) {
+        logSocketOperation('DeliveryAgentJoin', {
+          error: error.message,
+          agentId,
+          stack: error.stack
+        }, 'error');
+        socket.emit('error', { message: 'Failed to join delivery agent room' });
+      }
+    });
+
+    // 🎯 NEW: Handle return request from buyer
+    socket.on('request-return', async ({ orderId, reason }) => {
+      try {
+        logSocketOperation('RequestReturn', {
+          orderId,
+          reason,
+          userId: socket.userId,
+          socketId: socket.id
+        }, 'return');
+
+        if (socket.userType !== 'buyer') {
+          socket.emit('error', { message: 'Only buyers can request returns' });
+          return;
+        }
+
+        if (!orderId || !reason) {
+          socket.emit('error', { message: 'Order ID and reason are required' });
+          return;
+        }
+
+        const order = await Order.findById(orderId)
+          .populate('user', 'name email')
+          .populate('seller', 'firstName shop');
+
+        if (!order) {
+          socket.emit('error', { message: 'Order not found' });
+          return;
+        }
+
+        // Check if order belongs to this buyer
+        if (order.user._id.toString() !== socket.userId) {
+          socket.emit('error', { message: 'Unauthorized to request return for this order' });
+          return;
+        }
+
+        // Check return eligibility
+        const eligibility = order.checkReturnEligibility();
+        if (!eligibility.eligible) {
+          socket.emit('error', { message: eligibility.reason });
+          return;
+        }
+
+        // Request return
+        await order.requestReturn(reason, socket.userId);
+
+        logSocketOperation('RequestReturn', {
+          success: true,
+          orderId,
+          orderNumber: order.orderNumber,
+          reason,
+          returnStatus: order.returnDetails.returnStatus
+        }, 'success');
+
+        // Notify buyer
+        socket.emit('return-requested', {
+          orderId,
+          orderNumber: order.orderNumber,
+          returnStatus: order.returnDetails.returnStatus,
+          requestedAt: order.returnDetails.returnRequestedAt,
+          message: 'Return request submitted successfully',
+          timestamp: new Date().toISOString()
+        });
+
+        // Notify seller about return request
+        global.emitToSeller(order.seller._id, 'return-requested', {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          user: order.user,
+          reason,
+          requestedAt: order.returnDetails.returnRequestedAt,
+          returnDeadline: order.returnDetails.returnWindow.returnDeadline
+        });
+
+        // Notify admin about return request
+        global.emitToAdmin('return-requested', {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          user: order.user,
+          seller: order.seller,
+          reason,
+          requestedAt: order.returnDetails.returnRequestedAt
+        });
+
+      } catch (error) {
+        logSocketOperation('RequestReturn', {
+          error: error.message,
+          orderId,
+          stack: error.stack
+        }, 'error');
+        socket.emit('error', { message: 'Failed to request return' });
+      }
+    });
+
+    // 🎯 NEW: Handle return assignment response from delivery agent
+    socket.on('return-assignment-response', async ({ returnId, response, reason }) => {
+      try {
+        logSocketOperation('ReturnAssignmentResponse', {
+          returnId,
+          response,
+          reason,
+          agentId: socket.deliveryAgentId,
+          socketId: socket.id
+        }, 'return');
+
+        if (socket.userType !== 'delivery_agent') {
+          socket.emit('error', { message: 'Only delivery agents can respond to return assignments' });
+          return;
+        }
+
+        if (!returnId || !response || !['accepted', 'rejected'].includes(response)) {
+          socket.emit('error', { message: 'Return ID and valid response are required' });
+          return;
+        }
+
+        const order = await Order.findById(returnId)
+          .populate('user', 'name email')
+          .populate('seller', 'firstName shop')
+          .populate('returnDetails.returnAssignment.deliveryAgent', 'firstName lastName phone');
+
+        if (!order) {
+          socket.emit('error', { message: 'Return order not found' });
+          return;
+        }
+
+        // Check if agent is assigned to this return
+        if (order.returnDetails?.returnAssignment?.deliveryAgent?.toString() !== socket.deliveryAgentId) {
+          socket.emit('error', { message: 'Unauthorized to respond to this return assignment' });
+          return;
+        }
+
+        // Handle response
+        await order.handleReturnAgentResponse(response, reason);
+
+        logSocketOperation('ReturnAssignmentResponse', {
+          success: true,
+          returnId,
+          orderNumber: order.orderNumber,
+          response,
+          reason,
+          returnStatus: order.returnDetails.returnStatus
+        }, 'success');
+
+        // Notify delivery agent
+        socket.emit('return-assignment-response-handled', {
+          returnId,
+          orderNumber: order.orderNumber,
+          response,
+          returnStatus: order.returnDetails.returnStatus,
+          message: `Return assignment ${response} successfully`,
+          timestamp: new Date().toISOString()
+        });
+
+        if (response === 'accepted') {
+          // Notify buyer about return acceptance
+          global.emitToBuyer(order.user._id, 'return-agent-accepted', {
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            agent: order.returnDetails.returnAssignment.deliveryAgent,
+            acceptedAt: order.returnDetails.returnAssignment.acceptedAt
+          });
+
+          // Notify seller about return acceptance
+          global.emitToSeller(order.seller._id, 'return-agent-accepted', {
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            agent: order.returnDetails.returnAssignment.deliveryAgent,
+            acceptedAt: order.returnDetails.returnAssignment.acceptedAt
+          });
+
+          // Notify admin about return acceptance
+          global.emitToAdmin('return-agent-accepted', {
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            agent: order.returnDetails.returnAssignment.deliveryAgent,
+            acceptedAt: order.returnDetails.returnAssignment.acceptedAt
+          });
+
+        } else if (response === 'rejected') {
+          // Notify admin about return rejection for reassignment
+          global.emitToAdmin('return-agent-rejected', {
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            agent: order.returnDetails.returnAssignment.deliveryAgent,
+            rejectedAt: order.returnDetails.returnAssignment.rejectedAt,
+            rejectionReason: reason
+          });
+        }
+
+      } catch (error) {
+        logSocketOperation('ReturnAssignmentResponse', {
+          error: error.message,
+          returnId,
+          stack: error.stack
+        }, 'error');
+        socket.emit('error', { message: 'Failed to handle return assignment response' });
+      }
+    });
+
+    // 🎯 NEW: Handle return status updates
+    socket.on('return-status-update', async ({ returnId, status, notes }) => {
+      try {
+        logSocketOperation('ReturnStatusUpdate', {
+          returnId,
+          status,
+          notes,
+          userType: socket.userType,
+          socketId: socket.id
+        }, 'return');
+
+        const order = await Order.findById(returnId)
+          .populate('user', 'name email')
+          .populate('seller', 'firstName shop')
+          .populate('returnDetails.returnAssignment.deliveryAgent', 'firstName lastName phone');
+
+        if (!order) {
+          socket.emit('error', { message: 'Return order not found' });
+          return;
+        }
+
+        // Update return status based on user type and current status
+        let updatedOrder;
+        const currentTime = new Date().toISOString();
+
+        switch (status) {
+          case 'picked_up':
+            if (socket.userType === 'delivery_agent') {
+              updatedOrder = await order.completeReturnPickup({
+                notes,
+                location: { type: 'Point', coordinates: [0, 0] } // Default location
+              });
+            }
+            break;
+          
+          case 'delivered_to_seller':
+            if (socket.userType === 'delivery_agent') {
+              updatedOrder = await order.completeReturnDelivery({
+                notes,
+                location: { type: 'Point', coordinates: [0, 0] } // Default location
+              });
+            }
+            break;
+          
+          case 'completed':
+            if (socket.userType === 'admin') {
+              updatedOrder = await order.completeReturn();
+            }
+            break;
+          
+          default:
+            socket.emit('error', { message: 'Invalid status update' });
+            return;
+        }
+
+        if (updatedOrder) {
+          logSocketOperation('ReturnStatusUpdate', {
+            success: true,
+            returnId,
+            orderNumber: order.orderNumber,
+            newStatus: status,
+            returnStatus: updatedOrder.returnDetails.returnStatus
+          }, 'success');
+
+          // Notify all parties about status update
+          const updateData = {
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            newStatus: status,
+            returnStatus: updatedOrder.returnDetails.returnStatus,
+            updatedAt: currentTime,
+            notes
+          };
+
+          // Notify buyer
+          global.emitToBuyer(order.user._id, 'return-status-updated', updateData);
+
+          // Notify seller
+          global.emitToSeller(order.seller._id, 'return-status-updated', updateData);
+
+          // Notify admin
+          global.emitToAdmin('return-status-updated', updateData);
+
+          // Notify delivery agent if applicable
+          if (order.returnDetails?.returnAssignment?.deliveryAgent) {
+            global.emitToDeliveryAgent(
+              order.returnDetails.returnAssignment.deliveryAgent._id,
+              'return-status-updated',
+              updateData
+            );
+          }
+
+          // Confirm to sender
+          socket.emit('return-status-updated', {
+            ...updateData,
+            message: 'Return status updated successfully'
+          });
+        }
+
+      } catch (error) {
+        logSocketOperation('ReturnStatusUpdate', {
+          error: error.message,
+          returnId,
+          status,
+          stack: error.stack
+        }, 'error');
+        socket.emit('error', { message: 'Failed to update return status' });
+      }
     });
   });
 

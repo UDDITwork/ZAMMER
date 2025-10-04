@@ -7,9 +7,11 @@ import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
 import adminService from '../../services/adminService';
 import socketService from '../../services/socketService';
+import returnService from '../../services/returnService';
 import { checkAdminAuth, fixAdminAuth } from '../../utils/adminAuthFix';
 import LogViewer from '../../components/admin/LogViewer';
 import frontendLogger from '../../services/loggingService';
+import { RotateCcw, Clock, User, Package, CheckCircle, AlertCircle } from 'lucide-react';
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -35,6 +37,13 @@ const AdminDashboard = () => {
   
   // 🎯 NEW: Tab management
   const [activeTab, setActiveTab] = useState('dashboard');
+  
+  // 🎯 NEW: Return management state
+  const [returnOrders, setReturnOrders] = useState([]);
+  const [returnOrdersLoading, setReturnOrdersLoading] = useState(false);
+  const [selectedReturnOrder, setSelectedReturnOrder] = useState(null);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnFilter, setReturnFilter] = useState('all'); // all, requested, approved, etc.
 
   // 🔒 SECURITY: Get auth context and navigation
   const { adminAuth } = useAuth();
@@ -106,6 +115,13 @@ const AdminDashboard = () => {
       setupSocketConnection();
     }
   }, [authCheckComplete, adminAuth.isAuthenticated]);
+
+  // 🎯 NEW: Fetch return orders when returns tab is active
+  useEffect(() => {
+    if (activeTab === 'returns' && adminAuth.isAuthenticated) {
+      fetchReturnOrders(returnFilter === 'all' ? null : returnFilter);
+    }
+  }, [activeTab, adminAuth.isAuthenticated]);
 
   // 🎯 NEW: Setup socket connection for real-time order updates
   const setupSocketConnection = async () => {
@@ -245,6 +261,122 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('❌ Failed to fetch delivery agents:', error);
       toast.error('Failed to load delivery agents');
+    }
+  };
+
+  // 🎯 NEW: Return management functions
+  const fetchReturnOrders = async (status = null) => {
+    setReturnOrdersLoading(true);
+    try {
+      const response = await returnService.getReturnOrders(status);
+      if (response.success) {
+        setReturnOrders(response.data);
+        frontendLogger.logEvent('ADMIN_FETCHED_RETURNS', {
+          returnCount: response.data.length,
+          filter: status,
+          adminId: adminAuth.admin._id
+        });
+      } else {
+        throw new Error(response.message || 'Failed to fetch return orders');
+      }
+    } catch (error) {
+      console.error('Error fetching return orders:', error);
+      frontendLogger.logEvent('ADMIN_FETCH_RETURNS_ERROR', {
+        error: error.message,
+        adminId: adminAuth.admin._id
+      });
+      toast.error('Failed to fetch return orders');
+    } finally {
+      setReturnOrdersLoading(false);
+    }
+  };
+
+  const handleAssignReturnAgent = async (returnId, agentId) => {
+    try {
+      const response = await returnService.assignReturnAgent(returnId, agentId);
+      if (response.success) {
+        toast.success('Return assigned to delivery agent successfully');
+        fetchReturnOrders(returnFilter === 'all' ? null : returnFilter);
+        frontendLogger.logEvent('ADMIN_ASSIGNED_RETURN_AGENT', {
+          returnId,
+          agentId,
+          adminId: adminAuth.admin._id
+        });
+      } else {
+        throw new Error(response.message || 'Failed to assign return agent');
+      }
+    } catch (error) {
+      console.error('Error assigning return agent:', error);
+      toast.error(error.message || 'Failed to assign return agent');
+    }
+  };
+
+  const handleCompleteReturn = async (returnId) => {
+    try {
+      const response = await returnService.completeReturn(returnId);
+      if (response.success) {
+        toast.success('Return process completed successfully');
+        fetchReturnOrders(returnFilter === 'all' ? null : returnFilter);
+        frontendLogger.logEvent('ADMIN_COMPLETED_RETURN', {
+          returnId,
+          adminId: adminAuth.admin._id
+        });
+      } else {
+        throw new Error(response.message || 'Failed to complete return');
+      }
+    } catch (error) {
+      console.error('Error completing return:', error);
+      toast.error(error.message || 'Failed to complete return');
+    }
+  };
+
+  const getReturnStatusColor = (status) => {
+    switch (status) {
+      case 'requested':
+        return 'text-blue-600 bg-blue-100';
+      case 'approved':
+        return 'text-purple-600 bg-purple-100';
+      case 'assigned':
+        return 'text-orange-600 bg-orange-100';
+      case 'accepted':
+        return 'text-green-600 bg-green-100';
+      case 'picked_up':
+        return 'text-blue-600 bg-blue-100';
+      case 'pickup_failed':
+        return 'text-red-600 bg-red-100';
+      case 'returned_to_seller':
+        return 'text-purple-600 bg-purple-100';
+      case 'completed':
+        return 'text-green-600 bg-green-100';
+      case 'rejected':
+        return 'text-red-600 bg-red-100';
+      default:
+        return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  const getReturnStatusIcon = (status) => {
+    switch (status) {
+      case 'requested':
+        return <Clock className="w-4 h-4" />;
+      case 'approved':
+        return <CheckCircle className="w-4 h-4" />;
+      case 'assigned':
+        return <User className="w-4 h-4" />;
+      case 'accepted':
+        return <CheckCircle className="w-4 h-4" />;
+      case 'picked_up':
+        return <Package className="w-4 h-4" />;
+      case 'pickup_failed':
+        return <AlertCircle className="w-4 h-4" />;
+      case 'returned_to_seller':
+        return <Package className="w-4 h-4" />;
+      case 'completed':
+        return <CheckCircle className="w-4 h-4" />;
+      case 'rejected':
+        return <AlertCircle className="w-4 h-4" />;
+      default:
+        return <Clock className="w-4 h-4" />;
     }
   };
 
@@ -1019,6 +1151,16 @@ const AdminDashboard = () => {
               Dashboard
             </button>
             <button
+              onClick={() => setActiveTab('returns')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'returns'
+                  ? 'border-orange-500 text-orange-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Returns
+            </button>
+            <button
               onClick={() => setActiveTab('logs')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'logs'
@@ -1204,6 +1346,162 @@ const AdminDashboard = () => {
           </div>
         </div>
           </>
+        )}
+
+        {/* 🎯 NEW: Returns Management Tab */}
+        {activeTab === 'returns' && (
+          <div className="mt-8">
+            {/* Return Management Header */}
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Return Management</h2>
+              <p className="text-gray-600">Manage order returns and track return process status</p>
+            </div>
+
+            {/* Return Filters */}
+            <div className="mb-6 flex flex-wrap gap-4">
+              <select
+                value={returnFilter}
+                onChange={(e) => {
+                  setReturnFilter(e.target.value);
+                  fetchReturnOrders(e.target.value === 'all' ? null : e.target.value);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              >
+                <option value="all">All Returns</option>
+                <option value="requested">Requested</option>
+                <option value="approved">Approved</option>
+                <option value="assigned">Assigned</option>
+                <option value="accepted">Accepted</option>
+                <option value="picked_up">Picked Up</option>
+                <option value="pickup_failed">Pickup Failed</option>
+                <option value="returned_to_seller">Returned to Seller</option>
+                <option value="completed">Completed</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              <button
+                onClick={() => fetchReturnOrders(returnFilter === 'all' ? null : returnFilter)}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-medium transition-colors"
+              >
+                Refresh Returns
+              </button>
+            </div>
+
+            {/* Returns List */}
+            <div className="bg-white rounded-lg shadow">
+              {returnOrdersLoading ? (
+                <div className="p-8 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto"></div>
+                  <p className="mt-2 text-gray-600">Loading returns...</p>
+                </div>
+              ) : returnOrders.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  <Package className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                  <p>No returns found</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Order
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Customer
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Reason
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Agent
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {returnOrders.map((returnOrder) => (
+                        <tr key={returnOrder._id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {returnOrder.orderNumber}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {returnOrder.returnDetails.returnRequestedAt && 
+                                  new Date(returnOrder.returnDetails.returnRequestedAt).toLocaleDateString()
+                                }
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{returnOrder.user?.name}</div>
+                            <div className="text-sm text-gray-500">{returnOrder.user?.email}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-900 max-w-xs truncate">
+                              {returnOrder.returnDetails.returnReason}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getReturnStatusColor(returnOrder.returnDetails.returnStatus)}`}>
+                              {getReturnStatusIcon(returnOrder.returnDetails.returnStatus)}
+                              {returnOrder.returnDetails.returnStatus.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {returnOrder.returnDetails.returnAssignment.deliveryAgent ? (
+                              <div className="text-sm text-gray-900">
+                                {returnOrder.returnDetails.returnAssignment.deliveryAgent.name}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-500">Not assigned</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex gap-2">
+                              {returnOrder.returnDetails.returnStatus === 'requested' && (
+                                <select
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      handleAssignReturnAgent(returnOrder._id, e.target.value);
+                                      e.target.value = '';
+                                    }
+                                  }}
+                                  className="text-xs px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500"
+                                >
+                                  <option value="">Assign Agent</option>
+                                  {deliveryAgents
+                                    .filter(agent => agent.capacity?.isAvailable)
+                                    .map(agent => (
+                                      <option key={agent._id} value={agent._id}>
+                                        {agent.name}
+                                      </option>
+                                    ))}
+                                </select>
+                              )}
+                              {returnOrder.returnDetails.returnStatus === 'returned_to_seller' && (
+                                <button
+                                  onClick={() => handleCompleteReturn(returnOrder._id)}
+                                  className="text-green-600 hover:text-green-900 text-xs"
+                                >
+                                  Complete Return
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* 🎯 NEW: Log Viewer Tab */}
