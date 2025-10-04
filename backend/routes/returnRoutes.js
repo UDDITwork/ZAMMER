@@ -19,27 +19,26 @@ const {
 } = require('../controllers/returnController');
 
 // Import middleware
-const authMiddleware = require('../middleware/authMiddleware');
-const adminMiddleware = require('../middleware/adminMiddleware');
-const deliveryAgentMiddleware = require('../middleware/deliveryAgentMiddleware');
+const { protectUser, optionalUserAuth, protectDeliveryAgent, protectAdmin } = require('../middleware/authMiddleware');
+const { protectAdmin: adminMiddleware } = require('../middleware/adminMiddleware');
 
 // 🎯 BUYER ROUTES (Authenticated Users)
 
 // Check if order is eligible for return (24-hour window validation)
 router.get('/eligibility/:orderId', 
-  authMiddleware, 
+  protectUser, 
   getReturnEligibility
 );
 
 // Request return for an order
 router.post('/request/:orderId', 
-  authMiddleware, 
+  protectUser, 
   requestReturn
 );
 
 // Get return status for an order
 router.get('/status/:orderId', 
-  authMiddleware, 
+  protectUser, 
   getReturnStatus
 );
 
@@ -47,21 +46,21 @@ router.get('/status/:orderId',
 
 // Get all return orders (with optional status filter)
 router.get('/admin/dashboard', 
-  authMiddleware, 
+  protectAdmin, 
   adminMiddleware, 
   getReturnOrders
 );
 
 // Assign delivery agent to return
 router.put('/:returnId/assign', 
-  authMiddleware, 
+  protectAdmin, 
   adminMiddleware, 
   assignReturnAgent
 );
 
 // Complete return process (mark as completed)
 router.put('/:returnId/complete', 
-  authMiddleware, 
+  protectAdmin, 
   adminMiddleware, 
   completeReturn
 );
@@ -70,36 +69,31 @@ router.put('/:returnId/complete',
 
 // Get delivery agent's return assignments
 router.get('/delivery-agent/assignments', 
-  authMiddleware, 
-  deliveryAgentMiddleware, 
+  protectDeliveryAgent, 
   getDeliveryAgentReturns
 );
 
 // Handle return assignment response (accept/reject)
 router.put('/:returnId/response', 
-  authMiddleware, 
-  deliveryAgentMiddleware, 
+  protectDeliveryAgent, 
   handleReturnAssignmentResponse
 );
 
 // Complete return pickup from buyer
 router.put('/:returnId/pickup', 
-  authMiddleware, 
-  deliveryAgentMiddleware, 
+  protectDeliveryAgent, 
   completeReturnPickup
 );
 
 // Mark return pickup as failed (buyer not responding)
 router.put('/:returnId/pickup-failed', 
-  authMiddleware, 
-  deliveryAgentMiddleware, 
+  protectDeliveryAgent, 
   markReturnPickupFailed
 );
 
 // Complete return delivery to seller
 router.put('/:returnId/deliver', 
-  authMiddleware, 
-  deliveryAgentMiddleware, 
+  protectDeliveryAgent, 
   completeReturnDelivery
 );
 
