@@ -1,7 +1,7 @@
 // frontend/src/components/return/ReturnRequestModal.js - Return Request Modal Component
 
 import React, { useState, useEffect } from 'react';
-import { X, Clock, AlertCircle, CheckCircle, Package, User, MapPin } from 'lucide-react';
+import { FiX, FiClock, FiAlertCircle, FiCheckCircle, FiPackage, FiUser, FiMapPin } from 'react-icons/fi';
 
 const ReturnRequestModal = ({ 
   isOpen, 
@@ -127,13 +127,13 @@ const ReturnRequestModal = ({
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'eligible': return <CheckCircle className="w-4 h-4" />;
-      case 'requested': return <Clock className="w-4 h-4" />;
-      case 'approved': return <Package className="w-4 h-4" />;
-      case 'picked_up': return <Package className="w-4 h-4" />;
-      case 'completed': return <CheckCircle className="w-4 h-4" />;
-      case 'rejected': return <AlertCircle className="w-4 h-4" />;
-      default: return <Clock className="w-4 h-4" />;
+      case 'eligible': return <FiCheckCircle className="w-4 h-4" />;
+      case 'requested': return <FiClock className="w-4 h-4" />;
+      case 'approved': return <FiPackage className="w-4 h-4" />;
+      case 'picked_up': return <FiPackage className="w-4 h-4" />;
+      case 'completed': return <FiCheckCircle className="w-4 h-4" />;
+      case 'rejected': return <FiAlertCircle className="w-4 h-4" />;
+      default: return <FiClock className="w-4 h-4" />;
     }
   };
 
@@ -151,7 +151,7 @@ const ReturnRequestModal = ({
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
           >
-            <X className="w-6 h-6" />
+            <FiX className="w-6 h-6" />
           </button>
         </div>
 
@@ -187,9 +187,9 @@ const ReturnRequestModal = ({
             <div className={`rounded-lg p-4 ${eligibility.eligible ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
               <div className="flex items-center space-x-3">
                 {eligibility.eligible ? (
-                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <FiCheckCircle className="w-5 h-5 text-green-600" />
                 ) : (
-                  <AlertCircle className="w-5 h-5 text-red-600" />
+                  <FiAlertCircle className="w-5 h-5 text-red-600" />
                 )}
                 <div>
                   <h3 className={`font-medium ${eligibility.eligible ? 'text-green-900' : 'text-red-900'}`}>
@@ -212,7 +212,7 @@ const ReturnRequestModal = ({
           {order.returnDetails && (
             <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
               <div className="flex items-center space-x-3">
-                <Package className="w-5 h-5 text-blue-600" />
+                <FiPackage className="w-5 h-5 text-blue-600" />
                 <div>
                   <h3 className="font-medium text-blue-900">Current Return Status</h3>
                   <div className="flex items-center space-x-2 mt-1">
@@ -286,7 +286,7 @@ const ReturnRequestModal = ({
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-md p-3">
                   <div className="flex">
-                    <AlertCircle className="w-5 h-5 text-red-400" />
+                    <FiAlertCircle className="w-5 h-5 text-red-400" />
                     <div className="ml-3">
                       <p className="text-sm text-red-700">{error}</p>
                     </div>
