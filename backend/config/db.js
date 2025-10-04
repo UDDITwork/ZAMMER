@@ -6,6 +6,25 @@ const connectDB = async () => {
   try {
     console.log('🔌 Attempting to connect to MongoDB...');
     
+    // 🎯 CRITICAL FIX: Check if already connected
+    if (mongoose.connection.readyState === 1) {
+      console.log('✅ MongoDB already connected, reusing connection');
+      return;
+    }
+    
+    // 🎯 CRITICAL FIX: Force disconnect if in connecting state
+    if (mongoose.connection.readyState === 2) {
+      console.log('🔄 MongoDB is connecting, waiting for completion...');
+      await new Promise((resolve) => {
+        mongoose.connection.once('connected', resolve);
+        mongoose.connection.once('error', resolve);
+      });
+      if (mongoose.connection.readyState === 1) {
+        console.log('✅ MongoDB connection completed');
+        return;
+      }
+    }
+    
     // 🎯 FIXED: Updated connection options compatible with MongoDB Driver v6+
     const connectionOptions = {
       // Connection Pool Settings
@@ -24,7 +43,10 @@ const connectDB = async () => {
       heartbeatFrequencyMS: 10000,
       
       // Family setting for IPv4/IPv6
-      family: 4 // Force IPv4
+      family: 4, // Force IPv4
+      
+      // 🎯 CRITICAL FIX: Modern MongoDB connection options
+      // Removed deprecated options that cause connection issues
     };
 
     // 🎯 IMPROVED: Enhanced error handling and logging
@@ -62,11 +84,36 @@ const connectDB = async () => {
     });
 
     mongoose.connection.on('disconnected', () => {
-      console.warn('⚠️ MongoDB disconnected');
+      console.warn('⚠️ MongoDB disconnected - Attempting to reconnect...');
+      // Auto-reconnect after 5 seconds
+      setTimeout(() => {
+        if (mongoose.connection.readyState === 0) {
+          console.log('🔄 Attempting to reconnect to MongoDB...');
+          connectWithRetry();
+        }
+      }, 5000);
     });
 
     mongoose.connection.on('reconnected', () => {
       console.log('🔄 MongoDB reconnected');
+    });
+
+    // 🎯 CRITICAL FIX: Keep connection alive
+    mongoose.connection.on('open', () => {
+      console.log('✅ MongoDB connection opened and stable');
+      
+      // Keep connection alive with periodic ping
+      setInterval(() => {
+        if (mongoose.connection.readyState === 1) {
+          mongoose.connection.db.admin().ping((err, result) => {
+            if (err) {
+              console.warn('⚠️ MongoDB ping failed:', err.message);
+            } else {
+              console.log('💓 MongoDB connection healthy');
+            }
+          });
+        }
+      }, 30000); // Ping every 30 seconds
     });
 
     // 🎯 ENHANCED: Connection with retry logic

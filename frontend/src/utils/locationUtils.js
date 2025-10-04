@@ -311,6 +311,23 @@ export const updateLocation = async (userAuth, setUserAuth = null) => {
 
 // 🎯 DISTANCE CALCULATION (CLIENT-SIDE VERIFICATION)
 export const calculateDistance = (coord1, coord2, unit = 'km') => {
+  const [lng1, lat1] = coord1;
+  const [lng2, lat2] = coord2;
+  
+  const R = unit === 'km' ? 6371 : 3959; // Earth's radius in km or miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng/2) * Math.sin(dLng/2);
+  
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
+
+// 🎯 DISTANCE CALCULATION (CLIENT-SIDE VERIFICATION) - LEGACY FUNCTION
+export const calculateDistanceLegacy = (coord1, coord2, unit = 'km') => {
   try {
     // Extract coordinates
     const [lng1, lat1] = Array.isArray(coord1) ? coord1 : [coord1.longitude, coord1.latitude];
