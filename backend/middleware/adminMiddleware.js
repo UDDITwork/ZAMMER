@@ -155,3 +155,7 @@ exports.checkPermission = (permission) => {
     }
   };
 };
+
+module.exports = {
+  protectAdmin: exports.protectAdmin
+};
