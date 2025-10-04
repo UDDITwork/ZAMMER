@@ -6,7 +6,7 @@ import UserLayout from '../../components/layouts/UserLayout';
 import orderService from '../../services/orderService';
 import returnService from '../../services/returnService';
 import ReturnRequestModal from '../../components/return/ReturnRequestModal';
-import { ArrowLeft, RotateCcw, Clock, AlertCircle } from 'lucide-react';
+import { FiArrowLeft, FiRotateCcw, FiClock, FiAlertCircle } from 'react-icons/fi';
 
 const OrderConfirmationPage = () => {
   const location = useLocation();
@@ -362,7 +362,7 @@ const OrderConfirmationPage = () => {
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                      <RotateCcw className="w-5 h-5 text-blue-600" />
+                      <FiRotateCcw className="w-5 h-5 text-blue-600" />
                       Return Status
                     </h3>
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getReturnStatusInfo()?.formattedStatus.color === 'green' ? 'text-green-700 bg-green-100' : getReturnStatusInfo()?.formattedStatus.color === 'red' ? 'text-red-700 bg-red-100' : 'text-blue-700 bg-blue-100'}`}>
@@ -386,7 +386,7 @@ const OrderConfirmationPage = () => {
 
                   {/* Next Step */}
                   <div className="flex items-center gap-2 text-sm text-slate-700">
-                    <Clock className="w-4 h-4 text-slate-500" />
+                    <FiClock className="w-4 h-4 text-slate-500" />
                     <span>Next: {getReturnStatusInfo()?.nextStep}</span>
                   </div>
 
@@ -413,7 +413,7 @@ const OrderConfirmationPage = () => {
               {order?.isDelivered && !order?.returnDetails && (
                 <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <FiAlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
                       <h4 className="font-medium text-amber-800 mb-1">24-Hour Return Window</h4>
                       <p className="text-sm text-amber-700">
@@ -427,7 +427,7 @@ const OrderConfirmationPage = () => {
                           onClick={() => setShowReturnModal(true)}
                           className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors"
                         >
-                          <RotateCcw className="w-4 h-4" />
+                          <FiRotateCcw className="w-4 h-4" />
                           Request Return
                         </button>
                       )}

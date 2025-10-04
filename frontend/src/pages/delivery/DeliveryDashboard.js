@@ -8,16 +8,16 @@ import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
-  Package, 
-  MapPin, 
-  Clock, 
-  CheckCircle, 
-  AlertCircle, 
-  RotateCcw,
-  User,
-  Phone,
-  Mail
-} from 'lucide-react';
+  FiPackage, 
+  FiMapPin, 
+  FiClock, 
+  FiCheckCircle, 
+  FiAlertCircle, 
+  FiRotateCcw,
+  FiUser,
+  FiPhone,
+  FiMail
+} from 'react-icons/fi';
 import returnService from '../../services/returnService';
 
 const DeliveryDashboard = () => {
@@ -886,17 +886,17 @@ const DeliveryDashboard = () => {
   const getReturnStatusIcon = (status) => {
     switch (status) {
       case 'assigned':
-        return <Clock className="w-4 h-4" />;
+        return <FiClock className="w-4 h-4" />;
       case 'accepted':
-        return <CheckCircle className="w-4 h-4" />;
+        return <FiCheckCircle className="w-4 h-4" />;
       case 'picked_up':
-        return <Package className="w-4 h-4" />;
+        return <FiPackage className="w-4 h-4" />;
       case 'pickup_failed':
-        return <AlertCircle className="w-4 h-4" />;
+        return <FiAlertCircle className="w-4 h-4" />;
       case 'returned':
-        return <Package className="w-4 h-4" />;
+        return <FiPackage className="w-4 h-4" />;
       default:
-        return <Clock className="w-4 h-4" />;
+        return <FiClock className="w-4 h-4" />;
     }
   };
 
@@ -981,7 +981,7 @@ const DeliveryDashboard = () => {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <RotateCcw className="w-4 h-4 inline mr-1" />
+              <FiRotateCcw className="w-4 h-4 inline mr-1" />
               Returns
             </button>
           </nav>
@@ -1195,7 +1195,7 @@ const DeliveryDashboard = () => {
               <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex items-center">
                   <div className="p-3 rounded-lg bg-orange-100">
-                    <RotateCcw className="w-6 h-6 text-orange-600" />
+                    <FiRotateCcw className="w-6 h-6 text-orange-600" />
                   </div>
                   <div className="ml-4">
                     <h3 className="text-lg font-medium text-gray-900">Return Assignments</h3>
@@ -1207,7 +1207,7 @@ const DeliveryDashboard = () => {
               <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex items-center">
                   <div className="p-3 rounded-lg bg-blue-100">
-                    <Package className="w-6 h-6 text-blue-600" />
+                    <FiPackage className="w-6 h-6 text-blue-600" />
                   </div>
                   <div className="ml-4">
                     <h3 className="text-lg font-medium text-gray-900">Pending Pickups</h3>
@@ -1221,7 +1221,7 @@ const DeliveryDashboard = () => {
               <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex items-center">
                   <div className="p-3 rounded-lg bg-purple-100">
-                    <Package className="w-6 h-6 text-purple-600" />
+                    <FiPackage className="w-6 h-6 text-purple-600" />
                   </div>
                   <div className="ml-4">
                     <h3 className="text-lg font-medium text-gray-900">Pending Deliveries</h3>
@@ -1246,7 +1246,7 @@ const DeliveryDashboard = () => {
                 </div>
               ) : returnAssignments.length === 0 ? (
                 <div className="p-8 text-center text-gray-500">
-                  <RotateCcw className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                  <FiRotateCcw className="w-12 h-12 mx-auto mb-4 text-gray-400" />
                   <p>No return assignments found</p>
                 </div>
               ) : (

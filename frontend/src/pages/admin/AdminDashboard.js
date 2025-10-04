@@ -11,7 +11,7 @@ import returnService from '../../services/returnService';
 import { checkAdminAuth, fixAdminAuth } from '../../utils/adminAuthFix';
 import LogViewer from '../../components/admin/LogViewer';
 import frontendLogger from '../../services/loggingService';
-import { RotateCcw, Clock, User, Package, CheckCircle, AlertCircle } from 'lucide-react';
+import { FiRotateCcw, FiClock, FiUser, FiPackage, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -358,25 +358,25 @@ const AdminDashboard = () => {
   const getReturnStatusIcon = (status) => {
     switch (status) {
       case 'requested':
-        return <Clock className="w-4 h-4" />;
+        return <FiClock className="w-4 h-4" />;
       case 'approved':
-        return <CheckCircle className="w-4 h-4" />;
+        return <FiCheckCircle className="w-4 h-4" />;
       case 'assigned':
-        return <User className="w-4 h-4" />;
+        return <FiUser className="w-4 h-4" />;
       case 'accepted':
-        return <CheckCircle className="w-4 h-4" />;
+        return <FiCheckCircle className="w-4 h-4" />;
       case 'picked_up':
-        return <Package className="w-4 h-4" />;
+        return <FiPackage className="w-4 h-4" />;
       case 'pickup_failed':
-        return <AlertCircle className="w-4 h-4" />;
+        return <FiAlertCircle className="w-4 h-4" />;
       case 'returned_to_seller':
-        return <Package className="w-4 h-4" />;
+        return <FiPackage className="w-4 h-4" />;
       case 'completed':
-        return <CheckCircle className="w-4 h-4" />;
+        return <FiCheckCircle className="w-4 h-4" />;
       case 'rejected':
-        return <AlertCircle className="w-4 h-4" />;
+        return <FiAlertCircle className="w-4 h-4" />;
       default:
-        return <Clock className="w-4 h-4" />;
+        return <FiClock className="w-4 h-4" />;
     }
   };
 
@@ -1395,7 +1395,7 @@ const AdminDashboard = () => {
                 </div>
               ) : returnOrders.length === 0 ? (
                 <div className="p-8 text-center text-gray-500">
-                  <Package className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                  <FiPackage className="w-12 h-12 mx-auto mb-4 text-gray-400" />
                   <p>No returns found</p>
                 </div>
               ) : (
