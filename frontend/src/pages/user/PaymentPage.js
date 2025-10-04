@@ -118,6 +118,7 @@ const PaymentPage = () => {
       // 🎯 FIXED: Set success state and redirect
       setPaymentStep('success');
       
+      // 🚀 OPTIMIZED: Show immediate success feedback
       toast.success(
         <div className="flex items-center">
           <div className="bg-green-100 rounded-full p-2 mr-3">
@@ -133,7 +134,7 @@ const PaymentPage = () => {
         </div>,
         {
           position: "top-center",
-          autoClose: 5000,
+          autoClose: 3000, // 🚀 OPTIMIZED: Reduced from 5s to 3s
           hideProgressBar: false,
           closeOnClick: true,
           pauseOnHover: true,
@@ -159,7 +160,7 @@ const PaymentPage = () => {
 📅 Time: ${new Date().toLocaleString()}
 ===============================`);
       
-      // 🎯 FIXED: Ensure redirect happens after successful payment
+      // 🚀 OPTIMIZED: Faster redirect after successful payment
       setTimeout(() => {
         console.log('🔄 Redirecting to order confirmation page...');
         console.log('📦 Order data being passed:', orderResponse.data);
@@ -167,7 +168,7 @@ const PaymentPage = () => {
         navigate('/user/order-confirmation', {
           state: { order: orderResponse.data }
         });
-      }, 3000);
+      }, 2000); // 🚀 OPTIMIZED: Reduced from 3s to 2s
 
     } catch (error) {
       console.error('Real SMEPay payment error:', error);

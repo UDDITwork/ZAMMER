@@ -27,6 +27,11 @@ class SMEPayService {
     this.tokenExpiresAt = null;
     this.isAuthenticating = false;
     
+    // 🚀 OPTIMIZED: Payment status cache
+    this.paymentCache = new Map();
+    this.cacheExpiry = 10000; // 10 seconds cache for payment status
+    this.maxCacheSize = 100;
+    
     terminalLog('SMEPAY_SERVICE_INITIALIZED', 'SUCCESS', {
       mode: this.mode,
       baseURL: this.baseURL,
@@ -363,6 +368,45 @@ class SMEPayService {
     }
   }
 
+  // 🚀 OPTIMIZED: Cache management methods
+  _getCacheKey(orderSlug) {
+    return `payment_status_${orderSlug}`;
+  }
+
+  _getCachedPaymentStatus(orderSlug) {
+    const cacheKey = this._getCacheKey(orderSlug);
+    const cached = this.paymentCache.get(cacheKey);
+    
+    if (cached && (Date.now() - cached.timestamp) < this.cacheExpiry) {
+      terminalLog('CACHE_HIT', 'SUCCESS', { orderSlug, cacheAge: Date.now() - cached.timestamp });
+      return cached.data;
+    }
+    
+    if (cached) {
+      this.paymentCache.delete(cacheKey);
+      terminalLog('CACHE_EXPIRED', 'INFO', { orderSlug });
+    }
+    
+    return null;
+  }
+
+  _setCachedPaymentStatus(orderSlug, data) {
+    const cacheKey = this._getCacheKey(orderSlug);
+    
+    // Clean up old cache entries if we're at the limit
+    if (this.paymentCache.size >= this.maxCacheSize) {
+      const firstKey = this.paymentCache.keys().next().value;
+      this.paymentCache.delete(firstKey);
+    }
+    
+    this.paymentCache.set(cacheKey, {
+      data,
+      timestamp: Date.now()
+    });
+    
+    terminalLog('CACHE_SET', 'SUCCESS', { orderSlug, cacheSize: this.paymentCache.size });
+  }
+
   // 🎯 OFFICIAL: Validate order endpoint
   async validateOrder(orderData) {
     try {
@@ -374,6 +418,16 @@ class SMEPayService {
 
       if (!orderData.slug || !orderData.amount) {
         throw new Error('Order slug and amount are required for validation');
+      }
+
+      // 🚀 OPTIMIZED: Check cache first
+      const cachedResult = this._getCachedPaymentStatus(orderData.slug);
+      if (cachedResult) {
+        terminalLog('VALIDATE_ORDER_CACHE_HIT', 'SUCCESS', {
+          orderSlug: orderData.slug,
+          isPaymentSuccessful: cachedResult.isPaymentSuccessful
+        });
+        return cachedResult;
       }
 
       // Ensure we have valid authentication
@@ -401,7 +455,7 @@ class SMEPayService {
           'Authorization': `Bearer ${token}`,
           'User-Agent': 'ZAMMER-Marketplace/1.0'
         },
-        timeout: 15000,
+        timeout: 8000, // 🚀 OPTIMIZED: Reduced from 15s to 8s
         validateStatus: function (status) {
           return status < 500;
         }
@@ -443,12 +497,17 @@ class SMEPayService {
         mode: this.mode
       });
 
-      return {
+      const result = {
         success: true,
         paymentStatus: paymentStatus,
         isPaymentSuccessful: isPaymentSuccessful,
         data: response.data
       };
+
+      // 🚀 OPTIMIZED: Cache the result
+      this._setCachedPaymentStatus(orderData.slug, result);
+      
+      return result;
 
     } catch (error) {
       terminalLog('VALIDATE_ORDER_ERROR', 'ERROR', {
@@ -822,7 +881,7 @@ class SMEPayService {
       const response = await axios({
         method: 'GET',
         url: `${statusEndpoint}/${paymentId}`,
-        timeout: 15000,
+        timeout: 8000, // 🚀 OPTIMIZED: Reduced from 15s to 8s
         headers: {
           'Accept': 'application/json',
           'Authorization': `Bearer ${this.accessToken}`,
