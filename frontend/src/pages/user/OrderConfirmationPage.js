@@ -4,12 +4,18 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import UserLayout from '../../components/layouts/UserLayout';
 import orderService from '../../services/orderService';
+import returnService from '../../services/returnService';
+import ReturnRequestModal from '../../components/return/ReturnRequestModal';
+import { ArrowLeft, RotateCcw, Clock, AlertCircle } from 'lucide-react';
 
 const OrderConfirmationPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnEligibility, setReturnEligibility] = useState(null);
+  const [socket, setSocket] = useState(null);
 
   useEffect(() => {
     const fetchOrderData = async () => {
@@ -78,6 +84,100 @@ const OrderConfirmationPage = () => {
     fetchOrderData();
   }, [location.state, navigate]);
 
+  // Socket connection for real-time updates
+  useEffect(() => {
+    const initializeSocket = () => {
+      try {
+        const socketConnection = window.io();
+        
+        socketConnection.on('connect', () => {
+          console.log('Socket connected for order confirmation');
+          const userId = localStorage.getItem('userId');
+          if (userId) {
+            socketConnection.emit('buyer-join', userId);
+          }
+        });
+
+        // Listen for return-related events
+        socketConnection.on('return-requested', (data) => {
+          console.log('Return requested:', data);
+          toast.success('Return request submitted successfully!');
+          setShowReturnModal(false);
+          // Refresh order data to show updated return status
+          if (order) {
+            fetchOrderData();
+          }
+        });
+
+        socketConnection.on('return-approved', (data) => {
+          console.log('Return approved:', data);
+          toast.success('Your return request has been approved!');
+          if (order) {
+            fetchOrderData();
+          }
+        });
+
+        socketConnection.on('return-agent-accepted', (data) => {
+          console.log('Return agent accepted:', data);
+          toast.info('Delivery agent has accepted your return assignment');
+          if (order) {
+            fetchOrderData();
+          }
+        });
+
+        socketConnection.on('return-picked-up', (data) => {
+          console.log('Return picked up:', data);
+          toast.success('Your return has been picked up successfully!');
+          if (order) {
+            fetchOrderData();
+          }
+        });
+
+        socketConnection.on('return-delivered-to-seller', (data) => {
+          console.log('Return delivered to seller:', data);
+          toast.success('Return has been delivered to seller');
+          if (order) {
+            fetchOrderData();
+          }
+        });
+
+        socketConnection.on('return-completed', (data) => {
+          console.log('Return completed:', data);
+          toast.success('Return process completed successfully!');
+          if (order) {
+            fetchOrderData();
+          }
+        });
+
+        setSocket(socketConnection);
+
+        return () => {
+          socketConnection.disconnect();
+        };
+      } catch (error) {
+        console.error('Socket connection error:', error);
+      }
+    };
+
+    initializeSocket();
+  }, []);
+
+  // Check return eligibility when order is loaded
+  useEffect(() => {
+    const checkEligibility = async () => {
+      if (order && order.isDelivered) {
+        try {
+          const eligibility = await returnService.checkReturnEligibility(order._id);
+          setReturnEligibility(eligibility.data);
+        } catch (error) {
+          console.error('Error checking return eligibility:', error);
+        }
+      }
+    };
+
+    checkEligibility();
+  }, [order]);
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-IN', {
       year: 'numeric',
@@ -102,6 +202,49 @@ const OrderConfirmationPage = () => {
         return 'text-red-700 bg-gradient-to-r from-red-50 to-red-100 border border-red-200';
       default:
         return 'text-slate-700 bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200';
+    }
+  };
+
+  // Return functionality helpers
+  const canRequestReturn = () => {
+    if (!order || !order.isDelivered) return false;
+    return returnEligibility?.eligible || false;
+  };
+
+  const getReturnStatusInfo = () => {
+    if (!order?.returnDetails) return null;
+    
+    const status = order.returnDetails.returnStatus;
+    const progress = returnService.getReturnProgress(status);
+    const nextStep = returnService.getNextStep(status);
+    
+    return {
+      status,
+      progress,
+      nextStep,
+      formattedStatus: returnService.formatReturnStatus(status)
+    };
+  };
+
+  const handleReturnRequested = (returnData) => {
+    console.log('Return requested:', returnData);
+    // Update order with return details
+    setOrder(prevOrder => ({
+      ...prevOrder,
+      returnDetails: returnData
+    }));
+  };
+
+  const fetchOrderData = async () => {
+    if (order?._id) {
+      try {
+        const orderResponse = await orderService.getOrderById(order._id);
+        if (orderResponse.success) {
+          setOrder(orderResponse.data);
+        }
+      } catch (error) {
+        console.error('Error refreshing order data:', error);
+      }
     }
   };
 
@@ -213,6 +356,85 @@ const OrderConfirmationPage = () => {
             </div>
 
             <div className="p-6 sm:p-8 space-y-8">
+              
+              {/* Return Status Section */}
+              {order?.returnDetails && (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                      <RotateCcw className="w-5 h-5 text-blue-600" />
+                      Return Status
+                    </h3>
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getReturnStatusInfo()?.formattedStatus.color === 'green' ? 'text-green-700 bg-green-100' : getReturnStatusInfo()?.formattedStatus.color === 'red' ? 'text-red-700 bg-red-100' : 'text-blue-700 bg-blue-100'}`}>
+                      {getReturnStatusInfo()?.formattedStatus.label}
+                    </span>
+                  </div>
+                  
+                  {/* Progress Bar */}
+                  <div className="mb-4">
+                    <div className="flex justify-between text-sm text-slate-600 mb-2">
+                      <span>Progress</span>
+                      <span>{getReturnStatusInfo()?.progress}%</span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-2">
+                      <div 
+                        className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${getReturnStatusInfo()?.progress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Next Step */}
+                  <div className="flex items-center gap-2 text-sm text-slate-700">
+                    <Clock className="w-4 h-4 text-slate-500" />
+                    <span>Next: {getReturnStatusInfo()?.nextStep}</span>
+                  </div>
+
+                  {/* Return Timeline */}
+                  {order.returnDetails.returnHistory && order.returnDetails.returnHistory.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-blue-200">
+                      <h4 className="text-sm font-medium text-slate-700 mb-2">Return Timeline</h4>
+                      <div className="space-y-2">
+                        {order.returnDetails.returnHistory.slice(0, 3).map((entry, index) => (
+                          <div key={index} className="flex items-center gap-2 text-xs text-slate-600">
+                            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                            <span className="capitalize">{entry.status.replace('_', ' ')}</span>
+                            <span className="text-slate-400">•</span>
+                            <span>{new Date(entry.changedAt).toLocaleDateString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Return Eligibility Notice */}
+              {order?.isDelivered && !order?.returnDetails && (
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h4 className="font-medium text-amber-800 mb-1">24-Hour Return Window</h4>
+                      <p className="text-sm text-amber-700">
+                        You have {returnEligibility?.hoursRemaining ? 
+                          `${Math.floor(returnEligibility.hoursRemaining)}h ${Math.floor((returnEligibility.hoursRemaining % 1) * 60)}m` : 
+                          'limited time'
+                        } remaining to request a return for this order.
+                      </p>
+                      {returnEligibility?.eligible && (
+                        <button
+                          onClick={() => setShowReturnModal(true)}
+                          className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                          Request Return
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
               
               {/* Order Items */}
               <div>
@@ -442,6 +664,15 @@ const OrderConfirmationPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Return Request Modal */}
+      <ReturnRequestModal
+        isOpen={showReturnModal}
+        onClose={() => setShowReturnModal(false)}
+        order={order}
+        onReturnRequested={handleReturnRequested}
+        socket={socket}
+      />
     </UserLayout>
   );
 };

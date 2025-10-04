@@ -660,6 +660,161 @@ const OrderSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.Mixed,
       default: null
     }
+  },
+
+  // 🆕 ORDER RETURN SYSTEM
+  returnDetails: {
+    isReturned: {
+      type: Boolean,
+      default: false
+    },
+    returnRequestedAt: {
+      type: Date,
+      default: null
+    },
+    returnReason: {
+      type: String,
+      default: ''
+    },
+    returnStatus: {
+      type: String,
+      enum: ['eligible', 'requested', 'approved', 'picked_up', 'returned_to_seller', 'completed', 'rejected'],
+      default: 'eligible'
+    },
+    returnWindow: {
+      deliveredAt: {
+        type: Date,
+        default: null
+      },
+      returnDeadline: {
+        type: Date,
+        default: null
+      },
+      isWithinWindow: {
+        type: Boolean,
+        default: true
+      }
+    },
+    returnAssignment: {
+      deliveryAgent: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'DeliveryAgent',
+        default: null
+      },
+      assignedAt: {
+        type: Date,
+        default: null
+      },
+      assignedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Admin',
+        default: null
+      },
+      status: {
+        type: String,
+        enum: ['unassigned', 'assigned', 'accepted', 'rejected', 'picked_up', 'returned'],
+        default: 'unassigned'
+      },
+      acceptedAt: {
+        type: Date,
+        default: null
+      },
+      rejectedAt: {
+        type: Date,
+        default: null
+      },
+      rejectionReason: {
+        type: String,
+        default: ''
+      }
+    },
+    returnPickup: {
+      isCompleted: {
+        type: Boolean,
+        default: false
+      },
+      completedAt: {
+        type: Date,
+        default: null
+      },
+      pickupOTP: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'OtpVerification',
+        default: null
+      },
+      pickupLocation: {
+        type: {
+          type: String,
+          default: 'Point'
+        },
+        coordinates: {
+          type: [Number],
+          default: [0, 0]
+        }
+      },
+      pickupNotes: {
+        type: String,
+        default: ''
+      }
+    },
+    returnDelivery: {
+      isCompleted: {
+        type: Boolean,
+        default: false
+      },
+      completedAt: {
+        type: Date,
+        default: null
+      },
+      sellerOTP: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'OtpVerification',
+        default: null
+      },
+      sellerLocation: {
+        type: {
+          type: String,
+          default: 'Point'
+        },
+        coordinates: {
+          type: [Number],
+          default: [0, 0]
+        }
+      },
+      sellerNotes: {
+        type: String,
+        default: ''
+      }
+    },
+    returnHistory: [{
+      status: {
+        type: String,
+        required: true
+      },
+      changedBy: {
+        type: String,
+        enum: ['buyer', 'seller', 'admin', 'delivery_agent', 'system'],
+        required: true
+      },
+      changedAt: {
+        type: Date,
+        default: Date.now
+      },
+      notes: {
+        type: String,
+        default: ''
+      },
+      location: {
+        type: {
+          type: String,
+          default: 'Point'
+        },
+        coordinates: {
+          type: [Number],
+          default: [0, 0]
+        }
+      }
+    }]
   }
 }, {
   timestamps: true,
@@ -679,6 +834,12 @@ OrderSchema.index({ 'adminApproval.autoApprovalAt': 1 }); // 🆕
 OrderSchema.index({ orderNumber: 1 });
 OrderSchema.index({ 'delivery.isCompleted': 1 });
 OrderSchema.index({ 'pickup.isCompleted': 1 });
+// 🆕 Return system indexes
+OrderSchema.index({ 'returnDetails.returnStatus': 1 });
+OrderSchema.index({ 'returnDetails.returnAssignment.deliveryAgent': 1 });
+OrderSchema.index({ 'returnDetails.returnAssignment.status': 1 });
+OrderSchema.index({ 'returnDetails.returnWindow.returnDeadline': 1 });
+OrderSchema.index({ 'returnDetails.returnRequestedAt': 1 });
 
 // Add status history entry when status changes (existing functionality)
 OrderSchema.pre('save', async function(next) {
@@ -1056,6 +1217,270 @@ OrderSchema.methods.generateShippingLabel = function() {
   };
   
   return this.save();
+};
+
+// 🆕 RETURN SYSTEM METHODS
+
+// Method to check return eligibility (24-hour window)
+OrderSchema.methods.checkReturnEligibility = function() {
+  if (!this.isDelivered || !this.deliveredAt) {
+    return { 
+      eligible: false, 
+      reason: 'Order not delivered yet',
+      hoursRemaining: 0 
+    };
+  }
+  
+  const deliveryTime = new Date(this.deliveredAt);
+  const currentTime = new Date();
+  const hoursSinceDelivery = (currentTime - deliveryTime) / (1000 * 60 * 60);
+  
+  if (hoursSinceDelivery > 24) {
+    return { 
+      eligible: false, 
+      reason: 'Return window expired (24 hours)',
+      hoursRemaining: 0,
+      hoursExpired: hoursSinceDelivery - 24
+    };
+  }
+  
+  return { 
+    eligible: true, 
+    reason: 'Within 24-hour return window',
+    hoursRemaining: Math.max(0, 24 - hoursSinceDelivery),
+    deadline: new Date(deliveryTime.getTime() + 24 * 60 * 60 * 1000)
+  };
+};
+
+// Method to request return
+OrderSchema.methods.requestReturn = function(reason, userId) {
+  const eligibility = this.checkReturnEligibility();
+  
+  if (!eligibility.eligible) {
+    throw new Error(eligibility.reason);
+  }
+  
+  // Initialize return details if not exists
+  if (!this.returnDetails) {
+    this.returnDetails = {};
+  }
+  
+  this.returnDetails.isReturned = true;
+  this.returnDetails.returnRequestedAt = new Date();
+  this.returnDetails.returnReason = reason;
+  this.returnDetails.returnStatus = 'requested';
+  this.returnDetails.returnWindow = {
+    deliveredAt: this.deliveredAt,
+    returnDeadline: eligibility.deadline,
+    isWithinWindow: true
+  };
+  
+  // Add to return history
+  if (!this.returnDetails.returnHistory) {
+    this.returnDetails.returnHistory = [];
+  }
+  
+  this.returnDetails.returnHistory.push({
+    status: 'requested',
+    changedBy: 'buyer',
+    changedAt: new Date(),
+    notes: `Return requested: ${reason}`
+  });
+  
+  return this.save();
+};
+
+// Method to assign return delivery agent
+OrderSchema.methods.assignReturnAgent = function(agentId, adminId) {
+  if (this.returnDetails.returnStatus !== 'requested') {
+    throw new Error('Return must be in requested status to assign agent');
+  }
+  
+  this.returnDetails.returnAssignment = {
+    deliveryAgent: agentId,
+    assignedAt: new Date(),
+    assignedBy: adminId,
+    status: 'assigned'
+  };
+  
+  this.returnDetails.returnStatus = 'approved';
+  
+  // Add to return history
+  this.returnDetails.returnHistory.push({
+    status: 'assigned',
+    changedBy: 'admin',
+    changedAt: new Date(),
+    notes: 'Return assigned to delivery agent'
+  });
+  
+  return this.save();
+};
+
+// Method to handle return agent response
+OrderSchema.methods.handleReturnAgentResponse = function(response, reason = '') {
+  if (response === 'accepted') {
+    this.returnDetails.returnAssignment.status = 'accepted';
+    this.returnDetails.returnAssignment.acceptedAt = new Date();
+    
+    this.returnDetails.returnHistory.push({
+      status: 'accepted',
+      changedBy: 'delivery_agent',
+      changedAt: new Date(),
+      notes: 'Return assignment accepted'
+    });
+  } else if (response === 'rejected') {
+    this.returnDetails.returnAssignment.status = 'rejected';
+    this.returnDetails.returnAssignment.rejectedAt = new Date();
+    this.returnDetails.returnAssignment.rejectionReason = reason;
+    
+    // Reset assignment for reassignment
+    this.returnDetails.returnAssignment.deliveryAgent = null;
+    this.returnDetails.returnAssignment.assignedAt = null;
+    this.returnDetails.returnAssignment.status = 'unassigned';
+    this.returnDetails.returnStatus = 'requested';
+    
+    this.returnDetails.returnHistory.push({
+      status: 'rejected',
+      changedBy: 'delivery_agent',
+      changedAt: new Date(),
+      notes: `Return assignment rejected: ${reason}`
+    });
+  }
+  
+  return this.save();
+};
+
+// Method to complete return pickup
+OrderSchema.methods.completeReturnPickup = function(verificationData = {}) {
+  if (this.returnDetails.returnAssignment.status !== 'accepted') {
+    throw new Error('Return must be accepted by delivery agent before pickup');
+  }
+  
+  this.returnDetails.returnPickup = {
+    isCompleted: true,
+    completedAt: new Date(),
+    pickupOTP: verificationData.pickupOTP || null,
+    pickupLocation: verificationData.location || {
+      type: 'Point',
+      coordinates: [0, 0]
+    },
+    pickupNotes: verificationData.notes || ''
+  };
+  
+  this.returnDetails.returnAssignment.status = 'picked_up';
+  this.returnDetails.returnStatus = 'picked_up';
+  
+  this.returnDetails.returnHistory.push({
+    status: 'picked_up',
+    changedBy: 'delivery_agent',
+    changedAt: new Date(),
+    notes: 'Return picked up from buyer',
+    location: verificationData.location
+  });
+  
+  return this.save();
+};
+
+// Method to complete return delivery to seller
+OrderSchema.methods.completeReturnDelivery = function(verificationData = {}) {
+  if (this.returnDetails.returnAssignment.status !== 'picked_up') {
+    throw new Error('Return must be picked up before delivery to seller');
+  }
+  
+  this.returnDetails.returnDelivery = {
+    isCompleted: true,
+    completedAt: new Date(),
+    sellerOTP: verificationData.sellerOTP || null,
+    sellerLocation: verificationData.location || {
+      type: 'Point',
+      coordinates: [0, 0]
+    },
+    sellerNotes: verificationData.notes || ''
+  };
+  
+  this.returnDetails.returnAssignment.status = 'returned';
+  this.returnDetails.returnStatus = 'returned_to_seller';
+  
+  this.returnDetails.returnHistory.push({
+    status: 'returned_to_seller',
+    changedBy: 'delivery_agent',
+    changedAt: new Date(),
+    notes: 'Return delivered to seller',
+    location: verificationData.location
+  });
+  
+  return this.save();
+};
+
+// Method to complete return process
+OrderSchema.methods.completeReturn = function() {
+  this.returnDetails.returnStatus = 'completed';
+  
+  this.returnDetails.returnHistory.push({
+    status: 'completed',
+    changedBy: 'system',
+    changedAt: new Date(),
+    notes: 'Return process completed'
+  });
+  
+  return this.save();
+};
+
+// Method to reject return
+OrderSchema.methods.rejectReturn = function(reason, rejectedBy) {
+  this.returnDetails.returnStatus = 'rejected';
+  
+  this.returnDetails.returnHistory.push({
+    status: 'rejected',
+    changedBy: rejectedBy,
+    changedAt: new Date(),
+    notes: `Return rejected: ${reason}`
+  });
+  
+  return this.save();
+};
+
+// 🆕 Virtual to check if order is return eligible
+OrderSchema.virtual('isReturnEligible').get(function() {
+  return this.checkReturnEligibility().eligible;
+});
+
+// 🆕 Virtual to get return window info
+OrderSchema.virtual('returnWindowInfo').get(function() {
+  return this.checkReturnEligibility();
+});
+
+// 🆕 Virtual to check if return is in progress
+OrderSchema.virtual('isReturnInProgress').get(function() {
+  return this.returnDetails && 
+         ['requested', 'approved', 'assigned', 'accepted', 'picked_up', 'returned_to_seller'].includes(this.returnDetails.returnStatus);
+});
+
+// 🆕 Static method to find orders eligible for return
+OrderSchema.statics.findEligibleForReturn = function() {
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  
+  return this.find({
+    isDelivered: true,
+    deliveredAt: { $gte: twentyFourHoursAgo },
+    status: 'Delivered',
+    'returnDetails.returnStatus': { $in: ['eligible', null] }
+  }).populate('user seller');
+};
+
+// 🆕 Static method to find pending return requests
+OrderSchema.statics.findPendingReturns = function() {
+  return this.find({
+    'returnDetails.returnStatus': 'requested'
+  }).populate('user seller');
+};
+
+// 🆕 Static method to find return assignments for delivery agent
+OrderSchema.statics.findReturnAssignments = function(agentId) {
+  return this.find({
+    'returnDetails.returnAssignment.deliveryAgent': agentId,
+    'returnDetails.returnAssignment.status': { $in: ['assigned', 'accepted'] }
+  }).populate('user seller');
 };
 
 module.exports = mongoose.model('Order', OrderSchema);
