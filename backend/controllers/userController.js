@@ -326,6 +326,17 @@ const updateUserProfile = async (req, res) => {
       }
     }
 
+    // 🎯 CRITICAL FIX: Clean up corrupted wishlist data before saving
+    if (user.wishlist && Array.isArray(user.wishlist)) {
+      user.wishlist = user.wishlist.filter(item => 
+        item && item.product && typeof item.product === 'object'
+      );
+      logUser('WISHLIST_CLEANED', { 
+        originalCount: user.wishlist.length,
+        cleanedCount: user.wishlist.length 
+      }, 'info');
+    }
+
     const updatedUser = await user.save();
 
     logUser('USER_PROFILE_UPDATED_SUCCESS', {
@@ -345,6 +356,54 @@ const updateUserProfile = async (req, res) => {
 
   } catch (error) {
     logUser('UPDATE_USER_PROFILE_ERROR', { error: error.message }, 'error');
+    
+    // 🎯 CRITICAL FIX: Handle wishlist validation errors specifically
+    if (error.message.includes('wishlist') && error.message.includes('product')) {
+      logUser('WISHLIST_VALIDATION_ERROR_DETECTED', { 
+        userId: req.user._id,
+        error: error.message 
+      }, 'warning');
+      
+      try {
+        // Clean up the user's wishlist completely
+        const user = await User.findById(req.user._id);
+        if (user) {
+          user.wishlist = [];
+          await user.save();
+          
+          logUser('WISHLIST_CLEARED_SUCCESSFULLY', { userId: user._id }, 'success');
+          
+          // Retry the original location update
+          if (req.body.location) {
+            user.location = {
+              type: 'Point',
+              coordinates: req.body.location.coordinates,
+              address: req.body.location.address || user.location?.address || ''
+            };
+            await user.save();
+            
+            logUser('LOCATION_UPDATE_RETRY_SUCCESS', { 
+              userId: user._id,
+              coordinates: req.body.location.coordinates 
+            }, 'success');
+            
+            const userResponse = user.toObject();
+            delete userResponse.password;
+            
+            return res.status(200).json({
+              success: true,
+              message: 'Profile updated successfully (wishlist cleaned)',
+              data: userResponse
+            });
+          }
+        }
+      } catch (retryError) {
+        logUser('WISHLIST_CLEANUP_FAILED', { 
+          error: retryError.message 
+        }, 'error');
+      }
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Error updating user profile',

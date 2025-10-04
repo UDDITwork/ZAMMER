@@ -486,6 +486,36 @@ export const AuthProvider = ({ children }) => {
         userId: data._id,
         isAuthenticated: true
       }, 'critical');
+
+      // 🎯 CRITICAL FIX: Auto-update location in backend if detected during login
+      if (data.location && data.location.coordinates) {
+        try {
+          debugLog('AUTO-UPDATING LOCATION IN BACKEND', { 
+            coordinates: data.location.coordinates 
+          }, 'info');
+          
+          // Import api instance for proper error handling
+          const { default: api } = await import('../services/api');
+          
+          const updateResponse = await api.put('/users/profile', { 
+            location: data.location 
+          });
+          
+          if (updateResponse.data.success) {
+            debugLog('LOCATION AUTO-UPDATED SUCCESSFULLY', { 
+              coordinates: data.location.coordinates 
+            }, 'success');
+          } else {
+            debugLog('LOCATION AUTO-UPDATE FAILED', { 
+              error: updateResponse.data.message 
+            }, 'warning');
+          }
+        } catch (locationError) {
+          debugLog('LOCATION AUTO-UPDATE ERROR', { 
+            error: locationError.message 
+          }, 'warning');
+        }
+      }
       
     } catch (error) {
       debugLog('USER LOGIN FAILED', {

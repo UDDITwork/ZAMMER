@@ -8,7 +8,7 @@ import { AuthContext } from '../../contexts/AuthContext';
 import socketService from '../../services/socketService';
 import { getMarketplaceProducts } from '../../services/productService';
 import { getNearbyShops } from '../../services/userService';
-import { updateLocation } from '../../utils/locationUtils';
+import { updateLocation, getCurrentLocation, calculateDistance } from '../../utils/locationUtils';
 import RealTimeOrderTracker from '../../components/RealTimeOrderTracker';
 import orderService from '../../services/orderService';
 import productService from '../../services/productService';
@@ -59,6 +59,7 @@ const Dashboard = () => {
   
   const isMountedRef = useRef(true);
   const fetchingRef = useRef(false);
+  const locationUpdateRef = useRef(false); // Prevent multiple simultaneous updates
   const navigate = useNavigate();
 
   // Memoized fetch functions
@@ -264,8 +265,23 @@ const Dashboard = () => {
       setLocation(newLocation);
 
       if (userAuth.isAuthenticated && userAuth.user) {
+        // Prevent multiple simultaneous location updates
+        if (locationUpdateRef.current) {
+          console.log('⚠️ Location update already in progress, skipping...');
+          return;
+        }
+        
+        locationUpdateRef.current = true;
+        
         try {
           console.log('💾 Updating user location in backend...');
+          console.log('🔍 User auth status:', {
+            isAuthenticated: userAuth.isAuthenticated,
+            hasUser: !!userAuth.user,
+            hasToken: !!userAuth.token,
+            userId: userAuth.user?._id
+          });
+          
           const updateResponse = await api.put('/users/profile', { 
             location: newLocation 
           });
@@ -289,15 +305,32 @@ const Dashboard = () => {
             
             fetchNearbyShops();
             
+            // Reset the update flag on success
+            locationUpdateRef.current = false;
+            
           } else {
             console.warn('⚠️ Failed to update user location in backend:', updateResponse.data.message);
             setLocationError('Failed to save location.');
             toast.error('Failed to save location.');
+            locationUpdateRef.current = false;
           }
         } catch (backendError) {
           console.error('❌ Backend location update failed:', backendError);
-          setLocationError('Backend update error.');
-          toast.error('Error saving location.');
+          console.error('❌ Error details:', {
+            message: backendError.message,
+            response: backendError.response?.data,
+            status: backendError.response?.status,
+            statusText: backendError.response?.statusText
+          });
+          
+          const errorMessage = backendError.response?.data?.message || 
+                              backendError.message || 
+                              'Unknown error occurred';
+          
+          setLocationError(`Backend update error: ${errorMessage}`);
+            toast.error(`Error saving location: ${errorMessage}`);
+        } finally {
+          locationUpdateRef.current = false;
         }
       } else {
         console.log('⚠️ User not authenticated, location update not persisted.');
@@ -352,12 +385,38 @@ const Dashboard = () => {
 
     initializeData();
 
-    if (!userAuth.user.location || !userAuth.user.location.address) {
-      console.log('📍 No user location found, attempting auto-detection...');
-      setTimeout(() => {
-        requestLocationUpdate();
-      }, 1000);
-    }
+    // 🎯 CRITICAL FIX: Enhanced location check with change detection
+    const checkAndUpdateLocation = async () => {
+      if (!userAuth.user.location || !userAuth.user.location.coordinates) {
+        console.log('📍 No user location found, attempting auto-detection...');
+        setTimeout(() => {
+          requestLocationUpdate();
+        }, 1000);
+        return;
+      }
+
+      // Check if location has changed significantly (>1km)
+      try {
+        const currentLocation = await getCurrentLocation();
+        if (currentLocation && currentLocation.coordinates) {
+          const distance = calculateDistance(
+            userAuth.user.location.coordinates,
+            currentLocation.coordinates
+          );
+          
+          if (distance > 1) { // More than 1km difference
+            console.log(`📍 Location changed by ${distance.toFixed(2)}km, updating...`);
+            requestLocationUpdate();
+          } else {
+            console.log(`📍 Location unchanged (${distance.toFixed(2)}km difference)`);
+          }
+        }
+      } catch (error) {
+        console.log('📍 Could not check location change:', error.message);
+      }
+    };
+
+    checkAndUpdateLocation();
 
     return () => {
       isMountedRef.current = false;
