@@ -1532,17 +1532,27 @@ exports.updateOrderPaymentStatus = async (req, res) => {
         paymentData: paymentData
       };
 
-      // 🎯 CRITICAL: Update order status to "Processing" after payment
-      order.status = 'Processing';
-      order.statusHistory.push({
-        status: 'Processing',
-        changedBy: 'system',
-        changedAt: new Date(),
-        notes: 'Payment completed, order processing started'
-      });
+      // 🎯 FIXED: Keep order status as "Pending" after payment
+      // Order will remain in "Pending" until seller manually marks it as "Processing"
+      if (!order.statusHistory || order.statusHistory.length === 0) {
+        order.statusHistory = [];
+      }
+      
+      const hasPaymentCompletedHistory = order.statusHistory.some(
+        h => h.notes && h.notes.includes('Payment completed')
+      );
+      
+      if (!hasPaymentCompletedHistory) {
+        order.statusHistory.push({
+          status: 'Pending',
+          changedBy: 'system',
+          changedAt: new Date(),
+          notes: 'Payment completed successfully, awaiting seller confirmation'
+        });
+      }
 
       console.log(`💰 Order marked as paid: ${order.orderNumber}`);
-      console.log(`📦 Order status updated to: ${order.status}`);
+      console.log(`📦 Order status: Pending (awaiting seller confirmation)`);
     }
 
     const updatedOrder = await order.save();

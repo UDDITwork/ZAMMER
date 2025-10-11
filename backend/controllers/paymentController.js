@@ -325,14 +325,26 @@ const checkSMEPayQRStatus = async (req, res) => {
         latestAttempt.transactionId = statusResult.data.transactionId;
       }
 
-      // 🎯 CRITICAL: Update order status to "Processing" after payment
-      order.status = 'Processing';
-      order.statusHistory.push({
-        status: 'Processing',
-        changedBy: 'system',
-        changedAt: new Date(),
-        notes: 'Payment confirmed, order processing started'
-      });
+      // 🎯 FIXED: Keep order status as "Pending" after payment
+      // Order will remain in "Pending" until seller manually marks it as "Processing"
+      // This ensures proper workflow: Payment → Pending → Seller Action → Processing
+      if (!order.statusHistory || order.statusHistory.length === 0) {
+        order.statusHistory = [];
+      }
+      
+      // Only add to history if not already present
+      const hasPaymentConfirmedHistory = order.statusHistory.some(
+        h => h.notes && h.notes.includes('Payment confirmed')
+      );
+      
+      if (!hasPaymentConfirmedHistory) {
+        order.statusHistory.push({
+          status: 'Pending',
+          changedBy: 'system',
+          changedAt: new Date(),
+          notes: 'Payment confirmed successfully, awaiting seller confirmation'
+        });
+      }
 
       await order.save();
 
@@ -341,40 +353,42 @@ const checkSMEPayQRStatus = async (req, res) => {
         orderNumber: order.orderNumber,
         transactionId: statusResult.data.transactionId,
         amount: order.totalPrice,
-        newStatus: order.status
+        newStatus: 'Pending', // Status remains Pending after payment
+        paymentStatus: 'completed'
       }, 'success');
 
-      // 🎯 CRITICAL: Emit notifications for order status change
+      // 🎯 FIXED: Emit notifications with correct status (Pending, not Processing)
       const { emitBuyerNotification, emitOrderNotification, emitAdminNotification } = require('../controllers/orderController');
       
-      // Notify buyer
+      // Notify buyer about payment completion
       emitBuyerNotification(order.user, {
         _id: order._id,
         orderNumber: order.orderNumber,
-        status: order.status,
-        paymentStatus: order.paymentStatus,
-        isPaid: order.isPaid
+        status: 'Pending', // Status is Pending until seller confirms
+        paymentStatus: 'completed',
+        isPaid: true
       }, 'payment-completed');
 
-      // Notify seller about new paid order
+      // Notify seller about new paid order (still in Pending status)
       emitOrderNotification(order.seller, {
         _id: order._id,
         orderNumber: order.orderNumber,
-        status: order.status,
+        status: 'Pending', // Seller needs to take action to move to Processing
         totalPrice: order.totalPrice,
         user: order.user,
         orderItems: order.orderItems,
         createdAt: order.createdAt,
-        isPaid: order.isPaid
+        isPaid: true,
+        paymentStatus: 'completed'
       }, 'new-order');
 
-      // Notify admin
+      // Notify admin about payment completion
       emitAdminNotification({
         _id: order._id,
         orderNumber: order.orderNumber,
-        status: order.status,
-        paymentStatus: order.paymentStatus,
-        isPaid: order.isPaid
+        status: 'Pending', // Status remains Pending after payment
+        paymentStatus: 'completed',
+        isPaid: true
       }, 'payment-completed');
     }
 
@@ -577,14 +591,24 @@ const autoConfirmSMEPayPayment = async (req, res) => {
         paymentMethod: 'SMEPay'
       };
 
-      // 🎯 CRITICAL: Update order status
-      order.status = 'Processing';
-      order.statusHistory.push({
-        status: 'Processing',
-        changedBy: 'system',
-        changedAt: new Date(),
-        notes: 'Payment confirmed via SMEPay, order processing started'
-      });
+      // 🎯 FIXED: Keep order status as "Pending" after payment (auto-confirm)
+      // Order will remain in "Pending" until seller manually marks it as "Processing"
+      if (!order.statusHistory || order.statusHistory.length === 0) {
+        order.statusHistory = [];
+      }
+      
+      const hasPaymentConfirmedHistory = order.statusHistory.some(
+        h => h.notes && h.notes.includes('Payment confirmed')
+      );
+      
+      if (!hasPaymentConfirmedHistory) {
+        order.statusHistory.push({
+          status: 'Pending',
+          changedBy: 'system',
+          changedAt: new Date(),
+          notes: 'Payment confirmed via SMEPay auto-confirm, awaiting seller confirmation'
+        });
+      }
 
       await order.save();
 
@@ -592,40 +616,41 @@ const autoConfirmSMEPayPayment = async (req, res) => {
         orderId: order._id,
         orderNumber: order.orderNumber,
         paymentStatus: order.paymentStatus,
-        newStatus: order.status
+        newStatus: 'Pending' // Status remains Pending
       }, 'success');
 
-      // 🎯 CRITICAL: Emit all necessary notifications
+      // 🎯 FIXED: Emit all necessary notifications with correct status (Pending)
       const { emitBuyerNotification, emitOrderNotification, emitAdminNotification } = require('../controllers/orderController');
       
-      // Notify buyer
+      // Notify buyer about payment completion
       emitBuyerNotification(order.user._id, {
         _id: order._id,
         orderNumber: order.orderNumber,
-        status: order.status,
-        paymentStatus: order.paymentStatus,
-        isPaid: order.isPaid
+        status: 'Pending', // Status is Pending until seller confirms
+        paymentStatus: 'completed',
+        isPaid: true
       }, 'payment-completed');
 
-      // Notify seller about new paid order
+      // Notify seller about new paid order (still in Pending status)
       emitOrderNotification(order.seller._id, {
         _id: order._id,
         orderNumber: order.orderNumber,
-        status: order.status,
+        status: 'Pending', // Seller needs to take action to move to Processing
         totalPrice: order.totalPrice,
         user: order.user,
         orderItems: order.orderItems,
         createdAt: order.createdAt,
-        isPaid: order.isPaid
+        isPaid: true,
+        paymentStatus: 'completed'
       }, 'new-order');
 
-      // Notify admin
+      // Notify admin about payment completion
       emitAdminNotification({
         _id: order._id,
         orderNumber: order.orderNumber,
-        status: order.status,
-        paymentStatus: order.paymentStatus,
-        isPaid: order.isPaid,
+        status: 'Pending', // Status remains Pending after payment
+        paymentStatus: 'completed',
+        isPaid: true,
         user: order.user,
         seller: order.seller
       }, 'payment-completed');
@@ -741,14 +766,24 @@ const fastConfirmSMEPayPayment = async (req, res) => {
         paymentMethod: 'SMEPay'
       };
 
-      // Update order status
-      order.status = 'Processing';
-      order.statusHistory.push({
-        status: 'Processing',
-        changedBy: 'system',
-        changedAt: new Date(),
-        notes: 'Payment confirmed via SMEPay fast confirmation'
-      });
+      // 🎯 FIXED: Keep order status as "Pending" after payment (fast-confirm)
+      // Order will remain in "Pending" until seller manually marks it as "Processing"
+      if (!order.statusHistory || order.statusHistory.length === 0) {
+        order.statusHistory = [];
+      }
+      
+      const hasFastConfirmHistory = order.statusHistory.some(
+        h => h.notes && h.notes.includes('Payment confirmed')
+      );
+      
+      if (!hasFastConfirmHistory) {
+        order.statusHistory.push({
+          status: 'Pending',
+          changedBy: 'system',
+          changedAt: new Date(),
+          notes: 'Payment confirmed via SMEPay fast confirmation, awaiting seller confirmation'
+        });
+      }
 
       await order.save();
 
@@ -756,7 +791,7 @@ const fastConfirmSMEPayPayment = async (req, res) => {
         orderId: order._id,
         orderNumber: order.orderNumber,
         paymentStatus: order.paymentStatus,
-        newStatus: order.status
+        newStatus: 'Pending' // Status remains Pending
       }, 'success');
     }
 
@@ -874,14 +909,24 @@ const handleSMEPayWebhook = async (req, res) => {
           webhookData: data
         };
 
-        // 🎯 CRITICAL: Update order status to "Processing" after payment
-        order.status = 'Processing';
-        order.statusHistory.push({
-          status: 'Processing',
-          changedBy: 'system',
-          changedAt: new Date(),
-          notes: 'Payment confirmed via SMEPay webhook, order processing started'
-        });
+        // 🎯 FIXED: Keep order status as "Pending" after payment (webhook)
+        // Order will remain in "Pending" until seller manually marks it as "Processing"
+        if (!order.statusHistory || order.statusHistory.length === 0) {
+          order.statusHistory = [];
+        }
+        
+        const hasWebhookHistory = order.statusHistory.some(
+          h => h.notes && h.notes.includes('Payment confirmed')
+        );
+        
+        if (!hasWebhookHistory) {
+          order.statusHistory.push({
+            status: 'Pending',
+            changedBy: 'system',
+            changedAt: new Date(),
+            notes: 'Payment confirmed via SMEPay webhook, awaiting seller confirmation'
+          });
+        }
 
         // Update payment attempts
         if (order.paymentAttempts && order.paymentAttempts.length > 0) {
@@ -898,46 +943,47 @@ const handleSMEPayWebhook = async (req, res) => {
           orderNumber: order.orderNumber,
           transactionId: data.transactionId,
           paymentStatus: data.paymentStatus,
-          newOrderStatus: order.status
+          newOrderStatus: 'Pending' // Status remains Pending after payment
         }, 'success');
 
         console.log(`✅ Order updated successfully: ${order.orderNumber}`);
-        console.log(`📋 New Status: ${order.status}`);
+        console.log(`📋 New Status: Pending (awaiting seller confirmation)`);
         console.log(`💳 Payment Status: ${order.paymentStatus}`);
 
-        // 🎯 CRITICAL: Emit all necessary notifications
+        // 🎯 FIXED: Emit all necessary notifications with correct status (Pending)
         const { emitBuyerNotification, emitOrderNotification, emitAdminNotification } = require('../controllers/orderController');
         
         // Notify buyer about payment completion
         emitBuyerNotification(order.user._id, {
           _id: order._id,
           orderNumber: order.orderNumber,
-          status: order.status,
-          paymentStatus: order.paymentStatus,
-          isPaid: order.isPaid,
+          status: 'Pending', // Status is Pending until seller confirms
+          paymentStatus: 'completed',
+          isPaid: true,
           transactionId: data.transactionId
         }, 'payment-completed');
 
-        // Notify seller about new paid order
+        // Notify seller about new paid order (still in Pending status)
         emitOrderNotification(order.seller._id, {
           _id: order._id,
           orderNumber: order.orderNumber,
-          status: order.status,
+          status: 'Pending', // Seller needs to take action to move to Processing
           totalPrice: order.totalPrice,
           user: order.user,
           orderItems: order.orderItems,
           createdAt: order.createdAt,
-          isPaid: order.isPaid,
-          paymentMethod: 'SMEPay'
+          isPaid: true,
+          paymentMethod: 'SMEPay',
+          paymentStatus: 'completed'
         }, 'new-order');
 
         // Notify admin about payment completion
         emitAdminNotification({
           _id: order._id,
           orderNumber: order.orderNumber,
-          status: order.status,
-          paymentStatus: order.paymentStatus,
-          isPaid: order.isPaid,
+          status: 'Pending', // Status remains Pending after payment
+          paymentStatus: 'completed',
+          isPaid: true,
           user: order.user,
           seller: order.seller,
           totalPrice: order.totalPrice,
