@@ -876,17 +876,41 @@ const AdminDashboard = () => {
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 >
                   <option value="">Choose an agent...</option>
-                  {deliveryAgents.map((agent) => (
+                  {deliveryAgents.map((agent) => {
+                    const capacityInfo = agent.capacity ? ` - ${agent.capacity.current}/${agent.capacity.max} orders` : '';
+                    const availabilityIcon = agent.capacity?.isAvailable ? ' ✅ Available' : ' ⚠️ At Capacity';
+                    const statusInfo = ` [${agent.status || 'unknown'}]`;
+                    const verificationIcon = agent.isVerified ? ' ✓ Verified' : ' ⚠️ Unverified';
+                    return (
                     <option key={agent._id} value={agent._id}>
                       {agent.name} - {agent.vehicleType} ({agent.area || 'All areas'})
-                      {agent.capacity ? ` - ${agent.capacity.current}/${agent.capacity.max} orders` : ''}
-                      {agent.capacity?.isAvailable ? ' ✅' : ' ❌'}
+                        {capacityInfo}{availabilityIcon}{statusInfo}{verificationIcon}
                     </option>
-                  ))}
+                    );
+                  })}
                 </select>
                 {deliveryAgents.length > 0 && (
-                  <div className="mt-2 text-sm text-gray-600">
-                    💡 Only showing agents with available capacity for new orders
+                  <div className="mt-2 space-y-1">
+                    <div className="text-sm text-green-600">
+                      ✅ Available agents can accept new orders immediately
+                    </div>
+                    <div className="text-sm text-orange-600">
+                      ⚠️ Agents at capacity can still be assigned - orders will appear in their dashboard for acceptance
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      💡 Showing all {deliveryAgents.length} active delivery agent(s) - you can assign to busy or unverified agents
+                    </div>
+                    <div className="text-sm text-blue-600">
+                      ✓ Verified agents are fully approved and ready for orders
+                    </div>
+                    <div className="text-sm text-orange-600">
+                      ⚠️ Unverified agents can still be assigned orders (they will appear in their dashboard)
+                    </div>
+                  </div>
+                )}
+                {deliveryAgents.length === 0 && (
+                  <div className="mt-2 text-sm text-red-600">
+                    ❌ No active delivery agents available. Please create or activate agents first.
                   </div>
                 )}
               </div>
@@ -982,17 +1006,41 @@ const AdminDashboard = () => {
                 required
               >
                 <option value="">Choose a delivery agent...</option>
-                {deliveryAgents.map(agent => (
+                {deliveryAgents.map(agent => {
+                  const capacityInfo = agent.capacity ? ` (${agent.capacity.current}/${agent.capacity.max} orders)` : '';
+                  const availabilityIcon = agent.capacity?.isAvailable ? ' ✅ Available' : ' ⚠️ At Capacity';
+                  const statusInfo = ` [${agent.status || 'unknown'}]`;
+                  const verificationIcon = agent.isVerified ? ' ✓ Verified' : ' ⚠️ Unverified';
+                  return (
                   <option key={agent._id} value={agent._id}>
                     {agent.name} - {agent.mobileNumber || agent.phone} 
-                    {agent.capacity ? ` (${agent.capacity.current}/${agent.capacity.max} orders)` : ''}
-                    {agent.capacity?.isAvailable ? ' ✅ Available' : ' ❌ At Capacity'}
+                      {capacityInfo}{availabilityIcon}{statusInfo}{verificationIcon}
                   </option>
-                ))}
+                  );
+                })}
               </select>
               {deliveryAgents.length > 0 && (
-                <div className="mt-2 text-sm text-gray-600">
-                  💡 Showing agents with available capacity for new orders
+                <div className="mt-2 space-y-1">
+                  <div className="text-sm text-green-600">
+                    ✅ Available agents can accept bulk orders immediately
+                  </div>
+                  <div className="text-sm text-orange-600">
+                    ⚠️ Agents at capacity can still be assigned - all orders will appear in their dashboard
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    💡 Showing all {deliveryAgents.length} active delivery agent(s) - you can bulk assign to busy or unverified agents
+                  </div>
+                  <div className="text-sm text-blue-600">
+                    ✓ Verified agents are fully approved and ready for bulk orders
+                  </div>
+                  <div className="text-sm text-orange-600">
+                    ⚠️ Unverified agents can still receive bulk assignments (orders will appear in their dashboard)
+                  </div>
+                </div>
+              )}
+              {deliveryAgents.length === 0 && (
+                <div className="mt-2 text-sm text-red-600">
+                  ❌ No active delivery agents available. Please create or activate agents first.
                 </div>
               )}
             </div>
