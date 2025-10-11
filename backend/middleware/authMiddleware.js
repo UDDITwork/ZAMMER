@@ -392,11 +392,90 @@ const validateToken = async (req, res, next) => {
   }
 };
 
+// 🎯 NEW: Protect User OR Seller - for routes accessible by both
+const protectUserOrSeller = async (req, res, next) => {
+  try {
+    let token;
+
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      try {
+        token = req.headers.authorization.split(' ')[1];
+        
+        logAuth('DUAL_AUTH_TOKEN_EXTRACTED', {
+          tokenLength: token?.length || 0
+        });
+
+        // Verify token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        logAuth('DUAL_AUTH_TOKEN_VERIFIED', {
+          decodedId: decoded.id,
+          tokenExp: new Date(decoded.exp * 1000).toISOString()
+        });
+
+        // Try to find user first
+        const user = await User.findById(decoded.id).select('-password');
+        
+        if (user) {
+          req.user = user;
+          logAuth('DUAL_AUTH_SUCCESS_AS_USER', {
+            userId: user._id,
+            userName: user.name
+          }, 'success');
+          return next();
+        }
+
+        // If not user, try seller
+        const seller = await Seller.findById(decoded.id).select('-password');
+        
+        if (seller) {
+          req.seller = seller;
+          logAuth('DUAL_AUTH_SUCCESS_AS_SELLER', {
+            sellerId: seller._id,
+            sellerName: seller.firstName
+          }, 'success');
+          return next();
+        }
+
+        // Neither user nor seller found
+        logAuth('DUAL_AUTH_NO_ACCOUNT_FOUND', { decodedId: decoded.id }, 'error');
+        return res.status(401).json({
+          success: false,
+          message: 'Account not found'
+        });
+
+      } catch (error) {
+        logAuth('DUAL_AUTH_TOKEN_ERROR', {
+          error: error.message
+        }, 'error');
+        
+        return res.status(401).json({
+          success: false,
+          message: 'Not authorized, token failed'
+        });
+      }
+    } else {
+      logAuth('DUAL_AUTH_NO_TOKEN_PROVIDED', null, 'warning');
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized, no token'
+      });
+    }
+  } catch (error) {
+    logAuth('DUAL_AUTH_ERROR', { error: error.message }, 'error');
+    return res.status(500).json({
+      success: false,
+      message: 'Server error in authentication'
+    });
+  }
+};
+
 module.exports = {
   protectUser,
   optionalUserAuth, // 🎯 CRITICAL: Export the missing middleware
   protectSeller,
   protectDeliveryAgent,
   protectAdmin,
-  validateToken
+  validateToken,
+  protectUserOrSeller // 🎯 NEW: Export dual auth middleware
 };

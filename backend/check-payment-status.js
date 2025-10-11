@@ -70,20 +70,30 @@ const checkPaymentStatus = async () => {
             paymentMethod: 'SMEPay'
           };
 
-          // Update order status
-          order.status = 'Processing';
-          order.statusHistory.push({
-            status: 'Processing',
-            changedBy: 'system',
-            changedAt: new Date(),
-            notes: 'Payment confirmed via manual status check, order processing started'
-          });
+          // 🎯 FIXED: Keep order status as Pending after payment
+          // Order will remain in "Pending" until seller manually marks it as "Processing"
+          if (!order.statusHistory || order.statusHistory.length === 0) {
+            order.statusHistory = [];
+          }
+          
+          const hasCheckHistory = order.statusHistory.some(
+            h => h.notes && h.notes.includes('Payment confirmed via manual status check')
+          );
+          
+          if (!hasCheckHistory) {
+            order.statusHistory.push({
+              status: 'Pending',
+              changedBy: 'system',
+              changedAt: new Date(),
+              notes: 'Payment confirmed via manual status check, awaiting seller confirmation'
+            });
+          }
 
           await order.save();
           updatedCount++;
 
           console.log(`✅ Order ${order.orderNumber} updated successfully`);
-          console.log(`   New Status: ${order.status}`);
+          console.log(`   New Status: Pending (awaiting seller confirmation)`);
           console.log(`   Payment Status: ${order.paymentStatus}`);
           console.log(`   Is Paid: ${order.isPaid}\n`);
 

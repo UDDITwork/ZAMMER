@@ -12,7 +12,7 @@ const {
   updateOrderPaymentStatus,
   getAdminDashboardOrders
 } = require('../controllers/orderController');
-const { protectUser, protectSeller, protectAdmin } = require('../middleware/authMiddleware');
+const { protectUser, protectSeller, protectAdmin, protectUserOrSeller } = require('../middleware/authMiddleware');
 
 // User routes
 router.route('/')
@@ -41,7 +41,8 @@ router.get('/seller/stats', protectSeller, getSellerOrderStats);
 router.get('/admin/dashboard', protectAdmin, getAdminDashboardOrders);
 
 // Order by ID (accessible by both user and seller)
-router.get('/:id', getOrderById);
+// 🎯 FIXED: Add dual authentication middleware
+router.get('/:id', protectUserOrSeller, getOrderById);
 
 // Update order status (seller only)
 router.put('/:id/status', protectSeller, updateOrderStatus);
