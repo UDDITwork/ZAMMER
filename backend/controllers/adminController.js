@@ -518,7 +518,7 @@ const getDeliveryAgents = async (req, res) => {
 };
 
 // 🎯 NEW: Get available delivery agents with capacity information
-// @desc    Get delivery agents available for assignment with capacity details
+// @desc    Get delivery agents available for assignment with capacity details (shows ALL agents including busy ones)
 // @route   GET /api/admin/delivery-agents/available
 // @access  Private (Admin)
 const getAvailableDeliveryAgents = async (req, res) => {
@@ -532,12 +532,13 @@ const getAvailableDeliveryAgents = async (req, res) => {
 
     const MAX_ORDERS_PER_AGENT = process.env.MAX_ORDERS_PER_AGENT || 5;
     
-    // Build query filter for available agents
+    // 🔧 CRITICAL FIX: Show ALL active agents, regardless of verification status or capacity
+    // Build query filter - only filter by active status (remove verification requirement)
     const filter = {
       isActive: true,
-      isVerified: true,
-      isBlocked: false,
-      status: { $in: ['available', 'assigned'] }
+      isBlocked: false
+      // 🔧 REMOVED: isVerified filter - show all active agents even if not verified
+      // 🔧 REMOVED: status filter - show all agents regardless of busy/available status
     };
 
     if (vehicleType && vehicleType !== 'all') {
@@ -548,13 +549,13 @@ const getAvailableDeliveryAgents = async (req, res) => {
       filter.area = new RegExp(area, 'i');
     }
 
-    // Get agents with capacity information
+    // Get ALL agents with capacity information
     const agents = await DeliveryAgent.find(filter)
       .select('-password')
       .populate('assignedOrders.order', 'orderNumber status totalPrice createdAt')
       .sort({ 'deliveryStats.averageRating': -1, 'deliveryStats.completedDeliveries': -1 });
 
-    // Filter by capacity and add capacity information
+    // 🔧 ENHANCED: Add capacity information but DON'T filter out busy agents
     const availableAgents = agents.map(agent => {
       // 🔧 CRITICAL FIX: Only count orders that are still 'assigned' (not accepted/pickedUp/delivered)
       const currentOrderCount = agent.assignedOrders?.filter(order => order.status === 'assigned').length || 0;
@@ -573,14 +574,15 @@ const getAvailableDeliveryAgents = async (req, res) => {
         }
       };
     }).filter(agent => {
-      // Filter by requested max capacity if specified
+      // 🔧 MODIFIED: Only filter by maxCapacity if explicitly requested, otherwise show ALL agents
       if (maxCapacity && parseInt(maxCapacity) > 0) {
         return agent.capacity.available >= parseInt(maxCapacity);
       }
-      return agent.capacity.isAvailable;
+      // 🔧 CRITICAL: Return ALL agents, even those at capacity - let admin decide
+      return true;
     });
 
-    // Sort by availability and rating
+    // Sort by availability and rating (agents with more capacity appear first)
     availableAgents.sort((a, b) => {
       // First by availability (more available capacity first)
       if (a.capacity.available !== b.capacity.available) {
@@ -594,6 +596,8 @@ const getAvailableDeliveryAgents = async (req, res) => {
       adminId: req.admin._id,
       totalAgents: agents.length,
       availableAgents: availableAgents.length,
+      agentsWithCapacity: availableAgents.filter(a => a.capacity.isAvailable).length,
+      agentsAtCapacity: availableAgents.filter(a => a.capacity.isAtCapacity).length,
       filters: filter
     }, 'success');
 
@@ -606,7 +610,8 @@ const getAvailableDeliveryAgents = async (req, res) => {
           maxOrdersPerAgent: MAX_ORDERS_PER_AGENT,
           totalAgents: agents.length,
           availableAgents: availableAgents.length,
-          agentsAtCapacity: agents.length - availableAgents.length
+          agentsWithCapacity: availableAgents.filter(a => a.capacity.isAvailable).length,
+          agentsAtCapacity: availableAgents.filter(a => a.capacity.isAtCapacity).length
         }
       }
     });
@@ -769,51 +774,66 @@ const approveAndAssignOrder = async (req, res) => {
       });
     }
 
-    // 🔧 FIXED: Enhanced availability check with capacity management
+    // 🔧 ENHANCED: Check agent availability but ALLOW assignment even if busy/at capacity
     const MAX_ORDERS_PER_AGENT = process.env.MAX_ORDERS_PER_AGENT || 5; // Configurable capacity
     // 🔧 CRITICAL FIX: Only count orders that are still 'assigned' (not accepted/pickedUp/delivered)
     const currentOrderCount = deliveryAgent.assignedOrders?.filter(order => order.status === 'assigned').length || 0;
     const isWithinCapacity = currentOrderCount < MAX_ORDERS_PER_AGENT;
+    
+    // 🔧 RELAXED: Only check critical availability criteria (active, not blocked)
+    // Allow assignment regardless of verification status, status, or capacity - admin has final say
     const isAvailable = deliveryAgent.isActive && 
-                       deliveryAgent.isVerified && 
-                       !deliveryAgent.isBlocked &&
-                       (deliveryAgent.status === 'available' || deliveryAgent.status === 'assigned') &&
-                       isWithinCapacity;
+                       !deliveryAgent.isBlocked;
+    // 🔧 REMOVED: isVerified check - allow assignment to unverified agents
+    // 🔧 REMOVED: status check and capacity check - allow assignment to busy agents
 
-    // Log capacity check
+    // Log capacity check (informational only, doesn't block assignment)
     logCapacityCheck(deliveryAgentId, currentOrderCount, 1, MAX_ORDERS_PER_AGENT, isWithinCapacity);
 
     // Log agent availability check with detailed reasoning
     let unavailabilityReason = '';
+    let warningMessage = '';
     if (!deliveryAgent.isActive) unavailabilityReason = 'Agent is inactive';
-    else if (!deliveryAgent.isVerified) unavailabilityReason = 'Agent is not verified';
     else if (deliveryAgent.isBlocked) unavailabilityReason = 'Agent is blocked';
-    else if (!isWithinCapacity) unavailabilityReason = `Agent at capacity (${currentOrderCount}/${MAX_ORDERS_PER_AGENT})`;
-    else if (deliveryAgent.status === 'offline') unavailabilityReason = 'Agent is offline';
+    // 🔧 REMOVED: isVerified check - allow assignment to unverified agents
     
-    logAgentAvailability(deliveryAgentId, deliveryAgent, isAvailable, unavailabilityReason);
+    // 🔧 NEW: Add warning for capacity but don't block assignment
+    if (!isWithinCapacity) {
+      warningMessage = `Warning: Agent is at or exceeds capacity (${currentOrderCount}/${MAX_ORDERS_PER_AGENT}). Assignment allowed.`;
+      logAdmin('AGENT_CAPACITY_WARNING', {
+        deliveryAgentId,
+        currentOrderCount,
+        maxCapacity: MAX_ORDERS_PER_AGENT,
+        message: warningMessage
+      }, 'warning');
+    }
+    
+    logAgentAvailability(deliveryAgentId, deliveryAgent, isAvailable, unavailabilityReason || 'Available for assignment');
 
-    // Check if agent is available
+    // 🔧 CRITICAL: Only block assignment if agent is inactive, not verified, or blocked
     if (!isAvailable) {
       logFailure(orderId, deliveryAgentId, {
         code: 'AGENT_NOT_AVAILABLE',
-        message: `Delivery agent is not available: ${unavailabilityReason}`,
+        message: `Delivery agent cannot be assigned: ${unavailabilityReason}`,
         type: 'availability_error',
         agentStatus: deliveryAgent.status,
         isActive: deliveryAgent.isActive,
-        currentOrderCount,
-        maxCapacity: MAX_ORDERS_PER_AGENT,
-        isWithinCapacity
+        isVerified: deliveryAgent.isVerified,
+        isBlocked: deliveryAgent.isBlocked
       });
       return res.status(400).json({
         success: false,
-        message: `Delivery agent is not available: ${unavailabilityReason}`,
+        message: `Delivery agent cannot be assigned: ${unavailabilityReason}`,
         agentStatus: deliveryAgent.status,
         isActive: deliveryAgent.isActive,
-        currentOrderCount,
-        maxCapacity: MAX_ORDERS_PER_AGENT,
-        capacityUsed: `${currentOrderCount}/${MAX_ORDERS_PER_AGENT}`
+        isVerified: deliveryAgent.isVerified,
+        isBlocked: deliveryAgent.isBlocked
       });
+    }
+    
+    // 🔧 NEW: Log warning if agent is at capacity but allow assignment to proceed
+    if (warningMessage) {
+      console.log(`⚠️ [ADMIN-CONTROLLER] ${warningMessage}`);
     }
 
     // Log assignment attempt
@@ -1091,7 +1111,7 @@ const bulkAssignOrders = async (req, res) => {
     // Log bulk assignment attempt
     logBulkAttempt(orderIds, deliveryAgentId, deliveryAgent);
 
-    // 🔧 FIXED: Enhanced availability check for bulk assignment with capacity management
+    // 🔧 ENHANCED: Check agent availability but ALLOW bulk assignment even if busy/at capacity
     const MAX_ORDERS_PER_AGENT = process.env.MAX_ORDERS_PER_AGENT || 5; // Configurable capacity
     // 🔧 CRITICAL FIX: Only count orders that are still 'assigned' (not accepted/pickedUp/delivered)
     const currentOrderCount = deliveryAgent.assignedOrders?.filter(order => order.status === 'assigned').length || 0;
@@ -1099,48 +1119,62 @@ const bulkAssignOrders = async (req, res) => {
     const totalAfterAssignment = currentOrderCount + requestedOrderCount;
     const canHandleAllOrders = totalAfterAssignment <= MAX_ORDERS_PER_AGENT;
     
+    // 🔧 RELAXED: Only check critical availability criteria (active, not blocked)
+    // Allow bulk assignment regardless of verification status, status, or capacity - admin has final say
     const isAvailable = deliveryAgent.isActive && 
-                       deliveryAgent.isVerified && 
-                       !deliveryAgent.isBlocked &&
-                       (deliveryAgent.status === 'available' || deliveryAgent.status === 'assigned') &&
-                       canHandleAllOrders;
+                       !deliveryAgent.isBlocked;
+    // 🔧 REMOVED: isVerified check - allow bulk assignment to unverified agents
+    // 🔧 REMOVED: status check and capacity check - allow bulk assignment to busy agents
 
-    // Log capacity check for bulk assignment
+    // Log capacity check for bulk assignment (informational only, doesn't block assignment)
     logCapacityCheck(deliveryAgentId, currentOrderCount, requestedOrderCount, MAX_ORDERS_PER_AGENT, canHandleAllOrders);
 
     // Log agent availability check with detailed reasoning
     let unavailabilityReason = '';
+    let warningMessage = '';
     if (!deliveryAgent.isActive) unavailabilityReason = 'Agent is inactive';
-    else if (!deliveryAgent.isVerified) unavailabilityReason = 'Agent is not verified';
     else if (deliveryAgent.isBlocked) unavailabilityReason = 'Agent is blocked';
-    else if (!canHandleAllOrders) unavailabilityReason = `Agent cannot handle ${requestedOrderCount} orders. Capacity: ${currentOrderCount}/${MAX_ORDERS_PER_AGENT}`;
-    else if (deliveryAgent.status === 'offline') unavailabilityReason = 'Agent is offline';
+    // 🔧 REMOVED: isVerified check - allow bulk assignment to unverified agents
     
-    logAgentAvailability(deliveryAgentId, deliveryAgent, isAvailable, unavailabilityReason);
+    // 🔧 NEW: Add warning for capacity but don't block bulk assignment
+    if (!canHandleAllOrders) {
+      warningMessage = `Warning: Agent will exceed capacity after assignment. Current: ${currentOrderCount}, Requested: ${requestedOrderCount}, Total: ${totalAfterAssignment}/${MAX_ORDERS_PER_AGENT}. Assignment allowed.`;
+      logAdmin('BULK_AGENT_CAPACITY_WARNING', {
+        deliveryAgentId,
+        currentOrderCount,
+        requestedOrderCount,
+        totalAfterAssignment,
+        maxCapacity: MAX_ORDERS_PER_AGENT,
+        message: warningMessage
+      }, 'warning');
+    }
+    
+    logAgentAvailability(deliveryAgentId, deliveryAgent, isAvailable, unavailabilityReason || 'Available for bulk assignment');
 
-    // Check if agent is available
+    // 🔧 CRITICAL: Only block bulk assignment if agent is inactive, not verified, or blocked
     if (!isAvailable) {
       logFailure('BULK_ASSIGNMENT', deliveryAgentId, {
         code: 'AGENT_NOT_AVAILABLE',
-        message: `Delivery agent is not available for bulk assignment: ${unavailabilityReason}`,
+        message: `Delivery agent cannot be assigned: ${unavailabilityReason}`,
         type: 'availability_error',
         agentStatus: deliveryAgent.status,
         isActive: deliveryAgent.isActive,
-        currentOrderCount,
-        requestedOrderCount,
-        maxCapacity: MAX_ORDERS_PER_AGENT,
-        canHandleAllOrders
+        isVerified: deliveryAgent.isVerified,
+        isBlocked: deliveryAgent.isBlocked
       });
       return res.status(400).json({
         success: false,
-        message: `Delivery agent is not available for bulk assignment: ${unavailabilityReason}`,
+        message: `Delivery agent cannot be assigned for bulk assignment: ${unavailabilityReason}`,
         agentStatus: deliveryAgent.status,
         isActive: deliveryAgent.isActive,
-        currentOrderCount,
-        requestedOrderCount,
-        maxCapacity: MAX_ORDERS_PER_AGENT,
-        capacityAfterAssignment: `${totalAfterAssignment}/${MAX_ORDERS_PER_AGENT}`
+        isVerified: deliveryAgent.isVerified,
+        isBlocked: deliveryAgent.isBlocked
       });
+    }
+    
+    // 🔧 NEW: Log warning if agent will exceed capacity but allow bulk assignment to proceed
+    if (warningMessage) {
+      console.log(`⚠️ [ADMIN-CONTROLLER] ${warningMessage}`);
     }
 
     // Find all orders that can be assigned

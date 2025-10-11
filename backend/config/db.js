@@ -27,13 +27,13 @@ const connectDB = async () => {
     
     // 🎯 FIXED: Updated connection options compatible with MongoDB Driver v6+
     const connectionOptions = {
-      // Connection Pool Settings
-      maxPoolSize: 10,
-      minPoolSize: 2,
+      // Connection Pool Settings - Optimized for high concurrency
+      maxPoolSize: 20, // Increased from 10 to handle more concurrent requests
+      minPoolSize: 5,  // Increased from 2 to maintain more connections
       maxIdleTimeMS: 30000,
-      serverSelectionTimeoutMS: 30000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 30000,
+      serverSelectionTimeoutMS: 15000, // Reduced from 30000 for faster failure detection
+      socketTimeoutMS: 30000, // Reduced from 45000 for faster timeout
+      connectTimeoutMS: 15000, // Reduced from 30000 for faster connection
       
       // Retry Configuration
       retryWrites: true,

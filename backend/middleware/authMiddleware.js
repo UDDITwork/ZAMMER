@@ -6,6 +6,25 @@ const Seller = require('../models/Seller');
 const DeliveryAgent = require('../models/DeliveryAgent');
 const Admin = require('../models/Admin');
 
+// 🔧 NEW: Simple in-memory cache for authentication to reduce DB load
+const authCache = new Map();
+const CACHE_TTL = 60000; // 1 minute cache TTL
+
+const getCachedAgent = (agentId) => {
+  const cached = authCache.get(agentId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+  return null;
+};
+
+const setCachedAgent = (agentId, agentData) => {
+  authCache.set(agentId, {
+    data: agentData,
+    timestamp: Date.now()
+  });
+};
+
 // Enhanced logging for auth middleware
 const logAuth = (action, data, level = 'info') => {
   const timestamp = new Date().toISOString();
@@ -237,7 +256,23 @@ const protectDeliveryAgent = async (req, res, next) => {
           });
         }
         
-        req.deliveryAgent = await DeliveryAgent.findById(decoded.id).select('-password');
+        // 🔧 FIXED: Add timeout and connection options for authentication queries
+        // Check cache first to reduce database load
+        let agent = getCachedAgent(decoded.id);
+        
+        if (!agent) {
+          agent = await DeliveryAgent.findById(decoded.id)
+            .select('-password')
+            .maxTimeMS(5000) // 5-second timeout for auth queries
+            .lean(); // Use lean() for better performance
+          
+          // Cache the result for future requests
+          if (agent) {
+            setCachedAgent(decoded.id, agent);
+          }
+        }
+        
+        req.deliveryAgent = agent;
         
         if (!req.deliveryAgent) {
           logAuth('DELIVERY_AGENT_NOT_FOUND_IN_DB', { 

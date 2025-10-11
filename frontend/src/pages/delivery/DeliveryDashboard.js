@@ -71,7 +71,7 @@ const DeliveryDashboard = () => {
   const [processingReturn, setProcessingReturn] = useState(false);
   
   const navigate = useNavigate();
-  const { deliveryAgentAuth, logoutDeliveryAgent } = useAuth();
+  const { deliveryAgentAuth, logoutDeliveryAgent, loading: authLoading } = useAuth();
 
   // API Base URL
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
@@ -196,14 +196,38 @@ const DeliveryDashboard = () => {
 
   // FIXED: Check authentication and initialize
   useEffect(() => {
+    // 🔧 CRITICAL FIX: Don't redirect if AuthContext is still loading
+    if (authLoading) {
+      console.log('🚚 AuthContext still loading, waiting...');
+      return;
+    }
+
+    console.log('🚚 Authentication check:', {
+      isAuthenticated: deliveryAgentAuth.isAuthenticated,
+      hasDeliveryAgent: !!deliveryAgentAuth.deliveryAgent,
+      hasToken: !!deliveryAgentAuth.token,
+      authLoading: authLoading
+    });
+
     if (!deliveryAgentAuth.isAuthenticated || !deliveryAgentAuth.deliveryAgent) {
       console.log('🚚 Not authenticated, redirecting to login');
       navigate('/delivery/login');
       return;
     }
 
+    console.log('🚚 Authentication verified, initializing dashboard...');
+    
+    // 🔧 ADDITIONAL SAFETY CHECK: Ensure delivery agent data is complete
+    if (!deliveryAgentAuth.deliveryAgent._id || !deliveryAgentAuth.deliveryAgent.name) {
+      console.error('🚚 Incomplete delivery agent data:', deliveryAgentAuth.deliveryAgent);
+      toast.error('Authentication data incomplete. Please login again.');
+      logoutDeliveryAgent();
+      navigate('/delivery/login');
+      return;
+    }
+    
     initializeDashboard();
-  }, [deliveryAgentAuth.isAuthenticated, deliveryAgentAuth.deliveryAgent, navigate, initializeDashboard]);
+  }, [deliveryAgentAuth.isAuthenticated, deliveryAgentAuth.deliveryAgent, authLoading, navigate, initializeDashboard, logoutDeliveryAgent]);
 
   // Handle order acceptance
   const handleAcceptOrder = async (orderId) => {
@@ -393,19 +417,29 @@ const DeliveryDashboard = () => {
 
   // 🎯 NEW: Handle bulk order acceptance
   const handleBulkAcceptOrders = async () => {
-    if (selectedOrders.length === 0) {
-      toast.error('Please select at least one order');
+    const validOrders = selectedOrders.filter(order => order && order._id);
+    
+    if (validOrders.length === 0) {
+      toast.error('Please select at least one valid order');
       return;
     }
 
     try {
       setBulkProcessing(true);
-      console.log('🚚 Bulk accepting orders:', selectedOrders.map(o => o._id));
+      
+      // 🔧 DEBUG: Log the data being sent
+      const orderIds = validOrders.map(order => order._id);
+      console.log('🚚 Bulk accepting orders - DEBUG INFO:');
+      console.log('  selectedOrders:', selectedOrders);
+      console.log('  validOrders:', validOrders);
+      console.log('  orderIds array:', orderIds);
+      console.log('  orderIds type:', typeof orderIds);
+      console.log('  orderIds length:', orderIds.length);
 
       const response = await makeApiCall('/delivery/orders/bulk-accept', {
         method: 'POST',
         body: JSON.stringify({
-          orderIds: selectedOrders.map(order => order._id)
+          orderIds: orderIds
         })
       });
 
@@ -442,19 +476,21 @@ const DeliveryDashboard = () => {
 
   // 🎯 NEW: Handle bulk order rejection
   const handleBulkRejectOrders = async () => {
-    if (selectedOrders.length === 0) {
-      toast.error('Please select at least one order');
+    const validOrders = selectedOrders.filter(order => order && order._id);
+    
+    if (validOrders.length === 0) {
+      toast.error('Please select at least one valid order');
       return;
     }
 
     try {
       setBulkProcessing(true);
-      console.log('🚚 Bulk rejecting orders:', selectedOrders.map(o => o._id));
+      console.log('🚚 Bulk rejecting orders:', selectedOrders.map(o => o?._id));
 
       const response = await makeApiCall('/delivery/orders/bulk-reject', {
         method: 'POST',
         body: JSON.stringify({
-          orderIds: selectedOrders.map(order => order._id),
+          orderIds: validOrders.map(order => order._id),
           reason: bulkReason || 'No reason provided'
         })
       });
@@ -492,25 +528,58 @@ const DeliveryDashboard = () => {
 
   // 🎯 NEW: Handle order selection for bulk operations
   const handleOrderSelection = (order, isSelected) => {
+    if (!order || !order._id) {
+      console.warn('Invalid order provided to handleOrderSelection:', order);
+      return;
+    }
+    
+    console.log('🔧 DEBUG: handleOrderSelection called:', {
+      order: order,
+      orderId: order._id,
+      isSelected: isSelected
+    });
+    
     if (isSelected) {
-      setSelectedOrders(prev => [...prev, order]);
+      setSelectedOrders(prev => {
+        const newSelection = [...prev, order];
+        console.log('🔧 DEBUG: Adding order to selection:', newSelection);
+        return newSelection;
+      });
     } else {
-      setSelectedOrders(prev => prev.filter(o => o._id !== order._id));
+      setSelectedOrders(prev => {
+        const newSelection = prev.filter(o => o && o._id && o._id !== order._id);
+        console.log('🔧 DEBUG: Removing order from selection:', newSelection);
+        return newSelection;
+      });
     }
   };
 
   // 🎯 NEW: Handle select all orders
   const handleSelectAllOrders = () => {
     const assignableOrders = assignedOrders.filter(order => 
-      order.deliveryStatus === 'assigned' || order.status === 'Pickup_Ready'
+      order && order._id && order.deliveryStatus === 'assigned'
     );
     
+    console.log('🔧 DEBUG: handleSelectAllOrders called:', {
+      assignedOrders: assignedOrders,
+      assignableOrders: assignableOrders,
+      selectedOrdersLength: selectedOrders.length,
+      assignableOrdersLength: assignableOrders.length
+    });
+    
     if (selectedOrders.length === assignableOrders.length) {
+      console.log('🔧 DEBUG: Deselecting all orders');
       setSelectedOrders([]);
     } else {
+      console.log('🔧 DEBUG: Selecting all assignable orders:', assignableOrders);
       setSelectedOrders(assignableOrders);
     }
   };
+
+  // 🎯 NEW: Clean up selectedOrders to remove any null/invalid entries
+  useEffect(() => {
+    setSelectedOrders(prev => prev.filter(order => order && order._id));
+  }, [assignedOrders]);
 
   // 🎯 NEW: Open bulk action modal
   const openBulkModal = (action) => {
@@ -606,8 +675,8 @@ const DeliveryDashboard = () => {
   // Order Card Component
   const OrderCard = ({ order, isAssigned = false }) => {
     const nextAction = isAssigned ? getNextAction(order) : null;
-    const isSelectable = isAssigned && (order.deliveryStatus === 'assigned' || order.status === 'Pickup_Ready');
-    const isSelected = selectedOrders.some(selected => selected._id === order._id);
+    const isSelectable = isAssigned && order.deliveryStatus === 'assigned';
+    const isSelected = selectedOrders.some(selected => selected && selected._id === order._id);
     
     return (
       <div className={`bg-white border rounded-lg p-4 hover:shadow-md transition-shadow ${
@@ -726,8 +795,8 @@ const DeliveryDashboard = () => {
       if (response && response.success) {
         // Filter returns assigned to this agent
         const myReturns = response.data.filter(returnOrder => 
-          returnOrder.returnDetails?.returnAssignment?.deliveryAgent?._id === deliveryAgentAuth.deliveryAgent._id ||
-          returnOrder.returnDetails?.returnAssignment?.deliveryAgent === deliveryAgentAuth.deliveryAgent._id
+          returnOrder.returnDetails?.returnAssignment?.deliveryAgent?._id === deliveryAgentAuth.deliveryAgent?._id ||
+          returnOrder.returnDetails?.returnAssignment?.deliveryAgent === deliveryAgentAuth.deliveryAgent?._id
         );
         setReturnAssignments(myReturns);
         console.log('✅ Return assignments fetched:', myReturns.length);
@@ -738,7 +807,7 @@ const DeliveryDashboard = () => {
     } finally {
       setReturnLoading(false);
     }
-  }, [deliveryAgentAuth.deliveryAgent._id]);
+  }, [deliveryAgentAuth.deliveryAgent?._id]);
 
   const handleReturnAssignmentResponse = async (returnId, response, reason = '') => {
     try {
@@ -776,7 +845,7 @@ const DeliveryDashboard = () => {
 
       const response = await returnService.completeReturnPickup(selectedReturn._id, {
         otp: returnPickupOTP,
-        notes: `Return pickup completed by ${deliveryAgentAuth.deliveryAgent.name}`
+        notes: `Return pickup completed by ${deliveryAgentAuth.deliveryAgent?.name || 'Unknown Agent'}`
       });
       
       if (response && response.success) {
@@ -811,7 +880,7 @@ const DeliveryDashboard = () => {
 
       const response = await returnService.completeReturnDelivery(selectedReturn._id, {
         otp: returnDeliveryOTP,
-        notes: `Return delivery completed by ${deliveryAgentAuth.deliveryAgent.name}`
+        notes: `Return delivery completed by ${deliveryAgentAuth.deliveryAgent?.name || 'Unknown Agent'}`
       });
       
       if (response && response.success) {
@@ -900,13 +969,13 @@ const DeliveryDashboard = () => {
     }
   };
 
-  // Loading state
-  if (loading) {
+  // 🔧 CRITICAL FIX: Show loading while AuthContext is initializing OR dashboard is loading
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">{authLoading ? 'Initializing authentication...' : 'Loading dashboard...'}</p>
         </div>
       </div>
     );
@@ -1080,7 +1149,7 @@ const DeliveryDashboard = () => {
               <h2 className="text-lg font-medium text-gray-900">📋 My Assigned Orders</h2>
               <div className="flex items-center space-x-3">
                 {/* 🎯 NEW: Bulk Action Buttons */}
-                {assignedOrders.length > 0 && selectedOrders.length > 0 && (
+                {assignedOrders.filter(order => order.deliveryStatus === 'assigned').length > 0 && selectedOrders.length > 0 && (
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => openBulkModal('accept')}
@@ -1111,16 +1180,16 @@ const DeliveryDashboard = () => {
               {assignedOrders.length > 0 ? (
                 <div className="space-y-4">
                   {/* 🎯 NEW: Select All Button */}
-                  {assignedOrders.filter(order => order.deliveryStatus === 'assigned' || order.status === 'Pickup_Ready').length > 0 && (
+                  {assignedOrders.filter(order => order.deliveryStatus === 'assigned').length > 0 && (
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <span className="text-sm text-gray-600">
-                        {selectedOrders.length} of {assignedOrders.filter(order => order.deliveryStatus === 'assigned' || order.status === 'Pickup_Ready').length} orders selected
+                        {selectedOrders.length} of {assignedOrders.filter(order => order.deliveryStatus === 'assigned').length} orders selected
                       </span>
                       <button
                         onClick={handleSelectAllOrders}
                         className="text-sm text-orange-600 hover:text-orange-500 font-medium"
                       >
-                        {selectedOrders.length === assignedOrders.filter(order => order.deliveryStatus === 'assigned' || order.status === 'Pickup_Ready').length ? 'Deselect All' : 'Select All'}
+                        {selectedOrders.length === assignedOrders.filter(order => order.deliveryStatus === 'assigned').length ? 'Deselect All' : 'Select All'}
                       </button>
                     </div>
                   )}
@@ -1522,7 +1591,7 @@ const DeliveryDashboard = () => {
               </p>
               <div className="mt-2 max-h-32 overflow-y-auto">
                 <div className="flex flex-wrap gap-2">
-                  {selectedOrders.map(order => (
+                  {selectedOrders.filter(order => order && order._id).map(order => (
                     <span key={order._id} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
                       #{order.orderNumber || order._id?.slice(-6)}
                     </span>

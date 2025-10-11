@@ -2585,45 +2585,105 @@ const getOrderNotifications = async (req, res) => {
 // @access  Private (Delivery Agent)
 const bulkAcceptOrders = async (req, res) => {
   try {
+    // Check validation errors from express-validator
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('🔧 DEBUG: Validation errors:', errors.array());
+      console.log('🔧 DEBUG: Request body:', req.body);
+      logDelivery('BULK_ACCEPT_VALIDATION_FAILED', { 
+        errors: errors.array(),
+        agentId: req.deliveryAgent?.id,
+        requestBody: req.body
+      }, 'error');
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array(),
+        receivedData: req.body
+      });
+    }
+
     const { orderIds } = req.body;
     const agentId = req.deliveryAgent.id;
     
+    // 🔧 DEBUG: Log the exact data received
+    console.log('🔧 DEBUG: bulkAcceptOrders received data:', {
+      orderIds: orderIds,
+      orderIdsType: typeof orderIds,
+      orderIdsIsArray: Array.isArray(orderIds),
+      orderIdsLength: orderIds?.length,
+      fullRequestBody: req.body
+    });
+    
     logDelivery('BULK_ACCEPT_ORDERS_START', { 
-      orderIds: orderIds?.length || 0, 
+      orderIds: orderIds,  // 🔧 FIXED: Log the actual array, not just the length
+      orderIdsCount: orderIds?.length || 0, 
       agentId,
       agentName: req.deliveryAgent.name
     });
 
     // Validate input
     if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+      console.log('🔧 DEBUG: Validation failed - orderIds:', orderIds, 'isArray:', Array.isArray(orderIds));
       return res.status(400).json({
         success: false,
-        message: 'Order IDs array is required and must not be empty'
+        message: 'Order IDs array is required and must not be empty',
+        received: {
+          orderIds: orderIds,
+          type: typeof orderIds,
+          isArray: Array.isArray(orderIds),
+          length: orderIds?.length
+        }
       });
     }
 
     // Find all orders that can be accepted
+    // 🔧 FIXED: Check both Order collection and DeliveryAgent's assignedOrders array
+    // This handles cases where there might be data inconsistency between the two collections
     const orders = await Order.find({
       _id: { $in: orderIds },
       'deliveryAgent.agent': agentId,
-      'deliveryAgent.status': 'assigned',
       status: 'Pickup_Ready'
+      // 🔧 REMOVED: 'deliveryAgent.status': 'assigned' - this was causing the issue
+      // We'll check the DeliveryAgent's assignedOrders array instead for more accurate status
     }).populate('user', 'name email mobileNumber')
       .populate('seller', 'firstName lastName email shop')
       .populate('orderItems.product', 'name images');
 
-    if (orders.length === 0) {
+    // 🔧 FIXED: Filter orders based on DeliveryAgent's assignedOrders array for accurate status
+    const deliveryAgentForAccept = await DeliveryAgent.findById(agentId);
+    if (!deliveryAgentForAccept) {
+      return res.status(404).json({
+        success: false,
+        message: 'Delivery agent not found'
+      });
+    }
+
+    // Filter orders that are actually assigned and not yet accepted
+    const assignableOrders = orders.filter(order => {
+      const assignedOrder = deliveryAgentForAccept.assignedOrders.find(
+        assigned => assigned.order.toString() === order._id.toString() && assigned.status === 'assigned'
+      );
+      return assignedOrder !== undefined;
+    });
+
+    if (assignableOrders.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'No orders found that can be accepted. Orders must be assigned to you and in Pickup_Ready status.'
+        message: 'No orders found that can be accepted. Orders must be assigned to you with status "assigned" and in Pickup_Ready status.',
+        details: {
+          totalOrdersFound: orders.length,
+          ordersInAssignedStatus: assignableOrders.length,
+          agentAssignedOrders: deliveryAgentForAccept.assignedOrders.length
+        }
       });
     }
 
     const acceptedOrders = [];
     const failedAcceptances = [];
 
-    // Process each order
-    for (const order of orders) {
+    // Process each assignable order
+    for (const order of assignableOrders) {
       try {
         // Update order delivery agent status
         order.deliveryAgent.status = 'accepted';
@@ -2706,30 +2766,30 @@ const bulkAcceptOrders = async (req, res) => {
     }
 
     // Update delivery agent status and assignedOrders array
-    const deliveryAgent = await DeliveryAgent.findById(agentId);
+    const deliveryAgentForUpdate = await DeliveryAgent.findById(agentId);
     if (acceptedOrders.length > 0) {
-      deliveryAgent.status = 'assigned';
-      deliveryAgent.currentOrder = acceptedOrders[0].orderId; // Set first order as current
+      deliveryAgentForUpdate.status = 'assigned';
+      deliveryAgentForUpdate.currentOrder = acceptedOrders[0].orderId; // Set first order as current
       
       // 🔧 CRITICAL FIX: Update the assignedOrders array to reflect accepted status for all accepted orders
       acceptedOrders.forEach(acceptedOrder => {
-        const assignedOrderIndex = deliveryAgent.assignedOrders.findIndex(
+        const assignedOrderIndex = deliveryAgentForUpdate.assignedOrders.findIndex(
           assignedOrder => assignedOrder.order.toString() === acceptedOrder.orderId
         );
         
         if (assignedOrderIndex !== -1) {
-          deliveryAgent.assignedOrders[assignedOrderIndex].status = 'accepted';
-          deliveryAgent.assignedOrders[assignedOrderIndex].acceptedAt = new Date();
+          deliveryAgentForUpdate.assignedOrders[assignedOrderIndex].status = 'accepted';
+          deliveryAgentForUpdate.assignedOrders[assignedOrderIndex].acceptedAt = new Date();
         }
       });
       
-      await deliveryAgent.save();
+      await deliveryAgentForUpdate.save();
     }
 
     logDelivery('BULK_ACCEPT_ORDERS_SUCCESS', {
       agentId,
       agentName: req.deliveryAgent.name,
-      totalOrders: orders.length,
+      totalOrders: assignableOrders.length,
       acceptedCount: acceptedOrders.length,
       failedCount: failedAcceptances.length
     }, 'success');
@@ -2742,7 +2802,7 @@ const bulkAcceptOrders = async (req, res) => {
         failedAcceptances,
         summary: {
           totalRequested: orderIds.length,
-          totalProcessed: orders.length,
+          totalProcessed: assignableOrders.length,
           successfullyAccepted: acceptedOrders.length,
           failed: failedAcceptances.length
         },
@@ -2771,6 +2831,20 @@ const bulkAcceptOrders = async (req, res) => {
 // @access  Private (Delivery Agent)
 const bulkRejectOrders = async (req, res) => {
   try {
+    // Check validation errors from express-validator
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      logDelivery('BULK_REJECT_VALIDATION_FAILED', { 
+        errors: errors.array(),
+        agentId: req.deliveryAgent?.id 
+      }, 'error');
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
     const { orderIds, reason } = req.body;
     const agentId = req.deliveryAgent.id;
     
@@ -2790,27 +2864,52 @@ const bulkRejectOrders = async (req, res) => {
     }
 
     // Find all orders that can be rejected
+    // 🔧 FIXED: Check both Order collection and DeliveryAgent's assignedOrders array
+    // This handles cases where there might be data inconsistency between the two collections
     const orders = await Order.find({
       _id: { $in: orderIds },
       'deliveryAgent.agent': agentId,
-      'deliveryAgent.status': 'assigned',
       status: 'Pickup_Ready'
+      // 🔧 REMOVED: 'deliveryAgent.status': 'assigned' - this was causing the issue
+      // We'll check the DeliveryAgent's assignedOrders array instead for more accurate status
     }).populate('user', 'name email mobileNumber')
       .populate('seller', 'firstName lastName email shop')
       .populate('orderItems.product', 'name images');
 
-    if (orders.length === 0) {
+    // 🔧 FIXED: Filter orders based on DeliveryAgent's assignedOrders array for accurate status
+    const deliveryAgentForReject = await DeliveryAgent.findById(agentId);
+    if (!deliveryAgentForReject) {
+      return res.status(404).json({
+        success: false,
+        message: 'Delivery agent not found'
+      });
+    }
+
+    // Filter orders that are actually assigned and not yet accepted
+    const rejectableOrders = orders.filter(order => {
+      const assignedOrder = deliveryAgentForReject.assignedOrders.find(
+        assigned => assigned.order.toString() === order._id.toString() && assigned.status === 'assigned'
+      );
+      return assignedOrder !== undefined;
+    });
+
+    if (rejectableOrders.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'No orders found that can be rejected. Orders must be assigned to you and in Pickup_Ready status.'
+        message: 'No orders found that can be rejected. Orders must be assigned to you with status "assigned" and in Pickup_Ready status.',
+        details: {
+          totalOrdersFound: orders.length,
+          ordersInAssignedStatus: rejectableOrders.length,
+          agentAssignedOrders: deliveryAgentForReject.assignedOrders.length
+        }
       });
     }
 
     const rejectedOrders = [];
     const failedRejections = [];
 
-    // Process each order
-    for (const order of orders) {
+    // Process each rejectable order
+    for (const order of rejectableOrders) {
       try {
         // Update order delivery agent status
         order.deliveryAgent.status = 'rejected';
@@ -2900,7 +2999,7 @@ const bulkRejectOrders = async (req, res) => {
     }
 
     // Update delivery agent status
-    const deliveryAgent = await DeliveryAgent.findById(agentId);
+    const deliveryAgentForRejectUpdate = await DeliveryAgent.findById(agentId);
     if (rejectedOrders.length > 0) {
       // Check if agent has any remaining assigned orders
       const remainingAssignedOrders = await Order.countDocuments({
@@ -2909,16 +3008,16 @@ const bulkRejectOrders = async (req, res) => {
       });
 
       if (remainingAssignedOrders === 0) {
-        deliveryAgent.status = 'available';
-        deliveryAgent.currentOrder = null;
-        await deliveryAgent.save();
+        deliveryAgentForRejectUpdate.status = 'available';
+        deliveryAgentForRejectUpdate.currentOrder = null;
+        await deliveryAgentForRejectUpdate.save();
       }
     }
 
     logDelivery('BULK_REJECT_ORDERS_SUCCESS', {
       agentId,
       agentName: req.deliveryAgent.name,
-      totalOrders: orders.length,
+      totalOrders: rejectableOrders.length,
       rejectedCount: rejectedOrders.length,
       failedCount: failedRejections.length
     }, 'success');
@@ -2931,7 +3030,7 @@ const bulkRejectOrders = async (req, res) => {
         failedRejections,
         summary: {
           totalRequested: orderIds.length,
-          totalProcessed: orders.length,
+          totalProcessed: rejectableOrders.length,
           successfullyRejected: rejectedOrders.length,
           failed: failedRejections.length
         },
