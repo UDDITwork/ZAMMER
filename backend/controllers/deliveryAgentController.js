@@ -650,11 +650,20 @@ const acceptOrder = async (req, res) => {
     }
 
     // Check if order is assigned to this delivery agent
-    if (!order.deliveryAgent?.agent || order.deliveryAgent.agent.toString() !== agentId) {
+    // 🔧 CRITICAL FIX: Convert both to strings for comparison
+    const assignedAgentId = order.deliveryAgent?.agent?.toString();
+    const currentAgentId = agentId?.toString();
+    
+    if (!order.deliveryAgent?.agent || assignedAgentId !== currentAgentId) {
       logDeliveryError('ORDER_NOT_ASSIGNED_TO_AGENT', new Error('Order not assigned to this agent'), { 
         orderId, 
-        assignedAgent: order.deliveryAgent?.agent,
-        currentAgent: agentId
+        assignedAgent: assignedAgentId,
+        currentAgent: currentAgentId,
+        comparison: {
+          assigned: assignedAgentId,
+          current: currentAgentId,
+          equal: assignedAgentId === currentAgentId
+        }
       });
       return res.status(400).json({
         success: false,
@@ -1175,16 +1184,38 @@ const completePickup = async (req, res) => {
     }
 
     // 🎯 AUTHORIZATION: Verify order is assigned to this agent
-    if (order.deliveryAgent.agent.toString() !== agentId) {
+    // 🔧 CRITICAL FIX: Convert both to strings for comparison
+    const assignedAgentId = order.deliveryAgent.agent?.toString();
+    const currentAgentId = agentId?.toString();
+    
+    console.log('🔧 DEBUG: Authorization check:', {
+      orderId,
+      assignedAgentId,
+      currentAgentId,
+      areEqual: assignedAgentId === currentAgentId,
+      assignedAgentType: typeof order.deliveryAgent.agent,
+      currentAgentType: typeof agentId
+    });
+    
+    if (assignedAgentId !== currentAgentId) {
       logDeliveryError('PICKUP_UNAUTHORIZED', new Error('Order not assigned to this agent'), { 
         orderId, 
-        assignedAgent: order.deliveryAgent.agent, 
-        currentAgent: agentId 
+        assignedAgent: assignedAgentId, 
+        currentAgent: currentAgentId,
+        comparison: {
+          assigned: assignedAgentId,
+          current: currentAgentId,
+          equal: assignedAgentId === currentAgentId
+        }
       });
       return res.status(403).json({
         success: false,
         message: 'Order is not assigned to you',
-        code: 'UNAUTHORIZED_ORDER'
+        code: 'UNAUTHORIZED_ORDER',
+        debug: {
+          assignedAgent: assignedAgentId,
+          currentAgent: currentAgentId
+        }
       });
     }
 
@@ -1431,11 +1462,20 @@ const markReachedLocation = async (req, res) => {
     }
 
     // 🎯 AUTHORIZATION: Verify order is assigned to this agent
-    if (order.deliveryAgent.agent.toString() !== agentId) {
+    // 🔧 CRITICAL FIX: Convert both to strings for comparison
+    const assignedAgentId = order.deliveryAgent.agent?.toString();
+    const currentAgentId = agentId?.toString();
+    
+    if (assignedAgentId !== currentAgentId) {
       logDeliveryError('REACHED_LOCATION_UNAUTHORIZED', new Error('Order not assigned to this agent'), { 
         orderId, 
-        assignedAgent: order.deliveryAgent.agent, 
-        currentAgent: agentId 
+        assignedAgent: assignedAgentId, 
+        currentAgent: currentAgentId,
+        comparison: {
+          assigned: assignedAgentId,
+          current: currentAgentId,
+          equal: assignedAgentId === currentAgentId
+        }
       });
       return res.status(403).json({
         success: false,
@@ -1706,11 +1746,20 @@ const completeDelivery = async (req, res) => {
     }
 
     // 🎯 AUTHORIZATION: Verify order is assigned to this agent
-    if (order.deliveryAgent.agent.toString() !== agentId) {
+    // 🔧 CRITICAL FIX: Convert both to strings for comparison
+    const assignedAgentId = order.deliveryAgent.agent?.toString();
+    const currentAgentId = agentId?.toString();
+    
+    if (assignedAgentId !== currentAgentId) {
       logDeliveryError('DELIVERY_UNAUTHORIZED', new Error('Order not assigned to this agent'), { 
         orderId, 
-        assignedAgent: order.deliveryAgent.agent, 
-        currentAgent: agentId 
+        assignedAgent: assignedAgentId, 
+        currentAgent: currentAgentId,
+        comparison: {
+          assigned: assignedAgentId,
+          current: currentAgentId,
+          equal: assignedAgentId === currentAgentId
+        }
       });
       return res.status(403).json({
         success: false,
