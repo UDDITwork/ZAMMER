@@ -1039,6 +1039,13 @@ const getPaymentMethods = async (req, res) => {
         types: ['UPI', 'Card', 'Net Banking']
       },
       {
+        id: 'cashfree',
+        name: 'Cashfree',
+        description: 'UPI, Cards, Net Banking, Wallets',
+        enabled: true,
+        types: ['UPI', 'Card', 'Net Banking', 'Wallets', 'Paytm', 'PhonePe']
+      },
+      {
         id: 'cod',
         name: 'Cash on Delivery',
         description: 'Pay when you receive your order',

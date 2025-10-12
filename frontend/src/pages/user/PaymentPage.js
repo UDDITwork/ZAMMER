@@ -187,6 +187,175 @@ const PaymentPage = () => {
     }
   };
 
+  // Handle Cashfree Payment Gateway
+  const processCashfreePayment = async () => {
+    setProcessing(true);
+    setPaymentStep('processing');
+
+    try {
+      logPaymentFlow('CASHFREE_PAYMENT_START', 'PROCESSING', {
+        totalPrice: totals.totalPrice,
+        timestamp: new Date().toISOString()
+      });
+
+      // Step 1: Create order first
+      const orderPayload = {
+        ...orderData,
+        paymentMethod: 'Cashfree',
+        isPaid: false,
+        paymentStatus: 'pending'
+      };
+
+      logPaymentFlow('ORDER_CREATION_CASHFREE', 'PROCESSING', {
+        paymentMethod: orderPayload.paymentMethod
+      });
+
+      const orderResponse = await orderService.createOrder(orderPayload);
+      
+      if (!orderResponse.success) {
+        throw new Error(orderResponse.message || 'Failed to create order');
+      }
+
+      const createdOrderId = orderResponse.data._id;
+      setCreatedOrder(orderResponse.data);
+
+      logPaymentFlow('ORDER_CREATION_CASHFREE', 'SUCCESS', {
+        orderId: createdOrderId,
+        orderNumber: orderResponse.data.orderNumber
+      });
+
+      // Step 2: Create Cashfree payment order
+      logPaymentFlow('CASHFREE_CREATE_ORDER', 'PROCESSING', { orderId: createdOrderId });
+
+      const cashfreeResult = await paymentService.createCashfreeOrder({
+        orderId: createdOrderId,
+        amount: totals.totalPrice
+      });
+
+      if (!cashfreeResult.success) {
+        throw new Error(cashfreeResult.message || 'Failed to create Cashfree order');
+      }
+
+      const { paymentSessionId, cashfreeOrderId } = cashfreeResult.data;
+
+      logPaymentFlow('CASHFREE_ORDER_CREATED', 'SUCCESS', {
+        cashfreeOrderId,
+        hasSessionId: !!paymentSessionId
+      });
+
+      // Step 3: Load Cashfree SDK and initiate payment
+      await loadCashfreeSDK();
+
+      logPaymentFlow('CASHFREE_SDK_LOADED', 'SUCCESS');
+
+      // Step 4: Open Cashfree checkout
+      const cashfree = window.Cashfree({
+        mode: 'production' // Always production as per requirement
+      });
+
+      const checkoutOptions = {
+        paymentSessionId: paymentSessionId,
+        returnUrl: `${window.location.origin}/user/orders`,
+        notifyUrl: `${window.location.origin}/api/payments/cashfree/webhook`
+      };
+
+      logPaymentFlow('CASHFREE_CHECKOUT_OPENING', 'PROCESSING', {
+        orderId: createdOrderId,
+        cashfreeOrderId
+      });
+
+      // Open Cashfree payment page
+      cashfree.checkout(checkoutOptions).then(async (result) => {
+        logPaymentFlow('CASHFREE_CHECKOUT_RESULT', 'PROCESSING', {
+          error: result.error,
+          paymentDetails: result.paymentDetails
+        });
+
+        if (result.error) {
+          // Payment failed or user closed
+          logPaymentFlow('CASHFREE_CHECKOUT_ERROR', 'ERROR', {
+            error: result.error
+          });
+          
+          setPaymentError(result.error.message || 'Payment failed or cancelled');
+          setPaymentStep('failed');
+          setProcessing(false);
+          return;
+        }
+
+        // Payment successful, start polling for confirmation
+        logPaymentFlow('CASHFREE_POLLING_START', 'PROCESSING');
+        
+        try {
+          const confirmResult = await paymentService.pollCashfreeConfirmation(createdOrderId);
+          
+          if (confirmResult.success && confirmResult.data?.isPaymentSuccessful) {
+            logPaymentFlow('CASHFREE_PAYMENT_CONFIRMED', 'SUCCESS', {
+              orderId: createdOrderId
+            });
+
+            // Clear cart
+            await cartService.clearCart();
+            
+            setPaymentStep('success');
+            toast.success('Payment successful!');
+
+            // Redirect to orders page after 2 seconds
+            setTimeout(() => {
+              navigate('/user/orders');
+            }, 2000);
+          } else {
+            throw new Error('Payment confirmation failed');
+          }
+        } catch (pollError) {
+          logPaymentFlow('CASHFREE_POLLING_ERROR', 'ERROR', {
+            error: pollError.message
+          });
+          
+          setPaymentError('Payment confirmation failed. Please check your orders page.');
+          setPaymentStep('failed');
+        }
+      });
+
+    } catch (error) {
+      logPaymentFlow('CASHFREE_PAYMENT_ERROR', 'ERROR', {
+        error: error.message,
+        stack: error.stack
+      });
+
+      setPaymentError(error.message || 'Payment failed');
+      setPaymentStep('failed');
+      toast.error(error.message || 'Payment failed');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // Load Cashfree SDK
+  const loadCashfreeSDK = () => {
+    return new Promise((resolve, reject) => {
+      // Check if SDK already loaded
+      if (window.Cashfree) {
+        resolve();
+        return;
+      }
+
+      // Load SDK script
+      const script = document.createElement('script');
+      script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+      script.onload = () => {
+        logPaymentFlow('CASHFREE_SDK_SCRIPT_LOADED', 'SUCCESS');
+        resolve();
+      };
+      script.onerror = () => {
+        logPaymentFlow('CASHFREE_SDK_SCRIPT_ERROR', 'ERROR');
+        reject(new Error('Failed to load Cashfree SDK'));
+      };
+      
+      document.head.appendChild(script);
+    });
+  };
+
   // Handle Cash on Delivery
   const processCODPayment = async () => {
     setProcessing(true);
@@ -244,6 +413,8 @@ const PaymentPage = () => {
 
     if (paymentMethod === 'SMEPay') {
       await processRealSMEPayPayment();
+    } else if (paymentMethod === 'Cashfree') {
+      await processCashfreePayment();
     } else if (paymentMethod === 'Cash on Delivery') {
       await processCODPayment();
     } else {
@@ -505,6 +676,29 @@ const PaymentPage = () => {
                     </div>
                   </div>
                   <div className="text-green-600 text-sm font-medium">Recommended</div>
+                </label>
+
+                {/* Cashfree Option */}
+                <label className="flex items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="Cashfree"
+                    checked={paymentMethod === 'Cashfree'}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="mr-4"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center">
+                      <div className="w-12 h-8 bg-purple-100 rounded flex items-center justify-center mr-3">
+                        <span className="text-purple-600 font-bold text-xs">CF</span>
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-gray-900">Cashfree</h3>
+                        <p className="text-sm text-gray-600">UPI, Cards, Wallets, Net Banking</p>
+                      </div>
+                    </div>
+                  </div>
                 </label>
 
                 {/* COD Option */}

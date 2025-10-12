@@ -583,6 +583,240 @@ class PaymentService {
       };
     }
   }
+
+  // ========================================
+  // CASHFREE PAYMENT GATEWAY METHODS
+  // ========================================
+
+  /**
+   * Create Cashfree payment order
+   * @param {Object} orderData - {orderId, amount}
+   * @returns {Promise<Object>}
+   */
+  async createCashfreeOrder(orderData) {
+    try {
+      logPayment('Creating Cashfree Order', {
+        orderId: orderData.orderId,
+        amount: orderData.amount
+      }, 'info');
+
+      const response = await api.post('/payments/cashfree/create-order', {
+        orderId: orderData.orderId,
+        amount: orderData.amount
+      });
+
+      logPayment('Cashfree Order Created', {
+        cashfreeOrderId: response.data.data.cashfreeOrderId,
+        paymentSessionId: response.data.data.paymentSessionId ? 'RECEIVED' : 'MISSING'
+      }, 'success');
+
+      return response.data;
+    } catch (error) {
+      return handlePaymentError(error, 'Create Cashfree Order');
+    }
+  }
+
+  /**
+   * Check Cashfree payment status (polling endpoint)
+   * @param {string} orderId - MongoDB order ID
+   * @returns {Promise<Object>}
+   */
+  async checkCashfreeStatus(orderId) {
+    try {
+      logPayment('Checking Cashfree Status', { orderId }, 'info');
+
+      const response = await api.post('/payments/cashfree/check-status', {
+        orderId: orderId
+      });
+
+      logPayment('Cashfree Status Checked', {
+        isPaymentSuccessful: response.data.data.isPaymentSuccessful,
+        cashfreeOrderStatus: response.data.data.cashfreeOrderStatus
+      }, 'success');
+
+      return response.data;
+    } catch (error) {
+      return handlePaymentError(error, 'Check Cashfree Status');
+    }
+  }
+
+  /**
+   * Verify Cashfree payment
+   * @param {string} orderId - MongoDB order ID
+   * @returns {Promise<Object>}
+   */
+  async verifyCashfreePayment(orderId) {
+    try {
+      logPayment('Verifying Cashfree Payment', { orderId }, 'info');
+
+      const response = await api.post('/payments/cashfree/verify-payment', {
+        orderId: orderId
+      });
+
+      logPayment('Cashfree Payment Verified', {
+        isPaymentSuccessful: response.data.data.isPaymentSuccessful
+      }, 'success');
+
+      return response.data;
+    } catch (error) {
+      return handlePaymentError(error, 'Verify Cashfree Payment');
+    }
+  }
+
+  /**
+   * Process Cashfree payment (complete flow)
+   * @param {string} orderId - MongoDB order ID
+   * @returns {Promise<Object>}
+   */
+  async processCashfreePayment(orderId) {
+    try {
+      logPayment('Starting Cashfree Payment Flow', { orderId }, 'info');
+
+      // Step 1: Create Cashfree order
+      const createResult = await this.createCashfreeOrder({ orderId });
+
+      if (!createResult.success) {
+        return createResult;
+      }
+
+      const { cashfreeOrderId, paymentSessionId } = createResult.data;
+
+      if (!paymentSessionId) {
+        return {
+          success: false,
+          message: 'Payment session ID not received from Cashfree',
+          errorCode: 'MISSING_SESSION_ID'
+        };
+      }
+
+      logPayment('Cashfree Order Created, Opening Checkout', {
+        cashfreeOrderId,
+        paymentSessionId: '****' // Hide session ID in logs
+      }, 'info');
+
+      // Step 2: Initialize Cashfree checkout (redirect or SDK)
+      // This will be implemented in the CheckoutPage component
+      // Return session ID for frontend to handle
+      return {
+        success: true,
+        message: 'Cashfree order created successfully',
+        data: {
+          orderId,
+          cashfreeOrderId,
+          paymentSessionId,
+          requiresCheckout: true
+        }
+      };
+
+    } catch (error) {
+      return handlePaymentError(error, 'Process Cashfree Payment');
+    }
+  }
+
+  /**
+   * Poll Cashfree payment confirmation
+   * @param {string} orderId - MongoDB order ID
+   * @param {number} maxAttempts - Maximum polling attempts
+   * @param {number} interval - Polling interval in ms
+   * @returns {Promise<Object>}
+   */
+  async pollCashfreeConfirmation(orderId, maxAttempts = 12, interval = 3000) {
+    logPayment('Starting Cashfree Payment Polling', {
+      orderId,
+      maxAttempts,
+      interval,
+      totalTimeout: maxAttempts * interval / 1000 + 's'
+    }, 'info');
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const statusResult = await this.checkCashfreeStatus(orderId);
+
+        logPayment('Cashfree Polling Attempt', {
+          attempt,
+          isPaymentSuccessful: statusResult.data?.isPaymentSuccessful,
+          cashfreeOrderStatus: statusResult.data?.cashfreeOrderStatus
+        }, 'info');
+
+        if (statusResult.success && statusResult.data?.isPaymentSuccessful) {
+          logPayment('Cashfree Payment Confirmed via Polling', {
+            attempts: attempt,
+            orderId,
+            totalTime: attempt * interval / 1000 + 's'
+          }, 'success');
+          return statusResult;
+        }
+
+        // Check if payment failed
+        if (statusResult.data?.cashfreeOrderStatus === 'EXPIRED' ||
+            statusResult.data?.cashfreeOrderStatus === 'TERMINATED') {
+          throw new Error('Payment failed or expired');
+        }
+
+        // Progressive polling - faster intervals for first few attempts
+        const dynamicInterval = attempt <= 3 ? 2000 : interval;
+        
+        // Wait before next attempt
+        if (attempt < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, dynamicInterval));
+        }
+
+      } catch (error) {
+        logPayment('Cashfree Polling Attempt Failed', {
+          attempt,
+          error: error.message
+        }, 'warning');
+
+        if (attempt === maxAttempts) {
+          throw error;
+        }
+      }
+    }
+
+    throw new Error('Cashfree payment confirmation timed out');
+  }
+
+  /**
+   * Start Cashfree payment polling
+   * @param {string} orderId - MongoDB order ID
+   * @param {Function} callback - Callback function
+   * @param {number} interval - Polling interval in ms
+   * @returns {number} - Interval ID
+   */
+  startCashfreePolling(orderId, callback, interval = 3000) {
+    if (this.pollingIntervals.has(`cashfree_${orderId}`)) {
+      this.stopCashfreePolling(orderId);
+    }
+
+    const intervalId = setInterval(async () => {
+      try {
+        const result = await this.checkCashfreeStatus(orderId);
+        callback(result);
+
+        if (result.success && result.data?.isPaymentSuccessful) {
+          this.stopCashfreePolling(orderId);
+        }
+      } catch (error) {
+        callback({ success: false, error: error.message });
+      }
+    }, interval);
+
+    this.pollingIntervals.set(`cashfree_${orderId}`, intervalId);
+    return intervalId;
+  }
+
+  /**
+   * Stop Cashfree payment polling
+   * @param {string} orderId - MongoDB order ID
+   */
+  stopCashfreePolling(orderId) {
+    const intervalId = this.pollingIntervals.get(`cashfree_${orderId}`);
+    if (intervalId) {
+      clearInterval(intervalId);
+      this.pollingIntervals.delete(`cashfree_${orderId}`);
+      logPayment('Stopped Cashfree polling for order', { orderId }, 'info');
+    }
+  }
 }
 
 // Create singleton instance
