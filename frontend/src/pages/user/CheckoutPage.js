@@ -629,6 +629,26 @@ const CheckoutPage = () => {
                   <input
                     type="radio"
                     name="paymentMethod"
+                    value="Cashfree"
+                    checked={paymentMethod === 'Cashfree'}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="mr-3"
+                  />
+                  <div className="flex items-center">
+                    <svg className="w-6 h-6 text-purple-600 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/>
+                    </svg>
+                    <div>
+                      <span className="font-medium">Cashfree</span>
+                      <p className="text-xs text-gray-500">UPI, Cards, Net Banking, Wallets</p>
+                    </div>
+                  </div>
+                </label>
+
+                <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="paymentMethod"
                     value="Cash on Delivery"
                     checked={paymentMethod === 'Cash on Delivery'}
                     onChange={(e) => setPaymentMethod(e.target.value)}

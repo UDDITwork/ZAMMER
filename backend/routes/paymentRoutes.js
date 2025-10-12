@@ -17,6 +17,13 @@ const {
   fastConfirmSMEPayPayment // 🚀 OPTIMIZED: New fast confirmation endpoint
 } = require('../controllers/paymentController');
 
+// Import Cashfree PG controller
+const {
+  createCashfreeOrder,
+  getCashfreeOrderStatus,
+  verifyCashfreePayment
+} = require('../controllers/cashfreePGController');
+
 // Import authentication middleware
 const { protectUser } = require('../middleware/authMiddleware');
 
@@ -143,6 +150,62 @@ router.post(
 // @access  Public (webhook)
 // Note: This endpoint should be public as it's called by SMEPay servers
 router.post('/smepay/webhook', handleSMEPayWebhook);
+
+// 🎯 CASHFREE PAYMENT GATEWAY ROUTES
+
+// @desc    Create Cashfree payment order
+// @route   POST /api/payments/cashfree/create-order
+// @access  Private (User)
+router.post(
+  '/cashfree/create-order',
+  protectUser,
+  [
+    body('orderId')
+      .notEmpty()
+      .withMessage('Order ID is required')
+      .isMongoId()
+      .withMessage('Invalid order ID format'),
+    body('amount')
+      .optional()
+      .isNumeric()
+      .withMessage('Amount must be a number')
+      .isFloat({ min: 1 })
+      .withMessage('Amount must be at least ₹1')
+  ],
+  createCashfreeOrder
+);
+
+// @desc    Check Cashfree payment status
+// @route   POST /api/payments/cashfree/check-status
+// @access  Private (User)
+router.post(
+  '/cashfree/check-status',
+  protectUser,
+  [
+    body('orderId')
+      .notEmpty()
+      .withMessage('Order ID is required')
+      .isMongoId()
+      .withMessage('Invalid order ID format')
+  ],
+  getCashfreeOrderStatus
+);
+
+// @desc    Verify Cashfree payment
+// @route   POST /api/payments/cashfree/verify-payment
+// @access  Private (User)
+router.post(
+  '/cashfree/verify-payment',
+  protectUser,
+  [
+    body('orderId')
+      .notEmpty()
+      .withMessage('Order ID is required')
+      .isMongoId()
+      .withMessage('Invalid order ID format')
+  ],
+  verifyCashfreePayment
+);
 
 // 🎯 GENERAL PAYMENT ROUTES
 

@@ -56,7 +56,7 @@ const OrderSchema = new mongoose.Schema({
   paymentMethod: {
     type: String,
     required: true,
-    enum: ['Card', 'PayPal', 'Cash on Delivery', 'UPI', 'SMEPay']
+    enum: ['Card', 'PayPal', 'Cash on Delivery', 'UPI', 'SMEPay', 'Cashfree']
   },
   paymentResult: {
     id: { type: String },
@@ -76,10 +76,24 @@ const OrderSchema = new mongoose.Schema({
     default: null
   },
 
+  // 🆕 Cashfree Payment Gateway Integration
+  cashfreeOrderId: {
+    type: String,
+    default: null
+  },
+  cashfreePaymentSessionId: {
+    type: String,
+    default: null
+  },
+  cashfreePaymentId: {
+    type: String,
+    default: null
+  },
+
   // Payment Gateway
   paymentGateway: {
     type: String,
-    enum: ['paypal', 'smepay', 'cod', 'card'],
+    enum: ['paypal', 'smepay', 'cashfree', 'cod', 'card'],
     default: 'cod'
   },
 
@@ -94,7 +108,7 @@ const OrderSchema = new mongoose.Schema({
   paymentAttempts: [{
     gateway: {
       type: String,
-      enum: ['smepay', 'paypal', 'card'],
+      enum: ['smepay', 'paypal', 'card', 'cashfree'],
       required: true
     },
     orderSlug: {

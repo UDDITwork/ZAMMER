@@ -459,7 +459,7 @@ const loginDeliveryAgent = async (req, res) => {
 // @access  Private (Delivery Agent)
 const getDeliveryAgentProfile = async (req, res) => {
   try {
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     
     logDelivery('PROFILE_REQUEST', { agentId });
 
@@ -496,7 +496,7 @@ const getDeliveryAgentProfile = async (req, res) => {
 // @access  Private (Delivery Agent)
 const getAvailableOrders = async (req, res) => {
   try {
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     
     logDelivery('AVAILABLE_ORDERS_REQUEST', { agentId });
 
@@ -586,7 +586,7 @@ const acceptOrder = async (req, res) => {
   const startTime = Date.now();
   
   try {
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     const orderId = req.params.id;
 
     logDelivery('ORDER_ACCEPT_STARTED', { 
@@ -779,7 +779,7 @@ const acceptOrder = async (req, res) => {
         orderNumber: order.orderNumber,
         status: order.status,
         deliveryAgent: {
-          _id: req.deliveryAgent.id,
+          _id: req.deliveryAgent._id || req.deliveryAgent.id,
           name: req.deliveryAgent.name,
           phone: req.deliveryAgent.phoneNumber
         },
@@ -809,7 +809,7 @@ const updateLocation = async (req, res) => {
   const startTime = Date.now();
   
   try {
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     const { latitude, longitude } = req.body;
 
     logDelivery('UPDATE_LOCATION_STARTED', { agentId, latitude, longitude });
@@ -862,7 +862,7 @@ const toggleAvailability = async (req, res) => {
   const startTime = Date.now();
   
   try {
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     
     logDelivery('TOGGLE_AVAILABILITY_STARTED', { agentId, currentStatus: req.deliveryAgent.isAvailable });
 
@@ -921,7 +921,7 @@ const logoutDeliveryAgent = async (req, res) => {
   const startTime = Date.now();
   
   try {
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     
     logDelivery('DELIVERY_AGENT_LOGOUT_STARTED', { agentId });
 
@@ -970,7 +970,7 @@ const updateDeliveryAgentProfile = async (req, res) => {
   const startTime = Date.now();
   
   try {
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     
     logDelivery('PROFILE_UPDATE_STARTED', { agentId });
     
@@ -1145,10 +1145,10 @@ const completePickup = async (req, res) => {
   const startTime = Date.now();
   
   try {
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     const orderId = req.params.id;
     
-    logDelivery('PICKUP_COMPLETE_STARTED', { agentId, orderId });
+    logDelivery('COMPLETE_PICKUP_STARTED', { agentId, orderId });
     
     console.log(`
 📦 ===============================
@@ -1401,10 +1401,10 @@ const markReachedLocation = async (req, res) => {
   const startTime = Date.now();
   
   try {
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     const orderId = req.params.id;
     
-    logDelivery('REACHED_LOCATION_STARTED', { agentId, orderId });
+    logDelivery('MARK_REACHED_LOCATION_STARTED', { agentId, orderId });
     
     console.log(`
 📍 ===============================
@@ -1676,10 +1676,10 @@ const completeDelivery = async (req, res) => {
   const startTime = Date.now();
   
   try {
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     const orderId = req.params.id;
     
-    logDelivery('DELIVERY_COMPLETE_STARTED', { agentId, orderId });
+    logDelivery('COMPLETE_DELIVERY_STARTED', { agentId, orderId });
     
     console.log(`
 📦 ===============================
@@ -1916,14 +1916,15 @@ const completeDelivery = async (req, res) => {
 const getAssignedOrders = async (req, res) => {
   // ⬇️ YE LINES ADD करें - FUNCTION के शुरुआत में
   console.log('🟢 getAssignedOrders FUNCTION CALLED!');
-  console.log('🟢 Agent ID:', req.deliveryAgent?.id);
+  console.log('🟢 Agent ID:', req.deliveryAgent?._id || req.deliveryAgent?.id);
   console.log('🟢 Request method:', req.method);
   console.log('🟢 Request URL:', req.originalUrl);
   
   console.log('🔥🔥🔥 NEW getAssignedOrders called - REAL IMPLEMENTATION LOADED! 🔥🔥🔥');
   
   try {
-    const agentId = req.deliveryAgent.id;
+    // 🔧 CRITICAL FIX: Use _id instead of id (lean() doesn't provide id virtual)
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     
     logDelivery('ASSIGNED_ORDERS_REQUEST', { agentId });
     
@@ -2069,7 +2070,7 @@ const getDeliveryStats = async (req, res) => {
   console.log('🔥🔥🔥 NEW getDeliveryStats called - REAL IMPLEMENTATION LOADED! 🔥🔥🔥');
   
   try {
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     
     logDelivery('DELIVERY_STATS_REQUEST', { agentId });
     
@@ -2338,7 +2339,7 @@ const getDeliveryStats = async (req, res) => {
 // @access  Private (Delivery Agent)
 const getDeliveryHistory = async (req, res) => {
   try {
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     
     logDelivery('DELIVERY_HISTORY_REQUEST', { agentId });
     
@@ -2512,7 +2513,7 @@ const getDeliveryHistory = async (req, res) => {
 // @access  Private (Delivery Agent)
 const getOrderNotifications = async (req, res) => {
   try {
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     
     logDelivery('GET_ORDER_NOTIFICATIONS', { agentId });
     
@@ -2604,7 +2605,7 @@ const bulkAcceptOrders = async (req, res) => {
     }
 
     const { orderIds } = req.body;
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     
     // 🔧 DEBUG: Log the exact data received
     console.log('🔧 DEBUG: bulkAcceptOrders received data:', {
@@ -2846,7 +2847,7 @@ const bulkRejectOrders = async (req, res) => {
     }
 
     const { orderIds, reason } = req.body;
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     
     logDelivery('BULK_REJECT_ORDERS_START', { 
       orderIds: orderIds?.length || 0, 
@@ -3061,7 +3062,7 @@ const rejectOrder = async (req, res) => {
   try {
     const { id: orderId } = req.params;
     const { reason } = req.body;
-    const agentId = req.deliveryAgent.id;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     
     logDelivery('REJECT_ORDER_START', { 
       orderId, 
