@@ -85,6 +85,7 @@ import NearbyShopsPage from './pages/user/NearbyShopsPage';
 import CartPage from './pages/user/CartPage';
 import CheckoutPage from './pages/user/CheckoutPage';
 import PaymentPage from './pages/user/PaymentPage';
+import PaymentReturnPage from './pages/user/PaymentReturnPage';
 import WishlistPage from './pages/user/WishlistPage';
 import TrendingPage from './pages/user/TrendingPage';
 import LimitedEditionPage from './pages/user/LimitedEditionPage';
@@ -263,6 +264,7 @@ function App() {
             <Route path="/user/cart" element={<CartPage />} />
             <Route path="/user/checkout" element={<CheckoutPage />} />
             <Route path="/user/payment" element={<PaymentPage />} />
+            <Route path="/payment-return" element={<PaymentReturnPage />} />
             <Route path="/user/wishlist" element={<WishlistPage />} />
             <Route path="/user/trending" element={<TrendingPage />} />
             <Route path="/user/limited-edition" element={<LimitedEditionPage />} />
