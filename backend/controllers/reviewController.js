@@ -2,6 +2,7 @@ const Review = require('../models/Review');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const { validationResult } = require('express-validator');
+const mongoose = require('mongoose');
 
 // @desc    Create a review
 // @route   POST /api/reviews
@@ -468,7 +469,16 @@ exports.getUserReviews = async (req, res) => {
 // @access  Private (Sellers only)
 exports.getSellerReviews = async (req, res) => {
   try {
-    const sellerId = req.user._id;
+    // Verify seller is authenticated
+    if (!req.seller || !req.seller._id) {
+      console.error('❌ [REVIEW] Seller not authenticated in getSellerReviews');
+      return res.status(401).json({
+        success: false,
+        message: 'Seller authentication required'
+      });
+    }
+    
+    const sellerId = req.seller._id;
     
     // Basic pagination
     const page = parseInt(req.query.page, 10) || 1;
@@ -499,12 +509,18 @@ exports.getSellerReviews = async (req, res) => {
           from: 'products',
           localField: 'product',
           foreignField: '_id',
-          as: 'product'
+          as: 'productData'
+        }
+      },
+      {
+        $unwind: {
+          path: '$productData',
+          preserveNullAndEmptyArrays: false
         }
       },
       {
         $match: {
-          'product.seller': sellerId
+          'productData.seller': new mongoose.Types.ObjectId(sellerId)
         }
       },
       {

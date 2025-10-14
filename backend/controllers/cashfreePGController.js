@@ -100,7 +100,7 @@ const createCashfreeOrder = async (req, res) => {
       orderCurrency: 'INR',
       customerDetails: {
         customer_id: cashfreePGConfig.utils.generateCustomerId(order.user._id),
-        customer_phone: order.user.mobileNumber || order.shippingAddress.phone,
+        customer_phone: order.user.mobileNumber || order.shippingAddress?.phone || '9999999999',
         customer_email: order.user.email,
         customer_name: order.user.name
       },

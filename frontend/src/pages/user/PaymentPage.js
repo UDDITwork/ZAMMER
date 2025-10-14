@@ -189,6 +189,7 @@ const PaymentPage = () => {
 
   // Handle Cashfree Payment Gateway
   const processCashfreePayment = async () => {
+    console.log('🚀 Starting Cashfree Payment Process...');
     setProcessing(true);
     setPaymentStep('processing');
 
@@ -206,11 +207,13 @@ const PaymentPage = () => {
         paymentStatus: 'pending'
       };
 
+      console.log('📦 Creating order with payload:', orderPayload);
       logPaymentFlow('ORDER_CREATION_CASHFREE', 'PROCESSING', {
         paymentMethod: orderPayload.paymentMethod
       });
 
       const orderResponse = await orderService.createOrder(orderPayload);
+      console.log('📦 Order creation response:', orderResponse);
       
       if (!orderResponse.success) {
         throw new Error(orderResponse.message || 'Failed to create order');
@@ -225,12 +228,14 @@ const PaymentPage = () => {
       });
 
       // Step 2: Create Cashfree payment order
+      console.log('💳 Creating Cashfree order for:', { orderId: createdOrderId, amount: totals.totalPrice });
       logPaymentFlow('CASHFREE_CREATE_ORDER', 'PROCESSING', { orderId: createdOrderId });
 
       const cashfreeResult = await paymentService.createCashfreeOrder({
         orderId: createdOrderId,
         amount: totals.totalPrice
       });
+      console.log('💳 Cashfree order creation response:', cashfreeResult);
 
       if (!cashfreeResult.success) {
         throw new Error(cashfreeResult.message || 'Failed to create Cashfree order');
@@ -255,8 +260,7 @@ const PaymentPage = () => {
 
       const checkoutOptions = {
         paymentSessionId: paymentSessionId,
-        returnUrl: `${window.location.origin}/user/orders`,
-        notifyUrl: `${window.location.origin}/api/payments/cashfree/webhook`
+        returnUrl: `${window.location.origin}/payment-return?orderId=${createdOrderId}&gateway=cashfree`
       };
 
       logPaymentFlow('CASHFREE_CHECKOUT_OPENING', 'PROCESSING', {
@@ -265,56 +269,39 @@ const PaymentPage = () => {
       });
 
       // Open Cashfree payment page
-      cashfree.checkout(checkoutOptions).then(async (result) => {
-        logPaymentFlow('CASHFREE_CHECKOUT_RESULT', 'PROCESSING', {
-          error: result.error,
-          paymentDetails: result.paymentDetails
+      // Note: User will be redirected to Cashfree hosted page, then back to /payment-return
+      // The payment-return page handles all verification and polling
+      cashfree.checkout(checkoutOptions).then((result) => {
+        logPaymentFlow('CASHFREE_CHECKOUT_OPENED', 'SUCCESS', {
+          orderId: createdOrderId,
+          cashfreeOrderId
         });
 
         if (result.error) {
-          // Payment failed or user closed
+          // Payment initialization failed or user closed immediately
           logPaymentFlow('CASHFREE_CHECKOUT_ERROR', 'ERROR', {
             error: result.error
           });
           
-          setPaymentError(result.error.message || 'Payment failed or cancelled');
+          setPaymentError(result.error.message || 'Failed to open payment page');
           setPaymentStep('failed');
           setProcessing(false);
           return;
         }
 
-        // Payment successful, start polling for confirmation
-        logPaymentFlow('CASHFREE_POLLING_START', 'PROCESSING');
+        // If checkout opens successfully, user will be redirected to Cashfree
+        // After payment, they'll return to /payment-return page
+        logPaymentFlow('CASHFREE_REDIRECT', 'PROCESSING', {
+          message: 'User redirected to Cashfree payment page'
+        });
+      }).catch((error) => {
+        logPaymentFlow('CASHFREE_CHECKOUT_EXCEPTION', 'ERROR', {
+          error: error.message
+        });
         
-        try {
-          const confirmResult = await paymentService.pollCashfreeConfirmation(createdOrderId);
-          
-          if (confirmResult.success && confirmResult.data?.isPaymentSuccessful) {
-            logPaymentFlow('CASHFREE_PAYMENT_CONFIRMED', 'SUCCESS', {
-              orderId: createdOrderId
-            });
-
-            // Clear cart
-            await cartService.clearCart();
-            
-            setPaymentStep('success');
-            toast.success('Payment successful!');
-
-            // Redirect to orders page after 2 seconds
-            setTimeout(() => {
-              navigate('/user/orders');
-            }, 2000);
-          } else {
-            throw new Error('Payment confirmation failed');
-          }
-        } catch (pollError) {
-          logPaymentFlow('CASHFREE_POLLING_ERROR', 'ERROR', {
-            error: pollError.message
-          });
-          
-          setPaymentError('Payment confirmation failed. Please check your orders page.');
-          setPaymentStep('failed');
-        }
+        setPaymentError('Failed to initiate payment. Please try again.');
+        setPaymentStep('failed');
+        setProcessing(false);
       });
 
     } catch (error) {
@@ -737,7 +724,9 @@ const PaymentPage = () => {
                   ? 'Processing...' 
                   : paymentMethod === 'SMEPay' 
                     ? `Pay ₹${totals.totalPrice.toFixed(2)} with SMEPay`
-                    : `Place COD Order - ₹${totals.totalPrice.toFixed(2)}`
+                    : paymentMethod === 'Cashfree'
+                      ? `Pay ₹${totals.totalPrice.toFixed(2)} with Cashfree`
+                      : `Place COD Order - ₹${totals.totalPrice.toFixed(2)}`
                 }
               </button>
               
