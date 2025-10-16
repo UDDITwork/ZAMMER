@@ -344,7 +344,7 @@ const OrderSchema = new mongoose.Schema({
     },
     status: {
       type: String,
-      enum: ['unassigned', 'assigned', 'accepted', 'rejected', 'pickup_completed', 'delivery_completed'],
+      enum: ['unassigned', 'assigned', 'accepted', 'rejected', 'pickup_completed', 'location_reached', 'delivery_completed'],
       default: 'unassigned'
     },
     acceptedAt: {

@@ -141,12 +141,9 @@ const twilioConfig = {
     // Logging configuration
     enableLogging: process.env.NODE_ENV === 'development',
     
-    // Test mode configuration
+    // No test mode - always use real Twilio
     testMode: {
-      enabled: process.env.NODE_ENV === 'development',
-      testPhoneNumbers: ['+911234567890', '+919876543210'],
-      testOTP: '123456',
-      simulateDelay: 1000 // 1 second delay for test mode
+      enabled: false
     },
     
     // Webhook configuration for delivery receipts
@@ -158,20 +155,39 @@ const twilioConfig = {
   };
   
   // Validation on module load (skip in test environment)
+  console.log(`
+🔧 ===============================
+   TWILIO CONFIGURATION LOADING
+===============================
+🌍 NODE_ENV: ${process.env.NODE_ENV}
+📱 TWILIO_ACCOUNT_SID: ${process.env.TWILIO_ACCOUNT_SID ? 'SET' : 'NOT_SET'}
+🔑 TWILIO_AUTH_TOKEN: ${process.env.TWILIO_AUTH_TOKEN ? 'SET' : 'NOT_SET'}
+🛠️ TWILIO_VERIFY_SERVICE_SID: ${process.env.TWILIO_VERIFY_SERVICE_SID ? 'SET' : 'NOT_SET'}
+📊 Test Mode Enabled: ${twilioConfig.testMode.enabled}
+🕐 Loaded At: ${new Date().toISOString()}
+===============================`);
+  
   if (process.env.NODE_ENV !== 'test') {
     try {
       twilioConfig.validateConfig();
       console.log('✅ Twilio configuration validated successfully');
     } catch (error) {
-      console.error('❌ Twilio configuration error:', error.message);
+      console.error(`
+❌ ===============================
+   TWILIO CONFIGURATION ERROR
+===============================
+❌ Error: ${error.message}
+📊 Error Type: ${error.constructor.name}
+🌍 Environment: ${process.env.NODE_ENV}
+📱 Account SID Status: ${process.env.TWILIO_ACCOUNT_SID ? 'SET' : 'NOT_SET'}
+🔑 Auth Token Status: ${process.env.TWILIO_AUTH_TOKEN ? 'SET' : 'NOT_SET'}
+🛠️ Verify Service SID Status: ${process.env.TWILIO_VERIFY_SERVICE_SID ? 'SET' : 'NOT_SET'}
+===============================`);
       
-      // In development, we can continue without Twilio for testing
-      if (process.env.NODE_ENV === 'development') {
-        console.log('⚠️ Continuing in development mode without Twilio');
-        twilioConfig.testMode.enabled = true;
-      } else {
-        throw error;
-      }
+      console.error('❌ CRITICAL: Twilio configuration is invalid. OTP service will not work.');
+      console.error('📋 Please check your Twilio credentials in the .env file.');
+      
+      throw new Error(`Twilio configuration error: ${error.message}`);
     }
   }
   
