@@ -325,7 +325,7 @@ const LandingPage = () => {
                 <div className="relative z-10">
                   <img 
                     src="https://pbs.twimg.com/media/G0bMKGNXkAAiImA?format=jpg&name=large"
-                    alt="ZAMMERNOW Delivery Agent"
+                    alt="ZAMMER Delivery Agent"
                     className="w-full max-w-3xl sm:max-w-4xl lg:max-w-5xl mx-auto transform hover:scale-110 transition-transform duration-500"
                   />
                 </div>
@@ -337,7 +337,7 @@ const LandingPage = () => {
 
               {/* Story Headline */}
               <div className="space-y-6">
-                {/* Professional ZAMMERNOW Banner */}
+                {/* Professional ZAMMER Banner */}
                 <motion.div 
                   className="mb-8"
                   initial={{ opacity: 0, y: 30 }}
@@ -377,7 +377,7 @@ const LandingPage = () => {
                 </h2>
                 <p className="text-lg sm:text-xl text-gray-600 leading-relaxed max-w-lg">
                   Once upon a time, fashion shopping meant long queues, limited choices, and endless waiting. 
-                  <span className="font-semibold text-orange-600"> ZAMMERNOW changed everything.</span>
+                  <span className="font-semibold text-orange-600"> ZAMMER changed everything.</span>
                 </p>
                 <p className="text-base sm:text-lg text-gray-700 leading-relaxed max-w-lg">
                   Today, we're revolutionizing how India shops for fashion with hyperlocal delivery, 
@@ -547,7 +547,7 @@ const LandingPage = () => {
                 <h2 className="text-5xl font-bold text-gray-800">The Delivery Revolution</h2>
                 <h3 className="text-3xl font-bold text-orange-600">From Store to Door in Minutes</h3>
                 <p className="text-xl text-gray-600 leading-relaxed">
-                  The story of fashion delivery was rewritten when ZAMMERNOW introduced hyperlocal quick commerce. 
+                  The story of fashion delivery was rewritten when ZAMMER introduced hyperlocal quick commerce. 
                   Our delivery heroes on scooters bring fashion to your doorstep faster than you can say "I need that outfit!"
                 </p>
               </div>
@@ -568,7 +568,7 @@ const LandingPage = () => {
             <div className="relative">
               <img 
                 src="https://pbs.twimg.com/media/G0WyEKwX0AAcHgK?format=png&name=900x900"
-                alt="ZAMMERNOW Delivery Hero" 
+                alt="ZAMMER Delivery Hero" 
                 className="w-full max-w-6xl mx-auto transform hover:scale-110 transition-transform duration-500"
                 style={{
                   filter: 'drop-shadow(0 30px 60px rgba(0,0,0,0.3)) drop-shadow(0 15px 30px rgba(0,0,0,0.2))',
@@ -589,7 +589,7 @@ const LandingPage = () => {
             <h2 className="text-3xl lg:text-4xl font-bold text-gray-800 mb-3">
               See How People Are
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-orange-700">
-                {' '}Loving ZAMMERNOW
+                {' '}Loving ZAMMER
               </span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
@@ -607,7 +607,7 @@ const LandingPage = () => {
             }`}>
               <img 
                 src="https://pbs.twimg.com/media/G0avBhoWMAUHkxC?format=jpg&name=large"
-                alt="Young customer expressing joy with ZAMMERNOW delivery - full body character"
+                alt="Young customer expressing joy with ZAMMER delivery - full body character"
                 className="w-full h-full object-contain transform-gpu"
               />
             </div>
@@ -620,7 +620,7 @@ const LandingPage = () => {
             }`}>
               <img 
                 src="https://pbs.twimg.com/media/G0a0WhKacAAw_pS?format=jpg&name=large"
-                alt="Young man receiving ZAMMERNOW delivery with excitement - full body character"
+                alt="Young man receiving ZAMMER delivery with excitement - full body character"
                 className="w-full h-full object-contain transform-gpu"
               />
             </div>
@@ -633,7 +633,7 @@ const LandingPage = () => {
             }`}>
               <img 
                 src="https://pbs.twimg.com/media/G0a3mz2bgAge0zc?format=jpg&name=large"
-                alt="Young woman satisfied with ZAMMERNOW fashion delivery - full body character"
+                alt="Young woman satisfied with ZAMMER fashion delivery - full body character"
                 className="w-full h-full object-contain transform-gpu"
               />
             </div>
@@ -756,7 +756,7 @@ const LandingPage = () => {
               <h3 className="text-3xl font-bold text-orange-600 mb-4">Make More, Worry Less</h3>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
                 Every great fashion revolution needs great sellers. Join thousands of smart entrepreneurs 
-                who are growing their business with ZAMMERNOW's hyperlocal delivery and quick commerce platform.
+                who are growing their business with ZAMMER's hyperlocal delivery and quick commerce platform.
               </p>
           </div>
 
@@ -815,7 +815,7 @@ const LandingPage = () => {
           <h2 className="text-5xl font-bold text-gray-800 mb-4">The Mobile Revolution</h2>
           <h3 className="text-3xl font-bold text-orange-600 mb-4">Fashion at Your Fingertips</h3>
           <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            The story continues on your mobile device. Get the complete ZAMMERNOW experience 
+            The story continues on your mobile device. Get the complete ZAMMER experience 
             and be part of the fashion revolution wherever you go.
           </p>
           
@@ -1025,7 +1025,7 @@ const LandingPage = () => {
           <div className="mt-16 pt-8 border-t border-white/10">
             <div className="text-center mb-8">
               <h3 className="text-2xl font-bold text-white mb-2">Ready to Join the Revolution?</h3>
-              <p className="text-gray-300">Choose your role and start your journey with ZAMMERNOW</p>
+              <p className="text-gray-300">Choose your role and start your journey with ZAMMER</p>
             </div>
             <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-2xl mx-auto">
               <Link 
