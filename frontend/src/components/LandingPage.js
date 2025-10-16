@@ -1054,10 +1054,10 @@ const LandingPage = () => {
           <div className="mt-16 pt-8 border-t border-white/10">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
               {[
-                { number: '50K+', label: 'Happy Customers' },
-                { number: '10K+', label: 'Active Sellers' },
-                { number: '100K+', label: 'Products Listed' },
-                { number: '500+', label: 'Cities Covered' }
+                { number: '5K+', label: 'Happy Customers' },
+                { number: '1K+', label: 'Active Sellers' },
+                { number: '10K+', label: 'Products Listed' },
+                { number: '5+', label: 'Cities Covered' }
               ].map((stat, index) => (
                 <div key={index} className="group">
                   <div className="text-3xl md:text-4xl font-black text-orange-400 group-hover:text-orange-300 transition-colors duration-300">
