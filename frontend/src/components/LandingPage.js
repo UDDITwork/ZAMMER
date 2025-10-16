@@ -80,15 +80,6 @@ const LandingPage = () => {
                   >
                     ZAMMER
                   </motion.span>
-                  {/* NOW with sleek premium feel */}
-                  <motion.span 
-                    className="font-[Playfair_Display] text-orange-300 italic drop-shadow-lg tracking-wider text-xl font-bold"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3, duration: 0.6 }}
-                  >
-                    NOW
-                  </motion.span>
                 </div>
               </Link>
             </div>
@@ -355,15 +346,6 @@ const LandingPage = () => {
                       <span className="bg-gradient-to-r from-white via-orange-100 to-orange-200 bg-clip-text text-transparent font-[Poppins] drop-shadow-2xl uppercase tracking-wider">
                         ZAMMER
                       </span>
-                      {/* NOW with sleek premium feel */}
-                      <motion.span 
-                        className="ml-3 font-[Playfair_Display] text-orange-200 italic drop-shadow-lg tracking-wider"
-                        initial={{ opacity: 0, x: 30 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.6, duration: 0.8 }}
-                      >
-                        NOW
-                      </motion.span>
                     </motion.h1>
                   </div>
                 </motion.div>
@@ -447,10 +429,6 @@ const LandingPage = () => {
             {/* ZAMMER with luxury gradient branding */}
             <span className="bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600 bg-clip-text text-transparent">
               ZAMMER
-            </span>
-            {/* NOW with sleek premium feel */}
-            <span className="text-orange-300 italic ml-2">
-              NOW
             </span>
           </motion.h1>
         </div>
@@ -803,10 +781,6 @@ const LandingPage = () => {
               <span className="bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600 bg-clip-text text-transparent">
                 ZAMMER
               </span>
-              {/* NOW with sleek premium feel */}
-              <span className="text-orange-300 italic ml-2">
-                NOW
-              </span>
             </h1>
           </motion.div>
         </div>
@@ -863,10 +837,6 @@ const LandingPage = () => {
               <span className="bg-gradient-to-r from-white via-orange-100 to-orange-200 bg-clip-text text-transparent">
                 ZAMMER
               </span>
-              {/* NOW with sleek premium feel */}
-              <span className="text-orange-300 italic ml-2">
-                NOW
-              </span>
             </h1>
           </motion.div>
         </div>
@@ -896,10 +866,6 @@ const LandingPage = () => {
                     {/* ZAMMER with luxury gradient branding */}
                     <span className="bg-gradient-to-r from-white via-orange-100 to-orange-200 bg-clip-text text-transparent font-[Poppins] drop-shadow-2xl uppercase tracking-wider">
                       ZAMMER
-                    </span>
-                    {/* NOW with sleek premium feel */}
-                    <span className="font-[Playfair_Display] text-orange-300 italic drop-shadow-lg tracking-wider">
-                      NOW
                     </span>
                   </h3>
                   <p className="text-orange-300 text-sm font-medium">Fashion Revolution</p>
