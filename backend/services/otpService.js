@@ -4,54 +4,96 @@ const twilio = require('twilio');
 const twilioConfig = require('../config/twilio');
 const OtpVerification = require('../models/OtpVerification');
 
-// Enhanced terminal logging
-const terminalLog = (action, status, data = null) => {
+// Enhanced terminal logging with comprehensive error tracking
+const terminalLog = (action, status, data = null, error = null) => {
   const timestamp = new Date().toISOString();
   const logLevel = status === 'SUCCESS' ? '✅' : status === 'ERROR' ? '❌' : '🔄';
   
-  console.log(`${logLevel} [OTP-SERVICE] ${timestamp} - ${action}`, data ? JSON.stringify(data, null, 2) : '');
+  console.log(`\n${logLevel} ===============================
+   [OTP-SERVICE] ${action}
+===============================
+🕐 Timestamp: ${timestamp}
+📊 Status: ${status}`);
+  
+  if (data) {
+    console.log('📋 Data:', JSON.stringify(data, null, 2));
+  }
+  
+  if (error) {
+    console.log('❌ Error:', error.message);
+    console.log('📊 Error Code:', error.code || 'N/A');
+    console.log('📋 Stack Trace:', error.stack);
+  }
+  
+  console.log('===============================\n');
 };
 
 class OTPService {
   constructor() {
-    this.isTestMode = twilioConfig.testMode.enabled;
+    console.log(`
+🚀 ===============================
+   OTP SERVICE INITIALIZATION
+===============================
+🌍 Environment: ${process.env.NODE_ENV || 'unknown'}
+📱 Account SID: ${twilioConfig.accountSid ? 'SET' : 'NOT_SET'}
+🔑 Auth Token: ${twilioConfig.authToken ? 'SET' : 'NOT_SET'}
+🛠️ Verify Service SID: ${twilioConfig.verifyServiceSid ? 'SET' : 'NOT_SET'}
+===============================`);
     
-    if (!this.isTestMode) {
-      try {
-        this.twilioClient = twilio(twilioConfig.accountSid, twilioConfig.authToken);
-        this.verifyService = this.twilioClient.verify.v2.services(twilioConfig.verifyServiceSid);
-        terminalLog('TWILIO_CLIENT_INITIALIZED', 'SUCCESS', {
-          accountSid: twilioConfig.accountSid ? `${twilioConfig.accountSid.substring(0, 10)}...` : 'NOT_SET',
-          verifyServiceSid: twilioConfig.verifyServiceSid ? `${twilioConfig.verifyServiceSid.substring(0, 10)}...` : 'NOT_SET'
-        });
-      } catch (error) {
-        terminalLog('TWILIO_CLIENT_INIT_ERROR', 'ERROR', { error: error.message });
-        console.warn('⚠️ Twilio client initialization failed, falling back to test mode');
-        this.isTestMode = true;
-      }
-    } else {
-      terminalLog('OTP_SERVICE_TEST_MODE', 'SUCCESS', {
-        testMode: true,
-        testOTP: twilioConfig.testMode.testOTP
+    // Always use real Twilio - no test mode
+    this.isTestMode = false;
+    
+    try {
+      console.log('🔄 Initializing Twilio client...');
+      this.twilioClient = twilio(twilioConfig.accountSid, twilioConfig.authToken);
+      this.verifyService = this.twilioClient.verify.v2.services(twilioConfig.verifyServiceSid);
+      
+      terminalLog('TWILIO_CLIENT_INITIALIZED', 'SUCCESS', {
+        accountSid: twilioConfig.accountSid ? `${twilioConfig.accountSid.substring(0, 10)}...` : 'NOT_SET',
+        verifyServiceSid: twilioConfig.verifyServiceSid ? `${twilioConfig.verifyServiceSid.substring(0, 10)}...` : 'NOT_SET',
+        environment: process.env.NODE_ENV
       });
+      
+      console.log('✅ OTP Service initialized successfully with Twilio');
+    } catch (error) {
+      terminalLog('TWILIO_CLIENT_INIT_ERROR', 'ERROR', {
+        error: error.message,
+        accountSid: twilioConfig.accountSid ? 'SET' : 'NOT_SET',
+        authToken: twilioConfig.authToken ? 'SET' : 'NOT_SET',
+        verifyServiceSid: twilioConfig.verifyServiceSid ? 'SET' : 'NOT_SET'
+      }, error);
+      
+      console.error('❌ CRITICAL: OTP Service failed to initialize. SMS functionality will not work.');
+      throw new Error(`Failed to initialize Twilio client: ${error.message}`);
     }
   }
 
   // Generate 6-digit OTP
   generateOTP() {
-    if (this.isTestMode) {
-      return twilioConfig.testMode.testOTP;
-    }
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
   // Send OTP via SMS using Twilio
   async sendOTP(phoneNumber, otpData = {}) {
+    const startTime = Date.now();
+    
     try {
+      console.log(`
+📤 ===============================
+   SEND OTP METHOD STARTED
+===============================
+📞 Phone Number: ${phoneNumber}
+🎯 Purpose: ${otpData.purpose || 'delivery_confirmation'}
+🌐 Language: ${otpData.language || 'english'}
+🔧 Twilio Client: ${this.twilioClient ? 'INITIALIZED' : 'NOT_INITIALIZED'}
+🛠️ Verify Service: ${this.verifyService ? 'INITIALIZED' : 'NOT_INITIALIZED'}
+===============================`);
+      
       terminalLog('SEND_OTP_START', 'PROCESSING', {
         phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 5)}***` : 'NOT_PROVIDED',
         purpose: otpData.purpose || 'delivery_confirmation',
-        testMode: this.isTestMode
+        language: otpData.language || 'english',
+        timestamp: new Date().toISOString()
       });
 
       // Validate and format phone number
@@ -62,26 +104,6 @@ class OTPService {
 
       // Generate OTP
       const otpCode = this.generateOTP();
-      
-      if (this.isTestMode) {
-        // Test mode - simulate sending
-        terminalLog('SEND_OTP_TEST_MODE', 'SUCCESS', {
-          phoneNumber: `${formattedPhone.substring(0, 5)}***`,
-          otpCode: otpCode,
-          simulatedDelay: twilioConfig.testMode.simulateDelay
-        });
-
-        // Simulate network delay
-        await new Promise(resolve => setTimeout(resolve, twilioConfig.testMode.simulateDelay));
-
-        return {
-          success: true,
-          otpCode: otpCode,
-          message: 'OTP sent successfully (Test Mode)',
-          testMode: true,
-          phoneNumber: formattedPhone
-        };
-      }
 
       // Real Twilio sending
       const messageTemplate = twilioConfig.getMessageTemplate(
@@ -114,33 +136,64 @@ class OTPService {
         otpCode: null, // Don't return actual OTP for security
         verificationSid: verification.sid,
         message: 'OTP sent successfully',
-        testMode: false,
         phoneNumber: formattedPhone
       };
     } catch (error) {
+      const processingTime = Date.now() - startTime;
+      
+      console.error(`
+❌ ===============================
+   SEND OTP FAILED!
+===============================
+📞 Phone Number: ${phoneNumber}
+⏱️ Processing Time: ${processingTime}ms
+❌ Error: ${error.message}
+📊 Error Code: ${error.code || 'N/A'}
+📋 Error Type: ${error.constructor.name}
+===============================`);
+      
       terminalLog('SEND_OTP_ERROR', 'ERROR', {
         phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 5)}***` : 'NOT_PROVIDED',
+        processingTime: `${processingTime}ms`,
         error: error.message,
-        errorCode: error.code
-      });
+        errorCode: error.code,
+        errorType: error.constructor.name,
+        timestamp: new Date().toISOString()
+      }, error);
 
       // Handle specific Twilio errors
       let errorMessage = 'Failed to send OTP';
+      let errorCategory = 'UNKNOWN';
+      
       if (error.code === 21211) {
         errorMessage = 'Invalid phone number format';
+        errorCategory = 'VALIDATION_ERROR';
       } else if (error.code === 20003) {
         errorMessage = 'Authentication failed with Twilio service';
+        errorCategory = 'AUTHENTICATION_ERROR';
       } else if (error.code === 20429) {
         errorMessage = 'Too many requests. Please try again later.';
+        errorCategory = 'RATE_LIMIT_ERROR';
       } else if (error.message.includes('Rate limit')) {
         errorMessage = error.message;
+        errorCategory = 'RATE_LIMIT_ERROR';
+      } else if (error.code === 21614) {
+        errorMessage = 'Invalid phone number - not a mobile number';
+        errorCategory = 'VALIDATION_ERROR';
+      } else if (error.code === 21214) {
+        errorMessage = 'Phone number is not a valid mobile number';
+        errorCategory = 'VALIDATION_ERROR';
       }
+
+      console.error(`🚨 Error Category: ${errorCategory}`);
+      console.error(`📋 Detailed Error: ${errorMessage}`);
 
       return {
         success: false,
         error: errorMessage,
         errorCode: error.code,
-        testMode: this.isTestMode
+        errorCategory: errorCategory,
+        processingTime: processingTime
       };
     }
   }
@@ -151,37 +204,9 @@ class OTPService {
       terminalLog('VERIFY_OTP_START', 'PROCESSING', {
         phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 5)}***` : 'NOT_PROVIDED',
         otpCode: otpCode ? `${otpCode.substring(0, 2)}***` : 'NOT_PROVIDED',
-        testMode: this.isTestMode
       });
 
       const formattedPhone = twilioConfig.validatePhoneNumber(phoneNumber);
-
-      if (this.isTestMode) {
-        // Test mode verification
-        const isValidTestOTP = otpCode === twilioConfig.testMode.testOTP;
-        
-        terminalLog('VERIFY_OTP_TEST_MODE', isValidTestOTP ? 'SUCCESS' : 'ERROR', {
-          phoneNumber: `${formattedPhone.substring(0, 5)}***`,
-          isValid: isValidTestOTP,
-          expectedOTP: twilioConfig.testMode.testOTP
-        });
-
-        if (isValidTestOTP) {
-          return {
-            success: true,
-            status: 'approved',
-            message: 'OTP verified successfully (Test Mode)',
-            testMode: true
-          };
-        } else {
-          return {
-            success: false,
-            status: 'denied',
-            message: 'Invalid OTP (Test Mode)',
-            testMode: true
-          };
-        }
-      }
 
       // Real Twilio verification
       terminalLog('TWILIO_VERIFY_REQUEST', 'PROCESSING', {
@@ -227,7 +252,6 @@ class OTPService {
         success: false,
         error: errorMessage,
         errorCode: error.code,
-        testMode: this.isTestMode
       };
     }
   }
@@ -235,6 +259,19 @@ class OTPService {
   // Create delivery OTP (combines database storage with SMS sending)
   async createDeliveryOTP(orderData) {
     try {
+      console.log(`
+🚀 ===============================
+   OTP SERVICE: CREATE_DELIVERY_OTP
+===============================
+📋 Order ID: ${orderData.orderId}
+👤 User ID: ${orderData.userId}
+🚚 Delivery Agent ID: ${orderData.deliveryAgentId}
+📞 User Phone: ${orderData.userPhone}
+🎯 Purpose: ${orderData.purpose || 'delivery_confirmation'}
+📍 Location: ${JSON.stringify(orderData.deliveryLocation)}
+📝 Notes: ${orderData.notes}
+===============================`);
+      
       terminalLog('CREATE_DELIVERY_OTP_START', 'PROCESSING', {
         orderId: orderData.orderId,
         userId: orderData.userId,
@@ -265,12 +302,44 @@ class OTPService {
       });
 
       // Send OTP via SMS
+      console.log(`
+📱 ===============================
+   SENDING OTP VIA SMS
+===============================
+📞 Phone Number: ${orderData.userPhone}
+🎯 Purpose: ${otpRecord.purpose}
+🌐 Language: ${orderData.language || 'english'}
+🔑 OTP Code: ${otpRecord.code}
+⏰ Expires At: ${otpRecord.expiresAt}
+📋 OTP ID: ${otpRecord._id}
+===============================`);
+      
       const smsResult = await this.sendOTP(orderData.userPhone, {
         purpose: otpRecord.purpose,
         language: orderData.language || 'english'
       });
 
+      console.log(`
+📤 ===============================
+   SMS SEND RESULT
+===============================
+✅ Success: ${smsResult.success}
+📱 Phone: ${orderData.userPhone}
+🧪 Test Mode: ${smsResult.testMode ? 'YES' : 'NO'}
+📋 Message: ${smsResult.message}
+❌ Error: ${smsResult.error || 'None'}
+===============================`);
+
       if (!smsResult.success) {
+        console.error(`
+❌ ===============================
+   SMS SENDING FAILED!
+===============================
+📞 Phone: ${orderData.userPhone}
+❌ Error: ${smsResult.error}
+📊 Error Code: ${smsResult.errorCode}
+===============================`);
+        
         // If SMS failed, mark OTP as cancelled
         otpRecord.status = 'cancelled';
         otpRecord.verificationResult = {
@@ -287,28 +356,43 @@ class OTPService {
         otpId: otpRecord._id,
         orderId: orderData.orderId,
         smsSent: smsResult.success,
-        testMode: smsResult.testMode
       });
 
       return {
         success: true,
         otpId: otpRecord._id,
-        otpCode: this.isTestMode ? otpRecord.code : null, // Only return code in test mode
+        otpCode: otpRecord.code, // Return OTP code for verification
         expiresAt: otpRecord.expiresAt,
         message: 'Delivery OTP created and sent successfully',
-        testMode: smsResult.testMode,
         order: otpRecord.order,
         user: otpRecord.user
       };
     } catch (error) {
+      console.error(`
+❌ ===============================
+   CREATE DELIVERY OTP FAILED!
+===============================
+📋 Order ID: ${orderData.orderId}
+👤 User ID: ${orderData.userId}
+📞 Phone: ${orderData.userPhone}
+❌ Error: ${error.message}
+📊 Error Type: ${error.constructor.name}
+===============================`);
+      
       terminalLog('CREATE_DELIVERY_OTP_ERROR', 'ERROR', {
         orderId: orderData.orderId,
-        error: error.message
-      });
+        userId: orderData.userId,
+        userPhone: orderData.userPhone ? `${orderData.userPhone.substring(0, 5)}***` : 'NOT_PROVIDED',
+        error: error.message,
+        errorType: error.constructor.name,
+        timestamp: new Date().toISOString()
+      }, error);
 
       return {
         success: false,
-        error: error.message
+        error: error.message,
+        errorType: error.constructor.name,
+        orderId: orderData.orderId
       };
     }
   }
@@ -355,24 +439,12 @@ class OTPService {
         };
       }
 
-      // For test mode, verify against stored code
-      let verificationResult;
-      if (this.isTestMode) {
-        verificationResult = {
-          success: true,
-          status: verificationData.enteredCode === otpRecord.code ? 'approved' : 'denied',
-          isValid: verificationData.enteredCode === otpRecord.code,
-          message: verificationData.enteredCode === otpRecord.code ? 'OTP verified (Test Mode)' : 'Invalid OTP (Test Mode)',
-          testMode: true
-        };
-      } else {
-        // Verify with Twilio
-        verificationResult = await this.verifyOTP(
-          otpRecord.user.mobileNumber,
-          verificationData.enteredCode,
-          verificationData
-        );
-      }
+      // Verify with Twilio
+      const verificationResult = await this.verifyOTP(
+        otpRecord.user.mobileNumber,
+        verificationData.enteredCode,
+        verificationData
+      );
 
       // Update OTP record with verification result
       const otpVerificationResult = await otpRecord.verifyOTP(
@@ -507,12 +579,11 @@ class OTPService {
       terminalLog('OTP_HEALTH_CHECK_START', 'PROCESSING');
 
       const checks = {
-        testMode: this.isTestMode,
         twilioConfigured: !!(twilioConfig.accountSid && twilioConfig.authToken),
         databaseConnection: true // Assume DB is connected if we can run this
       };
 
-      if (!this.isTestMode && this.twilioClient) {
+      if (this.twilioClient) {
         try {
           // Test Twilio connection by fetching account info
           const account = await this.twilioClient.api.accounts(twilioConfig.accountSid).fetch();
@@ -524,7 +595,7 @@ class OTPService {
         }
       }
 
-      const isHealthy = checks.testMode || (checks.twilioConfigured && checks.twilioConnectionTest !== false);
+      const isHealthy = checks.twilioConfigured && checks.twilioConnectionTest !== false;
 
       terminalLog('OTP_HEALTH_CHECK_RESULT', isHealthy ? 'SUCCESS' : 'ERROR', {
         checks,

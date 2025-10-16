@@ -1563,34 +1563,94 @@ const markReachedLocation = async (req, res) => {
       }
     } else {
       // Generate OTP for prepaid orders
+      console.log(`
+🚨 ===============================
+   OTP GENERATION STARTED
+===============================
+📋 Order ID: ${order._id}
+📞 Customer Phone: ${order.user.phone}
+👤 Customer Name: ${order.user.name}
+🚚 Agent ID: ${agentId}
+💳 Payment Method: ${order.paymentMethod}
+===============================`);
+      
       try {
         const otpService = require('../services/otpService');
-        const otpData = await otpService.generateOTP({
-          phoneNumber: order.user.phone,
-          orderId: order.orderNumber,
-          purpose: 'delivery_verification'
-        });
         
+        console.log('🔄 Loading OTP Service...');
+        console.log('📞 Preparing OTP data for customer:', order.user.phone);
+        
+        const otpRequestData = {
+          orderId: order._id,
+          userId: order.user._id,
+          deliveryAgentId: agentId,
+          userPhone: order.user.phone,
+          purpose: 'delivery_verification',
+          deliveryLocation: {
+            type: 'Point',
+            coordinates: [0, 0] // Default coordinates - will be updated when delivery is completed
+          },
+          notes: req.body.locationNotes || 'Delivery agent reached customer location'
+        };
+        
+        console.log('📋 OTP Request Data:', JSON.stringify(otpRequestData, null, 2));
+        console.log('🚀 Calling createDeliveryOTP...');
+        
+        const otpData = await otpService.createDeliveryOTP(otpRequestData);
+        
+        console.log('✅ OTP Service Response:', JSON.stringify(otpData, null, 2));
+        
+        if (otpData && otpData.success) {
+          paymentData = {
+            type: 'PREPAID',
+            otp: otpData.otpCode,
+            otpId: otpData.otpId,
+            expiresAt: otpData.expiresAt,
+            phoneNumber: order.user.phone
+          };
+          
+          // Store OTP details in order
+          if (!order.otpVerification) order.otpVerification = {};
+          order.otpVerification = {
+            isRequired: true,
+            otpId: otpData.otpId,
+            generatedAt: new Date(),
+            expiresAt: otpData.expiresAt,
+            isVerified: false
+          };
+          
+          console.log(`
+🎉 ===============================
+   OTP GENERATION SUCCESS!
+===============================
+📱 OTP Sent to: ${order.user.phone}
+🔑 OTP ID: ${otpData.otpId}
+⏰ Expires At: ${otpData.expiresAt}
+🧪 Test Mode: ${otpData.testMode ? 'YES' : 'NO'}
+📋 OTP Code: ${otpData.otpCode || 'NOT_SHOWN_FOR_SECURITY'}
+===============================`);
+        } else {
+          throw new Error(`OTP service returned failure: ${otpData?.error || 'Unknown error'}`);
+        }
+      } catch (otpError) {
+        console.error(`
+❌ ===============================
+   OTP GENERATION FAILED!
+===============================
+📋 Order ID: ${order._id}
+📞 Customer Phone: ${order.user.phone}
+🚚 Agent ID: ${agentId}
+❌ Error: ${otpError.message}
+📊 Stack Trace: ${otpError.stack}
+===============================`);
+        
+        // Continue without OTP - frontend will handle fallback
         paymentData = {
           type: 'PREPAID',
-          otp: otpData.otp,
-          otpId: otpData.otpId,
-          expiresAt: otpData.expiresAt,
-          phoneNumber: order.user.phone
+          error: 'OTP generation failed',
+          phoneNumber: order.user.phone,
+          errorDetails: otpError.message
         };
-        
-        // Store OTP details in order
-        if (!order.otpVerification) order.otpVerification = {};
-        order.otpVerification = {
-          isRequired: true,
-          otpId: otpData.otpId,
-          generatedAt: new Date(),
-          expiresAt: otpData.expiresAt,
-          isVerified: false
-        };
-      } catch (otpError) {
-        console.error('❌ OTP Generation Failed:', otpError);
-        // Continue without OTP - frontend will handle fallback
       }
     }
 
