@@ -22,10 +22,10 @@ const LandingPage = () => {
   }, []);
 
   const stats = [
-    { number: '50K+', label: 'Happy Customers' },
-    { number: '10K+', label: 'Active Sellers' },
-    { number: '100K+', label: 'Products Listed' },
-    { number: '500+', label: 'Cities Covered' },
+    { number: '5K+', label: 'Happy Customers' },
+    { number: '1K+', label: 'Active Sellers' },
+    { number: '10K+', label: 'Products Listed' },
+    { number: '5+', label: 'Cities Covered' },
   ];
 
   const features = [
@@ -1076,7 +1076,7 @@ const LandingPage = () => {
             <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
               <div className="text-center md:text-left">
                 <p className="text-gray-400 text-sm">
-                  © 2025 <span className="text-orange-400 font-bold">ZAMMERNOW RETAIL PRIVATE LIMITED</span> - All Rights Reserved
+                  © 2025 <span className="text-orange-400 font-bold">ZAMMER RETAIL PRIVATE LIMITED</span> - All Rights Reserved
                 </p>
                 <p className="text-gray-500 text-xs mt-1">
                   Empowering local fashion businesses with cutting-edge technology
