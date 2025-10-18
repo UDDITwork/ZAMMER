@@ -516,7 +516,7 @@ const getAvailableOrders = async (req, res) => {
       'deliveryAgent.status': 'assigned',
       status: 'Pickup_Ready'
     })
-    .populate('user', 'name phone')
+    .populate('user', 'name mobileNumber')
     .populate('seller', 'firstName shop')
     .populate('orderItems.product', 'name images')
     .sort({ 'deliveryAgent.assignedAt': 1 }) // FIFO basis by assignment time
@@ -550,7 +550,7 @@ const getAvailableOrders = async (req, res) => {
       })),
       user: {
         name: order.user.name,
-        phone: order.user.phone
+        mobileNumber: order.user.mobileNumber
       },
       seller: {
         name: order.seller.firstName,
@@ -604,7 +604,7 @@ const acceptOrder = async (req, res) => {
 ===============================`);
 
     const order = await Order.findById(orderId)
-      .populate('user', 'name phone')
+      .populate('user', 'name mobileNumber')
       .populate('seller', 'firstName shop');
 
     if (!order) {
@@ -769,7 +769,7 @@ const acceptOrder = async (req, res) => {
         },
         customer: {
           name: order.user.name,
-          phone: order.user.phone
+          mobileNumber: order.user.mobileNumber
         },
         seller: {
           name: order.seller.firstName,
@@ -1170,7 +1170,7 @@ const completePickup = async (req, res) => {
 
     // 🎯 VALIDATION: Check if order exists and is assigned to this agent
     const order = await Order.findById(orderId)
-      .populate('user', 'name phone')
+      .populate('user', 'name mobileNumber')
       .populate('seller', 'firstName shop')
       .populate('orderItems.product', 'name images');
 
@@ -1371,7 +1371,7 @@ const completePickup = async (req, res) => {
           },
           customer: {
             name: order.user.name,
-            phone: order.user.phone
+            mobileNumber: order.user.mobileNumber
           },
           seller: {
             name: order.seller.firstName,
@@ -1448,7 +1448,7 @@ const markReachedLocation = async (req, res) => {
 
     // 🎯 VALIDATION: Check if order exists and is assigned to this agent
     const order = await Order.findById(orderId)
-      .populate('user', 'name phone email')
+      .populate('user', 'name mobileNumber email')
       .populate('seller', 'firstName shop')
       .populate('orderItems.product', 'name images');
 
@@ -1568,7 +1568,7 @@ const markReachedLocation = async (req, res) => {
    OTP GENERATION STARTED
 ===============================
 📋 Order ID: ${order._id}
-📞 Customer Phone: ${order.user.phone}
+📞 Customer Phone: ${order.user.mobileNumber}
 👤 Customer Name: ${order.user.name}
 🚚 Agent ID: ${agentId}
 💳 Payment Method: ${order.paymentMethod}
@@ -1578,13 +1578,13 @@ const markReachedLocation = async (req, res) => {
         const otpService = require('../services/otpService');
         
         console.log('🔄 Loading OTP Service...');
-        console.log('📞 Preparing OTP data for customer:', order.user.phone);
+        console.log('📞 Preparing OTP data for customer:', order.user.mobileNumber);
         
         const otpRequestData = {
           orderId: order._id,
           userId: order.user._id,
           deliveryAgentId: agentId,
-          userPhone: order.user.phone,
+          userPhone: order.user.mobileNumber,
           purpose: 'delivery_verification',
           deliveryLocation: {
             type: 'Point',
@@ -1606,7 +1606,7 @@ const markReachedLocation = async (req, res) => {
             otp: otpData.otpCode,
             otpId: otpData.otpId,
             expiresAt: otpData.expiresAt,
-            phoneNumber: order.user.phone
+            phoneNumber: order.user.mobileNumber
           };
           
           // Store OTP details in order
@@ -1623,7 +1623,7 @@ const markReachedLocation = async (req, res) => {
 🎉 ===============================
    OTP GENERATION SUCCESS!
 ===============================
-📱 OTP Sent to: ${order.user.phone}
+📱 OTP Sent to: ${order.user.mobileNumber}
 🔑 OTP ID: ${otpData.otpId}
 ⏰ Expires At: ${otpData.expiresAt}
 🧪 Test Mode: ${otpData.testMode ? 'YES' : 'NO'}
@@ -1638,7 +1638,7 @@ const markReachedLocation = async (req, res) => {
    OTP GENERATION FAILED!
 ===============================
 📋 Order ID: ${order._id}
-📞 Customer Phone: ${order.user.phone}
+📞 Customer Phone: ${order.user.mobileNumber}
 🚚 Agent ID: ${agentId}
 ❌ Error: ${otpError.message}
 📊 Stack Trace: ${otpError.stack}
@@ -1648,7 +1648,7 @@ const markReachedLocation = async (req, res) => {
         paymentData = {
           type: 'PREPAID',
           error: 'OTP generation failed',
-          phoneNumber: order.user.phone,
+          phoneNumber: order.user.mobileNumber,
           errorDetails: otpError.message
         };
       }
@@ -1724,7 +1724,7 @@ ${paymentData.type === 'COD' ? `💰 COD Amount: ₹${paymentData.amount}` : `�
           },
           customer: {
             name: order.user.name,
-            phone: order.user.phone
+            mobileNumber: order.user.mobileNumber
           }
         });
       }
@@ -1792,7 +1792,7 @@ const completeDelivery = async (req, res) => {
 
     // 🎯 VALIDATION: Check if order exists and is assigned to this agent
     const order = await Order.findById(orderId)
-      .populate('user', 'name phone email')
+      .populate('user', 'name mobileNumber email')
       .populate('seller', 'firstName shop')
       .populate('orderItems.product', 'name images');
 
@@ -2496,7 +2496,7 @@ const getDeliveryHistory = async (req, res) => {
     
     const [deliveryHistory, totalCount] = await Promise.all([
       Order.find(query)
-        .populate('user', 'name phone email')
+        .populate('user', 'name mobileNumber email')
         .populate('seller', 'firstName shop')
         .populate('orderItems.product', 'name images')
         .sort({ 'delivery.completedAt': -1 }) // Most recent first
@@ -2536,7 +2536,7 @@ const getDeliveryHistory = async (req, res) => {
       // Customer information
       customer: {
         name: order.user.name,
-        phone: order.user.phone,
+        mobileNumber: order.user.mobileNumber,
         email: order.user.email
       },
       
