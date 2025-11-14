@@ -16,6 +16,7 @@ const {
   getRecentOrders,
   getAllOrders,
   getOrderDetails,
+  getAssignedAcceptedOrders,
   approveAndAssignOrder,
   bulkAssignOrders,
   updateOrderStatus,
@@ -183,6 +184,20 @@ router.get('/orders/:orderId', [
     .isMongoId()
     .withMessage('Invalid order ID format')
 ], validateRequest, getOrderDetails);
+
+// @route   GET /api/admin/orders/assigned-accepted
+// @desc    Get orders assigned to delivery agents and accepted by them with tracking
+// @access  Private (Admin)
+router.get('/orders/assigned-accepted', [
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Page must be a positive integer'),
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Limit must be between 1 and 100')
+], validateRequest, getAssignedAcceptedOrders);
 
 // @route   POST /api/admin/orders/approve-assign
 // @desc    Approve an order and assign it to a delivery agent

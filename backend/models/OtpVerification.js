@@ -1,3 +1,4 @@
+//backend/models/OtpVerfication.js
 const mongoose = require('mongoose');
 
 const otpVerificationSchema = new mongoose.Schema({

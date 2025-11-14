@@ -398,7 +398,8 @@ const getOrderDetails = async (req, res) => {
       .populate('user', 'name email mobileNumber')
       .populate('seller', 'firstName lastName email shop')
       .populate('assignedDeliveryAgent', 'name email vehicleType status')
-      .populate('orderItems.product', 'name images price description');
+      .populate('orderItems.product', 'name images price description')
+      .populate('deliveryAgent.agent', 'name email mobileNumber vehicleType');
 
     if (!order) {
       return res.status(404).json({
@@ -430,6 +431,165 @@ const getOrderDetails = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch order details'
+    });
+  }
+};
+
+// 🎯 NEW: Get assigned/accepted orders with tracking
+// @desc    Get orders assigned to delivery agents and accepted by them
+// @route   GET /api/admin/orders/assigned-accepted
+// @access  Private (Admin)
+const getAssignedAcceptedOrders = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (page - 1) * limit;
+
+    logAdmin('GET_ASSIGNED_ACCEPTED_ORDERS_START', {
+      adminId: req.admin._id,
+      page,
+      limit
+    });
+
+    // Find orders that are assigned to delivery agents and have been accepted
+    const orders = await Order.find({
+      'deliveryAgent.agent': { $exists: true, $ne: null },
+      'deliveryAgent.status': { $in: ['assigned', 'accepted', 'pickup_completed', 'location_reached', 'delivery_completed'] }
+    })
+      .populate('user', 'name email mobileNumber')
+      .populate('seller', 'firstName lastName email shop')
+      .populate('deliveryAgent.agent', 'name email mobileNumber vehicleType')
+      .populate('orderItems.product', 'name images')
+      .sort({ 'deliveryAgent.assignedAt': -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const totalOrders = await Order.countDocuments({
+      'deliveryAgent.agent': { $exists: true, $ne: null },
+      'deliveryAgent.status': { $in: ['assigned', 'accepted', 'pickup_completed', 'location_reached', 'delivery_completed'] }
+    });
+
+    // Format orders with tracking information
+    const formattedOrders = orders.map(order => {
+      const trackingEvents = [];
+      
+      // Build tracking timeline
+      // 1. Accepted by Delivery Agent
+      if (order.deliveryAgent?.status === 'accepted' || order.deliveryAgent?.acceptedAt) {
+        trackingEvents.push({
+          status: 'accepted',
+          label: 'Accepted by Delivery Agent',
+          timestamp: order.deliveryAgent?.acceptedAt || order.deliveryAgent?.assignedAt,
+          completed: true
+        });
+      }
+      
+      // 2. Reached Seller Location (now tracked separately in database)
+      if (order.pickup?.sellerLocationReachedAt) {
+        trackingEvents.push({
+          status: 'reached_seller_location',
+          label: 'Delivery Agent Reached Seller Location',
+          timestamp: order.pickup?.sellerLocationReachedAt,
+          completed: true,
+          notes: 'Agent confirmed arrival at seller location'
+        });
+      }
+      
+      // 3. Order Picked Up
+      if (order.pickup?.isCompleted || order.deliveryAgent?.status === 'pickup_completed') {
+        trackingEvents.push({
+          status: 'pickup_completed',
+          label: 'Order Has Been Picked Up',
+          timestamp: order.pickup?.completedAt,
+          completed: true,
+          notes: order.pickup?.pickupNotes
+        });
+      }
+      
+      // 4. Reached Delivery Address
+      if (order.deliveryAgent?.status === 'location_reached' || order.delivery?.locationReachedAt || order.deliveryAgent?.locationReachedAt) {
+        trackingEvents.push({
+          status: 'location_reached',
+          label: 'Delivery Agent Has Reached Delivery Address',
+          timestamp: order.delivery?.locationReachedAt || order.deliveryAgent?.locationReachedAt,
+          completed: true
+        });
+      }
+      
+      // 5. OTP Verification (for prepaid orders only)
+      if (order.paymentMethod !== 'COD' && order.paymentMethod !== 'Cash on Delivery' && order.isPaid) {
+        if (order.otpVerification?.isVerified && order.otpVerification?.verifiedAt) {
+          trackingEvents.push({
+            status: 'otp_verified',
+            label: 'OTP Verified',
+            timestamp: order.otpVerification?.verifiedAt,
+            completed: true,
+            notes: 'Delivery OTP verified successfully'
+          });
+        }
+      }
+      
+      // 6. Order Delivered
+      if (order.delivery?.isCompleted || order.deliveryAgent?.status === 'delivery_completed') {
+        trackingEvents.push({
+          status: 'delivery_completed',
+          label: 'Order Has Been Delivered',
+          timestamp: order.delivery?.completedAt || order.deliveredAt,
+          completed: true,
+          notes: order.delivery?.deliveryNotes
+        });
+      }
+
+      return {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        user: order.user,
+        seller: order.seller,
+        deliveryAgent: order.deliveryAgent,
+        orderItems: order.orderItems,
+        totalPrice: order.totalPrice,
+        paymentMethod: order.paymentMethod,
+        isPaid: order.isPaid,
+        status: order.status,
+        deliveryStatus: order.deliveryAgent?.status,
+        assignedAt: order.deliveryAgent?.assignedAt,
+        acceptedAt: order.deliveryAgent?.acceptedAt,
+        pickupCompletedAt: order.pickup?.completedAt || order.deliveryAgent?.pickupCompletedAt,
+        deliveryCompletedAt: order.delivery?.completedAt || order.deliveryAgent?.deliveryCompletedAt || order.deliveredAt,
+        trackingEvents,
+        createdAt: order.createdAt,
+        shippingAddress: order.shippingAddress
+      };
+    });
+
+    logAdmin('GET_ASSIGNED_ACCEPTED_ORDERS_SUCCESS', {
+      adminId: req.admin._id,
+      ordersCount: formattedOrders.length,
+      totalOrders
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Assigned/accepted orders retrieved successfully',
+      data: formattedOrders,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalOrders / limit),
+        totalOrders,
+        hasNextPage: page < Math.ceil(totalOrders / limit),
+        hasPrevPage: page > 1
+      }
+    });
+
+  } catch (error) {
+    logAdmin('GET_ASSIGNED_ACCEPTED_ORDERS_ERROR', {
+      adminId: req.admin._id,
+      error: error.message
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch assigned/accepted orders',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -2069,6 +2229,7 @@ module.exports = {
   getRecentOrders,
   getAllOrders,
   getOrderDetails,
+  getAssignedAcceptedOrders,
   approveAndAssignOrder,
   bulkAssignOrders,
   updateOrderStatus,

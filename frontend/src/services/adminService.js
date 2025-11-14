@@ -489,6 +489,30 @@ export const getAllUsers = async (queryParams = {}) => {
   }
 };
 
+// Get assigned/accepted orders with tracking
+export const getAssignedAcceptedOrders = async (queryParams = {}) => {
+  try {
+    debugLog('📦 FETCHING ASSIGNED/ACCEPTED ORDERS', { queryParams }, 'request');
+    
+    const response = await api.get('/admin/orders/assigned-accepted', { params: queryParams });
+    
+    debugLog('✅ ASSIGNED/ACCEPTED ORDERS RECEIVED', {
+      ordersCount: response.data.data?.length || 0,
+      pagination: response.data.pagination
+    }, 'success');
+
+    return response.data;
+  } catch (error) {
+    debugLog('❌ ASSIGNED/ACCEPTED ORDERS FETCH ERROR', {
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message,
+      queryParams
+    }, 'error');
+    
+    throw error.response?.data || { success: false, message: 'Failed to fetch assigned/accepted orders' };
+  }
+};
+
 // Get single user profile
 export const getUserProfile = async (userId) => {
   try {
@@ -804,6 +828,7 @@ const adminService = {
   getDeliveryAgentProfile,
   getDeliveryAgentHistory,
   updateDeliveryAgentStatus,
+  getAssignedAcceptedOrders,
   // Payout Management
   getPayoutBeneficiaries,
   getPayoutHistory,

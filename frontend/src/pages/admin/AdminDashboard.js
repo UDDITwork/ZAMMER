@@ -44,6 +44,12 @@ const AdminDashboard = () => {
   const [selectedReturnOrder, setSelectedReturnOrder] = useState(null);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnFilter, setReturnFilter] = useState('all'); // all, requested, approved, etc.
+  
+  // 🎯 NEW: Assigned/Accepted orders with tracking state
+  const [assignedAcceptedOrders, setAssignedAcceptedOrders] = useState([]);
+  const [assignedOrdersLoading, setAssignedOrdersLoading] = useState(false);
+  const [selectedTrackingOrder, setSelectedTrackingOrder] = useState(null);
+  const [showTrackingModal, setShowTrackingModal] = useState(false);
 
   // 🔒 SECURITY: Get auth context and navigation
   const { adminAuth } = useAuth();
@@ -123,6 +129,13 @@ const AdminDashboard = () => {
     }
   }, [activeTab, adminAuth.isAuthenticated]);
 
+  // 🎯 NEW: Fetch assigned/accepted orders when assigned tab is active
+  useEffect(() => {
+    if (activeTab === 'assigned' && adminAuth.isAuthenticated) {
+      fetchAssignedAcceptedOrders();
+    }
+  }, [activeTab, adminAuth.isAuthenticated]);
+
   // 🎯 NEW: Setup socket connection for real-time order updates
   const setupSocketConnection = async () => {
     try {
@@ -198,6 +211,60 @@ const AdminDashboard = () => {
         fetchDashboardStats();
       });
 
+      // 🎯 NEW: Listen for seller location reached
+      socketService.on('seller-location-reached', (data) => {
+        console.log('📍 Seller location reached:', data);
+        toast.info(`Delivery agent reached seller location for order: ${data.orderNumber}`, {
+          autoClose: 4000,
+          position: "top-right"
+        });
+        
+        // Refresh assigned/accepted orders if on that tab
+        if (activeTab === 'assigned') {
+          fetchAssignedAcceptedOrders();
+        }
+      });
+
+      // 🎯 NEW: Listen for order acceptance by delivery agent
+      socketService.onAdminNotification((data) => {
+        const notificationType = data.type || data.message?.toLowerCase() || '';
+        
+        if (notificationType.includes('order-accepted-by-agent') || notificationType.includes('accepted-by-agent')) {
+          console.log('✅ Order accepted by delivery agent:', data.data);
+          toast.success(`Order ${data.data?.orderNumber || ''} accepted by delivery agent`);
+          if (activeTab === 'assigned') {
+            fetchAssignedAcceptedOrders();
+          }
+        }
+        
+        // Listen for pickup completion
+        if (notificationType.includes('order-pickup-completed') || notificationType.includes('pickup-completed')) {
+          console.log('📦 Order pickup completed:', data.data);
+          toast.success(`Order ${data.data?.orderNumber || ''} picked up by delivery agent`);
+          if (activeTab === 'assigned') {
+            fetchAssignedAcceptedOrders();
+          }
+        }
+        
+        // Listen for delivery location reached
+        if (notificationType.includes('delivery-agent-reached') || notificationType.includes('reached-location')) {
+          console.log('📍 Delivery agent reached location:', data.data);
+          toast.info(`Delivery agent reached location for order ${data.data?.orderNumber || ''}`);
+          if (activeTab === 'assigned') {
+            fetchAssignedAcceptedOrders();
+          }
+        }
+        
+        // Listen for delivery completion
+        if (notificationType.includes('order-delivered') || notificationType.includes('delivery-completed')) {
+          console.log('🎉 Order delivered:', data.data);
+          toast.success(`Order ${data.data?.orderNumber || ''} delivered successfully!`);
+          if (activeTab === 'assigned') {
+            fetchAssignedAcceptedOrders();
+          }
+        }
+      });
+
       console.log('✅ Admin socket connection and listeners established');
     } catch (error) {
       console.error('❌ Socket connection failed:', error);
@@ -261,6 +328,35 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('❌ Failed to fetch delivery agents:', error);
       toast.error('Failed to load delivery agents');
+    }
+  };
+
+  // 🎯 NEW: Fetch assigned/accepted orders with tracking
+  const fetchAssignedAcceptedOrders = async () => {
+    setAssignedOrdersLoading(true);
+    try {
+      console.log('📦 Fetching assigned/accepted orders...');
+      const response = await adminService.getAssignedAcceptedOrders({ limit: 50 });
+      
+      if (response.success) {
+        setAssignedAcceptedOrders(response.data || []);
+        console.log('✅ Assigned/accepted orders loaded:', response.data?.length || 0);
+        frontendLogger.logEvent('ADMIN_FETCHED_ASSIGNED_ORDERS', {
+          orderCount: response.data?.length || 0,
+          adminId: adminAuth.admin._id
+        });
+      } else {
+        throw new Error(response.message || 'Failed to fetch assigned/accepted orders');
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch assigned/accepted orders:', error);
+      frontendLogger.logEvent('ADMIN_FETCH_ASSIGNED_ORDERS_ERROR', {
+        error: error.message,
+        adminId: adminAuth.admin._id
+      });
+      toast.error('Failed to load assigned/accepted orders');
+    } finally {
+      setAssignedOrdersLoading(false);
     }
   };
 
@@ -1209,6 +1305,21 @@ const AdminDashboard = () => {
               Returns
             </button>
             <button
+              onClick={() => setActiveTab('assigned')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'assigned'
+                  ? 'border-orange-500 text-orange-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Assigned Orders
+              {assignedAcceptedOrders.length > 0 && (
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                  {assignedAcceptedOrders.length}
+                </span>
+              )}
+            </button>
+            <button
               onClick={() => setActiveTab('logs')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'logs'
@@ -1552,6 +1663,114 @@ const AdminDashboard = () => {
           </div>
         )}
 
+        {/* 🎯 NEW: Assigned/Accepted Orders Tab with Tracking */}
+        {activeTab === 'assigned' && (
+          <div className="mt-8">
+            {/* Assigned Orders Header */}
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Assigned & Accepted Orders</h2>
+              <p className="text-gray-600">Track orders assigned to delivery agents and monitor their progress</p>
+            </div>
+
+            {/* Assigned Orders List */}
+            {assignedOrdersLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+                <span className="ml-2 text-gray-600">Loading assigned orders...</span>
+              </div>
+            ) : assignedAcceptedOrders.length > 0 ? (
+              <div className="space-y-4">
+                {assignedAcceptedOrders.map((order) => (
+                  <div
+                    key={order._id}
+                    onClick={() => {
+                      setSelectedTrackingOrder(order);
+                      setShowTrackingModal(true);
+                    }}
+                    className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer p-6"
+                  >
+                    {/* Order Header */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">Order #{order.orderNumber}</h3>
+                        <p className="text-sm text-gray-500">
+                          Assigned to: <span className="font-medium">{order.deliveryAgent?.agent?.name || 'N/A'}</span>
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                          order.deliveryStatus === 'accepted' ? 'bg-blue-100 text-blue-800' :
+                          order.deliveryStatus === 'pickup_completed' ? 'bg-purple-100 text-purple-800' :
+                          order.deliveryStatus === 'location_reached' ? 'bg-yellow-100 text-yellow-800' :
+                          order.deliveryStatus === 'delivery_completed' ? 'bg-green-100 text-green-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {order.deliveryStatus?.replace('_', ' ').toUpperCase() || 'ASSIGNED'}
+                        </span>
+                        <p className="text-sm text-gray-500 mt-1">{formatCurrency(order.totalPrice)}</p>
+                      </div>
+                    </div>
+
+                    {/* Quick Order Info */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
+                      <div>
+                        <span className="text-gray-500">Customer:</span>
+                        <p className="font-medium text-gray-900">{order.user?.name}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Seller:</span>
+                        <p className="font-medium text-gray-900">{order.seller?.firstName || order.seller?.shop?.name || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Payment:</span>
+                        <p className={`font-medium ${order.isPaid ? 'text-green-600' : 'text-red-600'}`}>
+                          {order.isPaid ? 'Paid' : 'Pending'}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Items:</span>
+                        <p className="font-medium text-gray-900">{order.orderItems?.length || 0}</p>
+                      </div>
+                    </div>
+
+                    {/* Tracking Timeline Preview */}
+                    <div className="border-t pt-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">Tracking Progress</h4>
+                      <div className="flex items-center space-x-4">
+                        {order.trackingEvents && order.trackingEvents.length > 0 ? (
+                          <>
+                            {order.trackingEvents.map((event, index) => (
+                              <div key={index} className="flex items-center">
+                                <div className="flex items-center">
+                                  <div className={`w-3 h-3 rounded-full ${event.completed ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                  <span className="ml-2 text-xs text-gray-600">{event.label}</span>
+                                </div>
+                                {index < order.trackingEvents.length - 1 && (
+                                  <div className={`w-8 h-0.5 mx-2 ${order.trackingEvents[index + 1]?.completed ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                )}
+                              </div>
+                            ))}
+                          </>
+                        ) : (
+                          <p className="text-sm text-gray-500">No tracking updates yet</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Assigned Orders</h3>
+                <p className="text-gray-600">No orders have been assigned to delivery agents yet</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 🎯 NEW: Log Viewer Tab */}
         {activeTab === 'logs' && (
           <div className="mt-8">
@@ -1565,6 +1784,303 @@ const AdminDashboard = () => {
       
       {/* 🎯 NEW: Bulk Assignment Modal */}
       <BulkAssignmentModal />
+
+      {/* 🎯 NEW: Order Tracking Modal */}
+      {showTrackingModal && selectedTrackingOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-900">Order Tracking - #{selectedTrackingOrder.orderNumber}</h2>
+                <button
+                  onClick={() => {
+                    setShowTrackingModal(false);
+                    setSelectedTrackingOrder(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Order Basic Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h3 className="font-semibold text-blue-900 mb-3">Customer Details</h3>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="font-medium">Name:</span> {selectedTrackingOrder.user?.name}</p>
+                    <p><span className="font-medium">Phone:</span> {selectedTrackingOrder.user?.mobileNumber}</p>
+                    <p><span className="font-medium">Address:</span> {selectedTrackingOrder.shippingAddress?.address}</p>
+                  </div>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <h3 className="font-semibold text-green-900 mb-3">Delivery Agent</h3>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="font-medium">Name:</span> {selectedTrackingOrder.deliveryAgent?.agent?.name || 'N/A'}</p>
+                    <p><span className="font-medium">Vehicle:</span> {selectedTrackingOrder.deliveryAgent?.agent?.vehicleType || 'N/A'}</p>
+                    <p><span className="font-medium">Phone:</span> {selectedTrackingOrder.deliveryAgent?.agent?.mobileNumber || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tracking Timeline */}
+              <div className="mb-6">
+                <h3 className="font-semibold text-gray-900 mb-4">Order Tracking Timeline</h3>
+                <div className="space-y-4">
+                  {/* Accepted by Delivery Agent */}
+                  {selectedTrackingOrder.acceptedAt ? (
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-4 flex-1">
+                        <h4 className="text-sm font-medium text-gray-900">Accepted by Delivery Agent</h4>
+                        <p className="text-sm text-gray-500">{formatDate(selectedTrackingOrder.acceptedAt)}</p>
+                        <p className="text-sm text-gray-600 mt-1">Delivery agent accepted the order assignment</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start opacity-50">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-4 flex-1">
+                        <h4 className="text-sm font-medium text-gray-500">Accepted by Delivery Agent</h4>
+                        <p className="text-sm text-gray-400">Pending</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Reached Seller Location */}
+                  {selectedTrackingOrder.trackingEvents?.find(e => e.status === 'reached_seller_location') ? (
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-4 flex-1">
+                        <h4 className="text-sm font-medium text-gray-900">Delivery Agent Reached Seller Location</h4>
+                        <p className="text-sm text-gray-500">
+                          {formatDate(selectedTrackingOrder.trackingEvents.find(e => e.status === 'reached_seller_location').timestamp)}
+                        </p>
+                        <p className="text-sm text-gray-600 mt-1">Agent confirmed arrival at seller location</p>
+                        {selectedTrackingOrder.trackingEvents.find(e => e.status === 'reached_seller_location')?.notes && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Notes: {selectedTrackingOrder.trackingEvents.find(e => e.status === 'reached_seller_location').notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start opacity-50">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-4 flex-1">
+                        <h4 className="text-sm font-medium text-gray-500">Delivery Agent Reached Seller Location</h4>
+                        <p className="text-sm text-gray-400">Pending</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Order Picked Up */}
+                  {selectedTrackingOrder.pickupCompletedAt ? (
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-4 flex-1">
+                        <h4 className="text-sm font-medium text-gray-900">Order Has Been Picked Up</h4>
+                        <p className="text-sm text-gray-500">{formatDate(selectedTrackingOrder.pickupCompletedAt)}</p>
+                        <p className="text-sm text-gray-600 mt-1">Order ID verified and pickup completed by delivery agent</p>
+                        {selectedTrackingOrder.trackingEvents?.find(e => e.status === 'pickup_completed')?.notes && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Notes: {selectedTrackingOrder.trackingEvents.find(e => e.status === 'pickup_completed')?.notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start opacity-50">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-4 flex-1">
+                        <h4 className="text-sm font-medium text-gray-500">Order Has Been Picked Up</h4>
+                        <p className="text-sm text-gray-400">Pending</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Reached Delivery Address */}
+                  {selectedTrackingOrder.trackingEvents?.find(e => e.status === 'location_reached') ? (
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-4 flex-1">
+                        <h4 className="text-sm font-medium text-gray-900">Delivery Agent Has Reached Delivery Address</h4>
+                        <p className="text-sm text-gray-500">
+                          {formatDate(selectedTrackingOrder.trackingEvents.find(e => e.status === 'location_reached')?.timestamp)}
+                        </p>
+                        <p className="text-sm text-gray-600 mt-1">Agent reached customer delivery location</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start opacity-50">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-4 flex-1">
+                        <h4 className="text-sm font-medium text-gray-500">Delivery Agent Has Reached Delivery Address</h4>
+                        <p className="text-sm text-gray-400">Pending</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* OTP Verification (for prepaid orders only) */}
+                  {selectedTrackingOrder.paymentMethod !== 'COD' && 
+                   selectedTrackingOrder.paymentMethod !== 'Cash on Delivery' && 
+                   selectedTrackingOrder.isPaid && (
+                    selectedTrackingOrder.trackingEvents?.find(e => e.status === 'otp_verified') ? (
+                      <div className="flex items-start">
+                        <div className="flex-shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="ml-4 flex-1">
+                          <h4 className="text-sm font-medium text-gray-900">OTP Verified</h4>
+                          <p className="text-sm text-gray-500">
+                            {formatDate(selectedTrackingOrder.trackingEvents.find(e => e.status === 'otp_verified')?.timestamp)}
+                          </p>
+                          <p className="text-sm text-gray-600 mt-1">Delivery OTP verified successfully</p>
+                          {selectedTrackingOrder.trackingEvents.find(e => e.status === 'otp_verified')?.notes && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Notes: {selectedTrackingOrder.trackingEvents.find(e => e.status === 'otp_verified').notes}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start opacity-50">
+                        <div className="flex-shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="ml-4 flex-1">
+                          <h4 className="text-sm font-medium text-gray-500">OTP Verification</h4>
+                          <p className="text-sm text-gray-400">Pending</p>
+                        </div>
+                      </div>
+                    )
+                  )}
+
+                  {/* Order Delivered */}
+                  {selectedTrackingOrder.deliveryCompletedAt ? (
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-4 flex-1">
+                        <h4 className="text-sm font-medium text-gray-900">Order Has Been Delivered</h4>
+                        <p className="text-sm text-gray-500">{formatDate(selectedTrackingOrder.deliveryCompletedAt)}</p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {selectedTrackingOrder.isPaid || selectedTrackingOrder.paymentMethod === 'COD' 
+                            ? 'OTP verified / Payment collected - Order delivered successfully'
+                            : 'OTP verified - Order delivered successfully'}
+                        </p>
+                        {selectedTrackingOrder.trackingEvents?.find(e => e.status === 'delivery_completed')?.notes && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Notes: {selectedTrackingOrder.trackingEvents.find(e => e.status === 'delivery_completed')?.notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start opacity-50">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="ml-4 flex-1">
+                        <h4 className="text-sm font-medium text-gray-500">Order Has Been Delivered</h4>
+                        <p className="text-sm text-gray-400">Pending</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Order Items */}
+              <div className="border-t pt-6">
+                <h3 className="font-semibold text-gray-900 mb-4">Order Items</h3>
+                <div className="space-y-2">
+                  {selectedTrackingOrder.orderItems?.map((item, index) => (
+                    <div key={index} className="flex items-center p-3 bg-gray-50 rounded-lg">
+                      {item.image && (
+                        <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded" />
+                      )}
+                      <div className="ml-4 flex-1">
+                        <p className="font-medium text-gray-900">{item.name}</p>
+                        <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
+                      </div>
+                      <p className="text-sm font-medium text-gray-900">{formatCurrency(item.price * item.quantity)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
