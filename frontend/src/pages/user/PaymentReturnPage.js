@@ -63,6 +63,10 @@ const PaymentReturnPage = () => {
           // Check payment status using official Cashfree endpoint
           const statusResult = await paymentService.checkCashfreeStatus(orderId);
 
+          if (!statusResult.success) {
+            throw new Error(statusResult.message || 'Payment status check failed');
+          }
+
           logReturn('POLL_RESPONSE', 'PROCESSING', {
             attempt,
             success: statusResult.success,
@@ -71,7 +75,9 @@ const PaymentReturnPage = () => {
             orderNumber: statusResult.data?.orderNumber
           });
 
-          if (statusResult.success && statusResult.data?.isPaymentSuccessful) {
+          const isAlreadyPaid = statusResult.data?.isPaid;
+
+          if (statusResult.success && (statusResult.data?.isPaymentSuccessful || isAlreadyPaid)) {
             // Payment confirmed!
             logReturn('PAYMENT_CONFIRMED', 'SUCCESS', {
               orderId,
