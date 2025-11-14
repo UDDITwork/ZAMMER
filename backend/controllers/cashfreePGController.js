@@ -94,8 +94,9 @@ const createCashfreeOrder = async (req, res) => {
     const paymentAmount = amount || order.totalPrice;
 
     // Prepare Cashfree order data
+    const merchantOrderId = cashfreePGConfig.utils.generateOrderId(order._id);
     const cashfreeOrderData = {
-      orderId: cashfreePGConfig.utils.generateOrderId(order._id),
+      orderId: merchantOrderId,
       orderAmount: paymentAmount,
       orderCurrency: 'INR',
       customerDetails: {
@@ -150,6 +151,7 @@ const createCashfreeOrder = async (req, res) => {
     // Update order with Cashfree details
     order.cashfreeOrderId = cashfreeResult.data.cf_order_id;
     order.cashfreePaymentSessionId = cashfreeResult.data.payment_session_id;
+    order.cashfreeMerchantOrderId = merchantOrderId;
     order.paymentStatus = 'pending';
     order.paymentGateway = 'cashfree';
     
@@ -183,6 +185,7 @@ const createCashfreeOrder = async (req, res) => {
         orderId: order._id,
         orderNumber: order.orderNumber,
         cashfreeOrderId: cashfreeResult.data.cf_order_id,
+        cashfreeMerchantOrderId: merchantOrderId,
         paymentSessionId: cashfreeResult.data.payment_session_id,
         orderStatus: cashfreeResult.data.order_status,
         amount: paymentAmount,
@@ -249,13 +252,43 @@ const getCashfreeOrderStatus = async (req, res) => {
       });
     }
 
+    // Short-circuit if payment already confirmed
+    if (order.isPaid && order.paymentGateway === 'cashfree') {
+      return res.status(200).json({
+        success: true,
+        message: 'Payment already confirmed',
+        data: {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          cashfreeOrderId: order.cashfreeOrderId,
+          cashfreeMerchantOrderId: order.cashfreeMerchantOrderId || cashfreePGConfig.utils.generateOrderId(order._id),
+          cashfreeOrderStatus: 'PAID',
+          isPaymentSuccessful: true,
+          isPaid: true,
+          orderStatus: order.status,
+          paymentStatus: order.paymentStatus
+        }
+      });
+    }
+
+    // Ensure merchant order ID is available for Cashfree lookups
+    let merchantOrderId = order.cashfreeMerchantOrderId;
+    if (!merchantOrderId) {
+      merchantOrderId = cashfreePGConfig.utils.generateOrderId(order._id);
+      order.cashfreeMerchantOrderId = merchantOrderId;
+      await order.save();
+    }
+
     logPayment('CHECKING_CASHFREE_STATUS', {
       orderId,
       cashfreeOrderId: order.cashfreeOrderId
     });
 
     // Check status with Cashfree
-    const statusResult = await cashfreePGService.getOrderStatus(order.cashfreeOrderId);
+    const statusResult = await cashfreePGService.getOrderStatus({
+      merchantOrderId,
+      cfOrderId: order.cashfreeOrderId
+    });
 
     if (!statusResult.success) {
       logPayment('STATUS_CHECK_FAILED', {
@@ -296,7 +329,10 @@ const getCashfreeOrderStatus = async (req, res) => {
       console.log(`💰 Cashfree payment confirmed for order: ${order.orderNumber}`);
       
       // Get payment details
-      const paymentResult = await cashfreePGService.getPaymentDetails(order.cashfreeOrderId);
+      const paymentResult = await cashfreePGService.getPaymentDetails({
+        merchantOrderId,
+        cfOrderId: order.cashfreeOrderId
+      });
       const paymentDetails = paymentResult.success ? paymentResult.latestPayment : null;
 
       // Update order payment status
@@ -401,6 +437,7 @@ const getCashfreeOrderStatus = async (req, res) => {
         orderId: order._id,
         orderNumber: order.orderNumber,
         cashfreeOrderId: order.cashfreeOrderId,
+        cashfreeMerchantOrderId: merchantOrderId,
         cashfreeOrderStatus: cashfreeOrderStatus,
         isPaymentSuccessful,
         isPaid: order.isPaid,
@@ -465,7 +502,10 @@ const verifyCashfreePayment = async (req, res) => {
     }
 
     // Verify with Cashfree (includes order status + payment details)
-    const verifyResult = await cashfreePGService.verifyPayment(order.cashfreeOrderId);
+    const verifyResult = await cashfreePGService.verifyPayment({
+      merchantOrderId: order.cashfreeMerchantOrderId || cashfreePGConfig.utils.generateOrderId(order._id),
+      cfOrderId: order.cashfreeOrderId
+    });
 
     if (!verifyResult.success) {
       logPayment('PAYMENT_VERIFICATION_FAILED', {

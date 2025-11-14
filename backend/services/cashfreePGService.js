@@ -12,6 +12,22 @@ const terminalLog = (action, status, data = null) => {
     data ? JSON.stringify(data, null, 2) : '');
 };
 
+const resolveOrderLookupParams = (identifiers = {}) => {
+  const merchantOrderId = identifiers?.merchantOrderId;
+  const cfOrderId = identifiers?.cfOrderId;
+
+  if (!merchantOrderId && !cfOrderId) {
+    throw new Error('Cashfree order identifier (merchantOrderId or cfOrderId) is required');
+  }
+
+  return {
+    merchantOrderId,
+    cfOrderId,
+    lookupId: merchantOrderId || cfOrderId,
+    lookupType: merchantOrderId ? 'merchantOrderId' : 'cfOrderId'
+  };
+};
+
 class CashfreePGService {
   constructor() {
     // Validate configuration on initialization
@@ -163,11 +179,17 @@ class CashfreePGService {
    * @param {string} cfOrderId - Cashfree order ID
    * @returns {Promise<Object>} - Order details with payment status
    */
-  async getOrderStatus(cfOrderId) {
+  async getOrderStatus(identifiers = {}) {
+    let lookupId;
+    let lookupType;
+    let merchantOrderId;
+    let cfOrderId;
     try {
-      terminalLog('GET_ORDER_STATUS_START', 'PROCESSING', { cfOrderId });
+      ({ lookupId, lookupType, merchantOrderId, cfOrderId } = resolveOrderLookupParams(identifiers));
 
-      if (!cfOrderId) {
+      terminalLog('GET_ORDER_STATUS_START', 'PROCESSING', { lookupId, lookupType, merchantOrderId, cfOrderId });
+
+      if (!lookupId) {
         throw new Error('Cashfree Order ID is required');
       }
 
@@ -178,14 +200,15 @@ class CashfreePGService {
       const headers = cashfreePGConfig.getHeaders(requestId);
 
       terminalLog('GET_ORDER_STATUS_REQUEST', 'PROCESSING', {
-        url: `${this.baseURL}${cashfreePGConfig.endpoints.getOrder}/${cfOrderId}`,
-        requestId
+        url: `${this.baseURL}${cashfreePGConfig.endpoints.getOrder}/${lookupId}`,
+        requestId,
+        lookupType
       });
 
       // Make API request to Cashfree
       const response = await axios({
         method: 'GET',
-        url: `${this.baseURL}${cashfreePGConfig.endpoints.getOrder}/${cfOrderId}`,
+        url: `${this.baseURL}${cashfreePGConfig.endpoints.getOrder}/${lookupId}`,
         headers: headers,
         timeout: 15000 // 15 seconds
       });
@@ -212,7 +235,8 @@ class CashfreePGService {
 
     } catch (error) {
       terminalLog('GET_ORDER_STATUS_ERROR', 'ERROR', {
-        cfOrderId,
+        lookupId,
+        lookupType,
         error: error.message,
         response: error.response?.data,
         status: error.response?.status
@@ -228,11 +252,22 @@ class CashfreePGService {
    * @param {string} cfOrderId - Cashfree order ID
    * @returns {Promise<Object>} - Payment details
    */
-  async getPaymentDetails(cfOrderId) {
+  async getPaymentDetails(identifiers = {}) {
+    let lookupId;
+    let lookupType;
+    let merchantOrderId;
+    let cfOrderId;
     try {
-      terminalLog('GET_PAYMENT_DETAILS_START', 'PROCESSING', { cfOrderId });
+      ({ lookupId, lookupType, merchantOrderId, cfOrderId } = resolveOrderLookupParams(identifiers));
 
-      if (!cfOrderId) {
+      terminalLog('GET_PAYMENT_DETAILS_START', 'PROCESSING', {
+        lookupId,
+        lookupType,
+        merchantOrderId,
+        cfOrderId
+      });
+
+      if (!lookupId) {
         throw new Error('Cashfree Order ID is required');
       }
 
@@ -243,14 +278,15 @@ class CashfreePGService {
       const headers = cashfreePGConfig.getHeaders(requestId);
 
       terminalLog('GET_PAYMENT_DETAILS_REQUEST', 'PROCESSING', {
-        url: `${this.baseURL}${cashfreePGConfig.endpoints.getOrderPayments}/${cfOrderId}/payments`,
-        requestId
+        url: `${this.baseURL}${cashfreePGConfig.endpoints.getOrderPayments}/${lookupId}/payments`,
+        requestId,
+        lookupType
       });
 
       // Make API request to Cashfree
       const response = await axios({
         method: 'GET',
-        url: `${this.baseURL}${cashfreePGConfig.endpoints.getOrderPayments}/${cfOrderId}/payments`,
+        url: `${this.baseURL}${cashfreePGConfig.endpoints.getOrderPayments}/${lookupId}/payments`,
         headers: headers,
         timeout: 15000 // 15 seconds
       });
@@ -259,7 +295,8 @@ class CashfreePGService {
       const latestPayment = payments.length > 0 ? payments[0] : null;
 
       terminalLog('GET_PAYMENT_DETAILS_SUCCESS', 'SUCCESS', {
-        cf_order_id: cfOrderId,
+        lookupId,
+        lookupType,
         payment_count: payments.length,
         latest_payment_status: latestPayment?.payment_status,
         payment_method: latestPayment?.payment_group
@@ -274,7 +311,8 @@ class CashfreePGService {
 
     } catch (error) {
       terminalLog('GET_PAYMENT_DETAILS_ERROR', 'ERROR', {
-        cfOrderId,
+        lookupId,
+        lookupType,
         error: error.message,
         response: error.response?.data,
         status: error.response?.status
@@ -289,12 +327,15 @@ class CashfreePGService {
    * @param {string} cfOrderId - Cashfree order ID
    * @returns {Promise<Object>} - Verification result
    */
-  async verifyPayment(cfOrderId) {
+  async verifyPayment(identifiers = {}) {
+    let merchantOrderId;
+    let cfOrderId;
     try {
-      terminalLog('VERIFY_PAYMENT_START', 'PROCESSING', { cfOrderId });
+      ({ merchantOrderId, cfOrderId } = resolveOrderLookupParams(identifiers));
+      terminalLog('VERIFY_PAYMENT_START', 'PROCESSING', { merchantOrderId, cfOrderId });
 
       // Step 1: Get order status
-      const orderResult = await this.getOrderStatus(cfOrderId);
+      const orderResult = await this.getOrderStatus({ merchantOrderId, cfOrderId });
       
       if (!orderResult.success) {
         return orderResult;
@@ -304,6 +345,7 @@ class CashfreePGService {
       const isPaymentSuccessful = orderStatus === 'PAID';
 
       terminalLog('VERIFY_PAYMENT_ORDER_STATUS', 'PROCESSING', {
+        merchantOrderId,
         cfOrderId,
         orderStatus,
         isPaymentSuccessful
@@ -312,13 +354,14 @@ class CashfreePGService {
       // Step 2: If order is paid, get payment details
       let paymentDetails = null;
       if (isPaymentSuccessful) {
-        const paymentResult = await this.getPaymentDetails(cfOrderId);
+        const paymentResult = await this.getPaymentDetails({ merchantOrderId, cfOrderId });
         if (paymentResult.success) {
           paymentDetails = paymentResult.latestPayment;
         }
       }
 
       terminalLog('VERIFY_PAYMENT_SUCCESS', 'SUCCESS', {
+        merchantOrderId,
         cfOrderId,
         orderStatus,
         isPaymentSuccessful,
@@ -339,6 +382,7 @@ class CashfreePGService {
 
     } catch (error) {
       terminalLog('VERIFY_PAYMENT_ERROR', 'ERROR', {
+        merchantOrderId,
         cfOrderId,
         error: error.message
       });

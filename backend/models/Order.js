@@ -81,6 +81,10 @@ const OrderSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  cashfreeMerchantOrderId: {
+    type: String,
+    default: null
+  },
   cashfreePaymentSessionId: {
     type: String,
     default: null
