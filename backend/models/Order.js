@@ -358,6 +358,18 @@ const OrderSchema = new mongoose.Schema({
     rejectionReason: {
       type: String,
       default: ''
+    },
+    pickupCompletedAt: {
+      type: Date,
+      default: null
+    },
+    locationReachedAt: {
+      type: Date,
+      default: null
+    },
+    deliveryCompletedAt: {
+      type: Date,
+      default: null
     }
   },
 
@@ -368,6 +380,10 @@ const OrderSchema = new mongoose.Schema({
       default: false
     },
     completedAt: {
+      type: Date,
+      default: null
+    },
+    sellerLocationReachedAt: {
       type: Date,
       default: null
     },
@@ -425,6 +441,14 @@ const OrderSchema = new mongoose.Schema({
         }
       }
     }],
+    locationReachedAt: {
+      type: Date,
+      default: null
+    },
+    locationNotes: {
+      type: String,
+      default: ''
+    },
     completedAt: {
       type: Date,
       default: null

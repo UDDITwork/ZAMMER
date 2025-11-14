@@ -14,6 +14,7 @@ const {
   acceptOrder,
   bulkAcceptOrders,
   bulkRejectOrders,
+  markReachedSellerLocation,
   completePickup,
   markReachedLocation,
   completeDelivery,
@@ -256,6 +257,11 @@ router.put('/orders/:id/reject', protectDeliveryAgent, rejectOrder);
 router.get('/notifications', protectDeliveryAgent, getOrderNotifications);
 
 // @desc    Complete order pickup
+// @desc    Mark delivery agent as reached seller location
+// @route   PUT /api/delivery/orders/:id/reached-seller-location
+// @access  Private (Delivery Agent)
+router.put('/orders/:id/reached-seller-location', protectDeliveryAgent, markReachedSellerLocation);
+
 // @route   PUT /api/delivery/orders/:id/pickup
 // @access  Private (Delivery Agent)
 router.put('/orders/:id/pickup', protectDeliveryAgent, pickupValidation, completePickup);

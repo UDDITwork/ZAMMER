@@ -100,7 +100,8 @@ const RealTimeOrderTracker = () => {
     socketService.onOrderUpdate((data) => {
       debugLog('Received order status update', data);
       
-      const { orderNumber, status, previousStatus } = data.data;
+      const orderData = data.data || data;
+      const { orderNumber, status, previousStatus, message, reachedSellerTime } = orderData;
       
       // Update orders list
       setOrders(prevOrders => 
@@ -111,37 +112,103 @@ const RealTimeOrderTracker = () => {
         )
       );
 
+      // Check if this is a seller location reached update
+      if (message && message.includes('reached seller location')) {
+        // Add notification for seller location reached
+        const notification = {
+          id: Date.now(),
+          type: 'seller-location-reached',
+          message: message || `Delivery agent has reached seller location for order ${orderNumber}`,
+          orderNumber,
+          timestamp: reachedSellerTime || new Date().toISOString()
+        };
+
+        setNotifications(prev => [notification, ...prev.slice(0, 4)]);
+
+        // Show toast notification
+        toast.info(
+          <div className="flex items-center">
+            <span className="text-2xl mr-2">📍</span>
+            <div>
+              <p className="font-medium">On The Way</p>
+              <p className="text-sm">Delivery agent has reached seller location</p>
+            </div>
+          </div>,
+          { position: "top-right", autoClose: 5000 }
+        );
+      } else if (status) {
+        // Regular status update
+        const notification = {
+          id: Date.now(),
+          type: 'status-update',
+          message: `Order ${orderNumber} is now ${status}`,
+          orderNumber,
+          status,
+          previousStatus,
+          timestamp: new Date().toISOString()
+        };
+
+        setNotifications(prev => [notification, ...prev.slice(0, 4)]); // Keep last 5
+
+        // Show toast notification
+        const statusEmoji = getStatusEmoji(status);
+        toast.info(
+          <div className="flex items-center">
+            <span className="text-2xl mr-2">{statusEmoji}</span>
+            <div>
+              <p className="font-medium">Order Update</p>
+              <p className="text-sm">Order {orderNumber} is now {status}</p>
+            </div>
+          </div>,
+          { 
+            position: "top-right", 
+            autoClose: 5000,
+            onClick: () => window.location.href = '/user/orders'
+          }
+        );
+      }
+
+      debugLog('Order updated in state', { orderNumber, status });
+    });
+
+    // Listen for order acceptance by delivery agent
+    socketService.on('order-accepted-by-agent', (data) => {
+      debugLog('Received order accepted by agent', data);
+      
+      const orderData = data.data || data;
+      const { orderNumber, deliveryAgent, message } = orderData;
+      
+      // Update orders list
+      setOrders(prevOrders => 
+        prevOrders.map(order => 
+          order.orderNumber === orderNumber 
+            ? { ...order, deliveryAgent, updatedAt: new Date().toISOString() }
+            : order
+        )
+      );
+
       // Add notification
       const notification = {
         id: Date.now(),
-        type: 'status-update',
-        message: `Order ${orderNumber} is now ${status}`,
+        type: 'agent-accepted',
+        message: message || `Delivery agent ${deliveryAgent?.name || 'assigned'} has accepted your order ${orderNumber}`,
         orderNumber,
-        status,
-        previousStatus,
         timestamp: new Date().toISOString()
       };
 
-      setNotifications(prev => [notification, ...prev.slice(0, 4)]); // Keep last 5
+      setNotifications(prev => [notification, ...prev.slice(0, 4)]);
 
       // Show toast notification
-      const statusEmoji = getStatusEmoji(status);
-      toast.info(
+      toast.success(
         <div className="flex items-center">
-          <span className="text-2xl mr-2">{statusEmoji}</span>
+          <span className="text-2xl mr-2">🚚</span>
           <div>
-            <p className="font-medium">Order Update</p>
-            <p className="text-sm">Order {orderNumber} is now {status}</p>
+            <p className="font-medium">Delivery Agent Assigned</p>
+            <p className="text-sm">{message || `Agent ${deliveryAgent?.name || ''} has accepted your order`}</p>
           </div>
         </div>,
-        { 
-          position: "top-right", 
-          autoClose: 5000,
-          onClick: () => window.location.href = '/user/orders'
-        }
+        { position: "top-right", autoClose: 5000 }
       );
-
-      debugLog('Order updated in state', { orderNumber, status });
     });
 
     // Listen for new order confirmations

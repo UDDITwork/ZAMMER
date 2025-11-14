@@ -732,7 +732,23 @@ const acceptOrder = async (req, res) => {
 ===============================`);
 
     // Emit real-time notifications
+    // 🎯 UPDATED: Emit order-accepted-by-agent to buyer for consistency
     if (global.emitToBuyer) {
+      global.emitToBuyer(order.user._id, 'order-accepted-by-agent', {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        deliveryStatus: order.deliveryAgent.status,
+        deliveryAgent: {
+          name: req.deliveryAgent.name,
+          phone: req.deliveryAgent.phoneNumber,
+          vehicleType: req.deliveryAgent.vehicleDetails?.type
+        },
+        acceptedAt: order.deliveryAgent.acceptedAt,
+        message: `Order ${order.orderNumber} has been accepted by delivery agent ${req.deliveryAgent.name}`
+      });
+      
+      // Also emit order-agent-assigned for backward compatibility
       global.emitToBuyer(order.user._id, 'order-agent-assigned', {
         _id: order._id,
         orderNumber: order.orderNumber,
@@ -1143,6 +1159,194 @@ const updateDeliveryAgentProfile = async (req, res) => {
       message: 'Profile update failed',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
       code: 'PROFILE_UPDATE_ERROR'
+    });
+  }
+};
+
+// @desc    Mark delivery agent as reached seller location
+// @route   PUT /api/delivery/orders/:id/reached-seller-location
+// @access  Private (Delivery Agent)
+const markReachedSellerLocation = async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
+    const orderId = req.params.id;
+    
+    logDelivery('MARK_REACHED_SELLER_LOCATION_STARTED', { agentId, orderId });
+    
+    console.log(`
+📍 ===============================
+   REACHED SELLER LOCATION
+===============================
+📋 Order ID: ${orderId}
+🚚 Agent: ${req.deliveryAgent.name}
+🕐 Time: ${new Date().toLocaleString()}
+==============================`);
+
+    // 🎯 VALIDATION: Check if order exists and is assigned to this agent
+    const order = await Order.findById(orderId)
+      .populate('user', 'name mobileNumber email')
+      .populate('seller', 'firstName shop')
+      .populate('orderItems.product', 'name images');
+
+    if (!order) {
+      logDeliveryError('REACHED_SELLER_LOCATION_ORDER_NOT_FOUND', new Error('Order not found'), { orderId });
+      return res.status(404).json({
+        success: false, 
+        message: 'Order not found',
+        code: 'ORDER_NOT_FOUND'
+      });
+    }
+
+    // 🎯 AUTHORIZATION: Verify order is assigned to this agent
+    const assignedAgentId = order.deliveryAgent.agent?.toString();
+    const currentAgentId = agentId?.toString();
+    
+    if (assignedAgentId !== currentAgentId) {
+      logDeliveryError('REACHED_SELLER_LOCATION_UNAUTHORIZED', new Error('Order not assigned to this agent'), { 
+        orderId, 
+        assignedAgent: assignedAgentId, 
+        currentAgent: currentAgentId
+      });
+      return res.status(403).json({
+        success: false,
+        message: 'Order is not assigned to you',
+        code: 'UNAUTHORIZED_ORDER'
+      });
+    }
+
+    // 🎯 STATUS VALIDATION: Check if agent can mark seller location as reached
+    if (order.deliveryAgent.status !== 'accepted') {
+      logDeliveryError('REACHED_SELLER_LOCATION_STATUS_INVALID', new Error('Order must be accepted first'), { 
+        orderId, 
+        currentStatus: order.deliveryAgent.status 
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Order must be accepted before reaching seller location',
+        code: 'ORDER_NOT_ACCEPTED'
+      });
+    }
+
+    if (order.pickup?.sellerLocationReachedAt) {
+      logDeliveryError('REACHED_SELLER_LOCATION_ALREADY_REACHED', new Error('Seller location already marked as reached'), { orderId });
+      return res.status(400).json({
+        success: false,
+        message: 'Seller location has already been marked as reached for this order',
+        code: 'SELLER_LOCATION_ALREADY_REACHED'
+      });
+    }
+
+    // 🎯 BUSINESS LOGIC: Update order with seller location reached timestamp
+    const reachedTime = new Date();
+    
+    // Initialize pickup object if it doesn't exist
+    if (!order.pickup) {
+      order.pickup = {};
+    }
+    
+    // Update seller location reached timestamp
+    order.pickup.sellerLocationReachedAt = reachedTime;
+
+    // Save order
+    await order.save();
+
+    logDelivery('MARK_REACHED_SELLER_LOCATION_SUCCESS', { 
+      agentId, 
+      orderId,
+      reachedTime,
+      processingTime: `${Date.now() - startTime}ms`
+    }, 'success');
+
+    console.log(`
+✅ ===============================
+   SELLER LOCATION REACHED!
+===============================
+📦 Order: ${order.orderNumber}
+🚚 Agent: ${req.deliveryAgent.name}
+🏪 Seller: ${order.seller.firstName}
+👤 Customer: ${order.user.name}
+📅 Time: ${reachedTime.toLocaleString()}
+===============================`);
+
+    // 🎯 EMIT SOCKET EVENTS for real-time updates
+    try {
+      // Notify admin about seller location reached
+      if (global.emitToAdmin) {
+        global.emitToAdmin('seller-location-reached', {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          deliveryStatus: order.deliveryAgent.status,
+          reachedTime: reachedTime,
+          deliveryAgent: {
+            name: req.deliveryAgent.name,
+            phone: req.deliveryAgent.phoneNumber,
+            vehicleType: req.deliveryAgent.vehicleDetails?.type
+          },
+          customer: {
+            name: order.user.name,
+            mobileNumber: order.user.mobileNumber
+          },
+          seller: {
+            name: order.seller.firstName,
+            shopName: order.seller.shop?.name
+          }
+        });
+      }
+
+      // Notify buyer about order status update (agent reached seller)
+      if (global.emitToBuyer) {
+        global.emitToBuyer(order.user._id, 'order-status-update', {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          deliveryStatus: order.deliveryAgent.status,
+          reachedSellerTime: reachedTime,
+          message: 'Delivery agent has reached seller location',
+          deliveryAgent: {
+            name: req.deliveryAgent.name,
+            phone: req.deliveryAgent.phoneNumber
+          }
+        });
+      }
+
+    } catch (socketError) {
+      console.error('❌ Socket notification failed:', socketError.message);
+      logDeliveryError('REACHED_SELLER_LOCATION_SOCKET_ERROR', socketError, { orderId });
+    }
+
+    // 📤 SUCCESS RESPONSE
+    res.status(200).json({
+      success: true,
+      message: 'Seller location marked as reached successfully',
+      data: {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        deliveryStatus: order.deliveryAgent.status,
+        sellerLocationReachedAt: reachedTime,
+        nextStep: 'Please complete pickup by entering order ID from seller'
+      }
+    });
+
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+    
+    logDeliveryError('MARK_REACHED_SELLER_LOCATION_FAILED', error, { 
+      agentId: req.deliveryAgent?.id, 
+      orderId: req.params.id, 
+      processingTime: `${processingTime}ms`
+    });
+
+    console.error('❌ Mark Reached Seller Location Error:', error);
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mark seller location as reached',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: 'REACHED_SELLER_LOCATION_ERROR'
     });
   }
 };
@@ -1575,9 +1779,9 @@ const markReachedLocation = async (req, res) => {
 ===============================`);
       
       try {
-        const otpService = require('../services/otpService');
+        const msg91Service = require('../services/msg91Service');
         
-        console.log('🔄 Loading OTP Service...');
+        console.log('🔄 Loading MSG91 Service...');
         console.log('📞 Preparing OTP data for customer:', order.user.mobileNumber);
         
         const otpRequestData = {
@@ -1596,7 +1800,11 @@ const markReachedLocation = async (req, res) => {
         console.log('📋 OTP Request Data:', JSON.stringify(otpRequestData, null, 2));
         console.log('🚀 Calling createDeliveryOTP...');
         
-        const otpData = await otpService.createDeliveryOTP(otpRequestData);
+        const otpData = await msg91Service.createDeliveryOTP({
+          ...otpRequestData,
+          orderNumber: order.orderNumber,
+          userName: order.user.name
+        });
         
         console.log('✅ OTP Service Response:', JSON.stringify(otpData, null, 2));
         
@@ -1619,15 +1827,13 @@ const markReachedLocation = async (req, res) => {
             isVerified: false
           };
           
-          console.log(`
+        console.log(`
 🎉 ===============================
    OTP GENERATION SUCCESS!
 ===============================
 📱 OTP Sent to: ${order.user.mobileNumber}
 🔑 OTP ID: ${otpData.otpId}
 ⏰ Expires At: ${otpData.expiresAt}
-🧪 Test Mode: ${otpData.testMode ? 'YES' : 'NO'}
-📋 OTP Code: ${otpData.otpCode || 'NOT_SHOWN_FOR_SECURITY'}
 ===============================`);
         } else {
           throw new Error(`OTP service returned failure: ${otpData?.error || 'Unknown error'}`);
@@ -3335,6 +3541,7 @@ module.exports = {
   acceptOrder,
   bulkAcceptOrders,
   bulkRejectOrders,
+  markReachedSellerLocation,
   completePickup,
   markReachedLocation,
   completeDelivery,

@@ -2,7 +2,7 @@
 // 🎯 CASHFREE PAYOUT NOTIFICATIONS - Complete notification system for sellers
 
 const nodemailer = require('nodemailer');
-const twilio = require('twilio');
+const msg91Service = require('./msg91Service');
 
 // Enhanced logging for payout notifications
 const logPayoutNotification = (action, data, level = 'info') => {
@@ -21,7 +21,6 @@ const logPayoutNotification = (action, data, level = 'info') => {
 class PayoutNotificationService {
   constructor() {
     this.emailTransporter = null;
-    this.twilioClient = null;
     this.initializeServices();
   }
 
@@ -47,14 +46,7 @@ class PayoutNotificationService {
         logPayoutNotification('EMAIL_SERVICE_SKIPPED', { reason: 'SMTP credentials not configured' }, 'warning');
       }
 
-      // Initialize SMS service
-      if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-        this.twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-        logPayoutNotification('SMS_SERVICE_INITIALIZED', { accountSid: process.env.TWILIO_ACCOUNT_SID }, 'success');
-      } else {
-        logPayoutNotification('SMS_SERVICE_SKIPPED', { reason: 'Twilio credentials not configured' }, 'warning');
-      }
-
+      logPayoutNotification('SMS_SERVICE_INITIALIZED', { provider: 'MSG91' }, 'success');
     } catch (error) {
       logPayoutNotification('NOTIFICATION_SERVICE_INIT_ERROR', {
         error: error.message,
@@ -128,7 +120,7 @@ class PayoutNotificationService {
       }
 
       // SMS notification for critical status updates
-      if (this.twilioClient && seller.mobileNumber && this.shouldSendSMS(payout.status)) {
+      if (seller.mobileNumber && this.shouldSendSMS(payout.status)) {
         try {
           await this.sendPayoutSMSNotification(notificationData, notificationType);
           notifications.push('sms');
@@ -243,31 +235,16 @@ class PayoutNotificationService {
     await this.emailTransporter.sendMail(mailOptions);
   }
 
-  // Send SMS notification for payout status
+  // Send SMS notification for payout status (currently disabled)
   async sendPayoutSMSNotification(notificationData, notificationType) {
-    if (!this.twilioClient) {
-      throw new Error('SMS service not initialized');
-    }
-
-    const { seller, payout, order } = notificationData;
+    const { seller, payout } = notificationData;
     
-    // SMS templates based on payout status
-    const smsTemplates = {
-      payout_eligible: `Hi ${seller.name}! Your payout of ₹${payout.amount} from order ${order.orderNumber} is ready and will be processed soon. - Zammer`,
-      payout_processing: `Hi ${seller.name}! Your payout of ₹${payout.amount} is being processed and will reach your account within 24 hours. - Zammer`,
-      payout_completed: `Hi ${seller.name}! Your payout of ₹${payout.amount} has been successfully transferred to your account. UTR: ${payout.transferUtr || 'N/A'}. - Zammer`,
-      payout_failed: `Hi ${seller.name}! Your payout of ₹${payout.amount} failed. Please contact support or check your bank details. - Zammer`,
-      beneficiary_created: `Hi ${seller.name}! Your bank account has been verified successfully. You're now ready to receive payouts from Zammer. - Zammer`,
-      beneficiary_verification_failed: `Hi ${seller.name}! Your bank account verification failed. Please update your bank details in your seller dashboard. - Zammer`
-    };
-
-    const message = smsTemplates[notificationType] || smsTemplates.payout_processing;
-    
-    await this.twilioClient.messages.create({
-      body: message,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: `+91${seller.mobileNumber}` // Assuming Indian mobile numbers
-    });
+    logPayoutNotification('PAYOUT_SMS_SKIPPED', {
+      payoutId: payout._id,
+      sellerMobile: seller.mobileNumber,
+      notificationType,
+      reason: 'MSG91 payout template not configured; SMS skipped.'
+    }, 'warning');
   }
 
   // Send real-time notification via socket

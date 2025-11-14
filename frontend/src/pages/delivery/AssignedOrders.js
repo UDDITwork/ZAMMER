@@ -10,12 +10,18 @@ const AssignedOrders = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [processingOrder, setProcessingOrder] = useState(null);
-  const [actionType, setActionType] = useState(null); // 'pickup' or 'delivery'
+  const [actionType, setActionType] = useState(null); // 'accept', 'reached-seller', 'pickup', 'reached-delivery', 'delivery'
   
   // Modal states
+  const [showAcceptModal, setShowAcceptModal] = useState(false);
+  const [showReachedSellerModal, setShowReachedSellerModal] = useState(false);
   const [showPickupModal, setShowPickupModal] = useState(false);
+  const [showReachedDeliveryModal, setShowReachedDeliveryModal] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  
+  // Order state tracking
+  const [orderStates, setOrderStates] = useState({}); // Track reached seller/delivery states
   
   // Form states
   const [pickupForm, setPickupForm] = useState({
@@ -25,7 +31,8 @@ const AssignedOrders = () => {
   const [deliveryForm, setDeliveryForm] = useState({
     otp: '',
     deliveryNotes: '',
-    customerSignature: ''
+    codPaymentType: null, // 'qr' or 'cash'
+    qrCode: null
   });
   
   const navigate = useNavigate();
@@ -91,6 +98,94 @@ const AssignedOrders = () => {
     setRefreshing(false);
   };
 
+  // Handle order acceptance
+  const handleAcceptOrder = async (order) => {
+    setProcessingOrder(order._id);
+    setActionType('accept');
+
+    try {
+      const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
+      
+      console.log('🚚 [ASSIGNED-ORDERS] Accepting order:', order._id);
+      
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/orders/${order._id}/accept`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success('Order accepted successfully!');
+        console.log('✅ [ASSIGNED-ORDERS] Order accepted:', order._id);
+        loadAssignedOrders();
+      } else {
+        console.error('❌ [ASSIGNED-ORDERS] Failed to accept order:', data.message);
+        toast.error(data.message || 'Failed to accept order');
+      }
+    } catch (error) {
+      console.error('❌ [ASSIGNED-ORDERS] Error accepting order:', error);
+      toast.error('Failed to accept order');
+    } finally {
+      setProcessingOrder(null);
+      setActionType(null);
+    }
+  };
+
+  // Handle reached seller location
+  const handleReachedSellerLocation = async (order) => {
+    setProcessingOrder(order._id);
+    setActionType('reached-seller');
+
+    try {
+      const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
+      
+      console.log('🚚 [ASSIGNED-ORDERS] Marking reached seller location for order:', order._id);
+      
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/orders/${order._id}/reached-seller-location`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success('Seller location confirmed! Please enter order ID from seller.');
+        console.log('✅ [ASSIGNED-ORDERS] Seller location marked as reached:', order._id);
+        
+        // Mark locally that seller location is reached
+        setOrderStates(prev => ({
+          ...prev,
+          [order._id]: { ...prev[order._id], sellerLocationReached: true }
+        }));
+        
+        // Open pickup modal with order ID input
+        setSelectedOrder(order);
+        setPickupForm({ orderIdVerification: '', pickupNotes: '' });
+        setShowReachedSellerModal(false);
+        setShowPickupModal(true);
+        
+        // Refresh orders to get updated data
+        loadAssignedOrders();
+      } else {
+        console.error('❌ [ASSIGNED-ORDERS] Failed to mark seller location:', data.message);
+        toast.error(data.message || 'Failed to confirm seller location');
+      }
+    } catch (error) {
+      console.error('❌ [ASSIGNED-ORDERS] Error marking seller location:', error);
+      toast.error('Failed to confirm seller location');
+    } finally {
+      setProcessingOrder(null);
+      setActionType(null);
+    }
+  };
+
   // Handle pickup completion
   const handlePickupComplete = async () => {
     if (!selectedOrder || !pickupForm.orderIdVerification.trim()) {
@@ -121,7 +216,7 @@ const AssignedOrders = () => {
       const data = await response.json();
 
       if (data.success) {
-        toast.success('Pickup completed successfully!');
+        toast.success('Pickup completed successfully! Order status updated for buyer.');
         console.log('✅ [ASSIGNED-ORDERS] Pickup completed:', selectedOrder._id);
         
         // Reset form and close modal
@@ -144,11 +239,149 @@ const AssignedOrders = () => {
     }
   };
 
+  // Handle reached delivery location
+  const handleReachedDeliveryLocation = async (order) => {
+    setProcessingOrder(order._id);
+    setActionType('reached-delivery');
+
+    try {
+      const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
+      
+      console.log('🚚 [ASSIGNED-ORDERS] Marking reached delivery location for order:', order._id);
+      
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/orders/${order._id}/reached-location`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          locationNotes: ''
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Mark locally that delivery location is reached
+        setOrderStates(prev => ({
+          ...prev,
+          [order._id]: { ...prev[order._id], deliveryLocationReached: true }
+        }));
+        
+        // Handle prepaid vs COD flow
+        if (order.paymentMethod === 'COD' || !order.isPaid) {
+          // COD flow - show payment options
+          setSelectedOrder(order);
+          setDeliveryForm({ 
+            otp: '', 
+            deliveryNotes: '',
+            codPaymentType: null,
+            qrCode: data.data?.paymentData?.qrCode || data.paymentData?.qrCode || null
+          });
+          setShowReachedDeliveryModal(false);
+          setShowDeliveryModal(true);
+          toast.success('Please collect payment from customer');
+        } else {
+          // Prepaid flow - OTP should be sent automatically, show OTP input
+          setSelectedOrder(order);
+          setDeliveryForm({ 
+            otp: '', 
+            deliveryNotes: '',
+            codPaymentType: null,
+            qrCode: null
+          });
+          setShowReachedDeliveryModal(false);
+          setShowDeliveryModal(true);
+          toast.success('OTP sent to customer! Please ask customer for OTP.');
+        }
+      } else {
+        console.error('❌ [ASSIGNED-ORDERS] Failed to mark reached location:', data.message);
+        toast.error(data.message || 'Failed to mark reached location');
+      }
+    } catch (error) {
+      console.error('❌ [ASSIGNED-ORDERS] Error marking reached location:', error);
+      toast.error('Failed to mark reached location');
+    } finally {
+      setProcessingOrder(null);
+      setActionType(null);
+    }
+  };
+
+  // Handle OTP resend
+  const handleResendOTP = async () => {
+    if (!selectedOrder) return;
+    
+    setProcessingOrder(selectedOrder._id);
+    
+    try {
+      const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
+      
+      // Resend OTP by calling reached location again
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/orders/${selectedOrder._id}/reached-location`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          locationNotes: 'OTP resend requested'
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success('OTP resent successfully!');
+      } else {
+        toast.error(data.message || 'Failed to resend OTP');
+      }
+    } catch (error) {
+      console.error('❌ [ASSIGNED-ORDERS] Error resending OTP:', error);
+      toast.error('Failed to resend OTP');
+    } finally {
+      setProcessingOrder(null);
+    }
+  };
+
+  // Handle COD payment type selection
+  const handleCODPaymentType = async (paymentType) => {
+    if (!selectedOrder) return;
+    
+    if (paymentType === 'qr' && !deliveryForm.qrCode) {
+      // Generate QR code
+      try {
+        const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
+        // QR generation happens on backend when reached location is called
+        toast.info('QR code should be available. Please check with admin if not shown.');
+      } catch (error) {
+        console.error('Error generating QR:', error);
+      }
+    }
+    
+    setDeliveryForm(prev => ({ ...prev, codPaymentType: paymentType }));
+  };
+
   // Handle delivery completion
   const handleDeliveryComplete = async () => {
-    if (!selectedOrder || !deliveryForm.otp.trim()) {
-      toast.error('Please enter OTP from customer');
+    if (!selectedOrder) {
+      toast.error('No order selected');
       return;
+    }
+
+    // Validate based on payment type
+    const isCOD = selectedOrder.paymentMethod === 'COD' || !selectedOrder.isPaid;
+    
+    if (isCOD) {
+      if (!deliveryForm.codPaymentType) {
+        toast.error('Please select payment method (QR Code or Cash)');
+        return;
+      }
+    } else {
+      if (!deliveryForm.otp.trim()) {
+        toast.error('Please enter OTP from customer');
+        return;
+      }
     }
 
     setProcessingOrder(selectedOrder._id);
@@ -159,17 +392,28 @@ const AssignedOrders = () => {
       
       console.log('🚚 [ASSIGNED-ORDERS] Completing delivery for order:', selectedOrder._id);
       
+      const requestBody = {
+        deliveryNotes: deliveryForm.deliveryNotes,
+      };
+
+      // Add OTP for prepaid orders
+      if (!isCOD) {
+        requestBody.otp = deliveryForm.otp;
+      } else {
+        // For COD, include payment confirmation
+        requestBody.codPayment = {
+          method: deliveryForm.codPaymentType,
+          collected: true
+        };
+      }
+      
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/orders/${selectedOrder._id}/deliver`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          otp: deliveryForm.otp,
-          deliveryNotes: deliveryForm.deliveryNotes,
-          customerSignature: deliveryForm.customerSignature
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();
@@ -179,9 +423,14 @@ const AssignedOrders = () => {
         console.log('✅ [ASSIGNED-ORDERS] Delivery completed:', selectedOrder._id);
         
         // Reset form and close modal
-        setDeliveryForm({ otp: '', deliveryNotes: '', customerSignature: '' });
+        setDeliveryForm({ otp: '', deliveryNotes: '', codPaymentType: null, qrCode: null });
         setShowDeliveryModal(false);
         setSelectedOrder(null);
+        setOrderStates(prev => {
+          const next = { ...prev };
+          delete next[selectedOrder._id];
+          return next;
+        });
         
         // Refresh orders
         loadAssignedOrders();
@@ -198,25 +447,25 @@ const AssignedOrders = () => {
     }
   };
 
-  // Open pickup modal
-  const openPickupModal = (order) => {
-    setSelectedOrder(order);
-    setPickupForm({ 
-      orderIdVerification: order.orderNumber || '',
-      pickupNotes: '' 
-    });
-    setShowPickupModal(true);
-  };
-
-  // Open delivery modal
-  const openDeliveryModal = (order) => {
-    setSelectedOrder(order);
-    setDeliveryForm({ 
-      otp: '',
-      deliveryNotes: '',
-      customerSignature: '' 
-    });
-    setShowDeliveryModal(true);
+  // Determine current order step
+  const getOrderStep = (order) => {
+    if (order.deliveryStatus === 'assigned' && order.deliveryAgent?.status === 'assigned') {
+      return 'accept'; // Need to accept
+    }
+    if (order.deliveryAgent?.status === 'accepted' && !order.pickup?.isCompleted) {
+      // Check if seller location has been reached (from database or local state)
+      if (order.pickup?.sellerLocationReachedAt || orderStates[order._id]?.sellerLocationReached) {
+        return 'pickup'; // Ready to enter order ID
+      }
+      return 'reached-seller'; // Need to mark reached seller location
+    }
+    if (order.pickup?.isCompleted && !order.delivery?.isCompleted) {
+      if (orderStates[order._id]?.deliveryLocationReached) {
+        return 'delivery'; // Ready to complete delivery
+      }
+      return 'reached-delivery'; // Need to mark reached delivery location
+    }
+    return 'completed';
   };
 
   const handleLogout = () => {
@@ -236,13 +485,19 @@ const AssignedOrders = () => {
     }
   };
 
-  // Get next action for order
+  // Get next action for order - DEPRECATED, use getOrderStep instead
   const getNextAction = (order) => {
-    switch (order.deliveryStatus) {
-      case 'assigned':
-      case 'accepted':
-        return !order.pickup?.isCompleted ? 'pickup' : 'delivery';
-      case 'pickup_completed':
+    const step = getOrderStep(order);
+    switch (step) {
+      case 'accept':
+        return 'accept';
+      case 'reached-seller':
+        return 'reached-seller';
+      case 'pickup':
+        return 'pickup';
+      case 'reached-delivery':
+        return 'reached-delivery';
+      case 'delivery':
         return 'delivery';
       default:
         return null;
@@ -365,7 +620,7 @@ const AssignedOrders = () => {
                         </div>
                         <div className="ml-4">
                           <h3 className="text-lg font-medium text-gray-900">
-                            Order #{order.orderNumber}
+                            Order Details
                           </h3>
                           <p className="text-sm text-gray-500">
                             Customer: {order.user?.name}
@@ -480,51 +735,100 @@ const AssignedOrders = () => {
 
                     {/* Action Buttons */}
                     <div className="flex justify-end space-x-3">
-                      {nextAction === 'pickup' && (
+                      {nextAction === 'accept' && (
                         <button
-                          onClick={() => openPickupModal(order)}
-                          disabled={isProcessing}
+                          onClick={() => handleAcceptOrder(order)}
+                          disabled={isProcessing && processingOrder === order._id}
                           className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                            isProcessing && actionType === 'pickup'
-                              ? 'bg-orange-400 cursor-not-allowed'
-                              : 'bg-orange-600 hover:bg-orange-700 focus:ring-orange-500'
+                            isProcessing && processingOrder === order._id && actionType === 'accept'
+                              ? 'bg-blue-400 cursor-not-allowed'
+                              : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
                           }`}
                         >
-                          {isProcessing && actionType === 'pickup' ? (
+                          {isProcessing && processingOrder === order._id && actionType === 'accept' ? (
                             <>
                               <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                               </svg>
-                              Completing...
+                              Accepting...
                             </>
                           ) : (
-                            '📦 Complete Pickup'
+                            '✓ Accept Order'
                           )}
+                        </button>
+                      )}
+                      
+                      {nextAction === 'reached-seller' && (
+                        <button
+                          onClick={() => {
+                            setSelectedOrder(order);
+                            setShowReachedSellerModal(true);
+                          }}
+                          disabled={isProcessing && processingOrder === order._id}
+                          className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                            isProcessing && processingOrder === order._id && actionType === 'reached-seller'
+                              ? 'bg-orange-400 cursor-not-allowed'
+                              : 'bg-orange-600 hover:bg-orange-700 focus:ring-orange-500'
+                          }`}
+                        >
+                          📍 Reached Seller Location
+                        </button>
+                      )}
+                      
+                      {nextAction === 'pickup' && (
+                        <button
+                          onClick={() => {
+                            setSelectedOrder(order);
+                            setPickupForm({ orderIdVerification: '', pickupNotes: '' });
+                            setShowPickupModal(true);
+                          }}
+                          disabled={isProcessing && processingOrder === order._id}
+                          className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                            isProcessing && processingOrder === order._id && actionType === 'pickup'
+                              ? 'bg-orange-400 cursor-not-allowed'
+                              : 'bg-orange-600 hover:bg-orange-700 focus:ring-orange-500'
+                          }`}
+                        >
+                          📦 Enter Order ID & Complete Pickup
+                        </button>
+                      )}
+                      
+                      {nextAction === 'reached-delivery' && (
+                        <button
+                          onClick={() => handleReachedDeliveryLocation(order)}
+                          disabled={isProcessing && processingOrder === order._id}
+                          className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                            isProcessing && processingOrder === order._id && actionType === 'reached-delivery'
+                              ? 'bg-green-400 cursor-not-allowed'
+                              : 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
+                          }`}
+                        >
+                          📍 Reached Delivery Location
                         </button>
                       )}
                       
                       {nextAction === 'delivery' && (
                         <button
-                          onClick={() => openDeliveryModal(order)}
-                          disabled={isProcessing}
+                          onClick={() => {
+                            setSelectedOrder(order);
+                            const isCOD = order.paymentMethod === 'COD' || !order.isPaid;
+                            setDeliveryForm({ 
+                              otp: '', 
+                              deliveryNotes: '',
+                              codPaymentType: null,
+                              qrCode: null
+                            });
+                            setShowDeliveryModal(true);
+                          }}
+                          disabled={isProcessing && processingOrder === order._id}
                           className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                            isProcessing && actionType === 'delivery'
+                            isProcessing && processingOrder === order._id && actionType === 'delivery'
                               ? 'bg-green-400 cursor-not-allowed'
                               : 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
                           }`}
                         >
-                          {isProcessing && actionType === 'delivery' ? (
-                            <>
-                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              Completing...
-                            </>
-                          ) : (
-                            '🚚 Complete Delivery'
-                          )}
+                          ✓ Complete Delivery
                         </button>
                       )}
                     </div>
@@ -555,27 +859,62 @@ const AssignedOrders = () => {
         )}
       </div>
 
+      {/* Reached Seller Location Confirmation Modal */}
+      {showReachedSellerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">📍 Confirm Seller Location</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Have you reached the seller location?
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              Seller: <strong>{selectedOrder?.seller?.name || selectedOrder?.seller?.shopName}</strong><br/>
+              Address: {selectedOrder?.seller?.address || selectedOrder?.seller?.shop?.address}
+            </p>
+            
+            <div className="flex space-x-4">
+              <button
+                onClick={() => {
+                  setShowReachedSellerModal(false);
+                  setSelectedOrder(null);
+                }}
+                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-md font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleReachedSellerLocation(selectedOrder)}
+                className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-2 px-4 rounded-md font-medium transition-colors"
+              >
+                Yes, I'm Here
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Pickup Completion Modal */}
       {showPickupModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4">📦 Complete Pickup</h2>
             <p className="text-sm text-gray-600 mb-4">
-              Order: <strong>#{selectedOrder?.orderNumber}</strong>
+              Please ask the seller for the order ID and enter it below.
             </p>
             
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Order ID Verification <span className="text-red-500">*</span>
+                  Order ID from Seller <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={pickupForm.orderIdVerification}
                   onChange={(e) => setPickupForm(prev => ({ ...prev, orderIdVerification: e.target.value }))}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  placeholder="Enter order ID from seller"
+                  placeholder="Enter order ID provided by seller"
                 />
+                <p className="text-xs text-gray-500 mt-1">The seller should provide you with the order ID</p>
               </div>
               
               <div>
@@ -605,10 +944,45 @@ const AssignedOrders = () => {
               </button>
               <button
                 onClick={handlePickupComplete}
-                disabled={processingOrder === selectedOrder?._id}
-                className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white py-2 px-4 rounded-md font-medium transition-colors"
+                disabled={processingOrder === selectedOrder?._id || !pickupForm.orderIdVerification.trim()}
+                className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 disabled:cursor-not-allowed text-white py-2 px-4 rounded-md font-medium transition-colors"
               >
-                {processingOrder === selectedOrder?._id ? 'Processing...' : 'Complete Pickup'}
+                {processingOrder === selectedOrder?._id && actionType === 'pickup' ? 'Verifying...' : 'Confirm Pickup'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reached Delivery Location Confirmation Modal */}
+      {showReachedDeliveryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">📍 Confirm Delivery Location</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Have you reached the customer's delivery address?
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              Customer: <strong>{selectedOrder?.user?.name}</strong><br/>
+              Address: {selectedOrder?.shippingAddress?.address || 'N/A'}
+            </p>
+            
+            <div className="flex space-x-4">
+              <button
+                onClick={() => {
+                  setShowReachedDeliveryModal(false);
+                  setSelectedOrder(null);
+                }}
+                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-md font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleReachedDeliveryLocation(selectedOrder)}
+                disabled={processingOrder === selectedOrder?._id}
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white py-2 px-4 rounded-md font-medium transition-colors"
+              >
+                {processingOrder === selectedOrder?._id && actionType === 'reached-delivery' ? 'Processing...' : 'Yes, I\'m Here'}
               </button>
             </div>
           </div>
@@ -616,49 +990,132 @@ const AssignedOrders = () => {
       )}
 
       {/* Delivery Completion Modal */}
-      {showDeliveryModal && (
+      {showDeliveryModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
+          <div className="bg-white rounded-lg max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-gray-900 mb-4">🚚 Complete Delivery</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Order: <strong>#{selectedOrder?.orderNumber}</strong>
-            </p>
             
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  OTP from Customer <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={deliveryForm.otp}
-                  onChange={(e) => setDeliveryForm(prev => ({ ...prev, otp: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="Enter 4-6 digit OTP"
-                  maxLength="6"
-                />
-              </div>
+            {(() => {
+              const isCOD = selectedOrder.paymentMethod === 'COD' || !selectedOrder.isPaid;
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Delivery Notes (optional)
-                </label>
-                <textarea
-                  value={deliveryForm.deliveryNotes}
-                  onChange={(e) => setDeliveryForm(prev => ({ ...prev, deliveryNotes: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                  rows="3"
-                  placeholder="Any notes about the delivery..."
-                />
-              </div>
-            </div>
+              return (
+                <div className="space-y-4">
+                  {/* OTP Section for Prepaid Orders */}
+                  {!isCOD && (
+                    <>
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+                        <p className="text-sm text-blue-800">
+                          <strong>OTP Sent!</strong> An OTP has been sent to the customer's registered phone number. Please ask the customer for the OTP.
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          OTP from Customer <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={deliveryForm.otp}
+                          onChange={(e) => setDeliveryForm(prev => ({ ...prev, otp: e.target.value.replace(/\D/g, '') }))}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                          placeholder="Enter 4-6 digit OTP"
+                          maxLength="6"
+                        />
+                        <button
+                          onClick={handleResendOTP}
+                          disabled={processingOrder === selectedOrder._id}
+                          className="text-sm text-blue-600 hover:text-blue-800 mt-1"
+                        >
+                          Resend OTP
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* COD Payment Section */}
+                  {isCOD && (
+                    <>
+                      <div className="bg-orange-50 border border-orange-200 rounded-md p-3 mb-4">
+                        <p className="text-sm text-orange-800">
+                          <strong>Cash on Delivery</strong> Please collect payment from the customer.
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Payment Method <span className="text-red-500">*</span>
+                        </label>
+                        <div className="space-y-2">
+                          <button
+                            onClick={() => handleCODPaymentType('qr')}
+                            className={`w-full border-2 rounded-md p-3 text-left transition-colors ${
+                              deliveryForm.codPaymentType === 'qr'
+                                ? 'border-orange-500 bg-orange-50'
+                                : 'border-gray-300 hover:border-orange-300'
+                            }`}
+                          >
+                            <div className="flex items-center">
+                              <input
+                                type="radio"
+                                checked={deliveryForm.codPaymentType === 'qr'}
+                                onChange={() => handleCODPaymentType('qr')}
+                                className="mr-2"
+                              />
+                              <span className="font-medium">Generate SMEPay QR Code</span>
+                            </div>
+                            {deliveryForm.codPaymentType === 'qr' && deliveryForm.qrCode && (
+                              <div className="mt-2 p-2 bg-white rounded border">
+                                <img src={deliveryForm.qrCode} alt="QR Code" className="w-32 h-32 mx-auto" />
+                              </div>
+                            )}
+                          </button>
+                          
+                          <button
+                            onClick={() => handleCODPaymentType('cash')}
+                            className={`w-full border-2 rounded-md p-3 text-left transition-colors ${
+                              deliveryForm.codPaymentType === 'cash'
+                                ? 'border-orange-500 bg-orange-50'
+                                : 'border-gray-300 hover:border-orange-300'
+                            }`}
+                          >
+                            <div className="flex items-center">
+                              <input
+                                type="radio"
+                                checked={deliveryForm.codPaymentType === 'cash'}
+                                onChange={() => handleCODPaymentType('cash')}
+                                className="mr-2"
+                              />
+                              <span className="font-medium">Payment Collected in Cash</span>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* Delivery Notes */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Delivery Notes (optional)
+                    </label>
+                    <textarea
+                      value={deliveryForm.deliveryNotes}
+                      onChange={(e) => setDeliveryForm(prev => ({ ...prev, deliveryNotes: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      rows="3"
+                      placeholder="Any notes about the delivery..."
+                    />
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="flex space-x-4 mt-6">
               <button
                 onClick={() => {
                   setShowDeliveryModal(false);
                   setSelectedOrder(null);
-                  setDeliveryForm({ otp: '', deliveryNotes: '', customerSignature: '' });
+                  setDeliveryForm({ otp: '', deliveryNotes: '', codPaymentType: null, qrCode: null });
                 }}
                 className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-md font-medium transition-colors"
               >
@@ -666,10 +1123,10 @@ const AssignedOrders = () => {
               </button>
               <button
                 onClick={handleDeliveryComplete}
-                disabled={processingOrder === selectedOrder?._id}
+                disabled={processingOrder === selectedOrder._id}
                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white py-2 px-4 rounded-md font-medium transition-colors"
               >
-                {processingOrder === selectedOrder?._id ? 'Processing...' : 'Complete Delivery'}
+                {processingOrder === selectedOrder._id && actionType === 'delivery' ? 'Processing...' : 'Complete Delivery'}
               </button>
             </div>
           </div>
