@@ -10,6 +10,7 @@ const {
   getSellerOrderStats,
   getOrderInvoice,
   updateOrderPaymentStatus,
+  getOrderConfirmationDetails,
   getAdminDashboardOrders
 } = require('../controllers/orderController');
 const { protectUser, protectSeller, protectAdmin, protectUserOrSeller } = require('../middleware/authMiddleware');
@@ -39,6 +40,9 @@ router.get('/seller/stats', protectSeller, getSellerOrderStats);
 
 // 🎯 NEW: Admin dashboard route
 router.get('/admin/dashboard', protectAdmin, getAdminDashboardOrders);
+
+// Order confirmation details
+router.get('/:id/confirmation', protectUser, getOrderConfirmationDetails);
 
 // Order by ID (accessible by both user and seller)
 // 🎯 FIXED: Add dual authentication middleware

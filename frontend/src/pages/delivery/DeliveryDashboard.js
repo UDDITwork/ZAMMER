@@ -19,6 +19,7 @@ import {
   FiMail
 } from 'react-icons/fi';
 import returnService from '../../services/returnService';
+import paymentService from '../../services/paymentService';
 
 const DeliveryDashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -37,6 +38,30 @@ const DeliveryDashboard = () => {
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [showReachedLocationModal, setShowReachedLocationModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [activeOrderFlow, setActiveOrderFlow] = useState(null);
+  const [showOrderFlowModal, setShowOrderFlowModal] = useState(false);
+  const [flowSellerVerificationOpen, setFlowSellerVerificationOpen] = useState(false);
+  const [flowSellerOrderId, setFlowSellerOrderId] = useState('');
+  const [flowSellerOrderIdError, setFlowSellerOrderIdError] = useState('');
+  const [flowSellerVerificationStatus, setFlowSellerVerificationStatus] = useState('');
+  const [flowSellerNotes, setFlowSellerNotes] = useState('');
+  const [flowBuyerOTP, setFlowBuyerOTP] = useState('');
+  const [flowBuyerNotes, setFlowBuyerNotes] = useState('');
+  const [flowPaymentData, setFlowPaymentData] = useState(null);
+  const [flowProcessing, setFlowProcessing] = useState({
+    reachSeller: false,
+    pickup: false,
+    reachBuyer: false,
+    delivery: false,
+    qr: false
+  });
+  const [flowModalLoading, setFlowModalLoading] = useState(false);
+  const mergeActiveOrderFlow = useCallback((orderId, updater) => {
+    setActiveOrderFlow(prev => {
+      if (!prev || prev._id !== orderId) return prev;
+      return updater(prev);
+    });
+  }, []);
   
   // Form states
   const [pickupData, setPickupData] = useState({ orderId: '', notes: '' });
@@ -164,12 +189,249 @@ const DeliveryDashboard = () => {
       if (response && response.success) {
         setAssignedOrders(response.data || []);
         console.log('✅ Assigned orders fetched:', response.data?.length || 0);
+        return response.data || [];
       }
+      return [];
     } catch (error) {
       console.error('❌ Failed to fetch assigned orders:', error);
       setAssignedOrders([]);
+      return [];
     }
   }, [makeApiCall]);
+
+  const markSellerLocationReached = useCallback(async (order) => {
+    if (!order) {
+      toast.error('No order selected');
+      return false;
+    }
+
+    try {
+      const response = await makeApiCall(`/delivery/orders/${order._id}/reached-seller-location`, {
+        method: 'PUT'
+      });
+
+      if (response && response.success) {
+        toast.success('Seller location marked as reached');
+        mergeActiveOrderFlow(order._id, (prev) => ({
+          ...prev,
+          pickup: {
+            ...(prev.pickup || {}),
+            sellerLocationReachedAt: response.data?.sellerLocationReachedAt || new Date().toISOString()
+          }
+        }));
+        const [updatedOrders] = await Promise.all([
+          fetchAssignedOrders(),
+          fetchStats()
+        ]);
+
+        if (Array.isArray(updatedOrders)) {
+          const updated = updatedOrders.find(item => item._id === order._id);
+          if (updated) {
+            setActiveOrderFlow(updated);
+          }
+        }
+        return true;
+      }
+
+      throw new Error(response?.message || 'Failed to mark seller location as reached');
+    } catch (error) {
+      console.error('❌ Failed to mark seller location as reached:', error);
+      toast.error(error.message || 'Failed to mark seller location as reached');
+      return false;
+    }
+  }, [fetchAssignedOrders, fetchStats, makeApiCall, mergeActiveOrderFlow]);
+
+  const completePickupFlow = useCallback(async (order, orderIdValue, notes = '', { silent = false } = {}) => {
+    if (!order) {
+      if (!silent) toast.error('No order selected');
+      return false;
+    }
+
+    if (!orderIdValue?.trim()) {
+      if (!silent) toast.error('Please enter order ID verification');
+      return false;
+    }
+
+    try {
+      const response = await makeApiCall(`/delivery/orders/${order._id}/pickup`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          orderIdVerification: orderIdValue,
+          pickupNotes: notes
+        })
+      });
+
+      if (response && response.success) {
+        if (!silent) {
+          toast.success('Pickup completed successfully!');
+        }
+        mergeActiveOrderFlow(order._id, (prev) => ({
+          ...prev,
+          pickup: {
+            ...(prev.pickup || {}),
+            isCompleted: true,
+            completedAt: response.data?.pickup?.completedAt || new Date().toISOString(),
+            sellerLocationReachedAt: prev.pickup?.sellerLocationReachedAt || response.data?.pickup?.sellerLocationReachedAt || new Date().toISOString()
+          },
+          deliveryAgent: {
+            ...(prev.deliveryAgent || {}),
+            status: 'pickup_completed'
+          }
+        }));
+
+        const [updatedOrders] = await Promise.all([
+          fetchAssignedOrders(),
+          fetchStats()
+        ]);
+
+        if (Array.isArray(updatedOrders)) {
+          const updated = updatedOrders.find(item => item._id === order._id);
+          if (updated) {
+            setActiveOrderFlow(updated);
+          }
+        }
+
+        return true;
+      }
+
+      throw new Error(response?.message || 'Failed to complete pickup');
+    } catch (error) {
+      console.error('❌ Failed to complete pickup:', error);
+      if (!silent) {
+        toast.error(error.message || 'Failed to complete pickup');
+      }
+      return false;
+    }
+  }, [fetchAssignedOrders, fetchStats, makeApiCall, mergeActiveOrderFlow]);
+
+  const markCustomerLocationReached = useCallback(async (order, notes = '', { silent = false } = {}) => {
+    if (!order) {
+      if (!silent) toast.error('No order selected');
+      return null;
+    }
+
+    try {
+      const response = await makeApiCall(`/delivery/orders/${order._id}/reached-location`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          locationNotes: notes
+        })
+      });
+
+      if (response && response.success) {
+        if (!silent) {
+          toast.success('Location marked as reached successfully!');
+          if (response.data?.paymentData?.type === 'COD') {
+            toast.info(`QR code generated for ₹${response.data.paymentData.amount}. Customer can now scan and pay.`);
+          } else {
+            toast.info('OTP sent to customer for delivery verification.');
+          }
+        }
+        mergeActiveOrderFlow(order._id, (prev) => ({
+          ...prev,
+          deliveryAgent: {
+            ...(prev.deliveryAgent || {}),
+            status: 'location_reached'
+          },
+          delivery: {
+            ...(prev.delivery || {}),
+            locationReachedAt: response.data?.reachedTime || new Date().toISOString()
+          }
+        }));
+
+        const [updatedOrders] = await Promise.all([
+          fetchAssignedOrders(),
+          fetchStats()
+        ]);
+
+        if (Array.isArray(updatedOrders)) {
+          const updated = updatedOrders.find(item => item._id === order._id);
+          if (updated) {
+            setActiveOrderFlow(updated);
+          }
+        }
+
+        return response.data;
+      }
+
+      throw new Error(response?.message || 'Failed to mark location as reached');
+    } catch (error) {
+      console.error('❌ Failed to mark location as reached:', error);
+      if (!silent) {
+        toast.error(error.message || 'Failed to mark location as reached');
+      }
+      return null;
+    }
+  }, [fetchAssignedOrders, fetchStats, makeApiCall, mergeActiveOrderFlow]);
+
+  const completeDeliveryFlow = useCallback(async (order, { otpValue = '', notes = '', codPayment = null } = {}) => {
+    if (!order) {
+      toast.error('No order selected');
+      return false;
+    }
+
+    const requiresOTP = !isCODOrder(order);
+
+    if (requiresOTP && !otpValue?.trim()) {
+      toast.error('Please enter OTP from customer');
+      return false;
+    }
+
+    try {
+      const payload = {
+        deliveryNotes: notes
+      };
+
+      if (otpValue?.trim()) {
+        payload.otp = otpValue.trim();
+      }
+
+      if (codPayment) {
+        payload.codPayment = codPayment;
+      }
+
+      const response = await makeApiCall(`/delivery/orders/${order._id}/delivery`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+
+      if (response && response.success) {
+        toast.success('Order delivery completed successfully!');
+        mergeActiveOrderFlow(order._id, (prev) => ({
+          ...prev,
+          deliveryAgent: {
+            ...(prev.deliveryAgent || {}),
+            status: 'delivery_completed'
+          },
+          delivery: {
+            ...(prev.delivery || {}),
+            isCompleted: true,
+            completedAt: response.data?.delivery?.completedAt || new Date().toISOString()
+          }
+        }));
+
+        const [updatedOrders] = await Promise.all([
+          fetchAssignedOrders(),
+          fetchStats()
+        ]);
+
+        if (Array.isArray(updatedOrders)) {
+          const updated = updatedOrders.find(item => item._id === order._id);
+          if (updated) {
+            setActiveOrderFlow(updated);
+          }
+        }
+
+        return true;
+      }
+
+      throw new Error(response?.message || 'Failed to complete delivery');
+    } catch (error) {
+      console.error('❌ Failed to complete delivery:', error);
+      toast.error(error.message || 'Failed to complete delivery');
+      return false;
+    }
+  }, [fetchAssignedOrders, fetchStats, makeApiCall, mergeActiveOrderFlow]);
 
   // Initialize dashboard - FIXED with proper dependencies
   const initializeDashboard = useCallback(async () => {
@@ -262,8 +524,8 @@ const DeliveryDashboard = () => {
 
   // Handle pickup completion
   const handlePickupComplete = async () => {
-    if (!selectedOrder || !pickupData.orderId.trim()) {
-      toast.error('Please enter order ID verification');
+    if (!selectedOrder) {
+      toast.error('No order selected');
       return;
     }
 
@@ -271,34 +533,17 @@ const DeliveryDashboard = () => {
       setProcessingPickup(true);
       console.log('🚚 Completing pickup for order:', selectedOrder._id);
 
-      const response = await makeApiCall(`/delivery/orders/${selectedOrder._id}/pickup`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          orderIdVerification: pickupData.orderId,
-          pickupNotes: pickupData.notes
-        })
-      });
+      const success = await completePickupFlow(
+        selectedOrder,
+        pickupData.orderId,
+        pickupData.notes
+      );
 
-      if (response && response.success) {
-        toast.success('Pickup completed successfully!');
-        console.log('✅ Pickup completed');
-        
-        // Reset form and close modal
+      if (success) {
         setPickupData({ orderId: '', notes: '' });
         setShowPickupModal(false);
         setSelectedOrder(null);
-        
-        // Refresh orders
-        await Promise.all([
-          fetchAssignedOrders(),
-          fetchStats()
-        ]);
-      } else {
-        throw new Error(response?.message || 'Failed to complete pickup');
       }
-    } catch (error) {
-      console.error('❌ Failed to complete pickup:', error);
-      toast.error(error.message || 'Failed to complete pickup');
     } finally {
       setProcessingPickup(false);
     }
@@ -315,36 +560,15 @@ const DeliveryDashboard = () => {
       setProcessingReachedLocation(true);
       console.log('📍 Marking location as reached for order:', selectedOrder._id);
 
-      const response = await makeApiCall(`/delivery/orders/${selectedOrder._id}/reached-location`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          locationNotes: reachedLocationData.notes
-        })
-      });
+      const responseData = await markCustomerLocationReached(
+        selectedOrder,
+        reachedLocationData.notes
+      );
 
-      if (response && response.success) {
-        toast.success('Location marked as reached successfully!');
-        console.log('✅ Location marked as reached');
-        
-        // Show payment information based on order type
-        if (response.data.paymentData.type === 'COD') {
-          toast.info(`QR code generated for ₹${response.data.paymentData.amount}. Customer can now scan and pay.`);
-        } else {
-          toast.info(`OTP sent to customer's phone for delivery verification.`);
-        }
-        
-        // Reset form and close modal
+      if (responseData) {
         setReachedLocationData({ notes: '' });
         setShowReachedLocationModal(false);
         setSelectedOrder(null);
-        
-        // Refresh orders
-        await Promise.all([
-          fetchAssignedOrders(),
-          fetchStats()
-        ]);
-      } else {
-        throw new Error(response?.message || 'Failed to mark location as reached');
       }
     } catch (error) {
       console.error('❌ Failed to mark location as reached:', error);
@@ -356,8 +580,8 @@ const DeliveryDashboard = () => {
 
   // Handle delivery completion
   const handleDeliveryComplete = async () => {
-    if (!selectedOrder || !deliveryData.otp.trim()) {
-      toast.error('Please enter OTP from customer');
+    if (!selectedOrder) {
+      toast.error('No order selected');
       return;
     }
 
@@ -365,34 +589,16 @@ const DeliveryDashboard = () => {
       setProcessingDelivery(true);
       console.log('🚚 Completing delivery for order:', selectedOrder._id);
 
-      const response = await makeApiCall(`/delivery/orders/${selectedOrder._id}/deliver`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          otp: deliveryData.otp,
-          deliveryNotes: deliveryData.notes
-        })
+      const success = await completeDeliveryFlow(selectedOrder, {
+        otpValue: deliveryData.otp,
+        notes: deliveryData.notes
       });
 
-      if (response && response.success) {
-        toast.success('Delivery completed successfully!');
-        console.log('✅ Delivery completed');
-        
-        // Reset form and close modal
+      if (success) {
         setDeliveryData({ orderId: '', otp: '', notes: '' });
         setShowDeliveryModal(false);
         setSelectedOrder(null);
-        
-        // Refresh orders
-        await Promise.all([
-          fetchAssignedOrders(),
-          fetchStats()
-        ]);
-      } else {
-        throw new Error(response?.message || 'Failed to complete delivery');
       }
-    } catch (error) {
-      console.error('❌ Failed to complete delivery:', error);
-      toast.error(error.message || 'Failed to complete delivery');
     } finally {
       setProcessingDelivery(false);
     }
@@ -642,6 +848,270 @@ const DeliveryDashboard = () => {
     });
   };
 
+  const getPaymentMethodLabel = (order) => {
+    return (
+      order?.paymentMethod ||
+      order?.paymentGateway ||
+      order?.paymentDetails?.paymentMethod ||
+      ''
+    ).toLowerCase();
+  };
+
+  const isCODOrder = (order) => {
+    const method = getPaymentMethodLabel(order);
+    if (!method) return false;
+    return method.includes('cod') || method.includes('cash');
+  };
+
+  const getBuyerAddress = (order) => {
+    return (
+      order?.shippingAddress?.address ||
+      order?.deliveryAddress?.address ||
+      'Delivery address unavailable'
+    );
+  };
+
+  const getBuyerCity = (order) => {
+    return order?.shippingAddress?.city || order?.deliveryAddress?.city || '';
+  };
+
+  const getBuyerPhone = (order) => {
+    return (
+      order?.user?.mobileNumber ||
+      order?.user?.phone ||
+      order?.shippingAddress?.phone ||
+      ''
+    );
+  };
+
+  const getSellerAddress = (order) => {
+    return order?.seller?.shop?.address || 'Seller address unavailable';
+  };
+
+  const getSellerPhone = (order) => {
+    return (
+      order?.seller?.phoneNumber ||
+      order?.seller?.shop?.contactNumber ||
+      ''
+    );
+  };
+
+  const resetOrderFlowState = useCallback(() => {
+    setFlowSellerVerificationOpen(false);
+    setFlowSellerOrderId('');
+    setFlowSellerOrderIdError('');
+    setFlowSellerVerificationStatus('');
+    setFlowSellerNotes('');
+    setFlowBuyerOTP('');
+    setFlowBuyerNotes('');
+    setFlowPaymentData(null);
+    setFlowProcessing({
+      reachSeller: false,
+      pickup: false,
+      reachBuyer: false,
+      delivery: false,
+      qr: false
+    });
+  }, []);
+
+  const openOrderFlowModal = async (order) => {
+    if (!order) return;
+    resetOrderFlowState();
+    setActiveOrderFlow(order);
+    setShowOrderFlowModal(true);
+    setFlowModalLoading(true);
+    try {
+      const refreshedOrders = await fetchAssignedOrders();
+      const latestOrder = Array.isArray(refreshedOrders)
+        ? refreshedOrders.find(item => item && item._id === order._id) || order
+        : order;
+      setActiveOrderFlow(latestOrder);
+      if (latestOrder.pickup?.sellerLocationReachedAt && !latestOrder.pickup?.isCompleted) {
+        setFlowSellerVerificationOpen(true);
+      }
+    } catch (error) {
+      console.error('Failed to refresh order before opening modal:', error);
+    } finally {
+      setFlowModalLoading(false);
+    }
+  };
+
+  const closeOrderFlowModal = () => {
+    setShowOrderFlowModal(false);
+    setActiveOrderFlow(null);
+    resetOrderFlowState();
+    setFlowModalLoading(false);
+  };
+
+  const handleFlowReachSeller = async () => {
+    if (!activeOrderFlow) return;
+
+    if (activeOrderFlow.pickup?.sellerLocationReachedAt) {
+      toast.info('Seller location already marked as reached.');
+      return;
+    }
+
+    setFlowProcessing(prev => ({ ...prev, reachSeller: true }));
+    const success = await markSellerLocationReached(activeOrderFlow);
+    if (success) {
+      setFlowSellerVerificationOpen(true);
+      setFlowSellerOrderIdError('');
+      setFlowSellerVerificationStatus('');
+    }
+    setFlowProcessing(prev => ({ ...prev, reachSeller: false }));
+  };
+
+  const handleFlowVerifyPickup = async () => {
+    if (!activeOrderFlow) return;
+
+    if (activeOrderFlow.pickup?.isCompleted) {
+      toast.info('Pickup has already been completed for this order.');
+      return;
+    }
+
+    if (!activeOrderFlow.pickup?.sellerLocationReachedAt) {
+      toast.error('Please mark the seller location as reached first');
+      return;
+    }
+
+    if (!flowSellerOrderId.trim()) {
+      setFlowSellerOrderIdError('Order ID is required');
+      return;
+    }
+
+    if (flowSellerOrderId.trim() !== (activeOrderFlow.orderNumber || '').trim()) {
+      const message = 'Order ID does not match this assignment. Please re-confirm with the seller.';
+      setFlowSellerOrderIdError(message);
+      toast.error(message);
+      return;
+    }
+
+    setFlowSellerOrderIdError('');
+    setFlowProcessing(prev => ({ ...prev, pickup: true }));
+    const success = await completePickupFlow(
+      activeOrderFlow,
+      flowSellerOrderId,
+      flowSellerNotes
+    );
+    if (success) {
+      setFlowSellerVerificationOpen(false);
+      setFlowSellerOrderId('');
+      setFlowSellerVerificationStatus('Seller order ID verified. Pickup completed.');
+      setFlowSellerNotes('');
+    }
+    setFlowProcessing(prev => ({ ...prev, pickup: false }));
+  };
+
+  const handleFlowReachBuyer = async () => {
+    if (!activeOrderFlow) return;
+
+    if (!activeOrderFlow.pickup?.isCompleted) {
+      toast.error('Please verify the seller order ID and complete pickup first.');
+      return;
+    }
+
+    if (activeOrderFlow.deliveryAgent?.status === 'location_reached') {
+      toast.info('Buyer location has already been marked as reached.');
+      return;
+    }
+
+    if (activeOrderFlow.delivery?.isCompleted) {
+      toast.info('Order is already delivered.');
+      return;
+    }
+
+    setFlowProcessing(prev => ({ ...prev, reachBuyer: true }));
+    const responseData = await markCustomerLocationReached(
+      activeOrderFlow,
+      flowBuyerNotes
+    );
+
+    if (responseData?.paymentData) {
+      setFlowPaymentData(responseData.paymentData);
+    }
+
+    setFlowProcessing(prev => ({ ...prev, reachBuyer: false }));
+  };
+
+  const handleFlowRegenerateQr = async () => {
+    if (!activeOrderFlow) return;
+
+    if (activeOrderFlow.deliveryAgent?.status !== 'location_reached') {
+      toast.error('Reach the buyer location before generating a payment QR.');
+      return;
+    }
+
+    setFlowProcessing(prev => ({ ...prev, qr: true }));
+    try {
+      const qrResponse = await paymentService.generatePaymentQR(activeOrderFlow._id);
+
+      if (qrResponse?.success) {
+        const qrData = qrResponse?.data?.data || qrResponse?.data || {};
+        setFlowPaymentData(prev => ({
+          ...(prev || {}),
+          type: 'COD',
+          qrCode: qrData.qrCode || prev?.qrCode || '',
+          amount: qrData.amount || prev?.amount || activeOrderFlow.totalPrice,
+          upiLinks: qrData.upiLinks || prev?.upiLinks || []
+        }));
+        toast.success('QR code generated successfully');
+      } else {
+        toast.error(qrResponse?.message || 'Failed to generate QR code');
+      }
+    } catch (error) {
+      console.error('❌ QR code generation failed:', error);
+      toast.error('Failed to generate QR code');
+    } finally {
+      setFlowProcessing(prev => ({ ...prev, qr: false }));
+    }
+  };
+
+  const handleFlowCollectCash = async (method = 'cash') => {
+    if (!activeOrderFlow) return;
+
+    if (activeOrderFlow.deliveryAgent?.status !== 'location_reached') {
+      toast.error('Reach the buyer location before confirming payment.');
+      return;
+    }
+
+    setFlowProcessing(prev => ({ ...prev, delivery: true }));
+    const success = await completeDeliveryFlow(activeOrderFlow, {
+      notes: flowBuyerNotes,
+      codPayment: {
+        amount: activeOrderFlow.totalPrice,
+        method
+      }
+    });
+
+    if (success) {
+      closeOrderFlowModal();
+    } else {
+      setFlowProcessing(prev => ({ ...prev, delivery: false }));
+    }
+  };
+
+  const handleFlowVerifyOtp = async () => {
+    if (!activeOrderFlow) return;
+
+    if (activeOrderFlow.deliveryAgent?.status !== 'location_reached') {
+      toast.error('Reach the buyer location before entering OTP.');
+      return;
+    }
+
+    setFlowProcessing(prev => ({ ...prev, delivery: true }));
+    const success = await completeDeliveryFlow(activeOrderFlow, {
+      otpValue: flowBuyerOTP,
+      notes: flowBuyerNotes
+    });
+
+    if (success) {
+      setFlowBuyerOTP('');
+      closeOrderFlowModal();
+    } else {
+      setFlowProcessing(prev => ({ ...prev, delivery: false }));
+    }
+  };
+
   // Get next action for order
   const getNextAction = (order) => {
     if (!order.pickup?.isCompleted) return 'pickup';
@@ -673,15 +1143,31 @@ const DeliveryDashboard = () => {
   );
 
   // Order Card Component
-  const OrderCard = ({ order, isAssigned = false }) => {
+  const OrderCard = ({ order, isAssigned = false, onOpenFlow }) => {
     const nextAction = isAssigned ? getNextAction(order) : null;
     const isSelectable = isAssigned && order.deliveryStatus === 'assigned';
     const isSelected = selectedOrders.some(selected => selected && selected._id === order._id);
+    const nextActionCopy = nextAction === 'pickup'
+      ? 'Complete pickup at seller location'
+      : nextAction === 'reached-location'
+        ? 'Mark arrival at buyer location'
+        : nextAction === 'delivery'
+          ? 'Finish delivery confirmation'
+          : 'All steps completed';
+
+    const handleCardClick = () => {
+      if (isAssigned && typeof onOpenFlow === 'function') {
+        onOpenFlow(order);
+      }
+    };
     
     return (
-      <div className={`bg-white border rounded-lg p-4 hover:shadow-md transition-shadow ${
+      <div
+        className={`bg-white border rounded-lg p-4 hover:shadow-md transition-shadow ${
         isSelected ? 'border-orange-500 bg-orange-50' : 'border-gray-200'
-      }`}>
+      } ${isAssigned ? 'cursor-pointer' : ''}`}
+        onClick={isAssigned ? handleCardClick : undefined}
+      >
         {/* 🎯 NEW: Bulk Selection Header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-3">
@@ -734,50 +1220,34 @@ const DeliveryDashboard = () => {
           </div>
         </div>
 
+        {isAssigned && (
+          <p className="text-xs text-gray-500 mb-4">
+            Next step: {nextActionCopy}
+          </p>
+        )}
+
         <div className="space-y-2">
           {!isAssigned ? (
             <button
-              onClick={() => handleAcceptOrder(order._id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAcceptOrder(order._id);
+              }}
               disabled={accepting}
               className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
             >
               {accepting ? 'Accepting...' : 'Accept Order'}
             </button>
           ) : (
-            <div className="space-y-2">
-              {nextAction === 'pickup' && (
-                <button
-                  onClick={() => openPickupModal(order)}
-                  className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
-                >
-                  📦 Complete Pickup
-                </button>
-              )}
-              
-              {nextAction === 'reached-location' && (
-                <button
-                  onClick={() => openReachedLocationModal(order)}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
-                >
-                  📍 I've Reached Location
-                </button>
-              )}
-              
-              {nextAction === 'delivery' && (
-                <button
-                  onClick={() => openDeliveryModal(order)}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
-                >
-                  🚚 Complete Delivery
-                </button>
-              )}
-
-              {!nextAction && (
-                <div className="w-full bg-green-100 text-green-800 py-2 px-4 rounded-md text-sm font-medium text-center">
-                  ✅ Order Completed
-                </div>
-              )}
-            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCardClick();
+              }}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
+            >
+              View Order Details
+            </button>
           )}
         </div>
       </div>
@@ -1146,7 +1616,12 @@ const DeliveryDashboard = () => {
           {/* Assigned Orders Preview */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">📋 My Assigned Orders</h2>
+              <div>
+                <h2 className="text-lg font-medium text-gray-900">📋 My Assigned Orders</h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  This is your live Orders-in-Transit queue. Tap any order card to open the delivery flow modal.
+                </p>
+              </div>
               <div className="flex items-center space-x-3">
                 {/* 🎯 NEW: Bulk Action Buttons */}
                 {assignedOrders.filter(order => order.deliveryStatus === 'assigned').length > 0 && selectedOrders.length > 0 && (
@@ -1194,7 +1669,12 @@ const DeliveryDashboard = () => {
                     </div>
                   )}
                   {assignedOrders.slice(0, 2).map((order) => (
-                    <OrderCard key={order._id} order={order} isAssigned={true} />
+                    <OrderCard
+                      key={order._id}
+                      order={order}
+                      isAssigned={true}
+                      onOpenFlow={openOrderFlowModal}
+                    />
                   ))}
                   {assignedOrders.length > 2 && (
                     <div className="text-center pt-4">
@@ -1399,6 +1879,300 @@ const DeliveryDashboard = () => {
           </div>
         )}
       </main>
+
+      {showOrderFlowModal && activeOrderFlow && (() => {
+        const sellerReached = Boolean(activeOrderFlow.pickup?.sellerLocationReachedAt);
+        const pickupCompleted = Boolean(activeOrderFlow.pickup?.isCompleted);
+        const buyerLocationReached = ['location_reached', 'delivery_completed'].includes(activeOrderFlow.deliveryAgent?.status);
+        const deliveryCompleted = activeOrderFlow.deliveryAgent?.status === 'delivery_completed' || activeOrderFlow.delivery?.isCompleted;
+        const codOrder = isCODOrder(activeOrderFlow);
+        const buyerPhone = getBuyerPhone(activeOrderFlow);
+        const sellerPhone = getSellerPhone(activeOrderFlow);
+
+        if (flowModalLoading) {
+          return (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-10 text-center">
+                <div className="flex flex-col items-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+                  <p className="text-sm text-gray-600">Refreshing order status…</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-gray-400">Assigned Order Flow</p>
+                  <h2 className="text-2xl font-semibold text-gray-900 mt-1">
+                    {activeOrderFlow.user?.name || 'Buyer'}'s delivery
+                  </h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Phone: {buyerPhone || 'Not shared'} • Payment: {activeOrderFlow.paymentMethod || 'N/A'} • Status: {activeOrderFlow.deliveryAgent?.status || 'pending'}
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Remember: this modal replaces the “Orders in Transit” screen. Complete each checkpoint sequentially.
+                  </p>
+                </div>
+                <button
+                  onClick={closeOrderFlowModal}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  ← Back to Assigned Orders
+                </button>
+              </div>
+
+              <div className="mt-6 space-y-6">
+                <section className="border border-gray-200 rounded-xl p-5">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">1. Seller checkpoint</h3>
+                      <p className="text-sm text-gray-500">
+                        Reach the seller, enter the order ID they verbally share, and move the parcel into transit.
+                      </p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      pickupCompleted
+                        ? 'bg-green-100 text-green-800'
+                        : sellerReached
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-orange-100 text-orange-800'
+                    }`}>
+                      {pickupCompleted ? 'Pickup Completed' : sellerReached ? 'Waiting for Seller Order ID' : 'Awaiting Arrival'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-xs text-gray-500 uppercase">Seller Location</p>
+                      <p className="text-sm font-semibold text-gray-900 mt-1">{activeOrderFlow.seller?.firstName || 'Seller'}</p>
+                      <p className="text-sm text-gray-700 mt-1">{getSellerAddress(activeOrderFlow)}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-xs text-gray-500 uppercase">Seller Contact</p>
+                      <p className="text-sm text-gray-900 mt-1">{sellerPhone || 'Phone not shared'}</p>
+                    </div>
+                  </div>
+
+                  {!sellerReached && (
+                    <button
+                      onClick={handleFlowReachSeller}
+                      disabled={flowProcessing.reachSeller}
+                      className="mt-4 inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
+                    >
+                      {flowProcessing.reachSeller ? 'Updating...' : 'Reached Seller Location'}
+                    </button>
+                  )}
+
+                  {(flowSellerVerificationOpen || (sellerReached && !pickupCompleted)) && (
+                    <div className="mt-4 space-y-3">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Enter the order ID told by Seller <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={flowSellerOrderId}
+                        onChange={(e) => {
+                          setFlowSellerOrderId(e.target.value);
+                          setFlowSellerOrderIdError('');
+                          setFlowSellerVerificationStatus('');
+                        }}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        placeholder="Enter order id here"
+                      />
+                      {flowSellerOrderIdError && (
+                        <p className="text-sm text-red-600">{flowSellerOrderIdError}</p>
+                      )}
+                      {flowSellerVerificationStatus && (
+                        <p className="text-sm text-green-700">{flowSellerVerificationStatus}</p>
+                      )}
+                      <label className="block text-sm font-medium text-gray-700">
+                        Seller notes (optional)
+                      </label>
+                      <textarea
+                        value={flowSellerNotes}
+                        onChange={(e) => setFlowSellerNotes(e.target.value)}
+                        rows={3}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        placeholder="Any remarks about the pickup..."
+                      />
+                      <div className="flex gap-3 flex-wrap">
+                        <button
+                          onClick={handleFlowVerifyPickup}
+                          disabled={flowProcessing.pickup || !flowSellerOrderId.trim()}
+                          className="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 disabled:opacity-60"
+                        >
+                          {flowProcessing.pickup ? 'Verifying...' : 'Verify & Move to Buyer'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {pickupCompleted && (
+                    <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 text-green-800 text-sm">
+                      ✅ Pickup verified. This order is now in the Assigned Orders lane. Proceed to the buyer section below.
+                    </div>
+                  )}
+                  </section>
+
+                {pickupCompleted ? (
+                <section className="border border-gray-200 rounded-xl p-5">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">2. Buyer checkpoint</h3>
+                      <p className="text-sm text-gray-500">
+                        After pickup, reach the buyer, follow the correct payment flow, and complete the delivery confirmation.
+                      </p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      deliveryCompleted
+                        ? 'bg-green-100 text-green-800'
+                        : buyerLocationReached
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-orange-100 text-orange-800'
+                    }`}>
+                      {deliveryCompleted ? 'Delivered' : buyerLocationReached ? 'At Buyer Location' : 'In Transit'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-xs text-gray-500 uppercase">Delivery Address</p>
+                      <p className="text-sm font-semibold text-gray-900 mt-1">{activeOrderFlow.user?.name || 'Buyer'}</p>
+                      <p className="text-sm text-gray-700 mt-1">{getBuyerAddress(activeOrderFlow)}</p>
+                      {getBuyerCity(activeOrderFlow) && (
+                        <p className="text-sm text-gray-700">{getBuyerCity(activeOrderFlow)}</p>
+                      )}
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-xs text-gray-500 uppercase">Buyer Contact</p>
+                      <p className="text-sm text-gray-900 mt-1">{buyerPhone || 'Phone not shared'}</p>
+                    </div>
+                  </div>
+
+                  {pickupCompleted && !buyerLocationReached && (
+                    <div className="mt-4 space-y-3">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Notes while reaching buyer (optional)
+                      </label>
+                      <textarea
+                        value={flowBuyerNotes}
+                        onChange={(e) => setFlowBuyerNotes(e.target.value)}
+                        rows={3}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Mention landmark, gate info, etc."
+                      />
+                      <button
+                        onClick={handleFlowReachBuyer}
+                        disabled={flowProcessing.reachBuyer}
+                        className="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
+                      >
+                        {flowProcessing.reachBuyer ? 'Updating...' : 'Reached Buyer Location'}
+                      </button>
+                    </div>
+                  )}
+
+                  {buyerLocationReached && !deliveryCompleted && (
+                    <div className="mt-4 space-y-4">
+                      {codOrder ? (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
+                          <p className="text-sm font-medium text-green-900">
+                            Payment mode was Cash on Delivery (COD). Collect payment via SME Pay QR or cash.
+                          </p>
+                          {flowPaymentData?.qrCode && (
+                            <div className="flex flex-col md:flex-row md:items-center gap-4">
+                              <img
+                                src={flowPaymentData.qrCode}
+                                alt="Payment QR code"
+                                className="w-40 h-40 object-contain border border-green-200 rounded-lg bg-white"
+                              />
+                              <div>
+                                <p className="text-sm text-green-800">
+                                  Amount: ₹{flowPaymentData.amount || activeOrderFlow.totalPrice}
+                                </p>
+                                <p className="text-xs text-green-700 mt-1">
+                                  Ask the buyer to scan the QR code via SME Pay. Once payment succeeds, confirm below.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          <div className="flex flex-wrap gap-3">
+                            <button
+                              onClick={handleFlowRegenerateQr}
+                              disabled={flowProcessing.qr}
+                              className="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium text-green-900 bg-white border border-green-300 hover:bg-green-100 disabled:opacity-60"
+                            >
+                              {flowProcessing.qr ? 'Generating...' : 'Generate QR Code'}
+                            </button>
+                            <button
+                              onClick={() => handleFlowCollectCash('cash')}
+                              disabled={flowProcessing.delivery}
+                              className="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-60"
+                            >
+                              {flowProcessing.delivery ? 'Confirming...' : 'Collected in Cash'}
+                            </button>
+                            <button
+                              onClick={() => handleFlowCollectCash('upi')}
+                              disabled={flowProcessing.delivery}
+                              className="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium text-green-900 bg-green-100 hover:bg-green-200 disabled:opacity-60"
+                            >
+                              {flowProcessing.delivery ? 'Confirming...' : 'Payment completed via SME Pay'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                          <p className="text-sm font-medium text-blue-900">
+                            Payment was prepaid. Ask the buyer for the OTP SMS from SME Pay / MSG91.
+                          </p>
+                          <label className="block text-sm font-medium text-blue-900">
+                            Enter OTP sent to buyer phone number
+                          </label>
+                          <input
+                            type="text"
+                            value={flowBuyerOTP}
+                            maxLength={6}
+                            onChange={(e) => setFlowBuyerOTP(e.target.value)}
+                            className="w-full border border-blue-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Enter OTP here"
+                          />
+                          <button
+                            onClick={handleFlowVerifyOtp}
+                            disabled={flowProcessing.delivery || !flowBuyerOTP.trim()}
+                            className="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
+                          >
+                            {flowProcessing.delivery ? 'Verifying...' : 'Verify OTP & Complete Delivery'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {deliveryCompleted && (
+                    <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 text-green-800 text-sm space-y-2">
+                      <p>✅ Order delivered successfully.</p>
+                      <p>Payment status: {activeOrderFlow.paymentStatus || 'N/A'}</p>
+                      <p>Agent earnings: ₹{activeOrderFlow.deliveryFees?.agentEarning || 0}</p>
+                    </div>
+                  )}
+                </section>
+                ) : (
+                <section className="border border-gray-200 rounded-xl p-5 bg-gray-50 text-gray-500">
+                  <h3 className="text-lg font-semibold text-gray-400">2. Buyer checkpoint</h3>
+                  <p className="text-sm mt-2">
+                    This step unlocks after you verify the seller order ID and finish pickup.
+                  </p>
+                </section>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Pickup Modal */}
       {showPickupModal && (

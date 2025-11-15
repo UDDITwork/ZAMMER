@@ -1661,6 +1661,87 @@ exports.updateOrderPaymentStatus = async (req, res) => {
   }
 };
 
+// @desc    Get minimal order confirmation details for user
+// @route   GET /api/orders/:id/confirmation
+// @access  Private (User)
+exports.getOrderConfirmationDetails = async (req, res) => {
+  try {
+    terminalLog('ORDER_CONFIRMATION_FETCH', 'PROCESSING', {
+      orderId: req.params.id,
+      userId: req.user?._id
+    });
+
+    const order = await Order.findById(req.params.id)
+      .populate('seller', 'firstName lastName shop shopName')
+      .populate('orderItems.product', 'name images');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    if (order.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this order'
+      });
+    }
+
+    const responsePayload = {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      createdAt: order.createdAt,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      paymentGateway: order.paymentGateway,
+      paymentMethod: order.paymentMethod,
+      isPaid: order.isPaid,
+      paidAt: order.paidAt,
+      totalPrice: order.totalPrice,
+      shippingPrice: order.shippingPrice,
+      taxPrice: order.taxPrice,
+      shippingAddress: order.shippingAddress,
+      seller: order.seller ? {
+        _id: order.seller._id,
+        name: order.seller.firstName || order.seller.shopName || 'Seller'
+      } : null,
+      estimatedDelivery: order.estimatedDelivery,
+      orderItems: order.orderItems.map(item => ({
+        _id: item._id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        image: item.image || item.product?.images?.[0] || null
+      })),
+      paymentResult: order.paymentResult
+    };
+
+    terminalLog('ORDER_CONFIRMATION_FETCH', 'SUCCESS', {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      paymentStatus: order.paymentStatus
+    });
+
+    res.status(200).json({
+      success: true,
+      data: responsePayload
+    });
+  } catch (error) {
+    terminalLog('ORDER_CONFIRMATION_FETCH', 'ERROR', {
+      orderId: req.params.id,
+      userId: req.user?._id,
+      error: error.message
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch order confirmation details'
+    });
+  }
+};
+
 // @desc    Get admin dashboard orders
 // @route   GET /api/orders/admin/dashboard
 // @access  Private (Admin)

@@ -21,7 +21,6 @@ const AssignedOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   
   // Order state tracking
-  const [orderStates, setOrderStates] = useState({}); // Track reached seller/delivery states
   
   // Form states
   const [pickupForm, setPickupForm] = useState({
@@ -135,8 +134,35 @@ const AssignedOrders = () => {
     }
   };
 
+  const openSellerCheckpoint = (order) => {
+    if (!order) return;
+    
+    if (order.pickup?.sellerLocationReachedAt) {
+      toast.info('Seller location already confirmed. Please enter the seller order ID to verify pickup.');
+      setSelectedOrder(order);
+      setPickupForm({ orderIdVerification: '', pickupNotes: '' });
+      setShowPickupModal(true);
+      return;
+    }
+    
+    setSelectedOrder(order);
+    setShowReachedSellerModal(true);
+  };
+
   // Handle reached seller location
   const handleReachedSellerLocation = async (order) => {
+    if (!order) {
+      toast.error('No order selected');
+      return;
+    }
+
+    if (order.pickup?.sellerLocationReachedAt) {
+      toast.info('Seller location was already marked for this order.');
+      setShowReachedSellerModal(false);
+      setSelectedOrder(null);
+      return true;
+    }
+
     setProcessingOrder(order._id);
     setActionType('reached-seller');
 
@@ -158,12 +184,6 @@ const AssignedOrders = () => {
       if (data.success) {
         toast.success('Seller location confirmed! Please enter order ID from seller.');
         console.log('✅ [ASSIGNED-ORDERS] Seller location marked as reached:', order._id);
-        
-        // Mark locally that seller location is reached
-        setOrderStates(prev => ({
-          ...prev,
-          [order._id]: { ...prev[order._id], sellerLocationReached: true }
-        }));
         
         // Open pickup modal with order ID input
         setSelectedOrder(order);
@@ -241,6 +261,22 @@ const AssignedOrders = () => {
 
   // Handle reached delivery location
   const handleReachedDeliveryLocation = async (order) => {
+    if (!order) return;
+
+    if (!order.pickup?.isCompleted) {
+      toast.error('Complete pickup verification before heading to the buyer.');
+      return;
+    }
+
+    if (order.delivery?.locationReachedAt || order.deliveryAgent?.status === 'location_reached') {
+      toast.info('Buyer location already marked. Complete payment / OTP verification to finish delivery.');
+      setSelectedOrder(order);
+      setDeliveryForm({ otp: '', deliveryNotes: '', codPaymentType: null, qrCode: null });
+      setShowReachedDeliveryModal(false);
+      setShowDeliveryModal(true);
+      return;
+    }
+
     setProcessingOrder(order._id);
     setActionType('reached-delivery');
 
@@ -263,12 +299,6 @@ const AssignedOrders = () => {
       const data = await response.json();
 
       if (data.success) {
-        // Mark locally that delivery location is reached
-        setOrderStates(prev => ({
-          ...prev,
-          [order._id]: { ...prev[order._id], deliveryLocationReached: true }
-        }));
-        
         // Handle prepaid vs COD flow
         if (order.paymentMethod === 'COD' || !order.isPaid) {
           // COD flow - show payment options
@@ -426,12 +456,6 @@ const AssignedOrders = () => {
         setDeliveryForm({ otp: '', deliveryNotes: '', codPaymentType: null, qrCode: null });
         setShowDeliveryModal(false);
         setSelectedOrder(null);
-        setOrderStates(prev => {
-          const next = { ...prev };
-          delete next[selectedOrder._id];
-          return next;
-        });
-        
         // Refresh orders
         loadAssignedOrders();
       } else {
@@ -447,25 +471,41 @@ const AssignedOrders = () => {
     }
   };
 
-  // Determine current order step
+  // Determine current order step aligned with backend deliveryAgent.status
   const getOrderStep = (order) => {
-    if (order.deliveryStatus === 'assigned' && order.deliveryAgent?.status === 'assigned') {
-      return 'accept'; // Need to accept
+    const agentStatus = order.deliveryAgent?.status || order.deliveryStatus;
+    const sellerReached = Boolean(order.pickup?.sellerLocationReachedAt);
+    const deliveryReached = Boolean(order.delivery?.locationReachedAt) || agentStatus === 'location_reached';
+    const pickupComplete = agentStatus === 'pickup_completed' || order.pickup?.isCompleted;
+    const deliveryComplete = agentStatus === 'delivery_completed' || order.delivery?.isCompleted;
+
+    if (agentStatus === 'assigned' || (!agentStatus && order.deliveryStatus === 'assigned')) {
+      return 'accept';
     }
-    if (order.deliveryAgent?.status === 'accepted' && !order.pickup?.isCompleted) {
-      // Check if seller location has been reached (from database or local state)
-      if (order.pickup?.sellerLocationReachedAt || orderStates[order._id]?.sellerLocationReached) {
-        return 'pickup'; // Ready to enter order ID
+
+    if (agentStatus === 'accepted' || (!pickupComplete && !deliveryComplete)) {
+      if (sellerReached) {
+        return 'pickup';
       }
-      return 'reached-seller'; // Need to mark reached seller location
+      return 'reached-seller';
     }
-    if (order.pickup?.isCompleted && !order.delivery?.isCompleted) {
-      if (orderStates[order._id]?.deliveryLocationReached) {
-        return 'delivery'; // Ready to complete delivery
+
+    if ((agentStatus === 'pickup_completed' || pickupComplete) && !deliveryComplete) {
+      if (deliveryReached) {
+        return 'delivery';
       }
-      return 'reached-delivery'; // Need to mark reached delivery location
+      return 'reached-delivery';
     }
-    return 'completed';
+
+    if (agentStatus === 'location_reached' && !deliveryComplete) {
+      return 'delivery';
+    }
+
+    if (deliveryComplete) {
+      return 'completed';
+    }
+
+    return null;
   };
 
   const handleLogout = () => {
@@ -761,10 +801,7 @@ const AssignedOrders = () => {
                       
                       {nextAction === 'reached-seller' && (
                         <button
-                          onClick={() => {
-                            setSelectedOrder(order);
-                            setShowReachedSellerModal(true);
-                          }}
+                          onClick={() => openSellerCheckpoint(order)}
                           disabled={isProcessing && processingOrder === order._id}
                           className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                             isProcessing && processingOrder === order._id && actionType === 'reached-seller'

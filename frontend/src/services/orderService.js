@@ -706,4 +706,14 @@ const orderService = {
   }
 };
 
+// Add confirmation fetch helper
+orderService.getOrderConfirmation = async (orderId) => {
+  try {
+    const response = await api.get(`/orders/${orderId}/confirmation`);
+    return response.data;
+  } catch (error) {
+    return handleApiError(error, 'getOrderConfirmation');
+  }
+};
+
 export default orderService;
