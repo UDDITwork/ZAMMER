@@ -67,7 +67,11 @@ const OrderSchema = new mongoose.Schema({
     smepay_transaction_id: { type: String },
     smepay_order_slug: { type: String },
     smepay_ref_id: { type: String },
-    gateway: { type: String, enum: ['paypal', 'smepay', 'cod'], default: 'cod' }
+    gateway: {
+      type: String,
+      enum: ['paypal', 'smepay', 'cashfree', 'cod'],
+      default: 'cod'
+    }
   },
 
   // 🆕 SMEPay Order Integration

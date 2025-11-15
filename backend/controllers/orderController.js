@@ -148,6 +148,8 @@ const emitOrderNotification = (sellerId, orderData, eventType = 'new-order') => 
   }
 };
 
+exports.emitOrderNotification = emitOrderNotification;
+
 // 🎯 NEW: Emit real-time notification to buyer
 const emitBuyerNotification = (userId, orderData, eventType = 'order-status-update') => {
   try {
@@ -191,6 +193,8 @@ const emitBuyerNotification = (userId, orderData, eventType = 'order-status-upda
     console.error('❌ Error emitting buyer notification:', error);
   }
 };
+
+exports.emitBuyerNotification = emitBuyerNotification;
 
 // 🎯 NEW: Emit real-time notification to admin
 const emitAdminNotification = (orderData, eventType = 'payment-completed') => {
@@ -269,6 +273,8 @@ const emitAdminNotification = (orderData, eventType = 'payment-completed') => {
     console.error('❌ Error emitting admin notification:', error);
   }
 };
+
+exports.emitAdminNotification = emitAdminNotification;
 
 // 🎯 NEW: Send email notification to buyer
 const sendEmailNotification = async (userEmail, orderData, eventType) => {
