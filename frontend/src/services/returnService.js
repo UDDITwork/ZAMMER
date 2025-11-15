@@ -1,6 +1,7 @@
 // frontend/src/services/returnService.js - Return Management API Service
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || '';
+const RAW_API_BASE = process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '');
+const API_BASE_URL = RAW_API_BASE.replace(/\/api\/?$/, '');
 
 class ReturnService {
   constructor() {
