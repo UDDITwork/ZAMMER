@@ -2338,11 +2338,13 @@ const getAssignedOrders = async (req, res) => {
       pickup: {
         isCompleted: order.pickup?.isCompleted || false,
         completedAt: order.pickup?.completedAt,
+        sellerLocationReachedAt: order.pickup?.sellerLocationReachedAt || null,
         notes: order.pickup?.pickupNotes
       },
       
       delivery: {
         isCompleted: order.delivery?.isCompleted || false,
+        locationReachedAt: order.delivery?.locationReachedAt || null,
         attemptCount: order.delivery?.attemptCount || 0,
         notes: order.delivery?.deliveryNotes
       },

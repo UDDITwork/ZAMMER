@@ -101,7 +101,7 @@ const PaymentReturnPage = () => {
 
             // Redirect to orders page after 2 seconds
             setTimeout(() => {
-              navigate('/user/orders', { 
+              navigate(`/payment/cashfree/confirmation/${orderId}`, { 
                 state: { 
                   paymentSuccess: true,
                   orderNumber: statusResult.data.orderNumber 

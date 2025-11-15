@@ -90,6 +90,7 @@ import WishlistPage from './pages/user/WishlistPage';
 import TrendingPage from './pages/user/TrendingPage';
 import LimitedEditionPage from './pages/user/LimitedEditionPage';
 import OrderConfirmationPage from './pages/user/OrderConfirmationPage';
+import CashfreePaymentConfirmationPage from './pages/user/CashfreePaymentConfirmationPage';
 import UserProfile from './pages/user/UserProfile';
 import ChangePassword from './pages/user/ChangePassword';
 import MyOrdersPage from './pages/user/MyOrdersPage';
@@ -265,6 +266,7 @@ function App() {
             <Route path="/user/checkout" element={<CheckoutPage />} />
             <Route path="/user/payment" element={<PaymentPage />} />
             <Route path="/payment-return" element={<PaymentReturnPage />} />
+            <Route path="/payment/cashfree/confirmation/:orderId" element={<CashfreePaymentConfirmationPage />} />
             <Route path="/user/wishlist" element={<WishlistPage />} />
             <Route path="/user/trending" element={<TrendingPage />} />
             <Route path="/user/limited-edition" element={<LimitedEditionPage />} />
