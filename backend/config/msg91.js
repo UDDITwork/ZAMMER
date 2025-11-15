@@ -28,8 +28,8 @@ const normalizePhoneNumber = (phoneNumber = '') => {
 
 const msg91Config = {
   baseUrl: process.env.MSG91_BASE_URL || DEFAULT_BASE_URL,
-  authKey: HARDCODED_AUTH_KEY,
-  templateId: HARDCODED_TEMPLATE_ID,
+  authKey: process.env.MSG91_AUTH_KEY || process.env.MSG91_AUTHKEY || HARDCODED_AUTH_KEY,
+  templateId: process.env.MSG91_TEMPLATE_ID || HARDCODED_TEMPLATE_ID,
   enableLogging: process.env.NODE_ENV !== 'production',
   rateLimitDefaults: {
     otpLength: 6,
