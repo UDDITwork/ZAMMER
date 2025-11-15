@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import adminService from '../../services/adminService';
 
 const AdminLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -64,22 +65,44 @@ const AdminLayout = ({ children }) => {
   const loadAdminStats = async () => {
     try {
       console.log('%c[ADMIN-LAYOUT] Loading admin stats', 'color: #673AB7; font-weight: bold;');
-      
-      // Placeholder stats
+
+      const [dashboardStats, dashboardOrders, availableAgents] = await Promise.all([
+        adminService.getDashboardStats(),
+        adminService.getRecentOrders({ limit: 1 }),
+        adminService.getAvailableDeliveryAgents({ isActive: true })
+      ]);
+
+      const overview = dashboardStats?.data?.overview || {};
+      const pendingApprovals =
+        dashboardOrders?.dashboardMetrics?.pendingOrdersCount ??
+        dashboardOrders?.count ??
+        0;
+      const activeAgents =
+        availableAgents?.data?.agents?.filter(agent => agent.isActive)?.length ??
+        availableAgents?.data?.agents?.length ??
+        0;
+
       const stats = {
-        totalOrders: 156,
-        pendingApprovals: 8,
-        activeDeliveryAgents: 12,
-        totalUsers: 1250,
-        totalSellers: 89,
-        todayRevenue: 45600
+        totalOrders: overview.totalOrders || 0,
+        pendingApprovals,
+        activeDeliveryAgents: activeAgents,
+        totalUsers: overview.totalUsers || 0,
+        totalSellers: overview.totalSellers || 0,
+        todayRevenue: overview.totalRevenue || 0
       };
-      
+
       setAdminStats(stats);
       console.log('%c[ADMIN-LAYOUT] Admin stats loaded', 'color: #4CAF50; font-weight: bold;', stats);
-      
     } catch (error) {
       console.log('%c[ADMIN-LAYOUT] Stats loading error', 'color: #F44336; font-weight: bold;', error);
+      setAdminStats({
+        totalOrders: 0,
+        pendingApprovals: 0,
+        activeDeliveryAgents: 0,
+        totalUsers: 0,
+        totalSellers: 0,
+        todayRevenue: 0
+      });
     }
   };
 
