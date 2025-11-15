@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const DeliveryAgent = require('../models/DeliveryAgent');
 const Order = require('../models/Order');
 const OtpVerification = require('../models/OtpVerification');
+const msg91Config = require('../config/msg91');
 const { generateDeliveryAgentToken, verifyDeliveryAgentToken } = require('../utils/jwtToken');
 const { validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
@@ -1783,6 +1784,7 @@ const markReachedLocation = async (req, res) => {
         
         console.log('🔄 Loading MSG91 Service...');
         console.log('📞 Preparing OTP data for customer:', order.user.mobileNumber);
+        console.log(`⚙️ MSG91 Credentials in use: fallback=${msg91Config.usingFallbackCredentials}, template=${msg91Config.templateId}`);
         
         const otpRequestData = {
           orderId: order._id,
@@ -1798,7 +1800,12 @@ const markReachedLocation = async (req, res) => {
         };
         
         console.log('📋 OTP Request Data:', JSON.stringify(otpRequestData, null, 2));
-        console.log('🚀 Calling createDeliveryOTP...');
+        console.log('🚀 Calling createDeliveryOTP with data:', {
+          orderId: otpRequestData.orderId,
+          userId: otpRequestData.userId,
+          deliveryAgentId: otpRequestData.deliveryAgentId,
+          userPhone: otpRequestData.userPhone
+        });
         
         const otpData = await msg91Service.createDeliveryOTP({
           ...otpRequestData,
@@ -1836,6 +1843,7 @@ const markReachedLocation = async (req, res) => {
 ⏰ Expires At: ${otpData.expiresAt}
 ===============================`);
         } else {
+          console.error('⚠️ OTP generation response indicated failure:', otpData);
           throw new Error(`OTP service returned failure: ${otpData?.error || 'Unknown error'}`);
         }
       } catch (otpError) {
@@ -1849,6 +1857,11 @@ const markReachedLocation = async (req, res) => {
 ❌ Error: ${otpError.message}
 📊 Stack Trace: ${otpError.stack}
 ===============================`);
+        console.error('⚙️ MSG91 CONFIG SNAPSHOT:', {
+          usingFallbackCredentials: msg91Config.usingFallbackCredentials,
+          templateId: msg91Config.templateId,
+          baseUrl: msg91Config.baseUrl
+        });
         
         // Continue without OTP - frontend will handle fallback
         paymentData = {
@@ -2253,10 +2266,12 @@ const getAssignedOrders = async (req, res) => {
 ===============================`);
 
     // 🎯 BUSINESS LOGIC: Get orders assigned to this agent that are still in progress
+    const inProgressStatuses = ['assigned', 'accepted', 'pickup_completed', 'location_reached'];
+
     const assignedOrders = await Order.find({
       'deliveryAgent.agent': agentId,
       'deliveryAgent.status': { 
-        $in: ['assigned', 'accepted', 'pickup_completed'] 
+        $in: inProgressStatuses 
       },
       status: { $nin: ['Cancelled', 'Delivered'] }
     })
@@ -2266,13 +2281,16 @@ const getAssignedOrders = async (req, res) => {
     .sort({ 'deliveryAgent.assignedAt': 1 }) // FIFO - oldest assignments first
     .limit(50); // Reasonable limit
 
+    const statusBreakdown = assignedOrders.reduce((acc, order) => {
+      const status = order.deliveryAgent.status || 'unknown';
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+
     logDelivery('ASSIGNED_ORDERS_RETRIEVED', { 
       agentId, 
       orderCount: assignedOrders.length,
-      statusBreakdown: assignedOrders.reduce((acc, order) => {
-        acc[order.deliveryAgent.status] = (acc[order.deliveryAgent.status] || 0) + 1;
-        return acc;
-      }, {})
+      statusBreakdown
     });
 
     console.log(`
@@ -2281,9 +2299,10 @@ const getAssignedOrders = async (req, res) => {
 ===============================
 📦 Orders Found: ${assignedOrders.length}
 📊 Status Breakdown:
-   - Assigned: ${assignedOrders.filter(o => o.deliveryAgent.status === 'assigned').length}
-   - Accepted: ${assignedOrders.filter(o => o.deliveryAgent.status === 'accepted').length}  
-   - Picked Up: ${assignedOrders.filter(o => o.deliveryAgent.status === 'pickup_completed').length}
+   - Assigned: ${statusBreakdown['assigned'] || 0}
+   - Accepted: ${statusBreakdown['accepted'] || 0}  
+   - Picked Up: ${statusBreakdown['pickup_completed'] || 0}
+   - Location Reached: ${statusBreakdown['location_reached'] || 0}
 🚚 Agent: ${req.deliveryAgent.name}
 ===============================`);
 

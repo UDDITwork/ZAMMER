@@ -30,6 +30,7 @@ const msg91Config = {
   baseUrl: process.env.MSG91_BASE_URL || DEFAULT_BASE_URL,
   authKey: process.env.MSG91_AUTH_KEY || process.env.MSG91_AUTHKEY || HARDCODED_AUTH_KEY,
   templateId: process.env.MSG91_TEMPLATE_ID || HARDCODED_TEMPLATE_ID,
+  usingFallbackCredentials: !process.env.MSG91_AUTH_KEY && !process.env.MSG91_AUTHKEY,
   enableLogging: process.env.NODE_ENV !== 'production',
   rateLimitDefaults: {
     otpLength: 6,
@@ -62,7 +63,18 @@ if (msg91Config.enableLogging) {
 🌍 NODE_ENV: ${process.env.NODE_ENV}
 🔑 AUTHKEY: ${msg91Config.authKey ? 'SET' : 'NOT_SET'}
 🧾 TEMPLATE_ID: ${msg91Config.templateId || 'NOT_SET'}
+⚠️ USING_FALLBACK_CREDENTIALS: ${msg91Config.usingFallbackCredentials ? 'YES' : 'NO'}
 ===============================`);
+
+  if (msg91Config.usingFallbackCredentials) {
+    console.warn(`
+⚠️ ===============================
+   MSG91 FALLBACK CREDENTIALS
+===============================
+❗ No MSG91_AUTH_KEY found in environment. Falling back to repo key.
+   Please set MSG91_AUTH_KEY & MSG91_TEMPLATE_ID in production.
+===============================`);
+  }
 }
 
 try {
