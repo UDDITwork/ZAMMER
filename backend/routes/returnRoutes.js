@@ -10,7 +10,9 @@ const {
   getReturnOrders,
   assignReturnAgent,
   handleReturnAssignmentResponse,
+  markReturnBuyerArrival,
   completeReturnPickup,
+  markReturnSellerArrival,
   completeReturnDelivery,
   completeReturn,
   getDeliveryAgentReturns,
@@ -79,10 +81,22 @@ router.put('/:returnId/response',
   handleReturnAssignmentResponse
 );
 
+// Mark buyer location reached
+router.put('/:returnId/buyer-arrival',
+  protectDeliveryAgent,
+  markReturnBuyerArrival
+);
+
 // Complete return pickup from buyer
 router.put('/:returnId/pickup', 
   protectDeliveryAgent, 
   completeReturnPickup
+);
+
+// Mark seller location reached & send OTP
+router.put('/:returnId/seller-arrival',
+  protectDeliveryAgent,
+  markReturnSellerArrival
 );
 
 // Mark return pickup as failed (buyer not responding)

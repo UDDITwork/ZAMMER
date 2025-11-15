@@ -1689,7 +1689,91 @@ const markReachedLocation = async (req, res) => {
       });
     }
 
-    // 🎯 STATUS VALIDATION: Check if agent can mark location as reached
+    // 🎯 STATUS VALIDATION + IDEMPOTENCY HANDLING
+    if (order.deliveryAgent.status === 'location_reached') {
+      logDelivery('REACHED_LOCATION_ALREADY_MARKED', { orderId });
+
+      let paymentData = {};
+      const reachedTime = order.delivery?.locationReachedAt || order.deliveryAgent.locationReachedAt || new Date();
+
+      if (order.paymentMethod === 'COD') {
+        const codQR = order.paymentDetails?.codQR;
+        paymentData = {
+          type: 'COD',
+          qrCode: codQR?.qrCode || codQR?.qrData?.qrCode,
+          qrData: codQR?.qrData || null,
+          amount: order.paymentDetails?.amount || order.totalAmount,
+          paymentId: codQR?.paymentId
+        };
+      } else {
+        try {
+          const msg91Service = require('../services/msg91Service');
+          const otpData = await msg91Service.createDeliveryOTP({
+            orderId: order._id,
+            userId: order.user._id,
+            deliveryAgentId: agentId,
+            userPhone: order.user.mobileNumber,
+            purpose: 'delivery_confirmation',
+            deliveryLocation: {
+              type: 'Point',
+              coordinates: [0, 0]
+            },
+            notes: req.body.locationNotes || 'OTP resend requested',
+            orderNumber: order.orderNumber,
+            userName: order.user.name
+          });
+
+          if (otpData?.success) {
+            paymentData = {
+              type: 'PREPAID',
+              otp: otpData.otpCode,
+              otpId: otpData.otpId,
+              expiresAt: otpData.expiresAt,
+              phoneNumber: order.user.mobileNumber
+            };
+
+            order.otpVerification = {
+              isRequired: true,
+              otpId: otpData.otpId,
+              generatedAt: new Date(),
+              expiresAt: otpData.expiresAt,
+              isVerified: false
+            };
+            await order.save();
+          } else {
+            paymentData = {
+              type: 'PREPAID',
+              error: otpData?.error || 'OTP generation failed',
+              phoneNumber: order.user.mobileNumber
+            };
+          }
+        } catch (otpError) {
+          logDeliveryError('REACHED_LOCATION_RESEND_OTP_FAILED', otpError, { orderId });
+          paymentData = {
+            type: 'PREPAID',
+            error: otpError.message,
+            phoneNumber: order.user.mobileNumber
+          };
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Location was already marked as reached',
+        data: {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          deliveryStatus: order.deliveryAgent.status,
+          reachedTime,
+          paymentData,
+          nextStep: order.paymentMethod === 'COD'
+            ? 'Wait for customer to scan QR code and make payment'
+            : 'Wait for customer to provide OTP for delivery verification'
+        }
+      });
+    }
+
     if (order.deliveryAgent.status !== 'pickup_completed') {
       logDeliveryError('REACHED_LOCATION_PICKUP_NOT_COMPLETED', new Error('Pickup not completed yet'), { 
         orderId, 
@@ -1699,15 +1783,6 @@ const markReachedLocation = async (req, res) => {
         success: false,
         message: 'Order pickup must be completed before reaching location',
         code: 'PICKUP_NOT_COMPLETED'
-      });
-    }
-
-    if (order.deliveryAgent.status === 'location_reached') {
-      logDeliveryError('REACHED_LOCATION_ALREADY_REACHED', new Error('Location already marked as reached'), { orderId });
-      return res.status(400).json({
-        success: false,
-        message: 'Location has already been marked as reached for this order',
-        code: 'LOCATION_ALREADY_REACHED'
       });
     }
 

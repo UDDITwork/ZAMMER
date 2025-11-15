@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import UserLayout from '../../components/layouts/UserLayout';
 import { AuthContext } from '../../contexts/AuthContext';
 import socketService from '../../services/socketService';
+import ReturnRequestModal from '../../components/return/ReturnRequestModal';
 import { getMarketplaceProducts } from '../../services/productService';
 import { getNearbyShops } from '../../services/userService';
 import { updateLocation, getCurrentLocation, calculateDistance } from '../../utils/locationUtils';
@@ -56,6 +57,8 @@ const Dashboard = () => {
   const [location, setLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState(null);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnModalOrder, setReturnModalOrder] = useState(null);
   
   const isMountedRef = useRef(true);
   const fetchingRef = useRef(false);
@@ -490,6 +493,21 @@ const Dashboard = () => {
   const toggleOrderTracker = () => {
     setShowOrderTracker(prev => !prev);
   };
+
+const handleReturnFromTracker = (order) => {
+  if (!order) {
+    toast.error('Unable to open return flow for this order.');
+    return;
+  }
+
+  console.log('🌀 [Dashboard] Triggering return modal from tracker', {
+    orderId: order._id,
+    orderNumber: order.orderNumber
+  });
+
+  setReturnModalOrder(order);
+  setShowReturnModal(true);
+};
 
   if (!userAuth.isAuthenticated) {
     return (
@@ -1118,13 +1136,28 @@ const Dashboard = () => {
                   </button>
                 </div>
                 <div className="p-6">
-                  <RealTimeOrderTracker orders={activeOrders} />
+                  <RealTimeOrderTracker orders={activeOrders} onReturnOrder={handleReturnFromTracker} />
                 </div>
               </div>
             </div>
           )}
         </div>
       </div>
+      <ReturnRequestModal
+        isOpen={showReturnModal}
+        order={returnModalOrder}
+        onClose={() => {
+          setShowReturnModal(false);
+          setReturnModalOrder(null);
+        }}
+        onReturnRequested={() => {
+          toast.success('Return request submitted successfully!');
+          setShowReturnModal(false);
+          setReturnModalOrder(null);
+          fetchOrders();
+        }}
+        socket={socketService.socket}
+      />
     </UserLayout>
   );
 };

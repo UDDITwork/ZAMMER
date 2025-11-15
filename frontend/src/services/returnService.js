@@ -154,6 +154,23 @@ class ReturnService {
     }
   }
 
+  // 🎯 MARK BUYER LOCATION ARRIVAL (Delivery Agent)
+  async markReturnBuyerArrival(returnId, payload = {}) {
+    try {
+      console.debug('[ReturnService] markReturnBuyerArrival payload:', payload);
+      const response = await fetch(`${API_BASE_URL}/api/returns/${returnId}/buyer-arrival`, {
+        method: 'PUT',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+
+      return await this.handleResponse(response);
+    } catch (error) {
+      console.error('Error marking buyer arrival for return:', error);
+      throw error;
+    }
+  }
+
   // 🎯 COMPLETE RETURN PICKUP (Delivery Agent)
   async completeReturnPickup(returnId, pickupData) {
     try {
@@ -166,6 +183,23 @@ class ReturnService {
       return await this.handleResponse(response);
     } catch (error) {
       console.error('Error completing return pickup:', error);
+      throw error;
+    }
+  }
+
+  // 🎯 MARK SELLER ARRIVAL & SEND OTP (Delivery Agent)
+  async markReturnSellerArrival(returnId, payload = {}) {
+    try {
+      console.debug('[ReturnService] markReturnSellerArrival payload:', payload);
+      const response = await fetch(`${API_BASE_URL}/api/returns/${returnId}/seller-arrival`, {
+        method: 'PUT',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+
+      return await this.handleResponse(response);
+    } catch (error) {
+      console.error('Error marking seller arrival for return:', error);
       throw error;
     }
   }
@@ -196,9 +230,12 @@ class ReturnService {
       'approved': { label: 'Approved', color: 'purple', icon: 'check-circle' },
       'assigned': { label: 'Assigned', color: 'orange', icon: 'user-check' },
       'accepted': { label: 'Accepted', color: 'green', icon: 'check-circle' },
+      'agent_reached_buyer': { label: 'At Buyer Location', color: 'indigo', icon: 'map-pin' },
       'picked_up': { label: 'Picked Up', color: 'blue', icon: 'package' },
+      'agent_reached_seller': { label: 'At Seller Location', color: 'purple', icon: 'map-pin' },
       'returned_to_seller': { label: 'Returned to Seller', color: 'purple', icon: 'truck' },
       'completed': { label: 'Completed', color: 'green', icon: 'check-circle' },
+      'pickup_failed': { label: 'Pickup Failed', color: 'red', icon: 'alert-triangle' },
       'rejected': { label: 'Rejected', color: 'red', icon: 'x-circle' }
     };
 
@@ -243,7 +280,9 @@ class ReturnService {
       'approved': 50,
       'assigned': 60,
       'accepted': 70,
+      'agent_reached_buyer': 75,
       'picked_up': 85,
+      'agent_reached_seller': 95,
       'returned_to_seller': 95,
       'completed': 100,
       'rejected': 0
@@ -260,7 +299,10 @@ class ReturnService {
       'approved': 'Waiting for delivery agent assignment',
       'assigned': 'Waiting for agent acceptance',
       'accepted': 'Waiting for pickup',
+      'agent_reached_buyer': 'Confirm pickup with buyer',
       'picked_up': 'Return in transit to seller',
+      'agent_reached_seller': 'Verify seller OTP',
+      'pickup_failed': 'Awaiting admin review',
       'returned_to_seller': 'Waiting for completion',
       'completed': 'Return completed',
       'rejected': 'Return rejected'

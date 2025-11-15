@@ -36,6 +36,7 @@ const AssignedOrders = () => {
   
   const navigate = useNavigate();
   const { deliveryAgentAuth, logoutDeliveryAgent } = useContext(AuthContext);
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
   // Check authentication
   useEffect(() => {
@@ -49,9 +50,12 @@ const AssignedOrders = () => {
   }, [navigate, deliveryAgentAuth]);
 
   // Load assigned orders
-  const loadAssignedOrders = async () => {
+  const loadAssignedOrders = async (options = {}) => {
+    const { silent = false } = options;
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
       
       if (!token) {
@@ -62,7 +66,7 @@ const AssignedOrders = () => {
 
       console.log('🚚 [ASSIGNED-ORDERS] Fetching assigned orders...');
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/orders/assigned`, {
+      const response = await fetch(`${API_BASE_URL}/delivery/orders/assigned`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -73,6 +77,7 @@ const AssignedOrders = () => {
         const data = await response.json();
         console.log('✅ [ASSIGNED-ORDERS] Orders fetched successfully:', data.count || 0);
         setAssignedOrders(data.data || []);
+        return data.data || [];
       } else {
         console.error('❌ [ASSIGNED-ORDERS] Failed to fetch orders:', response.status);
         if (response.status === 401) {
@@ -85,9 +90,18 @@ const AssignedOrders = () => {
     } catch (error) {
       console.error('❌ [ASSIGNED-ORDERS] Error fetching orders:', error);
       toast.error('Failed to load assigned orders');
+      return null;
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
+  };
+
+  const refreshOrderState = async (orderId) => {
+    const latestOrders = await loadAssignedOrders({ silent: true });
+    if (!latestOrders) return null;
+    return latestOrders.find((ord) => ord._id === orderId) || null;
   };
 
   // Handle refresh
@@ -107,7 +121,7 @@ const AssignedOrders = () => {
       
       console.log('🚚 [ASSIGNED-ORDERS] Accepting order:', order._id);
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/orders/${order._id}/accept`, {
+      const response = await fetch(`${API_BASE_URL}/delivery/orders/${order._id}/accept`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -171,7 +185,7 @@ const AssignedOrders = () => {
       
       console.log('🚚 [ASSIGNED-ORDERS] Marking reached seller location for order:', order._id);
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/orders/${order._id}/reached-seller-location`, {
+      const response = await fetch(`${API_BASE_URL}/delivery/orders/${order._id}/reached-seller-location`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -221,7 +235,7 @@ const AssignedOrders = () => {
       
       console.log('🚚 [ASSIGNED-ORDERS] Completing pickup for order:', selectedOrder._id);
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/orders/${selectedOrder._id}/pickup`, {
+      const response = await fetch(`${API_BASE_URL}/delivery/orders/${selectedOrder._id}/pickup`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -261,31 +275,41 @@ const AssignedOrders = () => {
 
   // Handle reached delivery location
   const handleReachedDeliveryLocation = async (order) => {
-    if (!order) return;
+    if (!order) return false;
 
-    if (!order.pickup?.isCompleted) {
-      toast.error('Complete pickup verification before heading to the buyer.');
-      return;
+    const latestOrder = await refreshOrderState(order._id);
+    if (!latestOrder) {
+      toast.error('Unable to load latest order status. Please refresh.');
+      return false;
     }
 
-    if (order.delivery?.locationReachedAt || order.deliveryAgent?.status === 'location_reached') {
+    const agentStatus = latestOrder.deliveryAgent?.status;
+    const pickupVerified = agentStatus === 'pickup_completed' || agentStatus === 'location_reached' || agentStatus === 'delivery_completed';
+
+    if (!pickupVerified) {
+      toast.error('Complete pickup verification before heading to the buyer.');
+      return false;
+    }
+
+    if (latestOrder.delivery?.locationReachedAt || latestOrder.deliveryAgent?.status === 'location_reached') {
       toast.info('Buyer location already marked. Complete payment / OTP verification to finish delivery.');
-      setSelectedOrder(order);
+      setSelectedOrder(latestOrder);
       setDeliveryForm({ otp: '', deliveryNotes: '', codPaymentType: null, qrCode: null });
       setShowReachedDeliveryModal(false);
       setShowDeliveryModal(true);
-      return;
+      return true;
     }
 
-    setProcessingOrder(order._id);
+    setProcessingOrder(latestOrder._id);
     setActionType('reached-delivery');
+    let success = false;
 
     try {
       const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
       
-      console.log('🚚 [ASSIGNED-ORDERS] Marking reached delivery location for order:', order._id);
+      console.log('🚚 [ASSIGNED-ORDERS] Marking reached delivery location for order:', latestOrder._id);
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/orders/${order._id}/reached-location`, {
+      const response = await fetch(`${API_BASE_URL}/delivery/orders/${latestOrder._id}/reached-location`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -299,32 +323,30 @@ const AssignedOrders = () => {
       const data = await response.json();
 
       if (data.success) {
-        // Handle prepaid vs COD flow
-        if (order.paymentMethod === 'COD' || !order.isPaid) {
-          // COD flow - show payment options
-          setSelectedOrder(order);
+        const updatedOrder = data.data || latestOrder;
+        if (updatedOrder.paymentMethod === 'COD' || !updatedOrder.isPaid) {
+          setSelectedOrder(updatedOrder);
           setDeliveryForm({ 
             otp: '', 
             deliveryNotes: '',
             codPaymentType: null,
             qrCode: data.data?.paymentData?.qrCode || data.paymentData?.qrCode || null
           });
-          setShowReachedDeliveryModal(false);
-          setShowDeliveryModal(true);
           toast.success('Please collect payment from customer');
         } else {
-          // Prepaid flow - OTP should be sent automatically, show OTP input
-          setSelectedOrder(order);
+          setSelectedOrder(updatedOrder);
           setDeliveryForm({ 
             otp: '', 
             deliveryNotes: '',
             codPaymentType: null,
             qrCode: null
           });
-          setShowReachedDeliveryModal(false);
-          setShowDeliveryModal(true);
-          toast.success('OTP sent to customer! Please ask customer for OTP.');
+          toast.success('OTP sent to customer! Please ask the customer for the OTP.');
         }
+
+        setShowReachedDeliveryModal(false);
+        setShowDeliveryModal(true);
+        success = true;
       } else {
         console.error('❌ [ASSIGNED-ORDERS] Failed to mark reached location:', data.message);
         toast.error(data.message || 'Failed to mark reached location');
@@ -336,7 +358,48 @@ const AssignedOrders = () => {
       setProcessingOrder(null);
       setActionType(null);
     }
+
+    return success;
   };
+
+  const openDeliveryModal = async (order) => {
+    if (!order) return;
+
+    const latestOrder = await refreshOrderState(order._id);
+    if (!latestOrder) {
+      toast.error('Unable to load latest order status. Please refresh.');
+      return;
+    }
+
+    const agentStatus = latestOrder.deliveryAgent?.status;
+    const pickupVerified = agentStatus === 'pickup_completed' || agentStatus === 'location_reached' || agentStatus === 'delivery_completed';
+
+    if (!pickupVerified) {
+      toast.error('Complete pickup verification before finishing delivery.');
+      setShowDeliveryModal(false);
+      setSelectedOrder(null);
+      return;
+    }
+
+    if (!latestOrder.delivery?.locationReachedAt && latestOrder.deliveryAgent?.status !== 'location_reached') {
+      const success = await handleReachedDeliveryLocation(latestOrder);
+      if (!success) {
+        return;
+      }
+      return;
+    }
+
+    const isCOD = latestOrder.paymentMethod === 'COD' || !latestOrder.isPaid;
+    setSelectedOrder(latestOrder);
+    setDeliveryForm({
+      otp: '',
+      deliveryNotes: '',
+      codPaymentType: null,
+      qrCode: isCOD ? latestOrder.paymentData?.qrCode || null : null
+    });
+    setShowDeliveryModal(true);
+  };
+
 
   // Handle OTP resend
   const handleResendOTP = async () => {
@@ -348,7 +411,7 @@ const AssignedOrders = () => {
       const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
       
       // Resend OTP by calling reached location again
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/orders/${selectedOrder._id}/reached-location`, {
+      const response = await fetch(`${API_BASE_URL}/delivery/orders/${selectedOrder._id}/reached-location`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -399,8 +462,33 @@ const AssignedOrders = () => {
       return;
     }
 
+    const latestOrder = await refreshOrderState(selectedOrder._id);
+    if (!latestOrder) {
+      toast.error('Unable to load latest order status. Please refresh.');
+      return;
+    }
+
+    const agentStatus = latestOrder.deliveryAgent?.status;
+    const pickupVerified = agentStatus === 'pickup_completed' || agentStatus === 'location_reached' || agentStatus === 'delivery_completed';
+
+    if (!pickupVerified) {
+      toast.error('Pickup verification not completed. Please complete pickup first.');
+      setShowDeliveryModal(false);
+      setSelectedOrder(null);
+      return;
+    }
+
+    if (!latestOrder.delivery?.locationReachedAt && latestOrder.deliveryAgent?.status !== 'location_reached') {
+      toast.error('Please mark buyer location as reached before completing delivery.');
+      setShowDeliveryModal(false);
+      setSelectedOrder(null);
+      return;
+    }
+
+    setSelectedOrder(latestOrder);
+
     // Validate based on payment type
-    const isCOD = selectedOrder.paymentMethod === 'COD' || !selectedOrder.isPaid;
+    const isCOD = latestOrder.paymentMethod === 'COD' || !latestOrder.isPaid;
     
     if (isCOD) {
       if (!deliveryForm.codPaymentType) {
@@ -414,13 +502,13 @@ const AssignedOrders = () => {
       }
     }
 
-    setProcessingOrder(selectedOrder._id);
+    setProcessingOrder(latestOrder._id);
     setActionType('delivery');
 
     try {
       const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
       
-      console.log('🚚 [ASSIGNED-ORDERS] Completing delivery for order:', selectedOrder._id);
+      console.log('🚚 [ASSIGNED-ORDERS] Completing delivery for order:', latestOrder._id);
       
       const requestBody = {
         deliveryNotes: deliveryForm.deliveryNotes,
@@ -437,7 +525,7 @@ const AssignedOrders = () => {
         };
       }
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/delivery/orders/${selectedOrder._id}/deliver`, {
+      const response = await fetch(`${API_BASE_URL}/delivery/orders/${latestOrder._id}/deliver`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -473,35 +561,27 @@ const AssignedOrders = () => {
 
   // Determine current order step aligned with backend deliveryAgent.status
   const getOrderStep = (order) => {
-    const agentStatus = order.deliveryAgent?.status || order.deliveryStatus;
+    const agentStatus = order.deliveryAgent?.status || order.deliveryStatus || 'assigned';
     const sellerReached = Boolean(order.pickup?.sellerLocationReachedAt);
     const deliveryReached = Boolean(order.delivery?.locationReachedAt) || agentStatus === 'location_reached';
-    const pickupComplete = agentStatus === 'pickup_completed' || order.pickup?.isCompleted;
-    const deliveryComplete = agentStatus === 'delivery_completed' || order.delivery?.isCompleted;
 
-    if (agentStatus === 'assigned' || (!agentStatus && order.deliveryStatus === 'assigned')) {
+    if (agentStatus === 'assigned' || agentStatus === 'unassigned') {
       return 'accept';
     }
 
-    if (agentStatus === 'accepted' || (!pickupComplete && !deliveryComplete)) {
-      if (sellerReached) {
-        return 'pickup';
-      }
-      return 'reached-seller';
+    if (agentStatus === 'accepted') {
+      return sellerReached ? 'pickup' : 'reached-seller';
     }
 
-    if ((agentStatus === 'pickup_completed' || pickupComplete) && !deliveryComplete) {
-      if (deliveryReached) {
-        return 'delivery';
-      }
-      return 'reached-delivery';
+    if (agentStatus === 'pickup_completed') {
+      return deliveryReached ? 'delivery' : 'reached-delivery';
     }
 
-    if (agentStatus === 'location_reached' && !deliveryComplete) {
+    if (agentStatus === 'location_reached') {
       return 'delivery';
     }
 
-    if (deliveryComplete) {
+    if (agentStatus === 'delivery_completed') {
       return 'completed';
     }
 
@@ -847,17 +927,7 @@ const AssignedOrders = () => {
                       
                       {nextAction === 'delivery' && (
                         <button
-                          onClick={() => {
-                            setSelectedOrder(order);
-                            const isCOD = order.paymentMethod === 'COD' || !order.isPaid;
-                            setDeliveryForm({ 
-                              otp: '', 
-                              deliveryNotes: '',
-                              codPaymentType: null,
-                              qrCode: null
-                            });
-                            setShowDeliveryModal(true);
-                          }}
+                          onClick={() => openDeliveryModal(order)}
                           disabled={isProcessing && processingOrder === order._id}
                           className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                             isProcessing && processingOrder === order._id && actionType === 'delivery'

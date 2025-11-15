@@ -176,15 +176,6 @@ router.get('/orders', [
     .withMessage('Invalid date format for dateTo')
 ], validateRequest, getAllOrders);
 
-// @route   GET /api/admin/orders/:orderId
-// @desc    Get detailed information about a specific order
-// @access  Private (Admin)
-router.get('/orders/:orderId', [
-  param('orderId')
-    .isMongoId()
-    .withMessage('Invalid order ID format')
-], validateRequest, getOrderDetails);
-
 // @route   GET /api/admin/orders/assigned-accepted
 // @desc    Get orders assigned to delivery agents and accepted by them with tracking
 // @access  Private (Admin)
@@ -198,6 +189,15 @@ router.get('/orders/assigned-accepted', [
     .isInt({ min: 1, max: 100 })
     .withMessage('Limit must be between 1 and 100')
 ], validateRequest, getAssignedAcceptedOrders);
+
+// @route   GET /api/admin/orders/:orderId
+// @desc    Get detailed information about a specific order
+// @access  Private (Admin)
+router.get('/orders/:orderId', [
+  param('orderId')
+    .isMongoId()
+    .withMessage('Invalid order ID format')
+], validateRequest, getOrderDetails);
 
 // @route   POST /api/admin/orders/approve-assign
 // @desc    Approve an order and assign it to a delivery agent
