@@ -5,7 +5,7 @@ const User = require('../models/User');
 const Seller = require('../models/Seller');
 const DeliveryAgent = require('../models/DeliveryAgent');
 const Admin = require('../models/Admin');
-const OtpVerification = require('../models/OtpVerification');
+const msg91Service = require('../services/msg91Service');
 
 // Enhanced logging for return operations
 const logReturnOperation = (operation, data, type = 'info') => {
@@ -253,7 +253,19 @@ const getReturnOrders = async (req, res) => {
     } else {
       // Get all return-related orders
       query['returnDetails.returnStatus'] = {
-        $in: ['requested', 'approved', 'assigned', 'accepted', 'picked_up', 'returned_to_seller', 'completed', 'rejected']
+        $in: [
+          'requested',
+          'approved',
+          'assigned',
+          'accepted',
+          'agent_reached_buyer',
+          'picked_up',
+          'agent_reached_seller',
+          'pickup_failed',
+          'returned_to_seller',
+          'completed',
+          'rejected'
+        ]
       };
     }
 
@@ -589,6 +601,118 @@ const handleReturnAssignmentResponse = async (req, res) => {
   }
 };
 
+// 🎯 MARK BUYER LOCATION REACHED (Delivery Agent)
+const markReturnBuyerArrival = async (req, res) => {
+  try {
+    const { returnId } = req.params;
+    const { location, notes } = req.body;
+    const agentId = req.user?.id;
+
+    logReturnOperation('ReturnBuyerArrival', {
+      returnId,
+      agentId,
+      hasLocation: Boolean(location),
+      timestamp: new Date().toISOString()
+    }, 'return');
+
+    const order = await Order.findById(returnId)
+      .populate('user', 'name email phone')
+      .populate('seller', 'firstName shop')
+      .populate('returnDetails.returnAssignment.deliveryAgent', 'firstName lastName phone');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    if (order.returnDetails?.returnAssignment?.deliveryAgent?.toString() !== agentId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized to update this return assignment'
+      });
+    }
+
+    const assignmentStatus = order.returnDetails?.returnAssignment?.status;
+    if (!['accepted', 'agent_reached_buyer'].includes(assignmentStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot mark buyer arrival. Assignment status is: ${assignmentStatus}`
+      });
+    }
+
+    const arrivalTime = new Date();
+    order.returnDetails.returnAssignment.buyerLocationReachedAt = arrivalTime;
+    order.returnDetails.returnAssignment.status = 'agent_reached_buyer';
+    order.returnDetails.returnStatus = 'agent_reached_buyer';
+    if (location) {
+      order.returnDetails.returnAssignment.lastKnownLocation = {
+        type: location.type || 'Point',
+        coordinates: location.coordinates || [0, 0],
+        address: location.address || ''
+      };
+    }
+
+    order.returnDetails.returnHistory.push({
+      status: 'agent_reached_buyer',
+      changedBy: 'delivery_agent',
+      changedAt: arrivalTime,
+      notes: notes || 'Delivery agent reached buyer location for return pickup',
+      location: location || {
+        type: 'Point',
+        coordinates: [0, 0]
+      }
+    });
+
+    await order.save();
+
+    // Notify buyer/admin about update
+    if (global.emitToBuyer) {
+      global.emitToBuyer(order.user._id, 'return-agent-arrived', {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        status: order.returnDetails.returnStatus,
+        arrivedAt: arrivalTime
+      });
+    }
+
+    if (global.emitToAdmin) {
+      global.emitToAdmin('return-agent-arrived', {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        status: order.returnDetails.returnStatus,
+        arrivedAt: arrivalTime,
+        deliveryAgent: order.returnDetails.returnAssignment.deliveryAgent
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Buyer location marked as reached',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        returnStatus: order.returnDetails.returnStatus,
+        buyerLocationReachedAt: arrivalTime
+      }
+    });
+
+  } catch (error) {
+    logReturnOperation('ReturnBuyerArrival', {
+      error: error.message,
+      returnId: req.params.returnId,
+      stack: error.stack
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mark buyer location as reached',
+      error: error.message
+    });
+  }
+};
+
 // 🎯 COMPLETE RETURN PICKUP
 const completeReturnPickup = async (req, res) => {
   try {
@@ -633,33 +757,10 @@ const completeReturnPickup = async (req, res) => {
       });
     }
 
-    // Verify OTP if provided
-    let pickupOTP = null;
-    if (otp) {
-      const otpVerification = await OtpVerification.findOne({
-        order: returnId,
-        otp: otp,
-        type: 'return_pickup',
-        isUsed: false
-      });
-
-      if (!otpVerification) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid or expired OTP'
-        });
-      }
-
-      otpVerification.isUsed = true;
-      otpVerification.usedAt = new Date();
-      await otpVerification.save();
-      pickupOTP = otpVerification._id;
-    }
-
     try {
       // Complete return pickup using the model method
       await order.completeReturnPickup({
-        pickupOTP,
+        pickupOTP: null,
         location: location || {
           type: 'Point',
           coordinates: [0, 0]
@@ -747,6 +848,147 @@ const completeReturnPickup = async (req, res) => {
   }
 };
 
+// 🎯 MARK SELLER LOCATION & TRIGGER OTP (Delivery Agent)
+const markReturnSellerArrival = async (req, res) => {
+  try {
+    const { returnId } = req.params;
+    const { location, notes } = req.body;
+    const agentId = req.user?.id;
+
+    logReturnOperation('ReturnSellerArrival', {
+      returnId,
+      agentId,
+      hasLocation: Boolean(location),
+      timestamp: new Date().toISOString()
+    }, 'return');
+
+    const order = await Order.findById(returnId)
+      .populate('user', 'name email')
+      .populate('seller', 'firstName shop mobileNumber')
+      .populate('returnDetails.returnAssignment.deliveryAgent', 'firstName lastName phone');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    if (order.returnDetails?.returnAssignment?.deliveryAgent?.toString() !== agentId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized to update this return assignment'
+      });
+    }
+
+    if (!order.returnDetails?.returnAssignment) {
+      return res.status(400).json({
+        success: false,
+        message: 'Return assignment not found'
+      });
+    }
+
+    if (!['picked_up', 'agent_reached_seller'].includes(order.returnDetails.returnAssignment.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot mark seller arrival. Assignment status is: ${order.returnDetails.returnAssignment.status}`
+      });
+    }
+
+    const sellerPhone =
+      order.seller?.mobileNumber ||
+      order.seller?.shop?.phoneNumber?.main ||
+      order.seller?.shop?.phoneNumber?.alternate;
+
+    if (!sellerPhone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Seller mobile number is not available'
+      });
+    }
+
+    const otpResult = await msg91Service.sendOTP(sellerPhone, {
+      purpose: 'return_delivery',
+      orderNumber: order.orderNumber,
+      userName: order.seller?.firstName || order.seller?.shop?.name || 'Seller'
+    });
+
+    if (!otpResult.success) {
+      return res.status(502).json({
+        success: false,
+        message: otpResult.error || 'Failed to send OTP to seller'
+      });
+    }
+
+    const arrivalTime = new Date();
+    order.returnDetails.returnAssignment.sellerLocationReachedAt = arrivalTime;
+    order.returnDetails.returnAssignment.status = 'agent_reached_seller';
+    order.returnDetails.returnStatus = 'agent_reached_seller';
+    if (location) {
+      order.returnDetails.returnAssignment.lastKnownLocation = {
+        type: location.type || 'Point',
+        coordinates: location.coordinates || [0, 0],
+        address: location.address || ''
+      };
+    }
+
+    order.returnDetails.returnDelivery = order.returnDetails.returnDelivery || {};
+    order.returnDetails.returnDelivery.sellerOtpMeta = {
+      ...(order.returnDetails.returnDelivery.sellerOtpMeta || {}),
+      lastSentAt: new Date(),
+      requestId: otpResult.response?.request_id || otpResult.response?.requestId || '',
+      phoneNumber: sellerPhone,
+      verificationAttempts: order.returnDetails.returnDelivery.sellerOtpMeta?.verificationAttempts || 0
+    };
+
+    order.returnDetails.returnHistory.push({
+      status: 'agent_reached_seller',
+      changedBy: 'delivery_agent',
+      changedAt: arrivalTime,
+      notes: notes || 'Delivery agent reached seller location with return package',
+      location: location || {
+        type: 'Point',
+        coordinates: [0, 0]
+      }
+    });
+
+    await order.save();
+
+    if (global.emitToSeller) {
+      global.emitToSeller(order.seller._id, 'return-agent-arrived', {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        status: order.returnDetails.returnStatus,
+        otpSentAt: order.returnDetails.returnDelivery.sellerOtpMeta.lastSentAt
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Seller arrival recorded and OTP sent',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        returnStatus: order.returnDetails.returnStatus,
+        sellerOtpMeta: order.returnDetails.returnDelivery.sellerOtpMeta
+      }
+    });
+
+  } catch (error) {
+    logReturnOperation('ReturnSellerArrival', {
+      error: error.message,
+      returnId: req.params.returnId,
+      stack: error.stack
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mark seller arrival or send OTP',
+      error: error.message
+    });
+  }
+};
+
 // 🎯 COMPLETE RETURN DELIVERY TO SELLER
 const completeReturnDelivery = async (req, res) => {
   try {
@@ -791,33 +1033,51 @@ const completeReturnDelivery = async (req, res) => {
       });
     }
 
-    // Verify OTP if provided
-    let sellerOTP = null;
-    if (otp) {
-      const otpVerification = await OtpVerification.findOne({
-        order: returnId,
-        otp: otp,
-        type: 'return_delivery',
-        isUsed: false
+    const sellerPhone =
+      order.seller?.mobileNumber ||
+      order.seller?.shop?.phoneNumber?.main ||
+      order.seller?.shop?.phoneNumber?.alternate;
+
+    if (!sellerPhone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Seller mobile number is not available for OTP verification'
       });
-
-      if (!otpVerification) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid or expired OTP'
-        });
-      }
-
-      otpVerification.isUsed = true;
-      otpVerification.usedAt = new Date();
-      await otpVerification.save();
-      sellerOTP = otpVerification._id;
     }
+
+    if (!otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Seller OTP is required to complete return delivery'
+      });
+    }
+
+    const otpVerification = await msg91Service.verifyOTP({
+      phoneNumber: sellerPhone,
+      otp
+    });
+
+    if (!otpVerification.success) {
+      return res.status(400).json({
+        success: false,
+        message: otpVerification.message || 'Failed to verify seller OTP'
+      });
+    }
+
+    order.returnDetails.returnDelivery = order.returnDetails.returnDelivery || {};
+    order.returnDetails.returnDelivery.sellerOtpMeta = {
+      ...(order.returnDetails.returnDelivery.sellerOtpMeta || {}),
+      verificationAttempts: (order.returnDetails.returnDelivery.sellerOtpMeta?.verificationAttempts || 0) + 1,
+      verifiedAt: new Date()
+    };
 
     try {
       // Complete return delivery using the model method
       await order.completeReturnDelivery({
-        sellerOTP,
+        sellerOTP: {
+          code: otp,
+          verifiedAt: new Date()
+        },
         location: location || {
           type: 'Point',
           coordinates: [0, 0]
@@ -1245,7 +1505,9 @@ module.exports = {
   getReturnOrders,
   assignReturnAgent,
   handleReturnAssignmentResponse,
+  markReturnBuyerArrival,
   completeReturnPickup,
+  markReturnSellerArrival,
   completeReturnDelivery,
   completeReturn,
   getDeliveryAgentReturns,

@@ -148,6 +148,7 @@ function App() {
             {/* Admin Routes */}
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminLayout><AdminDashboard /></AdminLayout>} />
+            <Route path="/admin/returns" element={<AdminLayout><AdminDashboard defaultActiveTab="returns" /></AdminLayout>} />
             <Route path="/admin/delivery-agents" element={<AdminLayout><DeliveryAgents /></AdminLayout>} />
             <Route path="/admin/users" element={<AdminLayout><ViewAllUsers /></AdminLayout>} />
             <Route path="/admin/sellers" element={<AdminLayout><ViewAllSellers /></AdminLayout>} />

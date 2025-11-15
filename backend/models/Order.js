@@ -724,7 +724,20 @@ const OrderSchema = new mongoose.Schema({
     },
     returnStatus: {
       type: String,
-      enum: ['eligible', 'requested', 'approved', 'picked_up', 'returned_to_seller', 'completed', 'rejected'],
+      enum: [
+        'eligible',
+        'requested',
+        'approved',
+        'assigned',
+        'accepted',
+        'agent_reached_buyer',
+        'pickup_failed',
+        'picked_up',
+        'agent_reached_seller',
+        'returned_to_seller',
+        'completed',
+        'rejected'
+      ],
       default: 'eligible'
     },
     returnWindow: {
@@ -758,7 +771,17 @@ const OrderSchema = new mongoose.Schema({
       },
       status: {
         type: String,
-        enum: ['unassigned', 'assigned', 'accepted', 'rejected', 'picked_up', 'returned'],
+        enum: [
+          'unassigned',
+          'assigned',
+          'accepted',
+          'agent_reached_buyer',
+          'pickup_failed',
+          'picked_up',
+          'agent_reached_seller',
+          'returned',
+          'rejected'
+        ],
         default: 'unassigned'
       },
       acceptedAt: {
@@ -772,6 +795,28 @@ const OrderSchema = new mongoose.Schema({
       rejectionReason: {
         type: String,
         default: ''
+      },
+      buyerLocationReachedAt: {
+        type: Date,
+        default: null
+      },
+      sellerLocationReachedAt: {
+        type: Date,
+        default: null
+      },
+      lastKnownLocation: {
+        type: {
+          type: String,
+          default: 'Point'
+        },
+        coordinates: {
+          type: [Number],
+          default: [0, 0]
+        },
+        address: {
+          type: String,
+          default: ''
+        }
       }
     },
     returnPickup: {
@@ -830,6 +875,28 @@ const OrderSchema = new mongoose.Schema({
       sellerNotes: {
         type: String,
         default: ''
+      },
+      sellerOtpMeta: {
+        lastSentAt: {
+          type: Date,
+          default: null
+        },
+        requestId: {
+          type: String,
+          default: ''
+        },
+        phoneNumber: {
+          type: String,
+          default: ''
+        },
+        verificationAttempts: {
+          type: Number,
+          default: 0
+        },
+        verifiedAt: {
+          type: Date,
+          default: null
+        }
       }
     },
     returnHistory: [{
@@ -1349,7 +1416,7 @@ OrderSchema.methods.assignReturnAgent = function(agentId, adminId) {
     status: 'assigned'
   };
   
-  this.returnDetails.returnStatus = 'approved';
+  this.returnDetails.returnStatus = 'assigned';
   
   // Add to return history
   this.returnDetails.returnHistory.push({
@@ -1367,6 +1434,7 @@ OrderSchema.methods.handleReturnAgentResponse = function(response, reason = '') 
   if (response === 'accepted') {
     this.returnDetails.returnAssignment.status = 'accepted';
     this.returnDetails.returnAssignment.acceptedAt = new Date();
+    this.returnDetails.returnStatus = 'accepted';
     
     this.returnDetails.returnHistory.push({
       status: 'accepted',
@@ -1415,6 +1483,9 @@ OrderSchema.methods.completeReturnPickup = function(verificationData = {}) {
   
   this.returnDetails.returnAssignment.status = 'picked_up';
   this.returnDetails.returnStatus = 'picked_up';
+  if (verificationData.location) {
+    this.returnDetails.returnAssignment.lastKnownLocation = verificationData.location;
+  }
   
   this.returnDetails.returnHistory.push({
     status: 'picked_up',
@@ -1446,6 +1517,9 @@ OrderSchema.methods.completeReturnDelivery = function(verificationData = {}) {
   
   this.returnDetails.returnAssignment.status = 'returned';
   this.returnDetails.returnStatus = 'returned_to_seller';
+  if (verificationData.location) {
+    this.returnDetails.returnAssignment.lastKnownLocation = verificationData.location;
+  }
   
   this.returnDetails.returnHistory.push({
     status: 'returned_to_seller',
@@ -1499,7 +1573,16 @@ OrderSchema.virtual('returnWindowInfo').get(function() {
 // 🆕 Virtual to check if return is in progress
 OrderSchema.virtual('isReturnInProgress').get(function() {
   return this.returnDetails && 
-         ['requested', 'approved', 'assigned', 'accepted', 'picked_up', 'returned_to_seller'].includes(this.returnDetails.returnStatus);
+         [
+           'requested',
+           'approved',
+           'assigned',
+           'accepted',
+           'agent_reached_buyer',
+           'picked_up',
+           'agent_reached_seller',
+           'returned_to_seller'
+         ].includes(this.returnDetails.returnStatus);
 });
 
 // 🆕 Static method to find orders eligible for return

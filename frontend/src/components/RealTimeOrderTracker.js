@@ -1,7 +1,45 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import returnService from '../services/returnService';
 
-const RealTimeOrderTracker = ({ orders = [] }) => {
+const RealTimeOrderTracker = ({ orders = [], onReturnOrder }) => {
+  const canTriggerReturn = (order) => {
+    try {
+      const eligibility = returnService.canRequestReturn(order);
+      return {
+        allowed: eligibility.canRequest,
+        reason: eligibility.reason
+      };
+    } catch (error) {
+      console.warn('[OrderTracker] Failed to evaluate return eligibility', error);
+      return { allowed: false, reason: 'Unable to evaluate return window' };
+    }
+  };
+
+  const handleReturnClick = (order) => {
+    if (!order || !onReturnOrder) {
+      return;
+    }
+
+    console.log('[OrderTracker] Return CTA clicked', {
+      orderId: order._id,
+      orderNumber: order.orderNumber
+    });
+
+    const { allowed, reason } = canTriggerReturn(order);
+    if (!allowed) {
+      window.alert(reason || 'Return window not available for this order.');
+      return;
+    }
+
+    const confirmed = window.confirm('Are you sure you want to return this product?');
+    if (!confirmed) {
+      console.log('[OrderTracker] Return request cancelled by buyer');
+      return;
+    }
+
+    onReturnOrder(order);
+  };
   // Helper function to get status color
   const getStatusColor = (status) => {
     switch (status) {
@@ -80,7 +118,10 @@ const RealTimeOrderTracker = ({ orders = [] }) => {
 
   return (
     <div className="space-y-4">
-      {orders.map((order) => (
+      {orders.map((order) => {
+        const eligibility = canTriggerReturn(order);
+
+        return (
         <div key={order._id} className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
@@ -107,7 +148,16 @@ const RealTimeOrderTracker = ({ orders = [] }) => {
               </div>
             </div>
 
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => handleReturnClick(order)}
+                disabled={!eligibility.allowed}
+                title={eligibility.reason}
+                className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Return Order
+              </button>
               <Link
                 to={`/user/orders/${order._id}`}
                 className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
@@ -117,7 +167,8 @@ const RealTimeOrderTracker = ({ orders = [] }) => {
             </div>
           </div>
         </div>
-      ))}
+      );
+      })}
     </div>
   );
 };

@@ -11,9 +11,9 @@ import returnService from '../../services/returnService';
 import { checkAdminAuth, fixAdminAuth } from '../../utils/adminAuthFix';
 import LogViewer from '../../components/admin/LogViewer';
 import frontendLogger from '../../services/loggingService';
-import { FiRotateCcw, FiClock, FiUser, FiPackage, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
+import { FiRotateCcw, FiClock, FiUser, FiPackage, FiCheckCircle, FiAlertCircle, FiMapPin } from 'react-icons/fi';
 
-const AdminDashboard = () => {
+const AdminDashboard = ({ defaultActiveTab = 'dashboard' }) => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -36,7 +36,7 @@ const AdminDashboard = () => {
   const [bulkNotes, setBulkNotes] = useState('');
   
   // 🎯 NEW: Tab management
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => defaultActiveTab || 'dashboard');
   
   // 🎯 NEW: Return management state
   const [returnOrders, setReturnOrders] = useState([]);
@@ -436,8 +436,12 @@ const AdminDashboard = () => {
         return 'text-orange-600 bg-orange-100';
       case 'accepted':
         return 'text-green-600 bg-green-100';
+      case 'agent_reached_buyer':
+        return 'text-indigo-600 bg-indigo-100';
       case 'picked_up':
         return 'text-blue-600 bg-blue-100';
+      case 'agent_reached_seller':
+        return 'text-purple-600 bg-purple-100';
       case 'pickup_failed':
         return 'text-red-600 bg-red-100';
       case 'returned_to_seller':
@@ -461,8 +465,12 @@ const AdminDashboard = () => {
         return <FiUser className="w-4 h-4" />;
       case 'accepted':
         return <FiCheckCircle className="w-4 h-4" />;
+      case 'agent_reached_buyer':
+        return <FiMapPin className="w-4 h-4" />;
       case 'picked_up':
         return <FiPackage className="w-4 h-4" />;
+      case 'agent_reached_seller':
+        return <FiMapPin className="w-4 h-4" />;
       case 'pickup_failed':
         return <FiAlertCircle className="w-4 h-4" />;
       case 'returned_to_seller':
@@ -1531,7 +1539,9 @@ const AdminDashboard = () => {
                 <option value="approved">Approved</option>
                 <option value="assigned">Assigned</option>
                 <option value="accepted">Accepted</option>
+                <option value="agent_reached_buyer">Agent Reached Buyer</option>
                 <option value="picked_up">Picked Up</option>
+                <option value="agent_reached_seller">Agent Reached Seller</option>
                 <option value="pickup_failed">Pickup Failed</option>
                 <option value="returned_to_seller">Returned to Seller</option>
                 <option value="completed">Completed</option>

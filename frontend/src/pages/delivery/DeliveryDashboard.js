@@ -1258,18 +1258,16 @@ const DeliveryDashboard = () => {
   const fetchReturnAssignments = useCallback(async () => {
     try {
       setReturnLoading(true);
-      console.log('🚚 Fetching return assignments...');
+      console.log('🚚 Fetching return assignments for delivery agent...');
       
-      const response = await returnService.getReturnOrders();
+      const response = await returnService.getDeliveryAgentReturns();
       
       if (response && response.success) {
-        // Filter returns assigned to this agent
-        const myReturns = response.data.filter(returnOrder => 
-          returnOrder.returnDetails?.returnAssignment?.deliveryAgent?._id === deliveryAgentAuth.deliveryAgent?._id ||
-          returnOrder.returnDetails?.returnAssignment?.deliveryAgent === deliveryAgentAuth.deliveryAgent?._id
-        );
-        setReturnAssignments(myReturns);
-        console.log('✅ Return assignments fetched:', myReturns.length);
+        const assignments = Array.isArray(response.data) ? response.data : [];
+        setReturnAssignments(assignments);
+        console.log('✅ Return assignments fetched:', assignments.length);
+      } else {
+        setReturnAssignments([]);
       }
     } catch (error) {
       console.error('❌ Failed to fetch return assignments:', error);
@@ -1277,7 +1275,7 @@ const DeliveryDashboard = () => {
     } finally {
       setReturnLoading(false);
     }
-  }, [deliveryAgentAuth.deliveryAgent?._id]);
+  }, []);
 
   const handleReturnAssignmentResponse = async (returnId, response, reason = '') => {
     try {
@@ -1303,9 +1301,77 @@ const DeliveryDashboard = () => {
     }
   };
 
+  const handleReturnBuyerArrival = async (returnOrder) => {
+    if (!returnOrder?._id) {
+      toast.error('Invalid return order selected');
+      return;
+    }
+
+    try {
+      setProcessingReturn(true);
+      console.log('🚚 Marking buyer arrival for return:', returnOrder._id);
+
+      const apiResponse = await returnService.markReturnBuyerArrival(returnOrder._id, {
+        notes: `Agent ${deliveryAgentAuth.deliveryAgent?.name || 'N/A'} reached buyer location`,
+        location: {
+          type: 'Point',
+          coordinates: [0, 0],
+          address: returnOrder.shippingAddress?.address || ''
+        }
+      });
+
+      if (apiResponse && apiResponse.success) {
+        toast.success('Buyer location confirmed. Proceed to pickup.');
+        await fetchReturnAssignments();
+      } else {
+        throw new Error(apiResponse?.message || 'Failed to mark buyer arrival');
+      }
+    } catch (error) {
+      console.error('❌ Failed to mark buyer arrival:', error);
+      toast.error(error.message || 'Failed to mark buyer arrival');
+    } finally {
+      setProcessingReturn(false);
+    }
+  };
+
+  const handleReturnSellerArrival = async (returnOrder) => {
+    if (!returnOrder?._id) {
+      toast.error('Invalid return order selected');
+      return;
+    }
+
+    try {
+      setProcessingReturn(true);
+      console.log('🚚 Marking seller arrival for return:', returnOrder._id);
+
+      const apiResponse = await returnService.markReturnSellerArrival(returnOrder._id, {
+        notes: `Agent ${deliveryAgentAuth.deliveryAgent?.name || 'N/A'} reached seller location`,
+        location: {
+          type: 'Point',
+          coordinates: [0, 0],
+          address: returnOrder.seller?.shop?.address || ''
+        }
+      });
+
+      if (apiResponse && apiResponse.success) {
+        toast.success('Seller OTP sent. Please ask seller for the OTP to complete return.');
+        await fetchReturnAssignments();
+        setSelectedReturn(returnOrder);
+        setShowReturnDeliveryModal(true);
+      } else {
+        throw new Error(apiResponse?.message || 'Failed to mark seller arrival');
+      }
+    } catch (error) {
+      console.error('❌ Failed to mark seller arrival:', error);
+      toast.error(error.message || 'Failed to mark seller arrival');
+    } finally {
+      setProcessingReturn(false);
+    }
+  };
+
   const handleReturnPickupComplete = async () => {
-    if (!selectedReturn || !returnPickupOTP.trim()) {
-      toast.error('Please enter the pickup OTP');
+    if (!selectedReturn) {
+      toast.error('Select a return assignment first');
       return;
     }
 
@@ -1314,7 +1380,7 @@ const DeliveryDashboard = () => {
       console.log('🚚 Completing return pickup for:', selectedReturn._id);
 
       const response = await returnService.completeReturnPickup(selectedReturn._id, {
-        otp: returnPickupOTP,
+        otp: returnPickupOTP?.trim() || undefined,
         notes: `Return pickup completed by ${deliveryAgentAuth.deliveryAgent?.name || 'Unknown Agent'}`
       });
       
@@ -1411,8 +1477,12 @@ const DeliveryDashboard = () => {
         return 'text-orange-600 bg-orange-100';
       case 'accepted':
         return 'text-green-600 bg-green-100';
+      case 'agent_reached_buyer':
+        return 'text-indigo-600 bg-indigo-100';
       case 'picked_up':
         return 'text-blue-600 bg-blue-100';
+      case 'agent_reached_seller':
+        return 'text-purple-600 bg-purple-100';
       case 'pickup_failed':
         return 'text-red-600 bg-red-100';
       case 'returned':
@@ -1428,8 +1498,12 @@ const DeliveryDashboard = () => {
         return <FiClock className="w-4 h-4" />;
       case 'accepted':
         return <FiCheckCircle className="w-4 h-4" />;
+      case 'agent_reached_buyer':
+        return <FiMapPin className="w-4 h-4" />;
       case 'picked_up':
         return <FiPackage className="w-4 h-4" />;
+      case 'agent_reached_seller':
+        return <FiMapPin className="w-4 h-4" />;
       case 'pickup_failed':
         return <FiAlertCircle className="w-4 h-4" />;
       case 'returned':
@@ -1761,7 +1835,7 @@ const DeliveryDashboard = () => {
                   <div className="ml-4">
                     <h3 className="text-lg font-medium text-gray-900">Pending Pickups</h3>
                     <p className="text-2xl font-bold text-blue-600">
-                      {returnAssignments.filter(r => r.returnDetails?.returnAssignment?.status === 'accepted').length}
+                      {returnAssignments.filter(r => ['accepted', 'agent_reached_buyer'].includes(r.returnDetails?.returnAssignment?.status)).length}
                     </p>
                   </div>
                 </div>
@@ -1775,7 +1849,7 @@ const DeliveryDashboard = () => {
                   <div className="ml-4">
                     <h3 className="text-lg font-medium text-gray-900">Pending Deliveries</h3>
                     <p className="text-2xl font-bold text-purple-600">
-                      {returnAssignments.filter(r => r.returnDetails?.returnAssignment?.status === 'picked_up').length}
+                      {returnAssignments.filter(r => ['picked_up', 'agent_reached_seller'].includes(r.returnDetails?.returnAssignment?.status)).length}
                     </p>
                   </div>
                 </div>
@@ -1826,50 +1900,94 @@ const DeliveryDashboard = () => {
                           </div>
                         </div>
                         
-                        <div className="ml-6 flex gap-2">
-                          {returnOrder.returnDetails.returnAssignment.status === 'assigned' && (
-                            <>
-                              <button
-                                onClick={() => handleReturnAssignmentResponse(returnOrder._id, 'accepted')}
-                                disabled={processingReturn}
-                                className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50"
-                              >
-                                Accept
-                              </button>
-                              <button
-                                onClick={() => handleReturnAssignmentResponse(returnOrder._id, 'rejected', 'Not available')}
-                                disabled={processingReturn}
-                                className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 disabled:opacity-50"
-                              >
-                                Reject
-                              </button>
-                            </>
-                          )}
-                          
-                          {returnOrder.returnDetails.returnAssignment.status === 'accepted' && (
-                            <button
-                              onClick={() => {
-                                setSelectedReturn(returnOrder);
-                                setShowReturnPickupModal(true);
-                              }}
-                              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
-                            >
-                              Complete Pickup
-                            </button>
-                          )}
-                          
-                          {returnOrder.returnDetails.returnAssignment.status === 'picked_up' && (
-                            <button
-                              onClick={() => {
-                                setSelectedReturn(returnOrder);
-                                setShowReturnDeliveryModal(true);
-                              }}
-                              className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700"
-                            >
-                              Complete Delivery
-                            </button>
-                          )}
-                        </div>
+                        {(() => {
+                          const assignmentStatus = returnOrder.returnDetails?.returnAssignment?.status;
+                          const buyerReached = Boolean(returnOrder.returnDetails?.returnAssignment?.buyerLocationReachedAt);
+                          const sellerReached = Boolean(returnOrder.returnDetails?.returnAssignment?.sellerLocationReachedAt);
+
+                          return (
+                            <div className="ml-6 flex flex-wrap gap-2">
+                              {assignmentStatus === 'assigned' && (
+                                <>
+                                  <button
+                                    onClick={() => handleReturnAssignmentResponse(returnOrder._id, 'accepted')}
+                                    disabled={processingReturn}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                                  >
+                                    Accept
+                                  </button>
+                                  <button
+                                    onClick={() => handleReturnAssignmentResponse(returnOrder._id, 'rejected', 'Not available')}
+                                    disabled={processingReturn}
+                                    className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+
+                              {assignmentStatus === 'accepted' && !buyerReached && (
+                                <button
+                                  onClick={() => handleReturnBuyerArrival(returnOrder)}
+                                  disabled={processingReturn}
+                                  className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+                                >
+                                  Reached Buyer
+                                </button>
+                              )}
+
+                              {['accepted', 'agent_reached_buyer'].includes(assignmentStatus) && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedReturn(returnOrder);
+                                    setShowReturnPickupModal(true);
+                                    setReturnPickupOTP('');
+                                  }}
+                                  className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
+                                >
+                                  Complete Pickup
+                                </button>
+                              )}
+
+                              {assignmentStatus === 'picked_up' && (
+                                <button
+                                  onClick={() => handleReturnSellerArrival(returnOrder)}
+                                  disabled={processingReturn}
+                                  className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
+                                >
+                                  Reached Seller
+                                </button>
+                              )}
+
+                              {assignmentStatus === 'agent_reached_seller' && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedReturn(returnOrder);
+                                    setShowReturnDeliveryModal(true);
+                                    setReturnDeliveryOTP('');
+                                  }}
+                                  disabled={processingReturn}
+                                  className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
+                                >
+                                  Enter Seller OTP
+                                </button>
+                              )}
+
+                              {['accepted', 'agent_reached_buyer'].includes(assignmentStatus) && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedReturn(returnOrder);
+                                    setShowReturnPickupFailedModal(true);
+                                  }}
+                                  disabled={processingReturn}
+                                  className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+                                >
+                                  Buyer Not Responding
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}
@@ -2437,14 +2555,14 @@ const DeliveryDashboard = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Pickup OTP <span className="text-red-500">*</span>
+                  Buyer PIN / Verification Code <span className="text-gray-400 text-xs">(optional)</span>
                 </label>
                 <input
                   type="text"
                   value={returnPickupOTP}
                   onChange={(e) => setReturnPickupOTP(e.target.value)}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter pickup OTP from customer"
+                  placeholder="Enter buyer provided PIN if any"
                 />
               </div>
             </div>
@@ -2472,7 +2590,7 @@ const DeliveryDashboard = () => {
               </button>
               <button
                 onClick={handleReturnPickupComplete}
-                disabled={processingReturn || !returnPickupOTP.trim()}
+                disabled={processingReturn}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white py-2 px-4 rounded-md font-medium transition-colors"
               >
                 {processingReturn ? 'Processing...' : 'Complete Pickup'}
@@ -2512,6 +2630,9 @@ const DeliveryDashboard = () => {
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter seller OTP"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  An OTP has been sent to the seller&apos;s registered mobile number via MSG91.
+                </p>
               </div>
             </div>
 
