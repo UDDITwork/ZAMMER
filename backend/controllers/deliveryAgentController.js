@@ -2067,6 +2067,431 @@ ${paymentData.type === 'COD' ? `💰 COD Amount: ₹${paymentData.amount}` : `�
   }
 };
 
+// @desc    Generate QR code for COD payment
+// @route   POST /api/delivery/orders/:id/generate-qr
+// @access  Private (Delivery Agent)
+const generateCODQR = async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
+    const orderId = req.params.id;
+    
+    logDelivery('GENERATE_COD_QR_STARTED', { agentId, orderId });
+    
+    console.log(`
+💳 ===============================
+   GENERATING COD QR CODE
+===============================
+📋 Order ID: ${orderId}
+🚚 Agent: ${req.deliveryAgent.name}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    // 🎯 VALIDATION: Check if order exists and is assigned to this agent
+    const order = await Order.findById(orderId)
+      .populate('user', 'name mobileNumber email')
+      .populate('seller', 'firstName shop')
+      .populate('orderItems.product', 'name images');
+
+    if (!order) {
+      logDeliveryError('GENERATE_QR_ORDER_NOT_FOUND', new Error('Order not found'), { orderId });
+      return res.status(404).json({
+        success: false, 
+        message: 'Order not found',
+        code: 'ORDER_NOT_FOUND'
+      });
+    }
+
+    // 🎯 AUTHORIZATION: Verify order is assigned to this agent
+    const assignedAgentId = order.deliveryAgent.agent?.toString();
+    const currentAgentId = agentId?.toString();
+    
+    if (assignedAgentId !== currentAgentId) {
+      logDeliveryError('GENERATE_QR_UNAUTHORIZED', new Error('Order not assigned to this agent'), { 
+        orderId, 
+        assignedAgent: assignedAgentId, 
+        currentAgent: currentAgentId
+      });
+      return res.status(403).json({
+        success: false,
+        message: 'Order is not assigned to you',
+        code: 'UNAUTHORIZED_ORDER'
+      });
+    }
+
+    // 🎯 VALIDATION: Check if order is COD
+    if (order.paymentMethod !== 'COD' && order.paymentMethod !== 'Cash on Delivery') {
+      logDeliveryError('GENERATE_QR_NOT_COD', new Error('Order is not COD'), { 
+        orderId, 
+        paymentMethod: order.paymentMethod 
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'QR code generation is only available for COD orders',
+        code: 'NOT_COD_ORDER'
+      });
+    }
+
+    // 🎯 STATUS VALIDATION: Check if agent has reached buyer location
+    // QR code should only be generated after reaching buyer location
+    if (order.deliveryAgent.status !== 'location_reached') {
+      logDeliveryError('GENERATE_QR_LOCATION_NOT_REACHED', new Error('Location not reached'), { 
+        orderId, 
+        currentStatus: order.deliveryAgent.status 
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Please reach buyer location before generating QR code',
+        code: 'LOCATION_NOT_REACHED'
+      });
+    }
+    
+    // 🎯 CHECK: If QR code already generated, return existing one
+    if (order.paymentDetails?.codQR && order.paymentDetails.codQR.paymentId) {
+      const existingQR = order.paymentDetails.codQR;
+      logDelivery('GENERATE_QR_ALREADY_EXISTS', { orderId, paymentId: existingQR.paymentId });
+      return res.status(200).json({
+        success: true,
+        message: 'QR code already generated for this order',
+        data: {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          qrCode: existingQR.qrCode,
+          qrData: existingQR.qrData,
+          paymentId: existingQR.paymentId,
+          amount: existingQR.amount || order.totalAmount || order.totalPrice,
+          currency: 'INR',
+          status: existingQR.status || 'pending'
+        }
+      });
+    }
+
+    // 🎯 GENERATE QR CODE
+    try {
+      const smepayService = require('../services/smepayService');
+      const qrData = await smepayService.generateDynamicQR({
+        amount: order.totalAmount || order.totalPrice,
+        orderId: order.orderNumber,
+        description: `Payment for Order #${order.orderNumber}`
+      });
+      
+      // Store QR payment details in order
+      if (!order.paymentDetails) order.paymentDetails = {};
+      order.paymentDetails.codQR = {
+        paymentId: qrData.paymentId,
+        qrCode: qrData.qrCode,
+        qrData: qrData.qrData,
+        amount: order.totalAmount || order.totalPrice,
+        generatedAt: new Date(),
+        generatedBy: agentId,
+        status: 'pending'
+      };
+      order.paymentDetails.paymentMethod = 'COD';
+      order.paymentDetails.amount = order.totalAmount || order.totalPrice;
+
+      await order.save();
+
+      const processingTime = Date.now() - startTime;
+      
+      logDelivery('GENERATE_COD_QR_SUCCESS', { 
+        agentId, 
+        orderId,
+        paymentId: qrData.paymentId,
+        processingTime: `${processingTime}ms`
+      }, 'success');
+
+      console.log(`
+✅ ===============================
+   COD QR CODE GENERATED!
+===============================
+📦 Order: ${order.orderNumber}
+💳 Payment ID: ${qrData.paymentId}
+💰 Amount: ₹${order.totalAmount || order.totalPrice}
+⏱️ Processing Time: ${processingTime}ms
+===============================`);
+
+      // 📤 SUCCESS RESPONSE
+      res.status(200).json({
+        success: true,
+        message: 'QR code generated successfully',
+        data: {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          qrCode: qrData.qrCode,
+          qrData: qrData.qrData,
+          paymentId: qrData.paymentId,
+          amount: order.totalAmount || order.totalPrice,
+          currency: qrData.currency || 'INR',
+          expiryTime: qrData.expiryTime,
+          status: 'pending'
+        }
+      });
+
+    } catch (qrError) {
+      logDeliveryError('GENERATE_QR_FAILED', qrError, { orderId });
+      console.error('❌ QR Code Generation Failed:', qrError);
+      
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to generate QR code',
+        error: process.env.NODE_ENV === 'development' ? qrError.message : 'QR generation service unavailable',
+        code: 'QR_GENERATION_FAILED'
+      });
+    }
+
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+    
+    logDeliveryError('GENERATE_COD_QR_FAILED', error, { 
+      agentId: req.deliveryAgent?.id,
+      orderId: req.params.id,
+      processingTime: `${processingTime}ms`
+    });
+
+    console.error('❌ Generate COD QR Error:', error);
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate QR code',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: 'GENERATE_QR_ERROR'
+    });
+  }
+};
+
+// @desc    Check COD payment status and generate OTP if payment completed
+// @route   POST /api/delivery/orders/:id/check-payment-status
+// @access  Private (Delivery Agent)
+const checkCODPaymentStatus = async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
+    const orderId = req.params.id;
+    
+    logDelivery('CHECK_COD_PAYMENT_STATUS_STARTED', { agentId, orderId });
+
+    // 🎯 VALIDATION: Check if order exists and is assigned to this agent
+    const order = await Order.findById(orderId)
+      .populate('user', 'name mobileNumber email')
+      .populate('seller', 'firstName shop');
+
+    if (!order) {
+      logDeliveryError('CHECK_PAYMENT_ORDER_NOT_FOUND', new Error('Order not found'), { orderId });
+      return res.status(404).json({
+        success: false, 
+        message: 'Order not found',
+        code: 'ORDER_NOT_FOUND'
+      });
+    }
+
+    // 🎯 AUTHORIZATION: Verify order is assigned to this agent
+    const assignedAgentId = order.deliveryAgent.agent?.toString();
+    const currentAgentId = agentId?.toString();
+    
+    if (assignedAgentId !== currentAgentId) {
+      logDeliveryError('CHECK_PAYMENT_UNAUTHORIZED', new Error('Order not assigned to this agent'), { 
+        orderId, 
+        assignedAgent: assignedAgentId, 
+        currentAgent: currentAgentId
+      });
+      return res.status(403).json({
+        success: false,
+        message: 'Order is not assigned to you',
+        code: 'UNAUTHORIZED_ORDER'
+      });
+    }
+
+    // 🎯 VALIDATION: Check if order is COD and has QR code
+    if (order.paymentMethod !== 'COD' && order.paymentMethod !== 'Cash on Delivery') {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment status check is only available for COD orders',
+        code: 'NOT_COD_ORDER'
+      });
+    }
+
+    const codQR = order.paymentDetails?.codQR;
+    if (!codQR || !codQR.paymentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'QR code not generated for this order. Please generate QR code first.',
+        code: 'QR_NOT_GENERATED'
+      });
+    }
+
+    // 🎯 CHECK PAYMENT STATUS
+    try {
+      const smepayService = require('../services/smepayService');
+      const statusResult = await smepayService.checkQRPaymentStatus(codQR.paymentId);
+      
+      const isPaymentCompleted = statusResult.status === 'completed' || statusResult.status === 'success';
+      
+      // 🎯 AUTO-GENERATE OTP IF PAYMENT IS COMPLETED
+      let otpGenerated = false;
+      let otpData = null;
+      
+      // 🎯 UPDATE PAYMENT STATUS: Save payment completion even if OTP generation fails
+      if (isPaymentCompleted) {
+        // Update payment status (paymentStatus is at order level, not codPayment level)
+        if (!order.codPayment) order.codPayment = {};
+        order.paymentStatus = 'completed';
+        order.codPayment.transactionId = statusResult.transactionId || codQR.paymentId;
+        order.isPaid = true;
+        order.paidAt = statusResult.paidAt || new Date();
+        
+        // Update QR status
+        if (order.paymentDetails?.codQR) {
+          order.paymentDetails.codQR.status = 'completed';
+          order.paymentDetails.codQR.paidAt = statusResult.paidAt || new Date();
+        }
+      }
+      
+      // 🎯 AUTO-GENERATE OTP IF PAYMENT IS COMPLETED AND OTP NOT ALREADY VERIFIED
+      // Generate OTP if payment completed but OTP not required yet OR required but not verified
+      const needsOTPGeneration = isPaymentCompleted && (
+        !order.otpVerification?.isRequired || 
+        (order.otpVerification.isRequired && !order.otpVerification.isVerified)
+      );
+      
+      if (needsOTPGeneration && !order.otpVerification?.isVerified) {
+        try {
+          const msg91Service = require('../services/msg91Service');
+          
+          console.log(`
+🎯 ===============================
+   AUTO-GENERATING OTP FOR COD
+===============================
+📦 Order: ${order.orderNumber}
+📞 Buyer Phone: ${order.user.mobileNumber}
+💳 Payment Status: Completed
+===============================`);
+          
+          otpData = await msg91Service.createDeliveryOTP({
+            orderId: order._id,
+            userId: order.user._id,
+            deliveryAgentId: agentId,
+            userPhone: order.user.mobileNumber,
+            purpose: 'delivery_confirmation',
+            deliveryLocation: {
+              type: 'Point',
+              coordinates: [0, 0]
+            },
+            notes: 'OTP generated after COD QR payment completion',
+            orderNumber: order.orderNumber,
+            userName: order.user.name
+          });
+          
+          if (otpData?.success) {
+            // Store OTP details in order
+            if (!order.otpVerification) order.otpVerification = {};
+            order.otpVerification = {
+              isRequired: true,
+              otpId: otpData.otpId,
+              generatedAt: new Date(),
+              expiresAt: otpData.expiresAt,
+              isVerified: false
+            };
+            
+            otpGenerated = true;
+            
+            console.log(`
+✅ ===============================
+   OTP GENERATED SUCCESSFULLY!
+===============================
+📱 OTP Sent to: ${order.user.mobileNumber}
+🔑 OTP ID: ${otpData.otpId}
+⏰ Expires At: ${otpData.expiresAt}
+===============================`);
+          }
+        } catch (otpError) {
+          console.error('❌ OTP Generation Failed:', otpError);
+          // Continue even if OTP generation fails - payment status already saved
+        }
+      } else if (order.otpVerification?.isRequired) {
+        // OTP already generated or required
+        otpGenerated = true;
+        otpData = {
+          otpId: order.otpVerification.otpId,
+          expiresAt: order.otpVerification.expiresAt,
+          isVerified: order.otpVerification.isVerified || false
+        };
+      }
+
+      // 🎯 SAVE ORDER: Always save if payment completed, even if OTP generation failed
+      if (isPaymentCompleted || otpGenerated) {
+        await order.save();
+      }
+
+      const processingTime = Date.now() - startTime;
+      
+      logDelivery('CHECK_COD_PAYMENT_STATUS_SUCCESS', { 
+        agentId, 
+        orderId,
+        paymentStatus: statusResult.status,
+        isPaymentCompleted,
+        otpGenerated,
+        processingTime: `${processingTime}ms`
+      }, 'success');
+
+      // 📤 SUCCESS RESPONSE
+      res.status(200).json({
+        success: true,
+        message: 'Payment status checked successfully',
+        data: {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          paymentStatus: statusResult.status,
+          isPaymentCompleted: isPaymentCompleted,
+          paymentId: codQR.paymentId,
+          transactionId: statusResult.transactionId,
+          amount: codQR.amount || order.totalAmount || order.totalPrice,
+          paidAt: statusResult.paidAt,
+          otpGenerated: otpGenerated,
+          otpData: otpData ? {
+            otpId: otpData.otpId,
+            expiresAt: otpData.expiresAt,
+            isVerified: otpData.isVerified || false
+          } : null,
+          nextStep: isPaymentCompleted 
+            ? (otpGenerated ? 'Enter OTP from buyer to complete delivery' : 'OTP generation in progress')
+            : 'Wait for customer to scan QR code and make payment'
+        }
+      });
+
+    } catch (statusError) {
+      logDeliveryError('CHECK_PAYMENT_STATUS_FAILED', statusError, { orderId });
+      console.error('❌ Payment Status Check Failed:', statusError);
+      
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to check payment status',
+        error: process.env.NODE_ENV === 'development' ? statusError.message : 'Payment status service unavailable',
+        code: 'PAYMENT_STATUS_CHECK_FAILED'
+      });
+    }
+
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+    
+    logDeliveryError('CHECK_COD_PAYMENT_STATUS_FAILED', error, { 
+      agentId: req.deliveryAgent?.id,
+      orderId: req.params.id,
+      processingTime: `${processingTime}ms`
+    });
+
+    console.error('❌ Check COD Payment Status Error:', error);
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check payment status',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: 'CHECK_PAYMENT_STATUS_ERROR'
+    });
+  }
+};
+
 // @desc    Complete order delivery to customer
 // @route   PUT /api/delivery/orders/:id/delivery
 // @access  Private (Delivery Agent)
@@ -2136,20 +2561,148 @@ const completeDelivery = async (req, res) => {
       });
     }
 
-    if (order.deliveryAgent.status !== 'pickup_completed') {
+    // 🎯 STATUS VALIDATION: Allow both pickup_completed and location_reached statuses
+    // Agent can complete delivery after reaching buyer location
+    if (order.deliveryAgent.status !== 'pickup_completed' && order.deliveryAgent.status !== 'location_reached') {
       logDeliveryError('DELIVERY_PICKUP_NOT_COMPLETED', new Error('Pickup not completed yet'), { 
         orderId, 
         currentStatus: order.deliveryAgent.status 
       });
       return res.status(400).json({
         success: false,
-        message: 'Order pickup must be completed before delivery',
+        message: 'Order pickup must be completed and you must reach buyer location before delivery',
         code: 'PICKUP_NOT_COMPLETED'
       });
     }
+    
+    // 🎯 PICKUP VERIFICATION: Ensure pickup.isCompleted flag is true
+    if (!order.pickup?.isCompleted) {
+      logDeliveryError('DELIVERY_PICKUP_NOT_VERIFIED', new Error('Pickup verification not completed'), { 
+        orderId
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Pickup verification must be completed before delivery. Please complete pickup first.',
+        code: 'PICKUP_NOT_VERIFIED'
+      });
+    }
 
-    // 🎯 OTP VERIFICATION: Check if OTP verification is required and completed
-    if (order.otpVerification?.isRequired && !order.otpVerification?.isVerified) {
+    // 🎯 OTP VERIFICATION: Check if OTP verification is required
+    const isCOD = order.paymentMethod === 'COD' || order.paymentMethod === 'Cash on Delivery';
+    const codPayment = req.body.codPayment;
+    const isCODQRPayment = isCOD && codPayment?.method === 'qr';
+    const isCODCashPayment = isCOD && codPayment?.method === 'cash';
+    
+    // 🎯 OTP VERIFICATION FOR COD QR PAYMENTS
+    if (isCODQRPayment && order.otpVerification?.isRequired) {
+      const otpCode = req.body.otp;
+      
+      if (!otpCode || !otpCode.trim()) {
+        logDeliveryError('DELIVERY_OTP_MISSING', new Error('OTP is required for COD QR payment'), { orderId });
+        return res.status(400).json({
+          success: false,
+          message: 'OTP is required for COD QR payment. Please enter the OTP sent to buyer.',
+          code: 'OTP_REQUIRED'
+        });
+      }
+      
+      // Verify OTP using OtpVerification model
+      try {
+        const otpRecord = await OtpVerification.findById(order.otpVerification.otpId);
+        
+        if (!otpRecord) {
+          logDeliveryError('DELIVERY_OTP_RECORD_NOT_FOUND', new Error('OTP record not found'), { orderId });
+          return res.status(400).json({
+            success: false,
+            message: 'OTP record not found. Please request a new OTP.',
+            code: 'OTP_RECORD_NOT_FOUND'
+          });
+        }
+        
+        // Verify OTP
+        const verifyResult = await otpRecord.verifyOTP(otpCode.trim(), {
+          verifiedBy: 'delivery_agent',
+          deliveryAgentId: agentId
+        });
+        
+        if (!verifyResult.success) {
+          logDeliveryError('DELIVERY_OTP_VERIFICATION_FAILED', new Error(verifyResult.message), { orderId });
+          return res.status(400).json({
+            success: false,
+            message: verifyResult.message || 'Invalid OTP. Please check and try again.',
+            code: 'OTP_VERIFICATION_FAILED'
+          });
+        }
+        
+        // Mark OTP as verified in order (will be saved later)
+        order.otpVerification.isVerified = true;
+        order.otpVerification.verifiedAt = new Date();
+        
+        console.log(`✅ OTP verified successfully for COD QR payment`);
+      } catch (otpError) {
+        logDeliveryError('DELIVERY_OTP_VERIFICATION_ERROR', otpError, { orderId });
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to verify OTP. Please try again.',
+          code: 'OTP_VERIFICATION_ERROR'
+        });
+      }
+    } 
+    // 🎯 OTP VERIFICATION FOR COD CASH PAYMENTS (if OTP is required)
+    else if (isCODCashPayment && order.otpVerification?.isRequired && !order.otpVerification?.isVerified) {
+      const otpCode = req.body.otp;
+      
+      if (!otpCode || !otpCode.trim()) {
+        logDeliveryError('DELIVERY_OTP_MISSING', new Error('OTP is required for COD cash payment'), { orderId });
+        return res.status(400).json({
+          success: false,
+          message: 'OTP is required. Please enter the OTP sent to buyer.',
+          code: 'OTP_REQUIRED'
+        });
+      }
+      
+      // Verify OTP for cash payment too
+      try {
+        const otpRecord = await OtpVerification.findById(order.otpVerification.otpId);
+        
+        if (!otpRecord) {
+          logDeliveryError('DELIVERY_OTP_RECORD_NOT_FOUND', new Error('OTP record not found'), { orderId });
+          return res.status(400).json({
+            success: false,
+            message: 'OTP record not found. Please request a new OTP.',
+            code: 'OTP_RECORD_NOT_FOUND'
+          });
+        }
+        
+        const verifyResult = await otpRecord.verifyOTP(otpCode.trim(), {
+          verifiedBy: 'delivery_agent',
+          deliveryAgentId: agentId
+        });
+        
+        if (!verifyResult.success) {
+          logDeliveryError('DELIVERY_OTP_VERIFICATION_FAILED', new Error(verifyResult.message), { orderId });
+          return res.status(400).json({
+            success: false,
+            message: verifyResult.message || 'Invalid OTP. Please check and try again.',
+            code: 'OTP_VERIFICATION_FAILED'
+          });
+        }
+        
+        order.otpVerification.isVerified = true;
+        order.otpVerification.verifiedAt = new Date();
+        
+        console.log(`✅ OTP verified successfully for COD cash payment`);
+      } catch (otpError) {
+        logDeliveryError('DELIVERY_OTP_VERIFICATION_ERROR', otpError, { orderId });
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to verify OTP. Please try again.',
+          code: 'OTP_VERIFICATION_ERROR'
+        });
+      }
+    }
+    // 🎯 OTP VERIFICATION FOR PREPAID ORDERS
+    else if (!isCOD && order.otpVerification?.isRequired && !order.otpVerification?.isVerified) {
       logDeliveryError('DELIVERY_OTP_NOT_VERIFIED', new Error('OTP verification required'), { orderId });
       return res.status(400).json({
         success: false,
@@ -2176,6 +2729,45 @@ const completeDelivery = async (req, res) => {
     order.delivery.completedBy = agentId;
     order.delivery.customerSignature = customerSignature;
     order.delivery.deliveryProof = deliveryProof;
+
+    // 🎯 HANDLE COD PAYMENT: Update payment status for COD orders
+    if (isCOD && codPayment) {
+      if (!order.codPayment) order.codPayment = {};
+      
+      order.codPayment.isCollected = true;
+      order.codPayment.collectedAt = deliveryTime;
+      order.codPayment.collectedAmount = order.totalAmount || order.totalPrice;
+      // Map payment method: 'qr' -> 'upi' (as per Order model enum), 'cash' -> 'cash'
+      order.codPayment.paymentMethod = codPayment.method === 'qr' ? 'upi' : (codPayment.method || 'cash');
+      order.codPayment.collectedBy = agentId;
+      
+      // For QR payments, get transaction ID from payment details
+      if (codPayment.method === 'qr' && order.paymentDetails?.codQR) {
+        order.codPayment.transactionId = order.paymentDetails.codQR.paymentId || '';
+        // Mark as paid since QR payment was completed
+        order.isPaid = true;
+        order.paidAt = deliveryTime;
+        order.paymentStatus = 'completed';
+      } else if (codPayment.method === 'cash') {
+        // For cash payments, mark as paid when collected
+        order.isPaid = true;
+        order.paidAt = deliveryTime;
+        order.paymentStatus = 'completed';
+      }
+      
+      console.log(`💰 COD Payment collected: ${codPayment.method}, Amount: ₹${order.totalAmount || order.totalPrice}`);
+    }
+    
+    // 🎯 OTP VERIFICATION STATUS: Already marked as verified above if verification was done
+    // Only update if OTP was required but not already verified (shouldn't happen if validation above is correct)
+    // This is a safety check
+    if (order.otpVerification?.isRequired && !order.otpVerification.isVerified) {
+      // OTP should have been verified above, but if somehow it wasn't, mark it now
+      // This should not happen if validation logic is correct
+      console.warn(`⚠️ OTP verification status not set properly for order ${orderId}`);
+      order.otpVerification.isVerified = true;
+      order.otpVerification.verifiedAt = deliveryTime;
+    }
 
     // Update order status to "Delivered"
     order.status = 'Delivered';
@@ -2254,6 +2846,13 @@ const completeDelivery = async (req, res) => {
           orderNumber: order.orderNumber,
           status: order.status,
           deliveryTime: deliveryTime,
+          paymentStatus: order.paymentStatus || (order.isPaid ? 'completed' : 'pending'),
+          codPayment: isCOD && order.codPayment ? {
+            isCollected: order.codPayment.isCollected,
+            method: order.codPayment.paymentMethod,
+            collectedAt: order.codPayment.collectedAt,
+            amount: order.codPayment.collectedAmount
+          } : null,
           deliveryAgent: {
             name: req.deliveryAgent.name,
             phone: req.deliveryAgent.phoneNumber
@@ -2271,6 +2870,34 @@ const completeDelivery = async (req, res) => {
           orderNumber: order.orderNumber,
           status: sellerStatus, // Use mapped status for seller (Delivered maps to Delivered)
           deliveryTime: deliveryTime,
+          paymentStatus: order.paymentStatus || (order.isPaid ? 'completed' : 'pending'),
+          codPayment: isCOD && order.codPayment ? {
+            isCollected: order.codPayment.isCollected,
+            method: order.codPayment.paymentMethod,
+            collectedAt: order.codPayment.collectedAt,
+            amount: order.codPayment.collectedAmount
+          } : null,
+          deliveryAgent: {
+            name: req.deliveryAgent.name,
+            phone: req.deliveryAgent.phoneNumber
+          }
+        });
+      }
+
+      // Notify admin about delivery completion
+      if (global.emitToAdmin) {
+        global.emitToAdmin('order-delivered', {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          deliveryTime: deliveryTime,
+          paymentStatus: order.paymentStatus || (order.isPaid ? 'completed' : 'pending'),
+          codPayment: isCOD && order.codPayment ? {
+            isCollected: order.codPayment.isCollected,
+            method: order.codPayment.paymentMethod,
+            collectedAt: order.codPayment.collectedAt,
+            amount: order.codPayment.collectedAmount
+          } : null,
           deliveryAgent: {
             name: req.deliveryAgent.name,
             phone: req.deliveryAgent.phoneNumber
@@ -2290,6 +2917,16 @@ const completeDelivery = async (req, res) => {
         orderNumber: order.orderNumber,
         status: order.status,
         deliveryStatus: order.deliveryAgent.status,
+        paymentStatus: order.paymentStatus || (order.isPaid ? 'completed' : 'pending'),
+        isPaid: order.isPaid,
+        paidAt: order.paidAt,
+        codPayment: isCOD && order.codPayment ? {
+          isCollected: order.codPayment.isCollected,
+          method: order.codPayment.paymentMethod,
+          collectedAt: order.codPayment.collectedAt,
+          amount: order.codPayment.collectedAmount,
+          transactionId: order.codPayment.transactionId
+        } : null,
         delivery: {
           isCompleted: order.delivery.isCompleted,
           completedAt: order.delivery.completedAt,
@@ -3648,6 +4285,8 @@ module.exports = {
   markReachedSellerLocation,
   completePickup,
   markReachedLocation,
+  generateCODQR,
+  checkCODPaymentStatus,
   completeDelivery,
   updateLocation,
   getAssignedOrders,

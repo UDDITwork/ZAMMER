@@ -31,8 +31,12 @@ const AssignedOrders = () => {
     otp: '',
     deliveryNotes: '',
     codPaymentType: null, // 'qr' or 'cash'
-    qrCode: null
+    qrCode: null,
+    paymentId: null
   });
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [paymentPolling, setPaymentPolling] = useState(null);
+  const [paymentStatus, setPaymentStatus] = useState(null); // 'pending', 'completed', 'failed'
   
   const navigate = useNavigate();
   const { deliveryAgentAuth, logoutDeliveryAgent } = useContext(AuthContext);
@@ -460,18 +464,158 @@ const AssignedOrders = () => {
     if (!selectedOrder) return;
     
     if (paymentType === 'qr' && !deliveryForm.qrCode) {
-      // Generate QR code
+      // Generate QR code via API
       try {
+        setProcessingOrder(selectedOrder._id);
+        setActionType('generate-qr');
+        
         const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
-        // QR generation happens on backend when reached location is called
-        toast.info('QR code should be available. Please check with admin if not shown.');
+        const response = await fetch(`${API_BASE_URL}/delivery/orders/${selectedOrder._id}/generate-qr`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        // 🎯 ERROR HANDLING: Check if response is JSON before parsing
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          throw new Error(`Invalid response format: ${text.substring(0, 100)}`);
+        }
+
+        const data = await response.json();
+        
+        // 🎯 ERROR HANDLING: Check HTTP status
+        if (!response.ok) {
+          throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        if (data.success) {
+          setDeliveryForm(prev => ({
+            ...prev,
+            codPaymentType: 'qr',
+            qrCode: data.data.qrCode,
+            paymentId: data.data.paymentId
+          }));
+          setPaymentStatus('pending');
+          toast.success('QR code generated successfully');
+          
+          // Start payment status polling immediately
+          startPaymentPolling(selectedOrder._id, data.data.paymentId);
+        } else {
+          toast.error(data.message || 'Failed to generate QR code');
+        }
       } catch (error) {
         console.error('Error generating QR:', error);
+        toast.error('Failed to generate QR code. Please try again.');
+      } finally {
+        setProcessingOrder(null);
+        setActionType(null);
       }
+    } else {
+      setDeliveryForm(prev => ({ ...prev, codPaymentType: paymentType }));
     }
-    
-    setDeliveryForm(prev => ({ ...prev, codPaymentType: paymentType }));
   };
+
+  // Start payment status polling
+  const startPaymentPolling = (orderId, paymentId) => {
+    // Clear any existing polling
+    if (paymentPolling) {
+      clearInterval(paymentPolling);
+    }
+
+    let pollAttempts = 0;
+    const MAX_POLL_ATTEMPTS = 120; // 5 minutes max (120 * 2.5 seconds = 300 seconds)
+    
+    const pollInterval = setInterval(async () => {
+      pollAttempts++;
+      
+      // 🎯 STOP POLLING: Maximum attempts reached
+      if (pollAttempts > MAX_POLL_ATTEMPTS) {
+        clearInterval(pollInterval);
+        setPaymentPolling(null);
+        setPaymentStatus('timeout');
+        toast.warning('Payment status check timeout. Please refresh or try again.');
+        return;
+      }
+      
+      try {
+        const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
+        const response = await fetch(`${API_BASE_URL}/delivery/orders/${orderId}/check-payment-status`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        // 🎯 ERROR HANDLING: Check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error('Invalid response format from server');
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          const isPaymentCompleted = data.data.isPaymentCompleted;
+          
+          if (isPaymentCompleted) {
+            // Payment completed - stop polling
+            clearInterval(pollInterval);
+            setPaymentPolling(null);
+            setPaymentCompleted(true);
+            setPaymentStatus('completed');
+            
+            if (data.data.otpGenerated) {
+              toast.success('Payment completed! OTP has been sent to buyer.');
+            } else {
+              toast.info('Payment completed! Waiting for OTP generation...');
+            }
+          } else {
+            // Still pending - continue polling
+            setPaymentStatus('pending');
+          }
+        } else {
+          // API returned error - stop polling to prevent infinite attempts
+          console.error('Payment status check failed:', data.message);
+          if (pollAttempts >= 5) {
+            clearInterval(pollInterval);
+            setPaymentPolling(null);
+            toast.error(data.message || 'Failed to check payment status');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking payment status:', error);
+        // Stop polling after multiple consecutive errors
+        if (pollAttempts >= 10) {
+          clearInterval(pollInterval);
+          setPaymentPolling(null);
+          toast.error('Failed to check payment status. Please try again.');
+        }
+        // Continue polling for first few errors (network issues might be temporary)
+      }
+    }, 2500); // Poll every 2.5 seconds
+
+    setPaymentPolling(pollInterval);
+  };
+
+  // Stop payment polling
+  const stopPaymentPolling = () => {
+    if (paymentPolling) {
+      clearInterval(paymentPolling);
+      setPaymentPolling(null);
+    }
+  };
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      stopPaymentPolling();
+    };
+  }, []); // Empty dependency array - cleanup only on unmount
 
   // Handle delivery completion
   const handleDeliveryComplete = async () => {
@@ -523,8 +667,14 @@ const AssignedOrders = () => {
         toast.error('Please select payment method (QR Code or Cash)');
         return;
       }
+      // For COD QR payments, check if OTP is required and entered
+      if (deliveryForm.codPaymentType === 'qr' && paymentCompleted && !deliveryForm.otp?.trim()) {
+        toast.error('Please enter OTP from buyer to complete delivery');
+        return;
+      }
     } else {
-      if (!deliveryForm.otp.trim()) {
+      // 🎯 NULL CHECK: Use optional chaining to prevent errors if otp is null/undefined
+      if (!deliveryForm.otp?.trim()) {
         toast.error('Please enter OTP from customer');
         return;
       }
@@ -542,7 +692,7 @@ const AssignedOrders = () => {
         deliveryNotes: deliveryForm.deliveryNotes,
       };
 
-      // Add OTP for prepaid orders
+      // Add OTP for prepaid orders or COD QR payments
       if (!isCOD) {
         requestBody.otp = deliveryForm.otp;
       } else {
@@ -551,6 +701,11 @@ const AssignedOrders = () => {
           method: deliveryForm.codPaymentType,
           collected: true
         };
+        
+        // For COD QR payments, include OTP if payment completed
+        if (deliveryForm.codPaymentType === 'qr' && paymentCompleted && deliveryForm.otp) {
+          requestBody.otp = deliveryForm.otp;
+        }
       }
       
       const response = await fetch(`${API_BASE_URL}/delivery/orders/${latestOrder._id}/deliver`, {
@@ -565,13 +720,28 @@ const AssignedOrders = () => {
       const data = await response.json();
 
       if (data.success) {
-        toast.success('Delivery completed successfully!');
-        console.log('✅ [ASSIGNED-ORDERS] Delivery completed:', selectedOrder._id);
+        // Stop polling
+        stopPaymentPolling();
         
-        // Reset form and close modal
-        setDeliveryForm({ otp: '', deliveryNotes: '', codPaymentType: null, qrCode: null });
+        // Show success message with payment and order status
+        const isCOD = latestOrder.paymentMethod === 'COD' || !latestOrder.isPaid;
+        const paymentMethod = deliveryForm.codPaymentType === 'qr' ? 'QR Code' : 'Cash';
+        const successMessage = isCOD 
+          ? `✅ Payment collected (${paymentMethod}) and delivery completed!`
+          : '✅ Delivery completed successfully!';
+        
+        toast.success(successMessage);
+        console.log('✅ [ASSIGNED-ORDERS] Delivery completed:', selectedOrder._id);
+        console.log('💰 Payment Status:', data.data?.codPayment || 'N/A');
+        console.log('📦 Order Status:', data.data?.status || 'Delivered');
+        
+        // Reset form states
+        setDeliveryForm({ otp: '', deliveryNotes: '', codPaymentType: null, qrCode: null, paymentId: null });
+        setPaymentCompleted(false);
+        setPaymentStatus(null);
         setShowDeliveryModal(false);
         setSelectedOrder(null);
+        
         // Refresh orders
         loadAssignedOrders();
       } else {
@@ -1150,6 +1320,46 @@ const AssignedOrders = () => {
                         </p>
                       </div>
                       
+                      {/* OTP Entry for COD QR Payment after payment completion */}
+                      {paymentCompleted && deliveryForm.codPaymentType === 'qr' && (
+                        <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-4">
+                          <p className="text-sm text-green-800 mb-3">
+                            <strong>✅ Payment Completed!</strong> OTP has been sent to buyer's registered phone number.
+                          </p>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Enter OTP from Buyer <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={deliveryForm.otp}
+                              onChange={(e) => setDeliveryForm(prev => ({ ...prev, otp: e.target.value.replace(/\D/g, '') }))}
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                              placeholder="Enter 6-digit OTP"
+                              maxLength="6"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Ask the buyer for the OTP sent to their phone</p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Payment Status Indicator */}
+                      {deliveryForm.codPaymentType === 'qr' && paymentStatus && (
+                        <div className={`mb-4 p-3 rounded-md ${
+                          paymentStatus === 'completed' 
+                            ? 'bg-green-50 border border-green-200' 
+                            : 'bg-yellow-50 border border-yellow-200'
+                        }`}>
+                          <p className={`text-sm ${
+                            paymentStatus === 'completed' ? 'text-green-800' : 'text-yellow-800'
+                          }`}>
+                            {paymentStatus === 'completed' 
+                              ? '✅ Payment completed! Enter OTP from buyer.' 
+                              : '⏳ Waiting for payment...'}
+                          </p>
+                        </div>
+                      )}
+                      
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Payment Method <span className="text-red-500">*</span>
@@ -1157,41 +1367,50 @@ const AssignedOrders = () => {
                         <div className="space-y-2">
                           <button
                             onClick={() => handleCODPaymentType('qr')}
+                            disabled={processingOrder === selectedOrder._id && actionType === 'generate-qr' || paymentCompleted}
                             className={`w-full border-2 rounded-md p-3 text-left transition-colors ${
                               deliveryForm.codPaymentType === 'qr'
                                 ? 'border-orange-500 bg-orange-50'
                                 : 'border-gray-300 hover:border-orange-300'
-                            }`}
+                            } ${(processingOrder === selectedOrder._id && actionType === 'generate-qr') || paymentCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             <div className="flex items-center">
                               <input
                                 type="radio"
                                 checked={deliveryForm.codPaymentType === 'qr'}
                                 onChange={() => handleCODPaymentType('qr')}
+                                disabled={processingOrder === selectedOrder._id && actionType === 'generate-qr' || paymentCompleted}
                                 className="mr-2"
                               />
-                              <span className="font-medium">Generate SMEPay QR Code</span>
+                              <span className="font-medium">
+                                {processingOrder === selectedOrder._id && actionType === 'generate-qr' 
+                                  ? 'Generating QR Code...' 
+                                  : 'Generate SMEPay QR Code'}
+                              </span>
                             </div>
                             {deliveryForm.codPaymentType === 'qr' && deliveryForm.qrCode && (
                               <div className="mt-2 p-2 bg-white rounded border">
                                 <img src={deliveryForm.qrCode} alt="QR Code" className="w-32 h-32 mx-auto" />
+                                <p className="text-xs text-center text-gray-600 mt-2">Scan this QR code to pay</p>
                               </div>
                             )}
                           </button>
                           
                           <button
                             onClick={() => handleCODPaymentType('cash')}
+                            disabled={paymentCompleted}
                             className={`w-full border-2 rounded-md p-3 text-left transition-colors ${
                               deliveryForm.codPaymentType === 'cash'
                                 ? 'border-orange-500 bg-orange-50'
                                 : 'border-gray-300 hover:border-orange-300'
-                            }`}
+                            } ${paymentCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             <div className="flex items-center">
                               <input
                                 type="radio"
                                 checked={deliveryForm.codPaymentType === 'cash'}
                                 onChange={() => handleCODPaymentType('cash')}
+                                disabled={paymentCompleted}
                                 className="mr-2"
                               />
                               <span className="font-medium">Payment Collected in Cash</span>
@@ -1222,9 +1441,13 @@ const AssignedOrders = () => {
             <div className="flex space-x-4 mt-6">
               <button
                 onClick={() => {
+                  // 🎯 CLEANUP: Stop polling when modal is closed
+                  stopPaymentPolling();
                   setShowDeliveryModal(false);
                   setSelectedOrder(null);
-                  setDeliveryForm({ otp: '', deliveryNotes: '', codPaymentType: null, qrCode: null });
+                  setDeliveryForm({ otp: '', deliveryNotes: '', codPaymentType: null, qrCode: null, paymentId: null });
+                  setPaymentCompleted(false);
+                  setPaymentStatus(null);
                 }}
                 className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-md font-medium transition-colors"
               >
@@ -1232,11 +1455,21 @@ const AssignedOrders = () => {
               </button>
               <button
                 onClick={handleDeliveryComplete}
-                disabled={processingOrder === selectedOrder._id}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white py-2 px-4 rounded-md font-medium transition-colors"
+                disabled={
+                  processingOrder === selectedOrder._id || 
+                  (paymentCompleted && deliveryForm.codPaymentType === 'qr' && !deliveryForm.otp?.trim())
+                }
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white py-2 px-4 rounded-md font-medium transition-colors"
               >
-                {processingOrder === selectedOrder._id && actionType === 'delivery' ? 'Processing...' : 'Complete Delivery'}
+                {processingOrder === selectedOrder._id && actionType === 'delivery' 
+                  ? 'Processing...' 
+                  : (paymentCompleted && deliveryForm.codPaymentType === 'qr' && !deliveryForm.otp?.trim())
+                    ? 'Enter OTP First'
+                    : 'Complete Delivery'}
               </button>
+              {paymentCompleted && deliveryForm.codPaymentType === 'qr' && !deliveryForm.otp?.trim() && (
+                <p className="text-xs text-red-600 mt-1 text-center w-full">Please enter OTP from buyer to complete delivery</p>
+              )}
             </div>
           </div>
         </div>

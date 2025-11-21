@@ -17,6 +17,8 @@ const {
   markReachedSellerLocation,
   completePickup,
   markReachedLocation,
+  generateCODQR,
+  checkCODPaymentStatus,
   completeDelivery,
   updateLocation,
   getAssignedOrders,
@@ -276,6 +278,16 @@ router.put('/orders/:id/reached-location', [
     .isLength({ max: 500 })
     .withMessage('Location notes cannot exceed 500 characters')
 ], markReachedLocation);
+
+// @desc    Generate QR code for COD payment
+// @route   POST /api/delivery/orders/:id/generate-qr
+// @access  Private (Delivery Agent)
+router.post('/orders/:id/generate-qr', protectDeliveryAgent, generateCODQR);
+
+// @desc    Check COD payment status and generate OTP if payment completed
+// @route   POST /api/delivery/orders/:id/check-payment-status
+// @access  Private (Delivery Agent)
+router.post('/orders/:id/check-payment-status', protectDeliveryAgent, checkCODPaymentStatus);
 
 // @desc    Complete order delivery
 // @route   PUT /api/delivery/orders/:id/deliver
