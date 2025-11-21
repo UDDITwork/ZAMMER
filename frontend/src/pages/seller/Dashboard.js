@@ -25,6 +25,23 @@ const Dashboard = () => {
   const [lowStockProducts, setLowStockProducts] = useState([]);
   const [showLowStockAlert, setShowLowStockAlert] = useState(false);
 
+  // 🎯 Seller-Specific Status Mapping Helper
+  // Maps backend order statuses to seller-friendly statuses
+  // This mapping matches the backend mapping to ensure consistency
+  const mapStatusForDisplay = (backendStatus) => {
+    const statusMap = {
+      'Pending': 'Pending',                    // Keep as-is
+      'Processing': 'Processing',              // Keep as-is
+      'Pickup_Ready': 'Processing',            // When admin assigns agent → seller sees as Ready to Ship
+      'Out_for_Delivery': 'Shipped',           // When agent picks up → seller sees as Shipped
+      'Out for Delivery': 'Shipped',           // Handle both formats
+      'Shipped': 'Shipped',                    // Keep as-is
+      'Delivered': 'Delivered',                // Keep as-is
+      'Cancelled': 'Cancelled'                 // Keep as-is
+    };
+    return statusMap[backendStatus] || backendStatus; // Fallback to original if not mapped
+  };
+
   // 🎯 FIX: Enhanced Socket.io setup with better connection handling
   const setupSocketConnection = useCallback(() => {
     if (!sellerAuth?.seller?._id) {
@@ -166,6 +183,8 @@ const Dashboard = () => {
       console.log('🔄 Dashboard: Order status updated via socket:', data);
       
       const orderData = data.data;
+      // 🎯 MAP STATUS FOR DISPLAY: Transform backend status to seller-friendly status
+      const mappedStatus = mapStatusForDisplay(orderData.status);
       
       toast.info(
         <div className="flex items-center">
@@ -177,7 +196,7 @@ const Dashboard = () => {
           <div>
             <p className="font-bold text-gray-800">Order Status Updated</p>
             <p className="text-sm text-gray-600">Order #{orderData.orderNumber}</p>
-            <p className="text-sm text-gray-600">Status: {orderData.status}</p>
+            <p className="text-sm text-gray-600">Status: {mappedStatus}</p>
           </div>
         </div>,
         {
@@ -191,7 +210,7 @@ const Dashboard = () => {
         id: orderData._id + '-status',
         type: 'status-update',
         title: 'Order Status Updated',
-        message: `Order #${orderData.orderNumber} is now ${orderData.status}`,
+        message: `Order #${orderData.orderNumber} is now ${mapStatusForDisplay(orderData.status)}`,
         timestamp: new Date().toISOString(),
         data: orderData,
         isRead: false
@@ -759,8 +778,8 @@ const Dashboard = () => {
                           <p className="font-medium text-gray-900">Order #{order.orderNumber}</p>
                           <p className="text-sm text-gray-600">{order.user?.name}</p>
                         </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
-                          {order.status}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(mapStatusForDisplay(order.status))}`}>
+                          {mapStatusForDisplay(order.status)}
                         </span>
                       </div>
                       <div className="text-right">
@@ -807,8 +826,8 @@ const Dashboard = () => {
                           <p className="font-medium text-gray-900">Order #{order.orderNumber}</p>
                           <p className="text-sm text-gray-600">{order.user?.name}</p>
                         </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
-                          {order.status}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(mapStatusForDisplay(order.status))}`}>
+                          {mapStatusForDisplay(order.status)}
                         </span>
                       </div>
                       <div className="text-right">
