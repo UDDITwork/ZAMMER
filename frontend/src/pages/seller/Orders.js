@@ -27,6 +27,23 @@ const Orders = () => {
     { key: 'Cancelled', label: 'Cancelled', icon: '❌', color: 'red' }
   ];
 
+  // 🎯 Seller-Specific Status Mapping Helper
+  // Maps backend order statuses to seller-friendly statuses
+  // This mapping matches the backend mapping to ensure consistency
+  const mapStatusForDisplay = (backendStatus) => {
+    const statusMap = {
+      'Pending': 'Pending',                    // Keep as-is
+      'Processing': 'Processing',              // Keep as-is
+      'Pickup_Ready': 'Processing',            // When admin assigns agent → seller sees as Ready to Ship
+      'Out_for_Delivery': 'Shipped',           // When agent picks up → seller sees as Shipped
+      'Out for Delivery': 'Shipped',           // Handle both formats
+      'Shipped': 'Shipped',                    // Keep as-is
+      'Delivered': 'Delivered',                // Keep as-is
+      'Cancelled': 'Cancelled'                 // Keep as-is
+    };
+    return statusMap[backendStatus] || backendStatus; // Fallback to original if not mapped
+  };
+
   const setupSocketConnection = useCallback(() => {
     if (!sellerAuth?.seller?._id) return;
 
@@ -63,7 +80,9 @@ const Orders = () => {
 
     socketService.onOrderStatusUpdate((data) => {
       console.log('🔄 Order status updated via socket:', data);
-      toast.info(`Order #${data.data.orderNumber} status updated to ${data.data.status}`);
+      // 🎯 MAP STATUS FOR DISPLAY: Transform backend status to seller-friendly status
+      const mappedStatus = mapStatusForDisplay(data.data.status);
+      toast.info(`Order #${data.data.orderNumber} status updated to ${mappedStatus}`);
       fetchOrders();
     });
 
@@ -133,10 +152,18 @@ const Orders = () => {
   useEffect(() => {
     if (orders.length > 0) {
       let filtered = orders.filter(order => {
+        // 🎯 MAP STATUS FOR FILTERING: Use mapped status for tab filtering
+        const mappedStatus = mapStatusForDisplay(order.status);
+        
         if (activeTab === 'Processing') {
-          return order.status === 'Processing';
+          // Include both "Processing" and "Pickup_Ready" statuses
+          return mappedStatus === 'Processing';
         }
-        return order.status === activeTab;
+        if (activeTab === 'Shipped') {
+          // Include both "Shipped" and "Out_for_Delivery" statuses
+          return mappedStatus === 'Shipped';
+        }
+        return mappedStatus === activeTab;
       });
       
       if (searchQuery.trim()) {
@@ -393,8 +420,8 @@ const Orders = () => {
                         </p>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(order.status)}`}>
-                          {order.status}
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(mapStatusForDisplay(order.status))}`}>
+                          {mapStatusForDisplay(order.status)}
                         </span>
                         {order.shippingLabel?.isGenerated && (
                           <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200 flex items-center">
@@ -473,7 +500,7 @@ const Orders = () => {
                   </div>
 
                   <div className="flex space-x-2">
-                    {order.status === 'Pending' && (
+                    {mapStatusForDisplay(order.status) === 'Pending' && (
                       <>
                         <button
                           onClick={() => handleStatusUpdate(order._id, 'Processing')}
@@ -495,7 +522,7 @@ const Orders = () => {
                       </>
                     )}
                     
-                    {order.status === 'Processing' && (
+                    {mapStatusForDisplay(order.status) === 'Processing' && (
                       <div className="flex space-x-2">
                         {!order.shippingLabel?.isGenerated ? (
                           <button
@@ -549,7 +576,7 @@ const Orders = () => {
                       </div>
                     )}
                     
-                    {order.status === 'Shipped' && (
+                    {mapStatusForDisplay(order.status) === 'Shipped' && (
                       <button
                         onClick={() => handleStatusUpdate(order._id, 'Delivered')}
                         disabled={processingOrder === order._id}

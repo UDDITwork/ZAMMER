@@ -661,11 +661,16 @@ const setupSocketHandlers = (io) => {
         });
 
         // 🎯 FIX: Notify seller about cancellation
+        // 🎯 MAP STATUS FOR SELLER: Transform backend status to seller-friendly status
+        const { mapStatusForSeller } = require('../utils/orderUtils');
+        const sellerStatus = mapStatusForSeller(order.status);
+        const sellerPreviousStatus = mapStatusForSeller(previousStatus);
+        
         const cancellationData = {
           _id: order._id,
           orderNumber: order.orderNumber,
-          status: order.status,
-          previousStatus: previousStatus,
+          status: sellerStatus, // Use mapped status for seller (Cancelled maps to Cancelled)
+          previousStatus: sellerPreviousStatus,
           user: order.user,
           reason: reason || 'No reason provided',
           cancelledAt: new Date().toISOString(),

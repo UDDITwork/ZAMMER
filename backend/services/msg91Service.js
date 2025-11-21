@@ -32,11 +32,127 @@ const terminalLog = (action, status, data = null, error = null) => {
 class MSG91Service {
   constructor() {
     this.rateLimitStore = new Map();
+    // 🎯 NEW: OTP Session Store for authentication (signup/login/forgot password)
+    // Key: phoneNumber + purpose (e.g., "911234567890_signup")
+    // Value: { code, expiresAt, attempts, userId, userData }
+    this.otpSessionStore = new Map();
+    // Clean up expired sessions every 5 minutes
+    this.startSessionCleanup();
 
     terminalLog('SERVICE_INIT', 'SUCCESS', {
       baseUrl: msg91Config.baseUrl,
-      templateId: msg91Config.templateId
+      templateId: msg91Config.templateId,
+      signupTemplateId: msg91Config.signupTemplateId || 'NOT_SET',
+      loginTemplateId: msg91Config.loginTemplateId || 'NOT_SET'
     });
+  }
+
+  // 🎯 NEW: Start periodic cleanup of expired OTP sessions
+  startSessionCleanup() {
+    setInterval(() => {
+      const now = Date.now();
+      for (const [key, session] of this.otpSessionStore.entries()) {
+        if (session.expiresAt < now) {
+          this.otpSessionStore.delete(key);
+        }
+      }
+    }, 5 * 60 * 1000); // Clean every 5 minutes
+  }
+
+  // 🎯 NEW: Generate session key
+  getSessionKey(phoneNumber, purpose) {
+    const normalized = msg91Config.normalizePhoneNumber(phoneNumber);
+    return `${normalized}_${purpose}`;
+  }
+
+  // 🎯 NEW: Store OTP session
+  storeOTPSession(phoneNumber, purpose, otpCode, userData = null, expiryMinutes = 10) {
+    const key = this.getSessionKey(phoneNumber, purpose);
+    const expiresAt = Date.now() + (expiryMinutes * 60 * 1000);
+
+    this.otpSessionStore.set(key, {
+      code: otpCode,
+      expiresAt,
+      attempts: 0,
+      maxAttempts: 3,
+      createdAt: Date.now(),
+      userData // Store user data for registration/login
+    });
+
+    // Auto-delete after expiry
+    setTimeout(() => {
+      this.otpSessionStore.delete(key);
+    }, expiryMinutes * 60 * 1000);
+
+    return key;
+  }
+
+  // 🎯 NEW: Get OTP session
+  getOTPSession(phoneNumber, purpose) {
+    const key = this.getSessionKey(phoneNumber, purpose);
+    const session = this.otpSessionStore.get(key);
+
+    if (!session) {
+      return null;
+    }
+
+    // Check if expired
+    if (session.expiresAt < Date.now()) {
+      this.otpSessionStore.delete(key);
+      return null;
+    }
+
+    return session;
+  }
+
+  // 🎯 NEW: Verify OTP from session
+  verifyOTPSession(phoneNumber, purpose, enteredCode) {
+    const session = this.getOTPSession(phoneNumber, purpose);
+
+    if (!session) {
+      return {
+        success: false,
+        message: 'OTP session not found or expired. Please request a new OTP.'
+      };
+    }
+
+    // Check attempts
+    if (session.attempts >= session.maxAttempts) {
+      const key = this.getSessionKey(phoneNumber, purpose);
+      this.otpSessionStore.delete(key);
+      return {
+        success: false,
+        message: 'Maximum verification attempts exceeded. Please request a new OTP.'
+      };
+    }
+
+    // Increment attempts
+    session.attempts += 1;
+
+    // Verify code
+    if (session.code !== enteredCode) {
+      return {
+        success: false,
+        message: `Invalid OTP. ${session.maxAttempts - session.attempts} attempts remaining.`
+      };
+    }
+
+    // Success - delete session after successful verification
+    const key = this.getSessionKey(phoneNumber, purpose);
+    const userData = session.userData;
+    this.otpSessionStore.delete(key);
+
+    return {
+      success: true,
+      message: 'OTP verified successfully',
+      userData
+    };
+  }
+
+  // 🎯 NEW: Delete OTP session
+  deleteOTPSession(phoneNumber, purpose) {
+    const key = this.getSessionKey(phoneNumber, purpose);
+    this.otpSessionStore.delete(key);
   }
 
   generateOTP() {
@@ -70,7 +186,7 @@ class MSG91Service {
     this.checkRateLimit(phoneNumber);
 
     const otpCode = options.otpCode || this.generateOTP();
-    const templateId = msg91Config.templateId;
+    const templateId = options.templateId || msg91Config.templateId;
     const normalizedPhone = msg91Config.normalizePhoneNumber(phoneNumber);
     const expiry = options.expiryMinutes || msg91Config.rateLimitDefaults.otpValidityMinutes;
 
@@ -104,6 +220,45 @@ class MSG91Service {
 
     terminalLog('MSG91_SEND_OTP_ERROR', 'ERROR', result, result.errorDetails);
     return { success: false, error: result.error, otpCode };
+  }
+
+  // 🎯 NEW: Send OTP for Signup
+  async sendOTPForSignup(phoneNumber, options = {}) {
+    if (!msg91Config.signupTemplateId) {
+      throw new Error('Signup template ID not configured. Set SIGNUP_TEMPLATE_ID in environment variables.');
+    }
+
+    return this.sendOTP(phoneNumber, {
+      ...options,
+      templateId: msg91Config.signupTemplateId,
+      purpose: 'signup'
+    });
+  }
+
+  // 🎯 NEW: Send OTP for Login
+  async sendOTPForLogin(phoneNumber, options = {}) {
+    if (!msg91Config.loginTemplateId) {
+      throw new Error('Login template ID not configured. Set LOGIN_TEMPLATE_ID in environment variables.');
+    }
+
+    return this.sendOTP(phoneNumber, {
+      ...options,
+      templateId: msg91Config.loginTemplateId,
+      purpose: 'login'
+    });
+  }
+
+  // 🎯 NEW: Send OTP for Forgot Password (uses login template ID)
+  async sendOTPForForgotPassword(phoneNumber, options = {}) {
+    if (!msg91Config.loginTemplateId) {
+      throw new Error('Login template ID not configured. Set LOGIN_TEMPLATE_ID in environment variables.');
+    }
+
+    return this.sendOTP(phoneNumber, {
+      ...options,
+      templateId: msg91Config.loginTemplateId,
+      purpose: 'forgot_password'
+    });
   }
 
   async createDeliveryOTP(orderData) {

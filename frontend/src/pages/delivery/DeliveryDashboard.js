@@ -370,6 +370,13 @@ const DeliveryDashboard = () => {
       return false;
     }
 
+    // 🎯 FIX: Check pickup.isCompleted flag explicitly before allowing delivery
+    const pickupCompleted = Boolean(order.pickup?.isCompleted);
+    if (!pickupCompleted) {
+      toast.error('Pickup verification not completed. Please complete pickup first by entering the Order ID.');
+      return false;
+    }
+
     const requiresOTP = !isCODOrder(order);
 
     if (requiresOTP && !otpValue?.trim()) {
@@ -1069,6 +1076,13 @@ const DeliveryDashboard = () => {
   const handleFlowCollectCash = async (method = 'cash') => {
     if (!activeOrderFlow) return;
 
+    // 🎯 FIX: Check pickup.isCompleted flag explicitly before allowing delivery
+    const pickupCompleted = Boolean(activeOrderFlow.pickup?.isCompleted);
+    if (!pickupCompleted) {
+      toast.error('Pickup verification not completed. Please complete pickup first by entering the Order ID.');
+      return;
+    }
+
     if (activeOrderFlow.deliveryAgent?.status !== 'location_reached') {
       toast.error('Reach the buyer location before confirming payment.');
       return;
@@ -1092,6 +1106,13 @@ const DeliveryDashboard = () => {
 
   const handleFlowVerifyOtp = async () => {
     if (!activeOrderFlow) return;
+
+    // 🎯 FIX: Check pickup.isCompleted flag explicitly before allowing delivery
+    const pickupCompleted = Boolean(activeOrderFlow.pickup?.isCompleted);
+    if (!pickupCompleted) {
+      toast.error('Pickup verification not completed. Please complete pickup first by entering the Order ID.');
+      return;
+    }
 
     if (activeOrderFlow.deliveryAgent?.status !== 'location_reached') {
       toast.error('Reach the buyer location before entering OTP.');

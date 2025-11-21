@@ -1550,10 +1550,14 @@ const completePickup = async (req, res) => {
       }
 
       if (global.emitToSeller) {
+        // 🎯 MAP STATUS FOR SELLER: Transform backend status to seller-friendly status
+        const { mapStatusForSeller } = require('../utils/orderUtils');
+        const sellerStatus = mapStatusForSeller(order.status);
+        
         global.emitToSeller(order.seller._id, 'order-pickup-completed', {
           _id: order._id,
           orderNumber: order.orderNumber,
-          status: order.status,
+          status: sellerStatus, // Use mapped status for seller
           pickupTime: pickupTime,
           deliveryAgent: {
             name: req.deliveryAgent.name,
@@ -2258,10 +2262,14 @@ const completeDelivery = async (req, res) => {
       }
 
       if (global.emitToSeller) {
+        // 🎯 MAP STATUS FOR SELLER: Transform backend status to seller-friendly status
+        const { mapStatusForSeller } = require('../utils/orderUtils');
+        const sellerStatus = mapStatusForSeller(order.status);
+        
         global.emitToSeller(order.seller._id, 'order-delivered', {
           _id: order._id,
           orderNumber: order.orderNumber,
-          status: order.status,
+          status: sellerStatus, // Use mapped status for seller (Delivered maps to Delivered)
           deliveryTime: deliveryTime,
           deliveryAgent: {
             name: req.deliveryAgent.name,

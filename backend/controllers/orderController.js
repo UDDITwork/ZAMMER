@@ -3,6 +3,7 @@ const Product = require('../models/Product');
 const User = require('../models/User');
 const Seller = require('../models/Seller');
 const invoiceGenerator = require('../utils/invoiceService');
+const { mapStatusForSeller } = require('../utils/orderUtils');
 
 // 🎯 Enhanced terminal logging for production monitoring
 const terminalLog = (action, status, data = null) => {
@@ -880,6 +881,13 @@ exports.getOrderById = async (req, res) => {
     }
 
     if (req.seller && order.seller._id.toString() === req.seller._id.toString()) {
+      // 🎯 MAP STATUS FOR SELLER: Transform backend status to seller-friendly status
+      const orderObj = order.toObject ? order.toObject() : order;
+      const mappedOrder = {
+        ...orderObj,
+        status: mapStatusForSeller(orderObj.status)
+      };
+      
       terminalLog('ORDER_FETCH_BY_ID', 'SUCCESS', {
         orderId: req.params.id,
         accessType: 'seller_owner',
@@ -888,7 +896,7 @@ exports.getOrderById = async (req, res) => {
       console.log(`✅ Order fetched successfully for seller: ${req.seller._id}`);
       return res.status(200).json({
         success: true,
-        data: order
+        data: mappedOrder
       });
     }
 
@@ -1038,12 +1046,21 @@ exports.getSellerOrders = async (req, res) => {
 
     console.log(`✅ Found ${orders.length} orders for seller ${req.seller._id}`);
 
+    // 🎯 MAP STATUS FOR SELLER: Transform backend statuses to seller-friendly statuses
+    const mappedOrders = orders.map(order => {
+      const orderObj = order.toObject ? order.toObject() : order;
+      return {
+        ...orderObj,
+        status: mapStatusForSeller(orderObj.status)
+      };
+    });
+
     res.status(200).json({
       success: true,
-      count: orders.length,
+      count: mappedOrders.length,
       totalPages: Math.ceil(totalOrders / limit),
       currentPage: page,
-      data: orders
+      data: mappedOrders
     });
   } catch (error) {
     terminalLog('SELLER_ORDERS_FETCH', 'ERROR', {
@@ -1304,6 +1321,15 @@ exports.getSellerOrderStats = async (req, res) => {
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
 
+    // 🎯 MAP STATUS COUNTS FOR SELLER: Transform backend status counts to seller-friendly statuses
+    const mappedStatusCounts = {};
+    statusCounts.forEach(({ _id: status, count }) => {
+      const mappedStatus = mapStatusForSeller(status);
+      // Combine counts for statuses that map to the same seller status
+      // e.g., both "Processing" and "Pickup_Ready" map to "Processing"
+      mappedStatusCounts[mappedStatus] = (mappedStatusCounts[mappedStatus] || 0) + count;
+    });
+
     // Get total revenue
     const revenueResult = await Order.aggregate([
       { $match: { seller: sellerId, isPaid: true } },
@@ -1332,10 +1358,7 @@ exports.getSellerOrderStats = async (req, res) => {
     });
 
     const stats = {
-      statusCounts: statusCounts.reduce((acc, curr) => {
-        acc[curr._id] = curr.count;
-        return acc;
-      }, {}),
+      statusCounts: mappedStatusCounts, // Use mapped status counts
       totalRevenue: revenueResult[0]?.totalRevenue || 0,
       recentOrdersCount,
       unreadOrdersCount,

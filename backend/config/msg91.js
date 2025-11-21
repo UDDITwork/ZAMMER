@@ -29,7 +29,9 @@ const normalizePhoneNumber = (phoneNumber = '') => {
 const msg91Config = {
   baseUrl: process.env.MSG91_BASE_URL || DEFAULT_BASE_URL,
   authKey: process.env.MSG91_AUTH_KEY || process.env.MSG91_AUTHKEY || HARDCODED_AUTH_KEY,
-  templateId: process.env.MSG91_TEMPLATE_ID || HARDCODED_TEMPLATE_ID,
+  templateId: process.env.MSG91_TEMPLATE_ID || HARDCODED_TEMPLATE_ID, // For delivery OTP
+  signupTemplateId: process.env.SIGNUP_TEMPLATE_ID || null, // For signup OTP
+  loginTemplateId: process.env.LOGIN_TEMPLATE_ID || null, // For login and forgot password OTP
   usingFallbackCredentials: !process.env.MSG91_AUTH_KEY && !process.env.MSG91_AUTHKEY,
   enableLogging: process.env.NODE_ENV !== 'production',
   rateLimitDefaults: {

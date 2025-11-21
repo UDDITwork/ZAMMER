@@ -283,10 +283,18 @@ const AssignedOrders = () => {
       return false;
     }
 
+    // 🎯 FIX: Check pickup.isCompleted flag explicitly before allowing to mark reached location
+    const pickupCompleted = Boolean(latestOrder.pickup?.isCompleted);
     const agentStatus = latestOrder.deliveryAgent?.status;
-    const pickupVerified = agentStatus === 'pickup_completed' || agentStatus === 'location_reached' || agentStatus === 'delivery_completed';
+    
+    // Verify pickup is actually completed before allowing to mark reached location
+    if (!pickupCompleted) {
+      toast.error('Pickup verification not completed. Please complete pickup first by entering the Order ID.');
+      return false;
+    }
 
-    if (!pickupVerified) {
+    // Additional check: Ensure status indicates pickup was completed
+    if (agentStatus !== 'pickup_completed' && agentStatus !== 'location_reached' && agentStatus !== 'delivery_completed') {
       toast.error('Complete pickup verification before heading to the buyer.');
       return false;
     }
@@ -371,11 +379,21 @@ const AssignedOrders = () => {
       return;
     }
 
+    // 🎯 FIX: Check pickup.isCompleted flag explicitly, not just status
+    const pickupCompleted = Boolean(latestOrder.pickup?.isCompleted);
     const agentStatus = latestOrder.deliveryAgent?.status;
-    const pickupVerified = agentStatus === 'pickup_completed' || agentStatus === 'location_reached' || agentStatus === 'delivery_completed';
+    
+    // Verify pickup is actually completed before allowing delivery
+    if (!pickupCompleted) {
+      toast.error('Pickup verification not completed. Please complete pickup first by entering the Order ID.');
+      setShowDeliveryModal(false);
+      setSelectedOrder(null);
+      return;
+    }
 
-    if (!pickupVerified) {
-      toast.error('Complete pickup verification before finishing delivery.');
+    // Additional check: Ensure status indicates pickup was completed
+    if (agentStatus !== 'pickup_completed' && agentStatus !== 'location_reached' && agentStatus !== 'delivery_completed') {
+      toast.error('Pickup verification not completed. Please complete pickup first.');
       setShowDeliveryModal(false);
       setSelectedOrder(null);
       return;
@@ -468,10 +486,20 @@ const AssignedOrders = () => {
       return;
     }
 
+    // 🎯 FIX: Check pickup.isCompleted flag explicitly, not just status
+    const pickupCompleted = Boolean(latestOrder.pickup?.isCompleted);
     const agentStatus = latestOrder.deliveryAgent?.status;
-    const pickupVerified = agentStatus === 'pickup_completed' || agentStatus === 'location_reached' || agentStatus === 'delivery_completed';
+    
+    // Verify pickup is actually completed before allowing delivery
+    if (!pickupCompleted) {
+      toast.error('Pickup verification not completed. Please complete pickup first by entering the Order ID.');
+      setShowDeliveryModal(false);
+      setSelectedOrder(null);
+      return;
+    }
 
-    if (!pickupVerified) {
+    // Additional check: Ensure status indicates pickup was completed
+    if (agentStatus !== 'pickup_completed' && agentStatus !== 'location_reached' && agentStatus !== 'delivery_completed') {
       toast.error('Pickup verification not completed. Please complete pickup first.');
       setShowDeliveryModal(false);
       setSelectedOrder(null);
@@ -563,6 +591,7 @@ const AssignedOrders = () => {
   const getOrderStep = (order) => {
     const agentStatus = order.deliveryAgent?.status || order.deliveryStatus || 'assigned';
     const sellerReached = Boolean(order.pickup?.sellerLocationReachedAt);
+    const pickupCompleted = Boolean(order.pickup?.isCompleted); // 🎯 FIX: Check pickup completion explicitly
     const deliveryReached = Boolean(order.delivery?.locationReachedAt) || agentStatus === 'location_reached';
 
     if (agentStatus === 'assigned' || agentStatus === 'unassigned') {
@@ -577,8 +606,15 @@ const AssignedOrders = () => {
       return deliveryReached ? 'delivery' : 'reached-delivery';
     }
 
+    // 🎯 FIX: Only show delivery button if pickup is actually completed (check pickup.isCompleted flag)
     if (agentStatus === 'location_reached') {
-      return 'delivery';
+      // Only allow delivery if pickup is verified as completed
+      if (pickupCompleted) {
+        return 'delivery';
+      } else {
+        // Pickup not completed - show error or block action
+        return null; // Don't show delivery button if pickup not verified
+      }
     }
 
     if (agentStatus === 'delivery_completed') {
@@ -881,7 +917,7 @@ const AssignedOrders = () => {
                       
                       {nextAction === 'reached-seller' && (
                         <button
-                          onClick={() => openSellerCheckpoint(order)}
+                          onClick={() => handleReachedSellerLocation(order)}
                           disabled={isProcessing && processingOrder === order._id}
                           className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                             isProcessing && processingOrder === order._id && actionType === 'reached-seller'
@@ -921,7 +957,7 @@ const AssignedOrders = () => {
                               : 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
                           }`}
                         >
-                          📍 Reached Delivery Location
+                          📍 Reached Buyer Location
                         </button>
                       )}
                       
@@ -965,40 +1001,6 @@ const AssignedOrders = () => {
           </div>
         )}
       </div>
-
-      {/* Reached Seller Location Confirmation Modal */}
-      {showReachedSellerModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">📍 Confirm Seller Location</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Have you reached the seller location?
-            </p>
-            <p className="text-sm text-gray-500 mb-6">
-              Seller: <strong>{selectedOrder?.seller?.name || selectedOrder?.seller?.shopName}</strong><br/>
-              Address: {selectedOrder?.seller?.address || selectedOrder?.seller?.shop?.address}
-            </p>
-            
-            <div className="flex space-x-4">
-              <button
-                onClick={() => {
-                  setShowReachedSellerModal(false);
-                  setSelectedOrder(null);
-                }}
-                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-md font-medium transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleReachedSellerLocation(selectedOrder)}
-                className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-2 px-4 rounded-md font-medium transition-colors"
-              >
-                Yes, I'm Here
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Pickup Completion Modal */}
       {showPickupModal && (
@@ -1061,11 +1063,11 @@ const AssignedOrders = () => {
         </div>
       )}
 
-      {/* Reached Delivery Location Confirmation Modal */}
+      {/* Reached Buyer Location Confirmation Modal */}
       {showReachedDeliveryModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">📍 Confirm Delivery Location</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">📍 Confirm Buyer Location</h2>
             <p className="text-sm text-gray-600 mb-4">
               Have you reached the customer's delivery address?
             </p>
