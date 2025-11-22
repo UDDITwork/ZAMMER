@@ -192,6 +192,25 @@ io.on('connection', (socket) => {
     });
   });
 
+  // 🎯 NEW: Admin live log viewer room joining
+  socket.on('admin-logs-join', (adminId) => {
+    console.log(`📊 Admin ${adminId} joined live logs room`);
+    socket.join('admin-logs-room');
+    
+    socket.emit('admin-logs-joined', {
+      success: true,
+      message: 'Connected to live log stream',
+      adminId,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // 🎯 NEW: Admin leaving live logs room
+  socket.on('admin-logs-leave', () => {
+    socket.leave('admin-logs-room');
+    console.log(`📊 Admin left live logs room: ${socket.id}`);
+  });
+
   // 🎯 NEW: Delivery agent room joining
   socket.on('delivery-join', (agentId) => {
     console.log(`🚚 Delivery Agent ${agentId} joined room`);

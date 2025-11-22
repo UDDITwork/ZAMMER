@@ -117,6 +117,7 @@ class Logger {
 
   log(level, action, data = null, writeToFile = false, correlationId = null) {
     const message = this.formatMessage(level, action, data, correlationId);
+    const timestamp = new Date().toISOString();
     
     // Enhanced console output with colors
     const colors = {
@@ -159,11 +160,35 @@ class Logger {
     if (correlationId && this.activeOperations.has(correlationId)) {
       const operation = this.activeOperations.get(correlationId);
       operation.logs.push({
-        timestamp: new Date().toISOString(),
+        timestamp,
         level,
         action,
         data
       });
+    }
+    
+    // 🎯 NEW: Emit log via Socket.io for real-time viewing (if Socket.io is available)
+    try {
+      if (global.io) {
+        const logEvent = {
+          timestamp,
+          level: level.toUpperCase(),
+          action,
+          data,
+          correlationId,
+          message: message.trim(),
+          icon: this.logLevels[level] || '📝'
+        };
+        
+        // Emit to admin room for live log viewing
+        global.io.to('admin-logs-room').emit('live-log', logEvent);
+      }
+    } catch (error) {
+      // Silently fail if Socket.io is not available (prevents breaking the logger)
+      // Only log in development
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Failed to emit log via Socket.io:', error.message);
+      }
     }
   }
 

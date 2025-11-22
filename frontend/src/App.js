@@ -30,6 +30,7 @@ import ViewAllUsers from './pages/admin/ViewAllUsers';
 import ViewUserProfile from './pages/admin/ViewUserProfile';
 import DeliveryAgents from './pages/admin/DeliveryAgents';
 import AdminPayoutDashboard from './pages/admin/PayoutDashboard';
+import LiveLogs from './pages/admin/LiveLogs';
 
 // Admin Layout
 import AdminLayout from './components/layouts/AdminLayout';
@@ -155,6 +156,8 @@ function App() {
             <Route path="/admin/sellers/:id" element={<AdminLayout><ViewSellerProfile /></AdminLayout>} />
             <Route path="/admin/users/:id" element={<AdminLayout><ViewUserProfile /></AdminLayout>} />
             <Route path="/admin/payouts" element={<AdminLayout><AdminPayoutDashboard /></AdminLayout>} />
+            <Route path="/admin/logs" element={<AdminLayout><LiveLogs /></AdminLayout>} />
+            <Route path="/admin/live-logs" element={<AdminLayout><LiveLogs /></AdminLayout>} />
             
             {/* 🆕 ADMIN ROUTE ALIASES - Point to main dashboard sections */}
             <Route path="/admin/orders" element={<AdminLayout><AdminDashboard /></AdminLayout>} />
