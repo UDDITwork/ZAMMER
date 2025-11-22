@@ -2167,13 +2167,64 @@ const generateCODQR = async (req, res) => {
       });
     }
 
+    // 🎯 VALIDATION: Check amount and order number before generating QR
+    const orderAmount = order.totalAmount || order.totalPrice;
+    const orderNumber = order.orderNumber;
+    
+    // Validate amount
+    if (!orderAmount || orderAmount <= 0 || isNaN(orderAmount)) {
+      logDeliveryError('GENERATE_QR_INVALID_AMOUNT', new Error('Invalid order amount'), { 
+        orderId,
+        totalAmount: order.totalAmount,
+        totalPrice: order.totalPrice,
+        calculatedAmount: orderAmount
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Order amount is invalid or missing. Cannot generate QR code.',
+        code: 'INVALID_AMOUNT'
+      });
+    }
+    
+    // Validate order number
+    if (!orderNumber || typeof orderNumber !== 'string' || orderNumber.trim() === '') {
+      logDeliveryError('GENERATE_QR_INVALID_ORDER_NUMBER', new Error('Invalid order number'), { 
+        orderId,
+        orderNumber: order.orderNumber
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Order number is invalid or missing. Cannot generate QR code.',
+        code: 'INVALID_ORDER_NUMBER'
+      });
+    }
+    
+    // 🎯 LOG: What we're sending to SMEPay
+    console.log(`
+📋 ===============================
+   QR GENERATION DATA
+===============================
+💰 Amount: ₹${orderAmount}
+📦 Order Number: ${orderNumber}
+📝 Description: Payment for Order #${orderNumber}
+===============================`);
+    
     // 🎯 GENERATE QR CODE
     try {
       const smepayService = require('../services/smepayService');
+      
+      // 🎯 MATCH BUYER SIDE STRUCTURE: Pass customer details like buyer side does
       const qrData = await smepayService.generateDynamicQR({
-        amount: order.totalAmount || order.totalPrice,
-        orderId: order.orderNumber,
-        description: `Payment for Order #${order.orderNumber}`
+        amount: Number(orderAmount), // Ensure it's a number
+        orderId: orderNumber.trim(), // Ensure it's a trimmed string
+        description: `Payment for Order #${orderNumber}`,
+        // 🎯 ADD CUSTOMER DETAILS: Like buyer side createOrder does
+        customerDetails: {
+          email: order.user?.email || '',
+          mobile: order.user?.mobileNumber || '',
+          name: order.user?.name || 'Customer'
+        },
+        orderIdForSlug: order._id.toString() // Use MongoDB ID for slug generation
       });
       
       // Store QR payment details in order
@@ -2229,14 +2280,51 @@ const generateCODQR = async (req, res) => {
       });
 
     } catch (qrError) {
-      logDeliveryError('GENERATE_QR_FAILED', qrError, { orderId });
-      console.error('❌ QR Code Generation Failed:', qrError);
+      // 🎯 ENHANCED ERROR LOGGING: Capture detailed error information
+      const errorDetails = {
+        orderId,
+        orderNumber: orderNumber || 'N/A',
+        amount: orderAmount || 'N/A',
+        errorMessage: qrError.message,
+        errorStack: qrError.stack,
+        isAxiosError: qrError.isAxiosError || false,
+        axiosStatus: qrError.response?.status,
+        axiosStatusText: qrError.response?.statusText,
+        axiosData: qrError.response?.data,
+        axiosHeaders: qrError.response?.headers
+      };
+      
+      logDeliveryError('GENERATE_QR_FAILED', qrError, errorDetails);
+      
+      console.error(`
+❌ ===============================
+   QR CODE GENERATION FAILED
+===============================
+📦 Order ID: ${orderId}
+📋 Order Number: ${orderNumber || 'N/A'}
+💰 Amount: ₹${orderAmount || 'N/A'}
+❌ Error: ${qrError.message}
+${qrError.isAxiosError ? `
+🌐 API Response:
+   Status: ${qrError.response?.status} ${qrError.response?.statusText}
+   Data: ${JSON.stringify(qrError.response?.data, null, 2)}
+` : ''}
+===============================`);
+      
+      // 🎯 USER-FRIENDLY ERROR MESSAGE
+      let errorMessage = 'Failed to generate QR code';
+      if (qrError.isAxiosError && qrError.response?.data?.message) {
+        errorMessage = qrError.response.data.message;
+      } else if (qrError.message) {
+        errorMessage = qrError.message;
+      }
       
       return res.status(500).json({
         success: false,
-        message: 'Failed to generate QR code',
+        message: errorMessage,
         error: process.env.NODE_ENV === 'development' ? qrError.message : 'QR generation service unavailable',
-        code: 'QR_GENERATION_FAILED'
+        code: 'QR_GENERATION_FAILED',
+        details: process.env.NODE_ENV === 'development' ? errorDetails : undefined
       });
     }
 

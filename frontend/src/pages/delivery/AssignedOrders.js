@@ -18,6 +18,8 @@ const AssignedOrders = () => {
   const [showPickupModal, setShowPickupModal] = useState(false);
   const [showReachedDeliveryModal, setShowReachedDeliveryModal] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [showDeliverySuccessModal, setShowDeliverySuccessModal] = useState(false);
+  const [deliverySuccessData, setDeliverySuccessData] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   
   // Order state tracking
@@ -693,14 +695,19 @@ const AssignedOrders = () => {
         // Stop polling
         stopPaymentPolling();
         
-        // Show success message with payment and order status
+        // Prepare success data for confirmation modal
         const isCOD = latestOrder.paymentMethod === 'COD' || !latestOrder.isPaid;
         const paymentMethod = deliveryForm.codPaymentType === 'qr' ? 'QR Code' : 'Cash';
-        const successMessage = isCOD 
-          ? `✅ Payment collected (${paymentMethod}) and delivery completed!`
-          : '✅ Delivery completed successfully!';
         
-        toast.success(successMessage);
+        setDeliverySuccessData({
+          orderNumber: latestOrder.orderNumber || data.data?.orderNumber,
+          paymentMethod: isCOD ? paymentMethod : 'Prepaid',
+          paymentCollected: isCOD,
+          deliveryCompleted: true,
+          orderStatus: data.data?.status || 'Delivered',
+          earnings: data.data?.earnings || latestOrder.deliveryFees?.agentEarning || 0
+        });
+        
         console.log('✅ [ASSIGNED-ORDERS] Delivery completed:', selectedOrder._id);
         console.log('💰 Payment Status:', data.data?.codPayment || 'N/A');
         console.log('📦 Order Status:', data.data?.status || 'Delivered');
@@ -712,7 +719,10 @@ const AssignedOrders = () => {
         setShowDeliveryModal(false);
         setSelectedOrder(null);
         
-        // Refresh orders
+        // Show success confirmation modal
+        setShowDeliverySuccessModal(true);
+        
+        // Refresh orders after showing modal
         loadAssignedOrders();
       } else {
         console.error('❌ [ASSIGNED-ORDERS] Failed to complete delivery:', data.message);
@@ -1435,6 +1445,78 @@ const AssignedOrders = () => {
                 <p className="text-xs text-red-600 mt-1 text-center w-full">Please enter OTP from buyer to complete delivery</p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery Success Confirmation Modal */}
+      {showDeliverySuccessModal && deliverySuccessData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Delivery Completed!</h2>
+              <p className="text-gray-600">Order has been successfully delivered</p>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Order Number:</span>
+                <span className="text-sm font-semibold text-gray-900">{deliverySuccessData.orderNumber}</span>
+              </div>
+              
+              {deliverySuccessData.paymentCollected && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Payment Method:</span>
+                  <span className="text-sm font-semibold text-green-700">
+                    {deliverySuccessData.paymentMethod}
+                  </span>
+                </div>
+              )}
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Payment Status:</span>
+                <span className="text-sm font-semibold text-green-700">
+                  {deliverySuccessData.paymentCollected ? '✅ Collected' : '✅ Confirmed'}
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Delivery Status:</span>
+                <span className="text-sm font-semibold text-green-700">
+                  ✅ Completed
+                </span>
+              </div>
+              
+              {deliverySuccessData.earnings > 0 && (
+                <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                  <span className="text-sm font-medium text-gray-700">Your Earnings:</span>
+                  <span className="text-lg font-bold text-orange-600">
+                    ₹{deliverySuccessData.earnings.toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-6">
+              <p className="text-sm text-green-800 text-center">
+                <strong>✅ Success!</strong> The order has been marked as delivered and payment has been confirmed.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowDeliverySuccessModal(false);
+                setDeliverySuccessData(null);
+              }}
+              className="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-md font-medium transition-colors"
+            >
+              Continue
+            </button>
           </div>
         </div>
       )}
