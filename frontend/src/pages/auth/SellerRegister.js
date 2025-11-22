@@ -4,6 +4,7 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { AuthContext } from "../../contexts/AuthContext";
 import GooglePlacesAutocomplete from "../../components/GooglePlacesAutocomplete";
+import { sendSignupOTP, verifySignupOTPAndRegister } from "../../services/sellerService";
 
 const LOGO_URL = "https://zammernow.com/assets/logo.svg";
 const steps = ["Personal", "Shop", "Payment"];
@@ -45,7 +46,7 @@ const SellerRegister = () => {
   // 🎯 ADD: Get loginSeller from AuthContext
   const { loginSeller: contextLoginSeller } = useContext(AuthContext);
 
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(0); // 0-2: Form steps, 3: Send OTP, 4: Verify OTP
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
@@ -62,85 +63,170 @@ const SellerRegister = () => {
 
   // 🎯 NEW: Add state for coordinates
   const [shopCoordinates, setShopCoordinates] = useState(null);
+  
+  // 🔧 NEW: OTP-related state
+  const [otp, setOtp] = useState('');
+  const [maskedPhone, setMaskedPhone] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
 
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  const next = () => setStep((s) => Math.min(s + 1, steps.length - 1));
-  const back = () => setStep((s) => Math.max(s - 1, 0));
+  const next = () => {
+    if (step < 2) {
+      // Normal form navigation
+      setStep((s) => Math.min(s + 1, 2));
+    } else if (step === 2) {
+      // After final form step, move to OTP sending
+      handleSendOTP();
+    }
+  };
+  const back = () => {
+    if (step <= 2) {
+      setStep((s) => Math.max(s - 1, 0));
+    } else if (step > 2) {
+      // Go back from OTP steps to form
+      setStep(2);
+    }
+  };
 
-  /* ---------- SUBMIT ---------- */
-  const handleSubmit = async () => {
+  // 🔧 NEW: Send OTP for seller signup
+  const handleSendOTP = async () => {
+    const logPrefix = '🔵 [SELLER-REGISTER-SEND-OTP]';
+    console.log(`${logPrefix} ========================================`);
+    console.log(`${logPrefix} START: Sending signup OTP`);
+    
+    // Validation
     if (!formData.address.trim()) {
       toast.error("Please select a shop address from suggestions");
       return;
     }
 
+    if (!formData.firstName || !formData.email || !formData.mobile || !formData.password) {
+      toast.error("Please complete all required fields");
+      return;
+    }
+
     try {
-      setLoading(true);
+      setOtpLoading(true);
+      
+      console.log(`${logPrefix} 📤 Calling sendSignupOTP service...`);
+      console.log(`${logPrefix} Input:`, {
+        firstName: formData.firstName?.substring(0, 10) + '...',
+        email: formData.email,
+        mobileNumber: `${formData.mobile?.substring(0, 6)}****${formData.mobile?.slice(-2)}`
+      });
 
-      const payload = {
-        firstName: formData.firstName.trim(),
-        email: formData.email.trim(),
-        password: formData.password,
-        mobileNumber: formData.mobile.trim(),
-        shop: {
-          name: formData.shopName.trim(),
-          address: formData.address.trim(),
-          phoneNumber: {
-            main: formData.shopPhone.trim()
-          },
-          gstNumber: formData.gst.trim(),
-          category: formData.category,
-          // 🎯 NEW: Add coordinates if available
-          location: shopCoordinates ? {
-            type: "Point",
-            coordinates: shopCoordinates // [longitude, latitude]
-          } : {
-            type: "Point", 
-            coordinates: [0, 0] // fallback
-          }
-        },
-        bankDetails: {
-          accountNumber: formData.upi.trim(),
-        },
-      };
-
-      console.log('🏪 Attempting seller registration...');
-      const response = await axios.post(
-        `${process.env.REACT_APP_API_URL || "http://localhost:5001/api"}/sellers/register`,
-        payload
+      const response = await sendSignupOTP(
+        formData.firstName.trim(),
+        formData.email.trim(),
+        formData.mobile.trim()
       );
 
-      console.log('✅ Seller registration response:', response.data);
+      console.log(`${logPrefix} 📥 Service Response:`, {
+        success: response.success,
+        maskedPhone: response.data?.phoneNumber
+      });
 
-      // 🎯 ENHANCED: Auto-login after successful registration
-      if (response.data.success && response.data.data && response.data.data.token) {
+      if (response.success) {
+        setMaskedPhone(response.data?.phoneNumber || '');
+        setStep(3); // Move to OTP verification step
+        toast.success(response.message || 'OTP sent to your phone number');
+        console.log(`${logPrefix} ✅ OTP sent, moving to step 3 (OTP Verification)`);
+      } else {
+        toast.error(response.message || 'Failed to send OTP');
+      }
+    } catch (error) {
+      console.error(`${logPrefix} ❌ ERROR:`, error);
+      toast.error(error.message || error.response?.data?.message || 'Failed to send OTP. Please try again.');
+    } finally {
+      setOtpLoading(false);
+      console.log(`${logPrefix} ========================================`);
+    }
+  };
+
+  // 🔧 NEW: Verify OTP and register seller
+  const handleVerifyOTPAndRegister = async (e) => {
+    e.preventDefault();
+    
+    const logPrefix = '🟢 [SELLER-REGISTER-VERIFY-OTP]';
+    console.log(`${logPrefix} ========================================`);
+    console.log(`${logPrefix} START: Verifying OTP and registering seller`);
+    
+    if (!otp || otp.length !== 6) {
+      toast.error('Please enter a valid 6-digit OTP');
+      return;
+    }
+
+    try {
+      setOtpLoading(true);
+
+      const shop = {
+        name: formData.shopName.trim(),
+        address: formData.address.trim(),
+        phoneNumber: {
+          main: formData.shopPhone.trim()
+        },
+        gstNumber: formData.gst.trim(),
+        category: formData.category,
+        location: shopCoordinates ? {
+          type: "Point",
+          coordinates: shopCoordinates
+        } : {
+          type: "Point",
+          coordinates: [0, 0]
+        }
+      };
+
+      const bankDetails = {
+        accountNumber: formData.upi.trim()
+      };
+
+      console.log(`${logPrefix} 📤 Calling verifySignupOTPAndRegister service...`);
+      console.log(`${logPrefix} OTP: ${otp.substring(0, 2)}****`);
+
+      const response = await verifySignupOTPAndRegister(
+        formData.firstName.trim(),
+        formData.email.trim(),
+        formData.password,
+        formData.mobile.trim(),
+        otp,
+        shop,
+        bankDetails
+      );
+
+      console.log(`${logPrefix} 📥 Service Response:`, {
+        success: response.success,
+        hasToken: !!response.data?.token,
+        sellerId: response.data?._id
+      });
+
+      if (response.success && response.data && response.data.token) {
         try {
           console.log('🔄 Auto-login after seller registration...');
-          contextLoginSeller(response.data.data);
-          toast.success(`Welcome to Zammer, ${response.data.data.firstName}!`);
+          contextLoginSeller(response.data);
+          toast.success(`Welcome to Zammer, ${response.data.firstName}!`);
           navigate("/seller/dashboard");
         } catch (loginError) {
           console.error('Seller auto-login failed:', loginError);
-          // Fallback to manual login
           toast.success("Seller registered successfully! Please login.");
           navigate("/seller/login");
         }
       } else {
-        // If no token returned or invalid response, redirect to login
         toast.success("Seller registered successfully! Please login.");
         navigate("/seller/login");
       }
-    } catch (err) {
-      console.error('Seller registration error:', err.response?.data || err);
+    } catch (error) {
+      console.error(`${logPrefix} ❌ ERROR:`, error);
       toast.error(
-        err.response?.data?.message ||
-          err.response?.data?.errors?.[0]?.msg ||
-          "Registration failed"
+        error.message ||
+        error.response?.data?.message ||
+        error.response?.data?.errors?.[0]?.msg ||
+        "Registration failed"
       );
     } finally {
-      setLoading(false);
+      setOtpLoading(false);
+      console.log(`${logPrefix} ========================================`);
     }
   };
 
@@ -467,6 +553,64 @@ const SellerRegister = () => {
           </>
         );
 
+      case 3:
+        // 🔧 NEW: OTP Verification Step
+        return (
+          <>
+            <h3 style={styles.sectionTitle}>Verify OTP</h3>
+            <p style={{ color: 'rgba(255, 255, 255, 0.9)', textAlign: 'center', marginBottom: '30px' }}>
+              Enter the 6-digit OTP sent to {maskedPhone || formData.mobile}
+            </p>
+            
+            <form onSubmit={handleVerifyOTPAndRegister}>
+              <input
+                style={styles.inputField}
+                className="register-input"
+                type="text"
+                name="otp"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                placeholder="Enter 6-digit OTP"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                required
+                autoFocus
+              />
+
+              <button
+                type="submit"
+                style={{
+                  ...styles.buttonPrimary,
+                  ...(otpLoading ? styles.buttonDisabled : {})
+                }}
+                disabled={otpLoading || !otp || otp.length !== 6}
+                className="btn-primary"
+              >
+                {otpLoading ? (
+                  <>
+                    <span style={styles.spinner}></span>
+                    Verifying...
+                  </>
+                ) : (
+                  'Verify OTP & Register'
+                )}
+              </button>
+            </form>
+
+            <button
+              style={styles.buttonSecondary}
+              onClick={() => {
+                setStep(2);
+                setOtp('');
+              }}
+              className="btn-secondary"
+              disabled={otpLoading}
+            >
+              Back to Payment Details
+            </button>
+          </>
+        );
+
       default:
         return null;
     }
@@ -626,58 +770,94 @@ const SellerRegister = () => {
       <img src={LOGO_URL} alt="Zammer" style={styles.logo} />
 
       <div style={styles.stepper} className="register-stepper">
-        {steps.map((_, i) => (
-          <div
-            key={i}
-            style={{
-              ...styles.stepCircle,
-              ...(i < step ? styles.stepCompleted : {}),
-              ...(i === step ? styles.stepActive : {})
-            }}
-            className="register-step-circle"
-          >
-            {i + 1}
-          </div>
-        ))}
+        {/* Show form steps (0-2) + OTP step (3) if in OTP flow */}
+        {step <= 2 ? (
+          steps.map((_, i) => (
+            <div
+              key={i}
+              style={{
+                ...styles.stepCircle,
+                ...(i < step ? styles.stepCompleted : {}),
+                ...(i === step ? styles.stepActive : {})
+              }}
+              className="register-step-circle"
+            >
+              {i + 1}
+            </div>
+          ))
+        ) : (
+          <>
+            {/* Show all form steps as completed + OTP step */}
+            {steps.map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  ...styles.stepCircle,
+                  ...styles.stepCompleted
+                }}
+                className="register-step-circle"
+              >
+                {i + 1}
+              </div>
+            ))}
+            <div style={{ color: 'rgba(255, 255, 255, 0.5)', margin: '0 10px' }}>→</div>
+            <div
+              style={{
+                ...styles.stepCircle,
+                ...styles.stepActive
+              }}
+              className="register-step-circle"
+            >
+              {steps.length + 1}
+            </div>
+          </>
+        )}
       </div>
 
       <div style={styles.card} className="register-card">
         {renderStep()}
 
-        {step === 2 ? (
-          <button
-            type="button"
-            style={{
-              ...styles.buttonPrimary,
-              ...(loading ? styles.buttonDisabled : {})
-            }}
-            className="btn-primary"
-            onClick={handleSubmit}
-            disabled={loading}
-          >
-            {loading && <span style={styles.spinner}></span>}
-            {loading ? "Creating Account…" : "Create Seller Account"}
-          </button>
-        ) : (
-          <button 
-            type="button" 
-            style={styles.buttonPrimary}
-            className="btn-primary" 
-            onClick={next}
-          >
-            Continue
-          </button>
-        )}
+        {/* Show buttons only for form steps (0-2), OTP step has its own buttons */}
+        {step <= 2 && (
+          <>
+            {step === 2 ? (
+              <button
+                type="button"
+                style={{
+                  ...styles.buttonPrimary,
+                  ...(loading || otpLoading ? styles.buttonDisabled : {})
+                }}
+                className="btn-primary"
+                onClick={handleSendOTP}
+                disabled={loading || otpLoading}
+              >
+                {(loading || otpLoading) && <span style={styles.spinner}></span>}
+                {loading || otpLoading ? "Sending OTP…" : "Send OTP"}
+              </button>
+            ) : (
+              <button 
+                type="button" 
+                style={styles.buttonPrimary}
+                className="btn-primary" 
+                onClick={next}
+                disabled={loading || otpLoading}
+              >
+                Continue
+              </button>
+            )}
 
-        {step > 0 && (
-          <button 
-            type="button" 
-            style={styles.buttonSecondary}
-            className="btn-secondary" 
-            onClick={back}
-          >
-            Back
-          </button>
+            {step > 0 && (
+              <button 
+                type="button" 
+                style={styles.buttonSecondary}
+                className="btn-secondary" 
+                onClick={back}
+                disabled={loading || otpLoading}
+              >
+                Back
+              </button>
+            )}
+          </>
         )}
       </div>
 

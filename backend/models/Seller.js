@@ -139,6 +139,24 @@ const sellerSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
+// 🎯 NEW: Password reset token method (similar to User model)
+sellerSchema.methods.getResetPasswordToken = function() {
+  const crypto = require('crypto');
+  // Generate token
+  const resetToken = crypto.randomBytes(20).toString('hex');
+  
+  // Hash token and set to resetPasswordToken field
+  this.resetPasswordToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+  
+  // Set expire time (10 minutes)
+  this.resetPasswordExpires = Date.now() + 10 * 60 * 1000;
+  
+  return resetToken;
+};
+
 // Enhanced geospatial indexes for production
 sellerSchema.index({ "shop.location": "2dsphere" });
 sellerSchema.index({ "shop.name": 1 });

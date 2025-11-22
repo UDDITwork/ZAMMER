@@ -264,21 +264,300 @@ export const checkWishlist = async (productId) => {
   }
 };
 
-// Password reset functions
-export const requestPasswordReset = async (email) => {
+// Signup OTP functions
+export const sendSignupOTP = async (name, email, mobileNumber) => {
+  const logPrefix = '🔵 [SIGNUP-OTP-SEND]';
+  const startTime = Date.now();
+  
+  console.log(`${logPrefix} ========================================`);
+  console.log(`${logPrefix} START: Sending signup OTP`);
+  console.log(`${logPrefix} Input Data:`, {
+    name: name?.substring(0, 10) + '...',
+    email,
+    mobileNumber: `${mobileNumber?.substring(0, 6)}****${mobileNumber?.slice(-2)}`,
+    timestamp: new Date().toISOString()
+  });
+  console.log(`${logPrefix} ========================================`);
+  
   try {
-    const response = await api.post('/users/forgot-password', { email });
+    const requestPayload = {
+      name,
+      email,
+      mobileNumber
+    };
+    
+    console.log(`${logPrefix} 📤 API Request:`, {
+      endpoint: '/users/send-signup-otp',
+      method: 'POST',
+      payload: { ...requestPayload, mobileNumber: `${mobileNumber?.substring(0, 6)}****` }
+    });
+    
+    const response = await api.post('/users/send-signup-otp', requestPayload);
+    const duration = Date.now() - startTime;
+    
+    console.log(`${logPrefix} ✅ SUCCESS: OTP sent`, {
+      success: response.data?.success,
+      message: response.data?.message,
+      maskedPhone: response.data?.data?.phoneNumber,
+      duration: `${duration}ms`,
+      responseStatus: response.status
+    });
+    console.log(`${logPrefix} ========================================`);
+    
     return response.data;
   } catch (error) {
+    const duration = Date.now() - startTime;
+    const errorData = error.response?.data || { message: error.message };
+    
+    console.error(`${logPrefix} ❌ ERROR: Failed to send OTP`, {
+      error: errorData.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      duration: `${duration}ms`,
+      fullError: error.response?.data || error.message
+    });
+    console.error(`${logPrefix} ========================================`);
+    
     throw error.response?.data || error;
   }
 };
 
-export const resetPassword = async (resetData) => {
+export const verifySignupOTPAndRegister = async (name, email, password, mobileNumber, otp, location = null) => {
+  const logPrefix = '🟢 [SIGNUP-OTP-VERIFY]';
+  const startTime = Date.now();
+  
+  console.log(`${logPrefix} ========================================`);
+  console.log(`${logPrefix} START: Verifying OTP and registering user`);
+  console.log(`${logPrefix} Input Data:`, {
+    name: name?.substring(0, 10) + '...',
+    email,
+    mobileNumber: `${mobileNumber?.substring(0, 6)}****${mobileNumber?.slice(-2)}`,
+    otp: otp?.substring(0, 2) + '****',
+    hasLocation: !!location,
+    timestamp: new Date().toISOString()
+  });
+  console.log(`${logPrefix} ========================================`);
+  
   try {
-    const response = await api.post('/users/reset-password', resetData);
+    const requestPayload = {
+      name,
+      email,
+      password: '***HIDDEN***',
+      mobileNumber,
+      otp
+    };
+    if (location) requestPayload.location = location;
+    
+    console.log(`${logPrefix} 📤 API Request:`, {
+      endpoint: '/users/verify-signup-otp',
+      method: 'POST',
+      payload: { ...requestPayload, password: '***HIDDEN***', otp: otp?.substring(0, 2) + '****' }
+    });
+    
+    const response = await api.post('/users/verify-signup-otp', {
+      name,
+      email,
+      password,
+      mobileNumber,
+      otp,
+      location
+    });
+    const duration = Date.now() - startTime;
+    
+    console.log(`${logPrefix} ✅ SUCCESS: OTP verified and user registered`, {
+      success: response.data?.success,
+      message: response.data?.message,
+      userId: response.data?.data?._id,
+      userEmail: response.data?.data?.email,
+      hasToken: !!response.data?.data?.token,
+      duration: `${duration}ms`,
+      responseStatus: response.status
+    });
+    console.log(`${logPrefix} 📋 User Data:`, {
+      name: response.data?.data?.name,
+      email: response.data?.data?.email,
+      mobileNumber: response.data?.data?.mobileNumber ? `${response.data.data.mobileNumber.substring(0, 6)}****` : 'N/A'
+    });
+    console.log(`${logPrefix} ========================================`);
+    
     return response.data;
   } catch (error) {
+    const duration = Date.now() - startTime;
+    const errorData = error.response?.data || { message: error.message };
+    
+    console.error(`${logPrefix} ❌ ERROR: Failed to verify OTP/register`, {
+      error: errorData.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      duration: `${duration}ms`,
+      validationErrors: errorData.errors,
+      fullError: error.response?.data || error.message
+    });
+    console.error(`${logPrefix} ========================================`);
+    
+    throw error.response?.data || error;
+  }
+};
+
+// Password reset functions with OTP
+export const requestPasswordReset = async (email, phoneNumber) => {
+  const logPrefix = '🟡 [FORGOT-PASSWORD-OTP-SEND]';
+  const startTime = Date.now();
+  
+  console.log(`${logPrefix} ========================================`);
+  console.log(`${logPrefix} START: Requesting password reset OTP`);
+  console.log(`${logPrefix} Input Data:`, {
+    email: email || 'NOT_PROVIDED',
+    phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 6)}****${phoneNumber.slice(-2)}` : 'NOT_PROVIDED',
+    timestamp: new Date().toISOString()
+  });
+  console.log(`${logPrefix} ========================================`);
+  
+  try {
+    const payload = email ? { email } : { phoneNumber };
+    
+    console.log(`${logPrefix} 📤 API Request:`, {
+      endpoint: '/users/forgot-password',
+      method: 'POST',
+      payload: email ? { email } : { phoneNumber: `${phoneNumber?.substring(0, 6)}****` }
+    });
+    
+    const response = await api.post('/users/forgot-password', payload);
+    const duration = Date.now() - startTime;
+    
+    console.log(`${logPrefix} ✅ SUCCESS: Password reset OTP sent`, {
+      success: response.data?.success,
+      message: response.data?.message,
+      maskedPhone: response.data?.data?.phoneNumber,
+      duration: `${duration}ms`,
+      responseStatus: response.status
+    });
+    console.log(`${logPrefix} ========================================`);
+    
+    return response.data;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    const errorData = error.response?.data || { message: error.message };
+    
+    console.error(`${logPrefix} ❌ ERROR: Failed to send password reset OTP`, {
+      error: errorData.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      duration: `${duration}ms`,
+      fullError: error.response?.data || error.message
+    });
+    console.error(`${logPrefix} ========================================`);
+    
+    throw error.response?.data || error;
+  }
+};
+
+// Verify OTP for password reset
+export const verifyForgotPasswordOTP = async (email, phoneNumber, otp) => {
+  const logPrefix = '🟠 [FORGOT-PASSWORD-OTP-VERIFY]';
+  const startTime = Date.now();
+  
+  console.log(`${logPrefix} ========================================`);
+  console.log(`${logPrefix} START: Verifying password reset OTP`);
+  console.log(`${logPrefix} Input Data:`, {
+    email: email || 'NOT_PROVIDED',
+    phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 6)}****${phoneNumber.slice(-2)}` : 'NOT_PROVIDED',
+    otp: otp?.substring(0, 2) + '****',
+    timestamp: new Date().toISOString()
+  });
+  console.log(`${logPrefix} ========================================`);
+  
+  try {
+    const payload = { otp };
+    if (email) payload.email = email;
+    if (phoneNumber) payload.phoneNumber = phoneNumber;
+    
+    console.log(`${logPrefix} 📤 API Request:`, {
+      endpoint: '/users/verify-forgot-password-otp',
+      method: 'POST',
+      payload: { ...payload, otp: otp?.substring(0, 2) + '****' }
+    });
+    
+    const response = await api.post('/users/verify-forgot-password-otp', payload);
+    const duration = Date.now() - startTime;
+    
+    console.log(`${logPrefix} ✅ SUCCESS: OTP verified, reset token generated`, {
+      success: response.data?.success,
+      message: response.data?.message,
+      hasResetToken: !!response.data?.data?.resetToken,
+      tokenLength: response.data?.data?.resetToken?.length,
+      expiresAt: response.data?.data?.expiresAt,
+      duration: `${duration}ms`,
+      responseStatus: response.status
+    });
+    console.log(`${logPrefix} ========================================`);
+    
+    return response.data;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    const errorData = error.response?.data || { message: error.message };
+    
+    console.error(`${logPrefix} ❌ ERROR: Failed to verify password reset OTP`, {
+      error: errorData.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      duration: `${duration}ms`,
+      fullError: error.response?.data || error.message
+    });
+    console.error(`${logPrefix} ========================================`);
+    
+    throw error.response?.data || error;
+  }
+};
+
+export const resetPassword = async (resetToken, newPassword) => {
+  const logPrefix = '🔴 [PASSWORD-RESET]';
+  const startTime = Date.now();
+  
+  console.log(`${logPrefix} ========================================`);
+  console.log(`${logPrefix} START: Resetting password`);
+  console.log(`${logPrefix} Input Data:`, {
+    resetToken: resetToken ? `${resetToken.substring(0, 10)}...${resetToken.slice(-5)}` : 'MISSING',
+    newPasswordLength: newPassword?.length || 0,
+    timestamp: new Date().toISOString()
+  });
+  console.log(`${logPrefix} ========================================`);
+  
+  try {
+    console.log(`${logPrefix} 📤 API Request:`, {
+      endpoint: `/users/reset-password/${resetToken ? resetToken.substring(0, 10) + '...' : 'TOKEN'}`,
+      method: 'PUT',
+      payload: { newPassword: '***HIDDEN***' }
+    });
+    
+    const response = await api.put(`/users/reset-password/${resetToken}`, { newPassword });
+    const duration = Date.now() - startTime;
+    
+    console.log(`${logPrefix} ✅ SUCCESS: Password reset completed`, {
+      success: response.data?.success,
+      message: response.data?.message,
+      userId: response.data?.data?._id,
+      userEmail: response.data?.data?.email,
+      hasToken: !!response.data?.data?.token,
+      duration: `${duration}ms`,
+      responseStatus: response.status
+    });
+    console.log(`${logPrefix} ========================================`);
+    
+    return response.data;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    const errorData = error.response?.data || { message: error.message };
+    
+    console.error(`${logPrefix} ❌ ERROR: Failed to reset password`, {
+      error: errorData.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      duration: `${duration}ms`,
+      fullError: error.response?.data || error.message
+    });
+    console.error(`${logPrefix} ========================================`);
+    
     throw error.response?.data || error;
   }
 };
@@ -309,6 +588,8 @@ export const updateUserLocation = async (location) => {
 // Default export
 export default {
   registerUser,
+  sendSignupOTP,
+  verifySignupOTPAndRegister,
   loginUser,
   getUserProfile,
   updateUserProfile,
@@ -319,6 +600,7 @@ export default {
   removeFromWishlist,
   checkWishlist,
   requestPasswordReset,
+  verifyForgotPasswordOTP,
   resetPassword,
   updateUserLocation
 };

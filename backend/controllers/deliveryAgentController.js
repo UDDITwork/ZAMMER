@@ -2606,30 +2606,27 @@ const completeDelivery = async (req, res) => {
         });
       }
       
-      // Verify OTP using OtpVerification model
+      // 🎯 Verify OTP using MSG91 standard verification method
       try {
-        const otpRecord = await OtpVerification.findById(order.otpVerification.otpId);
+        const msg91Service = require('../services/msg91Service');
         
-        if (!otpRecord) {
-          logDeliveryError('DELIVERY_OTP_RECORD_NOT_FOUND', new Error('OTP record not found'), { orderId });
-          return res.status(400).json({
-            success: false,
-            message: 'OTP record not found. Please request a new OTP.',
-            code: 'OTP_RECORD_NOT_FOUND'
-          });
-        }
-        
-        // Verify OTP
-        const verifyResult = await otpRecord.verifyOTP(otpCode.trim(), {
+        const verificationResult = await msg91Service.verifyDeliveryOTP({
+          otpId: order.otpVerification.otpId,
+          enteredCode: otpCode.trim(),
+          orderId: order._id,
           verifiedBy: 'delivery_agent',
-          deliveryAgentId: agentId
+          deliveryAgentId: agentId,
+          deliveryLocation: {
+            type: 'Point',
+            coordinates: [0, 0] // Will be updated with actual coordinates if provided
+          }
         });
         
-        if (!verifyResult.success) {
-          logDeliveryError('DELIVERY_OTP_VERIFICATION_FAILED', new Error(verifyResult.message), { orderId });
+        if (!verificationResult.success) {
+          logDeliveryError('DELIVERY_OTP_VERIFICATION_FAILED', new Error(verificationResult.message), { orderId });
           return res.status(400).json({
             success: false,
-            message: verifyResult.message || 'Invalid OTP. Please check and try again.',
+            message: verificationResult.message || 'Invalid OTP. Please check and try again.',
             code: 'OTP_VERIFICATION_FAILED'
           });
         }
@@ -2638,7 +2635,7 @@ const completeDelivery = async (req, res) => {
         order.otpVerification.isVerified = true;
         order.otpVerification.verifiedAt = new Date();
         
-        console.log(`✅ OTP verified successfully for COD QR payment`);
+        console.log(`✅ OTP verified successfully via MSG91 for COD QR payment`);
       } catch (otpError) {
         logDeliveryError('DELIVERY_OTP_VERIFICATION_ERROR', otpError, { orderId });
         return res.status(500).json({
@@ -2661,29 +2658,27 @@ const completeDelivery = async (req, res) => {
         });
       }
       
-      // Verify OTP for cash payment too
+      // 🎯 Verify OTP using MSG91 standard verification method for cash payment
       try {
-        const otpRecord = await OtpVerification.findById(order.otpVerification.otpId);
+        const msg91Service = require('../services/msg91Service');
         
-        if (!otpRecord) {
-          logDeliveryError('DELIVERY_OTP_RECORD_NOT_FOUND', new Error('OTP record not found'), { orderId });
-          return res.status(400).json({
-            success: false,
-            message: 'OTP record not found. Please request a new OTP.',
-            code: 'OTP_RECORD_NOT_FOUND'
-          });
-        }
-        
-        const verifyResult = await otpRecord.verifyOTP(otpCode.trim(), {
+        const verificationResult = await msg91Service.verifyDeliveryOTP({
+          otpId: order.otpVerification.otpId,
+          enteredCode: otpCode.trim(),
+          orderId: order._id,
           verifiedBy: 'delivery_agent',
-          deliveryAgentId: agentId
+          deliveryAgentId: agentId,
+          deliveryLocation: {
+            type: 'Point',
+            coordinates: [0, 0] // Will be updated with actual coordinates if provided
+          }
         });
         
-        if (!verifyResult.success) {
-          logDeliveryError('DELIVERY_OTP_VERIFICATION_FAILED', new Error(verifyResult.message), { orderId });
+        if (!verificationResult.success) {
+          logDeliveryError('DELIVERY_OTP_VERIFICATION_FAILED', new Error(verificationResult.message), { orderId });
           return res.status(400).json({
             success: false,
-            message: verifyResult.message || 'Invalid OTP. Please check and try again.',
+            message: verificationResult.message || 'Invalid OTP. Please check and try again.',
             code: 'OTP_VERIFICATION_FAILED'
           });
         }
@@ -2691,7 +2686,7 @@ const completeDelivery = async (req, res) => {
         order.otpVerification.isVerified = true;
         order.otpVerification.verifiedAt = new Date();
         
-        console.log(`✅ OTP verified successfully for COD cash payment`);
+        console.log(`✅ OTP verified successfully via MSG91 for COD cash payment`);
       } catch (otpError) {
         logDeliveryError('DELIVERY_OTP_VERIFICATION_ERROR', otpError, { orderId });
         return res.status(500).json({
@@ -2702,13 +2697,62 @@ const completeDelivery = async (req, res) => {
       }
     }
     // 🎯 OTP VERIFICATION FOR PREPAID ORDERS
-    else if (!isCOD && order.otpVerification?.isRequired && !order.otpVerification?.isVerified) {
-      logDeliveryError('DELIVERY_OTP_NOT_VERIFIED', new Error('OTP verification required'), { orderId });
-      return res.status(400).json({
-        success: false,
-        message: 'OTP verification is required before completing delivery',
-        code: 'OTP_VERIFICATION_REQUIRED'
-      });
+    else if (!isCOD && order.otpVerification?.isRequired) {
+      const otpCode = req.body.otp;
+      
+      // Check if OTP is provided
+      if (!otpCode || !otpCode.trim()) {
+        logDeliveryError('DELIVERY_OTP_MISSING', new Error('OTP is required for prepaid order delivery'), { orderId });
+        return res.status(400).json({
+          success: false,
+          message: 'OTP is required for delivery. Please enter the OTP sent to buyer.',
+          code: 'OTP_REQUIRED'
+        });
+      }
+      
+      // Check if already verified
+      if (order.otpVerification.isVerified) {
+        console.log(`✅ OTP already verified for prepaid order`);
+      } else {
+        // 🎯 Verify OTP using MSG91 standard verification method
+        try {
+          const msg91Service = require('../services/msg91Service');
+          
+          const verificationResult = await msg91Service.verifyDeliveryOTP({
+            otpId: order.otpVerification.otpId,
+            enteredCode: otpCode.trim(),
+            orderId: order._id,
+            verifiedBy: 'delivery_agent',
+            deliveryAgentId: agentId,
+            deliveryLocation: {
+              type: 'Point',
+              coordinates: [0, 0] // Will be updated with actual coordinates if provided
+            }
+          });
+          
+          if (!verificationResult.success) {
+            logDeliveryError('DELIVERY_OTP_VERIFICATION_FAILED', new Error(verificationResult.message), { orderId });
+            return res.status(400).json({
+              success: false,
+              message: verificationResult.message || 'Invalid OTP. Please check and try again.',
+              code: 'OTP_VERIFICATION_FAILED'
+            });
+          }
+          
+          // Mark OTP as verified in order (will be saved later)
+          order.otpVerification.isVerified = true;
+          order.otpVerification.verifiedAt = new Date();
+          
+          console.log(`✅ OTP verified successfully via MSG91 for prepaid order`);
+        } catch (otpError) {
+          logDeliveryError('DELIVERY_OTP_VERIFICATION_ERROR', otpError, { orderId });
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to verify OTP. Please try again.',
+            code: 'OTP_VERIFICATION_ERROR'
+          });
+        }
+      }
     }
 
     // 🎯 BUSINESS LOGIC: Update order status and delivery details

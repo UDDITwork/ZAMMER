@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { validationResult } = require('express-validator');
+const msg91Service = require('../services/msg91Service');
 
 // 🎯 ENHANCED: Comprehensive logging utility for user controller
 const logUser = (action, data, level = 'info') => {
@@ -50,7 +51,258 @@ const generateToken = (id) => {
   }
 };
 
-// @desc    Register user
+// 🔧 NEW: Send OTP for signup
+// @desc    Send OTP to phone number for signup verification
+// @route   POST /api/users/send-signup-otp
+// @access  Public
+const sendSignupOTP = async (req, res) => {
+  try {
+    const { name, email, mobileNumber } = req.body;
+
+    if (!name || !email || !mobileNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, and mobile number are required'
+      });
+    }
+
+    logUser('SEND_SIGNUP_OTP_START', {
+      name,
+      email: email.toLowerCase(),
+      mobileNumber
+    }, 'auth');
+
+    // Check if user already exists
+    const userExists = await User.findOne({ email: email.toLowerCase().trim() });
+    if (userExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists with this email'
+      });
+    }
+
+    // Check if mobile number already exists
+    const cleanedPhone = mobileNumber.trim().replace(/\D/g, '');
+    const searchVariants = [
+      cleanedPhone,
+      cleanedPhone.length === 10 ? `91${cleanedPhone}` : null,
+      cleanedPhone.startsWith('91') ? cleanedPhone : `91${cleanedPhone}`,
+      cleanedPhone.replace(/^91/, '')
+    ].filter(Boolean);
+
+    const mobileExists = await User.findOne({ 
+      mobileNumber: { $in: searchVariants } 
+    });
+    if (mobileExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number already registered'
+      });
+    }
+
+    // Send OTP via MSG91
+    try {
+      const otpResult = await msg91Service.sendOTPForSignup(mobileNumber, {
+        userName: name,
+        purpose: 'signup',
+        userData: { name, email: email.toLowerCase().trim(), mobileNumber: cleanedPhone } // Store user data for later
+      });
+
+      if (!otpResult.success) {
+        logUser('SEND_SIGNUP_OTP_FAILED', {
+          email,
+          error: otpResult.error
+        }, 'error');
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to send OTP. Please try again later.'
+        });
+      }
+
+      logUser('SEND_SIGNUP_OTP_SUCCESS', {
+        email,
+        phoneNumber: `${mobileNumber.substring(0, 6)}****`,
+        requestId: otpResult.response?.request_id || 'N/A'
+      }, 'success');
+
+      res.status(200).json({
+        success: true,
+        message: 'OTP has been sent to your phone number',
+        data: {
+          phoneNumber: `${mobileNumber.substring(0, 6)}****${mobileNumber.slice(-2)}` // Masked phone
+        }
+      });
+
+    } catch (otpError) {
+      logUser('SEND_SIGNUP_OTP_ERROR', {
+        email,
+        error: otpError.message
+      }, 'error');
+
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP. Please try again later.',
+        error: process.env.NODE_ENV === 'development' ? otpError.message : undefined
+      });
+    }
+
+  } catch (error) {
+    logUser('SEND_SIGNUP_OTP_ERROR', { error: error.message, stack: error.stack }, 'error');
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send signup OTP',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// 🔧 NEW: Verify signup OTP and register user
+// @desc    Verify OTP and create user account
+// @route   POST /api/users/verify-signup-otp
+// @access  Public
+const verifySignupOTPAndRegister = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Validation failed',
+        errors: errors.array() 
+      });
+    }
+
+    const { name, email, password, mobileNumber, otp, location } = req.body;
+
+    if (!otp || otp.length !== 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid 6-digit OTP is required'
+      });
+    }
+
+    logUser('VERIFY_SIGNUP_OTP_START', {
+      name,
+      email: email?.toLowerCase(),
+      mobileNumber,
+      otpLength: otp.length
+    }, 'auth');
+
+    // Verify OTP using msg91Service
+    const verificationResult = await msg91Service.verifyOTPSession(
+      mobileNumber,
+      'signup',
+      otp
+    );
+
+    if (!verificationResult.success) {
+      logUser('VERIFY_SIGNUP_OTP_FAILED', {
+        email,
+        message: verificationResult.message
+      }, 'warning');
+
+      return res.status(400).json({
+        success: false,
+        message: verificationResult.message || 'Invalid or expired OTP'
+      });
+    }
+
+    // OTP verified - get user data from session (stored during OTP send)
+    const userDataFromSession = verificationResult.userData || {};
+    
+    // Use session data or request body data (session data takes precedence)
+    const finalName = userDataFromSession.name || name;
+    const finalEmail = (userDataFromSession.email || email).toLowerCase().trim();
+    const finalMobileNumber = userDataFromSession.mobileNumber || mobileNumber.trim().replace(/\D/g, '');
+
+    // Double-check user doesn't exist (race condition protection)
+    const userExists = await User.findOne({ email: finalEmail });
+    if (userExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists with this email'
+      });
+    }
+
+    const cleanedPhone = finalMobileNumber.replace(/\D/g, '');
+    const searchVariants = [
+      cleanedPhone,
+      cleanedPhone.length === 10 ? `91${cleanedPhone}` : null,
+      cleanedPhone.startsWith('91') ? cleanedPhone : `91${cleanedPhone}`,
+      cleanedPhone.replace(/^91/, '')
+    ].filter(Boolean);
+
+    const mobileExists = await User.findOne({ 
+      mobileNumber: { $in: searchVariants } 
+    });
+    if (mobileExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number already registered'
+      });
+    }
+
+    // Create user data
+    const userData = {
+      name: finalName,
+      email: finalEmail,
+      password, // Will be hashed by pre-save middleware
+      mobileNumber: cleanedPhone.length === 10 ? `91${cleanedPhone}` : cleanedPhone // Normalize to include country code
+    };
+
+    // Add location if provided
+    if (location && location.coordinates && location.coordinates.length === 2) {
+      userData.location = {
+        type: 'Point',
+        coordinates: location.coordinates,
+        address: location.address || ''
+      };
+    }
+
+    const user = await User.create(userData);
+
+    logUser('USER_REGISTERED_SUCCESS', {
+      userId: user._id, 
+      email: user.email,
+      hasLocation: !!user.location?.coordinates?.length,
+      otpVerified: true
+    }, 'success');
+
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      data: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        mobileNumber: user.mobileNumber,
+        location: user.location,
+        token: generateToken(user._id)
+      }
+    });
+
+  } catch (error) {
+    logUser('VERIFY_SIGNUP_OTP_ERROR', { error: error.message, stack: error.stack }, 'error');
+    
+    // Check for duplicate key error (MongoDB unique constraint)
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      return res.status(400).json({
+        success: false,
+        message: `${field === 'email' ? 'Email' : 'Mobile number'} already registered`
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Server error during user registration',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Register user (DEPRECATED - Use OTP flow instead)
 // @route   POST /api/users/register
 // @access  Public
 const registerUser = async (req, res) => {
@@ -514,86 +766,137 @@ const changePassword = async (req, res) => {
   }
 };
 
-// 🔧 NEW: Request password reset
-// @desc    Request password reset
+// 🔧 NEW: Request password reset with OTP via MSG91
+// @desc    Request password reset - sends OTP to user's phone
 // @route   POST /api/users/forgot-password
 // @access  Public
 const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, phoneNumber } = req.body;
 
-    if (!email) {
+    // Accept either email or phone number
+    if (!email && !phoneNumber) {
       return res.status(400).json({
         success: false,
-        message: 'Email is required'
+        message: 'Email or phone number is required'
       });
     }
 
     logUser('FORGOT_PASSWORD_START', { 
-      email,
+      email: email || null,
+      phoneNumber: phoneNumber || null,
       requestTime: new Date().toISOString(),
       userAgent: req.get('User-Agent'),
       ip: req.ip
     }, 'reset');
 
-    const user = await User.findOne({ email });
+    // Find user by email or phone number
+    let user;
+    if (email) {
+      user = await User.findOne({ email: email.toLowerCase().trim() });
+    } else {
+      // Normalize phone number for search - try multiple formats
+      const cleanedPhone = phoneNumber.trim().replace(/\D/g, '');
+      const searchVariants = [
+        cleanedPhone, // Original format
+        cleanedPhone.length === 10 ? `91${cleanedPhone}` : null, // Add country code if 10 digits
+        cleanedPhone.startsWith('91') ? cleanedPhone : `91${cleanedPhone}`, // Ensure country code
+        cleanedPhone.replace(/^91/, '') // Without country code
+      ].filter(Boolean);
+      
+      user = await User.findOne({ 
+        mobileNumber: { $in: searchVariants } 
+      });
+    }
 
     if (!user) {
       logUser('FORGOT_PASSWORD_USER_NOT_FOUND', { 
-        email,
+        email: email || null,
+        phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 6)}****` : null,
         reason: 'User does not exist'
       }, 'warning');
       // Don't reveal if user exists or not for security
       return res.status(200).json({
         success: true,
-        message: 'If a user with that email exists, a password reset link has been sent.'
+        message: 'If a user with that email/phone exists, an OTP has been sent.'
+      });
+    }
+
+    // Check if user has a mobile number
+    if (!user.mobileNumber) {
+      logUser('FORGOT_PASSWORD_NO_PHONE', {
+        userId: user._id,
+        email: user.email
+      }, 'warning');
+      return res.status(400).json({
+        success: false,
+        message: 'User account does not have a registered phone number. Please contact support.'
       });
     }
 
     logUser('FORGOT_PASSWORD_USER_FOUND', {
       userId: user._id,
       email: user.email,
+      mobileNumber: user.mobileNumber ? `${user.mobileNumber.substring(0, 6)}****` : 'NOT_SET',
       isActive: user.isActive,
       isLocked: user.isLocked
     }, 'reset');
 
-    // Generate reset token
-    const resetToken = user.getResetPasswordToken();
-    await user.save({ validateBeforeSave: false });
+    // Send OTP via MSG91
+    try {
+      const otpResult = await msg91Service.sendOTPForForgotPassword(user.mobileNumber, {
+        userName: user.name,
+        purpose: 'forgot_password'
+      });
 
-    // In a real app, you would send an email here
-    // For development, we'll return the token
-    logUser('PASSWORD_RESET_TOKEN_GENERATED', {
-      userId: user._id,
-      email,
-      tokenLength: resetToken.length,
-      expires: user.resetPasswordExpires,
-      expiresAt: new Date(user.resetPasswordExpires).toISOString()
-    }, 'success');
-
-    res.status(200).json({
-      success: true,
-      message: 'Password reset token generated',
-      // Remove this in production - only for development
-      ...(process.env.NODE_ENV === 'development' && { resetToken })
-    });
-
-  } catch (error) {
-    logUser('FORGOT_PASSWORD_ERROR', { error: error.message }, 'error');
-    
-    // Clear reset token fields on error
-    if (req.body.email) {
-      const user = await User.findOne({ email: req.body.email });
-      if (user) {
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpires = undefined;
-        await user.save({ validateBeforeSave: false });
+      if (!otpResult.success) {
+        logUser('FORGOT_PASSWORD_OTP_FAILED', {
+          userId: user._id,
+          error: otpResult.error
+        }, 'error');
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to send OTP. Please try again later.'
+        });
       }
+
+      // Store OTP session in msg91Service (already done by sendOTPForForgotPassword)
+      // The OTP is stored with key: phoneNumber_forgot_password
+      logUser('FORGOT_PASSWORD_OTP_SENT', {
+        userId: user._id,
+        phoneNumber: `${user.mobileNumber.substring(0, 6)}****`,
+        requestId: otpResult.response?.request_id || 'N/A'
+      }, 'success');
+
+      // Return success without revealing OTP
+      res.status(200).json({
+        success: true,
+        message: 'OTP has been sent to your registered phone number',
+        data: {
+          phoneNumber: `${user.mobileNumber.substring(0, 6)}****${user.mobileNumber.slice(-2)}` // Masked phone
+        }
+      });
+
+    } catch (otpError) {
+      logUser('FORGOT_PASSWORD_OTP_ERROR', {
+        userId: user._id,
+        error: otpError.message
+      }, 'error');
+
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP. Please try again later.',
+        error: process.env.NODE_ENV === 'development' ? otpError.message : undefined
+      });
     }
 
+  } catch (error) {
+    logUser('FORGOT_PASSWORD_ERROR', { error: error.message, stack: error.stack }, 'error');
+    
     res.status(500).json({
       success: false,
-      message: 'Email could not be sent',
+      message: 'Password reset request failed',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
@@ -1092,6 +1395,126 @@ const checkWishlist = async (req, res) => {
 };
 
 // Placeholder functions
+// 🔧 NEW: Verify OTP for password reset
+// @desc    Verify OTP sent for password reset
+// @route   POST /api/users/verify-forgot-password-otp
+// @access  Public
+const verifyForgotPasswordOTP = async (req, res) => {
+  try {
+    const { email, phoneNumber, otp } = req.body;
+
+    if (!otp || otp.length !== 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid 6-digit OTP is required'
+      });
+    }
+
+    if (!email && !phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email or phone number is required'
+      });
+    }
+
+    logUser('VERIFY_FORGOT_PASSWORD_OTP_START', {
+      email: email || null,
+      phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 6)}****` : null,
+      otpLength: otp.length,
+      requestTime: new Date().toISOString()
+    }, 'reset');
+
+    // Find user - normalize phone number for consistent searching
+    let user;
+    if (email) {
+      user = await User.findOne({ email: email.toLowerCase().trim() });
+    } else {
+      // Normalize phone number for search - try multiple formats
+      const cleanedPhone = phoneNumber.trim().replace(/\D/g, '');
+      const searchVariants = [
+        cleanedPhone, // Original format
+        cleanedPhone.length === 10 ? `91${cleanedPhone}` : null, // Add country code if 10 digits
+        cleanedPhone.startsWith('91') ? cleanedPhone : `91${cleanedPhone}`, // Ensure country code
+        cleanedPhone.replace(/^91/, '') // Without country code
+      ].filter(Boolean);
+      
+      user = await User.findOne({ 
+        mobileNumber: { $in: searchVariants } 
+      });
+    }
+
+    if (!user) {
+      logUser('VERIFY_FORGOT_PASSWORD_OTP_USER_NOT_FOUND', { 
+        email: email || null,
+        phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 6)}****` : null
+      }, 'warning');
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email/phone number or OTP'
+      });
+    }
+
+    if (!user.mobileNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'User account does not have a registered phone number'
+      });
+    }
+
+    // Verify OTP using msg91Service
+    const verificationResult = await msg91Service.verifyOTPSession(
+      user.mobileNumber,
+      'forgot_password',
+      otp
+    );
+
+    if (!verificationResult.success) {
+      logUser('VERIFY_FORGOT_PASSWORD_OTP_FAILED', {
+        userId: user._id,
+        message: verificationResult.message
+      }, 'warning');
+
+      return res.status(400).json({
+        success: false,
+        message: verificationResult.message || 'Invalid or expired OTP'
+      });
+    }
+
+    // OTP verified successfully - generate reset token
+    const resetToken = user.getResetPasswordToken();
+    await user.save({ validateBeforeSave: false });
+
+    logUser('VERIFY_FORGOT_PASSWORD_OTP_SUCCESS', {
+      userId: user._id,
+      email: user.email,
+      tokenLength: resetToken.length,
+      expiresAt: new Date(user.resetPasswordExpires).toISOString()
+    }, 'success');
+
+    // Return reset token (frontend will use this for password reset)
+    res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully',
+      data: {
+        resetToken,
+        expiresAt: user.resetPasswordExpires
+      }
+    });
+
+  } catch (error) {
+    logUser('VERIFY_FORGOT_PASSWORD_OTP_ERROR', {
+      error: error.message,
+      stack: error.stack
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'OTP verification failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 const verifyEmail = async (req, res) => {
   res.status(200).json({
     success: true,
@@ -1130,6 +1553,8 @@ const debugSellers = async (req, res) => {
 
 module.exports = {
   registerUser,
+  sendSignupOTP,
+  verifySignupOTPAndRegister,
   loginUser,
   getUserProfile,
   updateUserProfile,
@@ -1139,6 +1564,7 @@ module.exports = {
   removeFromWishlist,
   checkWishlist,
   verifyEmail,
+  verifyForgotPasswordOTP,
   resetPassword,
   changePassword,
   forgotPassword,
