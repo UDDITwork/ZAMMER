@@ -287,22 +287,14 @@ const AssignedOrders = () => {
       return false;
     }
 
-    // 🎯 FIX: Check pickup.isCompleted flag explicitly before allowing to mark reached location
+    // ✅ SIMPLIFIED: If button is showing, it means order ID was verified → allow action
     const pickupCompleted = Boolean(latestOrder.pickup?.isCompleted);
-    const agentStatus = latestOrder.deliveryAgent?.status;
-    
-    // Verify pickup is actually completed before allowing to mark reached location
     if (!pickupCompleted) {
-      toast.error('Pickup verification not completed. Please complete pickup first by entering the Order ID.');
+      toast.error('Order ID verification required. Please complete pickup first.');
       return false;
     }
 
-    // Additional check: Ensure status indicates pickup was completed
-    if (agentStatus !== 'pickup_completed' && agentStatus !== 'location_reached' && agentStatus !== 'delivery_completed') {
-      toast.error('Complete pickup verification before heading to the buyer.');
-      return false;
-    }
-
+    // Already reached location - show delivery modal
     if (latestOrder.delivery?.locationReachedAt || latestOrder.deliveryAgent?.status === 'location_reached') {
       toast.info('Buyer location already marked. Complete payment / OTP verification to finish delivery.');
       setSelectedOrder(latestOrder);
@@ -383,21 +375,10 @@ const AssignedOrders = () => {
       return;
     }
 
-    // 🎯 FIX: Check pickup.isCompleted flag explicitly, not just status
+    // ✅ SIMPLIFIED: If delivery button is showing, it means order ID was verified → allow action
     const pickupCompleted = Boolean(latestOrder.pickup?.isCompleted);
-    const agentStatus = latestOrder.deliveryAgent?.status;
-    
-    // Verify pickup is actually completed before allowing delivery
     if (!pickupCompleted) {
-      toast.error('Pickup verification not completed. Please complete pickup first by entering the Order ID.');
-      setShowDeliveryModal(false);
-      setSelectedOrder(null);
-      return;
-    }
-
-    // Additional check: Ensure status indicates pickup was completed
-    if (agentStatus !== 'pickup_completed' && agentStatus !== 'location_reached' && agentStatus !== 'delivery_completed') {
-      toast.error('Pickup verification not completed. Please complete pickup first.');
+      toast.error('Order ID verification required. Please complete pickup first.');
       setShowDeliveryModal(false);
       setSelectedOrder(null);
       return;
@@ -630,21 +611,10 @@ const AssignedOrders = () => {
       return;
     }
 
-    // 🎯 FIX: Check pickup.isCompleted flag explicitly, not just status
+    // ✅ SIMPLIFIED: If delivery button is showing, it means order ID was verified → allow action
     const pickupCompleted = Boolean(latestOrder.pickup?.isCompleted);
-    const agentStatus = latestOrder.deliveryAgent?.status;
-    
-    // Verify pickup is actually completed before allowing delivery
     if (!pickupCompleted) {
-      toast.error('Pickup verification not completed. Please complete pickup first by entering the Order ID.');
-      setShowDeliveryModal(false);
-      setSelectedOrder(null);
-      return;
-    }
-
-    // Additional check: Ensure status indicates pickup was completed
-    if (agentStatus !== 'pickup_completed' && agentStatus !== 'location_reached' && agentStatus !== 'delivery_completed') {
-      toast.error('Pickup verification not completed. Please complete pickup first.');
+      toast.error('Order ID verification required. Please complete pickup first.');
       setShowDeliveryModal(false);
       setSelectedOrder(null);
       return;
@@ -761,7 +731,7 @@ const AssignedOrders = () => {
   const getOrderStep = (order) => {
     const agentStatus = order.deliveryAgent?.status || order.deliveryStatus || 'assigned';
     const sellerReached = Boolean(order.pickup?.sellerLocationReachedAt);
-    const pickupCompleted = Boolean(order.pickup?.isCompleted); // 🎯 FIX: Check pickup completion explicitly
+    const pickupCompleted = Boolean(order.pickup?.isCompleted); // ✅ Order ID verified = pickup completed
     const deliveryReached = Boolean(order.delivery?.locationReachedAt) || agentStatus === 'location_reached';
 
     if (agentStatus === 'assigned' || agentStatus === 'unassigned') {
@@ -772,19 +742,13 @@ const AssignedOrders = () => {
       return sellerReached ? 'pickup' : 'reached-seller';
     }
 
-    if (agentStatus === 'pickup_completed') {
+    // ✅ SIMPLIFIED: If order ID was verified (pickup completed), show "Reached Buyer Location" button
+    if (pickupCompleted || agentStatus === 'pickup_completed') {
       return deliveryReached ? 'delivery' : 'reached-delivery';
     }
 
-    // 🎯 FIX: Only show delivery button if pickup is actually completed (check pickup.isCompleted flag)
     if (agentStatus === 'location_reached') {
-      // Only allow delivery if pickup is verified as completed
-      if (pickupCompleted) {
-        return 'delivery';
-      } else {
-        // Pickup not completed - show error or block action
-        return null; // Don't show delivery button if pickup not verified
-      }
+      return 'delivery';
     }
 
     if (agentStatus === 'delivery_completed') {

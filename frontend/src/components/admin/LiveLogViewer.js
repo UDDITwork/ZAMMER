@@ -7,13 +7,8 @@ import {
   FaPauseCircle, 
   FaTrash, 
   FaDownload,
-  FaExclamationTriangle,
-  FaInfoCircle,
-  FaCheckCircle,
-  FaTimesCircle,
   FaClock,
   FaSearch,
-  FaFilter,
   FaExpand,
   FaCompress
 } from 'react-icons/fa';
@@ -163,40 +158,6 @@ const LiveLogViewer = () => {
     frontendLogger.logEvent('LOG_CLEAR', {}, 'info');
   };
 
-  // Get log level color
-  const getLogLevelColor = (level) => {
-    const colors = {
-      ERROR: 'text-red-700 bg-red-50 border-red-200',
-      CRITICAL: 'text-red-900 bg-red-100 border-red-300',
-      WARNING: 'text-yellow-700 bg-yellow-50 border-yellow-200',
-      SUCCESS: 'text-green-700 bg-green-50 border-green-200',
-      INFO: 'text-blue-700 bg-blue-50 border-blue-200',
-      DEBUG: 'text-gray-700 bg-gray-50 border-gray-200',
-      API: 'text-purple-700 bg-purple-50 border-purple-200',
-      DATABASE: 'text-indigo-700 bg-indigo-50 border-indigo-200',
-      PAYMENT: 'text-pink-700 bg-pink-50 border-pink-200',
-      ORDER: 'text-orange-700 bg-orange-50 border-orange-200',
-      USER: 'text-cyan-700 bg-cyan-50 border-cyan-200',
-      SELLER: 'text-teal-700 bg-teal-50 border-teal-200',
-      DELIVERY: 'text-lime-700 bg-lime-50 border-lime-200',
-      ADMIN: 'text-amber-700 bg-amber-50 border-amber-200',
-      SYSTEM: 'text-slate-700 bg-slate-50 border-slate-200'
-    };
-    return colors[level] || colors.INFO;
-  };
-
-  // Get log level icon
-  const getLogLevelIcon = (level) => {
-    const icons = {
-      ERROR: <FaTimesCircle className="w-4 h-4" />,
-      CRITICAL: <FaExclamationTriangle className="w-4 h-4" />,
-      WARNING: <FaExclamationTriangle className="w-4 h-4" />,
-      SUCCESS: <FaCheckCircle className="w-4 h-4" />,
-      INFO: <FaInfoCircle className="w-4 h-4" />,
-      DEBUG: <FaInfoCircle className="w-4 h-4" />
-    };
-    return icons[level] || icons.INFO;
-  };
 
   // Filter logs
   const filteredLogs = logs.filter(log => {
@@ -207,9 +168,9 @@ const LiveLogViewer = () => {
     return true;
   });
 
-  // Format timestamp
+  // Format timestamp - Terminal style
   const formatTimestamp = (timestamp) => {
-    if (!timestamp) return 'No timestamp';
+    if (!timestamp) return new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const date = new Date(timestamp);
     return date.toLocaleTimeString('en-US', { 
       hour12: false,
@@ -404,8 +365,8 @@ const LiveLogViewer = () => {
         </div>
       </div>
 
-      {/* Logs Container */}
-      <div className={`overflow-y-auto bg-gray-900 text-gray-100 font-mono text-sm ${isFullscreen ? 'h-[calc(100vh-280px)]' : 'h-[600px]'}`}>
+      {/* Logs Container - Terminal Style */}
+      <div className={`overflow-y-auto bg-black text-gray-100 font-mono text-xs leading-relaxed ${isFullscreen ? 'h-[calc(100vh-280px)]' : 'h-[600px]'}`}>
         {filteredLogs.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-gray-500 text-center">
@@ -416,44 +377,87 @@ const LiveLogViewer = () => {
             </div>
           </div>
         ) : (
-          <div className="p-4 space-y-1">
-            {filteredLogs.map((log, index) => (
-              <div 
-                key={index} 
-                className={`p-2 rounded border-l-4 ${getLogLevelColor(log.level)} hover:bg-opacity-80 transition-colors`}
-              >
-                <div className="flex items-start justify-between mb-1">
-                  <div className="flex items-center space-x-2 flex-1">
-                    <span className="text-xs font-semibold">{log.icon || '📝'}</span>
-                    <span className="text-xs font-bold">{log.level}</span>
-                    {log.correlationId && (
-                      <span className="text-xs bg-gray-700 px-2 py-0.5 rounded text-gray-300">
-                        {log.correlationId.substring(0, 8)}
-                      </span>
-                    )}
-                    <span className="text-xs text-gray-400 flex items-center">
-                      <FaClock className="w-3 h-3 mr-1" />
-                      {formatTimestamp(log.timestamp)}
+          <div className="p-2">
+            {filteredLogs.map((log, index) => {
+              // Get color for log level (terminal-style colors)
+              const getLevelColor = (level) => {
+                const colors = {
+                  ERROR: 'text-red-400',
+                  CRITICAL: 'text-red-500',
+                  WARNING: 'text-yellow-400',
+                  SUCCESS: 'text-green-400',
+                  INFO: 'text-cyan-400',
+                  DEBUG: 'text-gray-400',
+                  API: 'text-blue-400',
+                  DATABASE: 'text-purple-400',
+                  PAYMENT: 'text-pink-400',
+                  ORDER: 'text-orange-400',
+                  USER: 'text-blue-300',
+                  SELLER: 'text-teal-400',
+                  DELIVERY: 'text-lime-400',
+                  ADMIN: 'text-amber-400',
+                  SYSTEM: 'text-gray-300'
+                };
+                return colors[level] || 'text-gray-300';
+              });
+
+              // Format the log as a continuous line (like Windows CMD)
+              const timestamp = formatTimestamp(log.timestamp);
+              const levelColor = getLevelColor(log.level);
+              const icon = log.icon || '';
+              const correlationId = log.correlationId ? `[${log.correlationId.substring(0, 8)}]` : '';
+              const action = log.action || log.message || 'No action';
+              
+              // Format data - inline if short, on continuation lines if long
+              let dataLines = [];
+              if (log.data && typeof log.data === 'object' && Object.keys(log.data).length > 0) {
+                const compactJson = JSON.stringify(log.data);
+                if (compactJson.length > 120) {
+                  // Multi-line format for long data
+                  const formatted = JSON.stringify(log.data, null, 2);
+                  dataLines = formatted.split('\n').map((line, i) => (
+                    <span key={i} className="block text-gray-400 pl-4">
+                      {line}
                     </span>
+                  ));
+                } else {
+                  // Single line format
+                  dataLines = [<span key="data" className="text-gray-400"> {compactJson}</span>];
+                }
+              }
+
+              return (
+                <div key={index} className="mb-0.5">
+                  {/* Main log line */}
+                  <div className="whitespace-pre-wrap break-words">
+                    <span className="text-gray-500">{timestamp}</span>
+                    <span className="text-gray-600 mx-1">|</span>
+                    <span className={levelColor}>[{log.level}]</span>
+                    {correlationId && (
+                      <>
+                        <span className="text-gray-600 mx-1">|</span>
+                        <span className="text-gray-500">{correlationId}</span>
+                      </>
+                    )}
+                    {icon && (
+                      <>
+                        <span className="text-gray-600 mx-1">|</span>
+                        <span className="text-gray-300">{icon}</span>
+                      </>
+                    )}
+                    <span className="text-gray-600 mx-1">-</span>
+                    <span className="text-white">{action}</span>
+                    {dataLines.length === 1 && dataLines[0]}
                   </div>
+                  {/* Multi-line data continuation */}
+                  {dataLines.length > 1 && (
+                    <div className="pl-4">
+                      {dataLines}
+                    </div>
+                  )}
                 </div>
-                
-                <div className="text-sm font-medium mb-1 text-gray-100">
-                  {log.action || log.message || 'No action'}
-                </div>
-                
-                {log.data && typeof log.data === 'object' && Object.keys(log.data).length > 0 && (
-                  <details className="text-xs mt-1">
-                    <summary className="cursor-pointer text-gray-400 hover:text-gray-200 font-medium">
-                      View Data ({Object.keys(log.data).length} fields)
-                    </summary>
-                    <pre className="mt-2 p-2 bg-gray-800 rounded text-gray-300 overflow-x-auto max-h-48 overflow-y-auto">
-                      {JSON.stringify(log.data, null, 2)}
-                    </pre>
-                  </details>
-                )}
-              </div>
-            ))}
+              );
+            })}
             <div ref={logsEndRef} />
           </div>
         )}
