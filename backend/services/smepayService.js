@@ -782,13 +782,23 @@ class SMEPayService {
 
       const qrEndpoint = `${this.baseURL}${smepayConfig.endpoints.generateQR}`;
       
+      // 🎯 MATCH BUYER SIDE STRUCTURE: Use same payload format as createOrder()
       const qrPayload = {
-        amount: paymentData.amount,
-        order_id: paymentData.orderId,
+        client_id: this.clientId, // 🎯 CRITICAL: Include client_id in body (like createOrder does)
+        amount: parseFloat(paymentData.amount).toFixed(2), // 🎯 CRITICAL: Format amount with 2 decimals (like createOrder does)
+        order_id: paymentData.orderId.toString(), // 🎯 CRITICAL: Convert to string (like createOrder does)
         description: paymentData.description || `Payment for Order #${paymentData.orderId}`,
         currency: 'INR',
         payment_method: 'UPI',
-        expiry_minutes: 30 // QR expires in 30 minutes
+        expiry_minutes: 30, // QR expires in 30 minutes
+        // 🎯 ADD CUSTOMER DETAILS: If provided (optional but might be required)
+        ...(paymentData.customerDetails && {
+          customer_details: {
+            email: paymentData.customerDetails.email || '',
+            mobile: paymentData.customerDetails.mobile || '',
+            name: paymentData.customerDetails.name || 'Customer'
+          }
+        })
       };
 
       terminalLog('QR_GENERATION_REQUEST', 'PROCESSING', {
