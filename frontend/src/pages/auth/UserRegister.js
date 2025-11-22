@@ -319,7 +319,7 @@ const UserRegister = () => {
             validationSchema={RegisterSchema}
             onSubmit={handleSendOTP}
           >
-            {({ isSubmitting }) => (
+            {({ isSubmitting, setFieldValue }) => (
               <Form className="mt-8 space-y-6">
                 <div className="rounded-md shadow-sm -space-y-px">
                   <div>
@@ -371,7 +371,8 @@ const UserRegister = () => {
                       placeholder="Mobile Number (10 digits)"
                       onChange={(e) => {
                         const cleaned = e.target.value.replace(/\D/g, '');
-                        e.target.value = cleaned.slice(0, 12);
+                        const limited = cleaned.slice(0, 12);
+                        setFieldValue('mobileNumber', limited);
                       }}
                     />
                     <ErrorMessage
