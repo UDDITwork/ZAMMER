@@ -399,7 +399,7 @@ const LiveLogViewer = () => {
                   SYSTEM: 'text-gray-300'
                 };
                 return colors[level] || 'text-gray-300';
-              });
+              };
 
               // Format the log as a continuous line (like Windows CMD)
               const timestamp = formatTimestamp(log.timestamp);
