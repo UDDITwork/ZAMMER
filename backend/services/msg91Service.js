@@ -190,8 +190,10 @@ class MSG91Service {
     const normalizedPhone = msg91Config.normalizePhoneNumber(phoneNumber);
     const expiry = options.expiryMinutes || msg91Config.rateLimitDefaults.otpValidityMinutes;
 
-    const path = `/api/v5/otp?otp=${encodeURIComponent(otpCode)}&otp_expiry=${expiry}&template_id=${encodeURIComponent(templateId)}&mobile=${encodeURIComponent(normalizedPhone)}&authkey=${encodeURIComponent(msg91Config.authKey)}&realTimeResponse=1`;
+    // 🎯 MSG91 STANDARD FORMAT: POST /api/v5/otp?otp_expiry=&template_id=&mobile=&authkey=&realTimeResponse=
+    const path = `/api/v5/otp?otp=${encodeURIComponent(otpCode)}&otp_expiry=${encodeURIComponent(expiry)}&template_id=${encodeURIComponent(templateId)}&mobile=${encodeURIComponent(normalizedPhone)}&authkey=${encodeURIComponent(msg91Config.authKey)}&realTimeResponse=1`;
 
+    // 🎯 MSG91 STANDARD FORMAT: Body with Param1, Param2, Param3
     const payload = JSON.stringify({
       Param1: options.orderNumber || '',
       Param2: options.userName || '',
@@ -201,20 +203,41 @@ class MSG91Service {
     terminalLog('MSG91_SEND_OTP_REQUEST', 'PROCESSING', {
       templateId,
       phoneNumber: `${normalizedPhone.substring(0, 6)}****`,
-      path
+      path,
+      method: 'POST',
+      hostname: 'control.msg91.com'
     });
 
+    // 🎯 MSG91 STANDARD FORMAT: Headers - content-type: application/json, Content-Type: application/JSON
     const result = await this.executeRequest({
       method: 'POST',
       path,
       headers: {
         'content-type': 'application/json',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/JSON'  // MSG91 standard: JSON in uppercase
       }
     }, payload);
 
     if (result.success) {
       terminalLog('MSG91_SEND_OTP_SUCCESS', 'SUCCESS', result.response);
+      
+      // 🔧 CRITICAL FIX: Store OTP in session for authentication purposes (signup/login/forgot_password)
+      // Only store for authentication-related purposes, not for delivery OTPs (which use database)
+      const authPurposes = ['signup', 'login', 'forgot_password'];
+      if (options.purpose && authPurposes.includes(options.purpose)) {
+        this.storeOTPSession(
+          normalizedPhone, 
+          options.purpose, 
+          otpCode, 
+          options.userData || null, 
+          expiry
+        );
+        terminalLog('OTP_SESSION_STORED', 'SUCCESS', {
+          purpose: options.purpose,
+          phoneNumber: `${normalizedPhone.substring(0, 6)}****`
+        });
+      }
+      
       return { success: true, otpCode, response: result.response };
     }
 
@@ -356,14 +379,29 @@ class MSG91Service {
         };
       }
 
+      // 🎯 STEP 1: Verify with MSG91's standard API (authoritative verification)
+      // MSG91 is the source of truth - we trust their verification result
+      terminalLog('MSG91_VERIFY_START', 'PROCESSING', {
+        phoneNumber: `${otpRecord.user.mobileNumber.substring(0, 6)}****`,
+        otpLength: verificationData.enteredCode?.length || 0,
+        otpId: verificationData.otpId
+      });
+
       const msg91Result = await this.verifyOTP({
         phoneNumber: otpRecord.user.mobileNumber,
         otp: verificationData.enteredCode
       });
 
+      terminalLog('MSG91_VERIFY_RESULT', msg91Result.success ? 'SUCCESS' : 'ERROR', {
+        success: msg91Result.success,
+        message: msg91Result.message,
+        phoneNumber: `${otpRecord.user.mobileNumber.substring(0, 6)}****`
+      });
+
       if (!msg91Result.success) {
         terminalLog('MSG91_VERIFY_FAILURE', 'ERROR', msg91Result);
 
+        // Update database with failed attempt
         otpRecord.attemptCount = (otpRecord.attemptCount || 0) + 1;
         otpRecord.verificationResult = {
           success: false,
@@ -384,27 +422,56 @@ class MSG91Service {
         };
       }
 
-      const otpVerificationResult = await otpRecord.verifyOTP(
-        verificationData.enteredCode,
-        {
-          verifiedBy: verificationData.verifiedBy || 'delivery_agent',
-          deliveryLocation: verificationData.deliveryLocation,
-          paymentDetails: verificationData.paymentDetails
-        }
-      );
+      // 🎯 STEP 2: MSG91 verified successfully - update database status (trust MSG91's verification)
+      // Since MSG91 confirmed the OTP is valid, we update our database without re-checking the code
+      // MSG91 is the authoritative source - if they say it's valid, it's valid
+      terminalLog('MSG91_VERIFY_SUCCESS', 'SUCCESS', {
+        message: 'MSG91 confirmed OTP is valid - updating database status',
+        otpId: verificationData.otpId,
+        orderId: verificationData.orderId
+      });
 
-      terminalLog('VERIFY_DELIVERY_OTP_RESULT', otpVerificationResult.success ? 'SUCCESS' : 'ERROR', {
+      otpRecord.attemptCount = (otpRecord.attemptCount || 0) + 1;
+      otpRecord.status = 'verified';
+      otpRecord.verifiedAt = new Date();
+      otpRecord.verificationResult = {
+        success: true,
+        errorMessage: '',
+        verifiedBy: verificationData.verifiedBy || 'delivery_agent'
+      };
+
+      // Update delivery location if provided
+      if (verificationData.deliveryLocation) {
+        otpRecord.deliveryLocation = {
+          ...otpRecord.deliveryLocation,
+          ...verificationData.deliveryLocation
+        };
+      }
+
+      // Update payment details if provided (for COD)
+      if (verificationData.paymentDetails) {
+        otpRecord.paymentDetails = {
+          ...otpRecord.paymentDetails,
+          ...verificationData.paymentDetails,
+          receivedAt: new Date()
+        };
+      }
+
+      await otpRecord.save();
+
+      terminalLog('VERIFY_DELIVERY_OTP_RESULT', 'SUCCESS', {
         otpId: verificationData.otpId,
         orderId: verificationData.orderId,
-        verificationSuccess: otpVerificationResult.success,
-        message: otpVerificationResult.message
+        verificationSuccess: true,
+        message: 'OTP verified successfully via MSG91',
+        msg91Result: msg91Result.message
       });
 
       return {
-        success: otpVerificationResult.success,
-        message: otpVerificationResult.message,
-        verificationId: otpVerificationResult.verificationId,
-        verifiedAt: otpVerificationResult.verifiedAt,
+        success: true,
+        message: 'OTP verified successfully',
+        verificationId: otpRecord._id,
+        verifiedAt: otpRecord.verifiedAt,
         otpRecord,
         msg91Result
       };
@@ -459,8 +526,17 @@ class MSG91Service {
   async verifyOTP({ phoneNumber, otp }) {
     const normalizedPhone = msg91Config.normalizePhoneNumber(phoneNumber);
 
+    // 🎯 MSG91 STANDARD FORMAT: GET /api/v5/otp/verify?otp=&mobile=
     const path = `/api/v5/otp/verify?otp=${encodeURIComponent(otp)}&mobile=${encodeURIComponent(normalizedPhone)}`;
 
+    terminalLog('MSG91_VERIFY_OTP_REQUEST', 'PROCESSING', {
+      phoneNumber: `${normalizedPhone.substring(0, 6)}****`,
+      path,
+      method: 'GET',
+      hostname: 'control.msg91.com'
+    });
+
+    // 🎯 MSG91 STANDARD FORMAT: Headers - authkey: 'Enter your MSG91 authkey'
     const result = await this.executeRequest({
       method: 'GET',
       path,
@@ -469,13 +545,32 @@ class MSG91Service {
       }
     });
 
+    terminalLog('MSG91_VERIFY_OTP_API_RESPONSE', result.success ? 'SUCCESS' : 'ERROR', {
+      success: result.success,
+      responseType: result.response?.type,
+      responseMessage: result.response?.message,
+      statusCode: result.statusCode,
+      phoneNumber: `${normalizedPhone.substring(0, 6)}****`
+    });
+
     if (result.success) {
       const type = result.response?.type;
       const message = result.response?.message;
 
       if (type === 'success') {
+        terminalLog('MSG91_VERIFY_OTP_SUCCESS', 'SUCCESS', {
+          message,
+          phoneNumber: `${normalizedPhone.substring(0, 6)}****`,
+          verificationSource: 'MSG91 API (Authoritative)'
+        });
         return { success: true, message };
       }
+
+      terminalLog('MSG91_VERIFY_OTP_FAILED', 'ERROR', {
+        type,
+        message: message || 'OTP verification failed',
+        phoneNumber: `${normalizedPhone.substring(0, 6)}****`
+      });
 
       return {
         success: false,
@@ -484,17 +579,34 @@ class MSG91Service {
       };
     }
 
+    terminalLog('MSG91_VERIFY_OTP_ERROR', 'ERROR', {
+      error: result.error,
+      errorDetails: result.errorDetails,
+      phoneNumber: `${normalizedPhone.substring(0, 6)}****`
+    });
+
     return { success: false, message: result.error || 'OTP verification failed', error: result.errorDetails };
   }
 
   async retryOTP(phoneNumber, retryType = 'text') {
     const normalizedPhone = msg91Config.normalizePhoneNumber(phoneNumber);
 
+    // 🎯 MSG91 STANDARD FORMAT: GET /api/v5/otp/retry?authkey=&retrytype=&mobile=
     const path = `/api/v5/otp/retry?authkey=${encodeURIComponent(msg91Config.authKey)}&retrytype=${encodeURIComponent(retryType)}&mobile=${encodeURIComponent(normalizedPhone)}`;
 
+    terminalLog('MSG91_RETRY_OTP_REQUEST', 'PROCESSING', {
+      phoneNumber: `${normalizedPhone.substring(0, 6)}****`,
+      retryType,
+      path,
+      method: 'GET',
+      hostname: 'control.msg91.com'
+    });
+
+    // 🎯 MSG91 STANDARD FORMAT: Empty headers (as per MSG91 standard)
     return this.executeRequest({
       method: 'GET',
-      path
+      path,
+      headers: {}  // MSG91 standard: empty headers for retry
     });
   }
 

@@ -8,6 +8,7 @@ const fs = require('fs');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 const Order = require('../models/Order'); // Added Order model import
 const labelGenerationService = require('../services/labelGenerationService');
+const msg91Service = require('../services/msg91Service');
 
 // @desc    Register a new seller
 // @route   POST /api/sellers/register
@@ -77,6 +78,258 @@ exports.registerSeller = async (req, res) => {
       success: false,
       message: 'Server Error',
       error: error.message
+    });
+  }
+};
+
+// 🔧 NEW: Send OTP for seller signup
+// @desc    Send OTP to phone number for seller signup verification
+// @route   POST /api/sellers/send-signup-otp
+// @access  Public
+exports.sendSignupOTP = async (req, res) => {
+  try {
+    const { firstName, email, mobileNumber } = req.body;
+
+    if (!firstName || !email || !mobileNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'First name, email, and mobile number are required'
+      });
+    }
+
+    console.log('🔵 [SELLER-SIGNUP-OTP-SEND] START:', {
+      firstName,
+      email: email.toLowerCase(),
+      mobileNumber
+    });
+
+    // Check if seller already exists
+    const sellerExists = await Seller.findOne({ email: email.toLowerCase().trim() });
+    if (sellerExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'Seller already exists with this email'
+      });
+    }
+
+    // Check if mobile number already exists
+    const cleanedPhone = mobileNumber.trim().replace(/\D/g, '');
+    const searchVariants = [
+      cleanedPhone,
+      cleanedPhone.length === 10 ? `91${cleanedPhone}` : null,
+      cleanedPhone.startsWith('91') ? cleanedPhone : `91${cleanedPhone}`,
+      cleanedPhone.replace(/^91/, '')
+    ].filter(Boolean);
+
+    const mobileExists = await Seller.findOne({ 
+      mobileNumber: { $in: searchVariants } 
+    });
+    if (mobileExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number already registered'
+      });
+    }
+
+    // Send OTP via MSG91
+    try {
+      const otpResult = await msg91Service.sendOTPForSignup(mobileNumber, {
+        userName: firstName,
+        purpose: 'signup',
+        userData: { firstName, email: email.toLowerCase().trim(), mobileNumber: cleanedPhone }
+      });
+
+      if (!otpResult.success) {
+        console.error('🔵 [SELLER-SIGNUP-OTP-SEND] FAILED:', {
+          email,
+          error: otpResult.error
+        });
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to send OTP. Please try again later.'
+        });
+      }
+
+      console.log('🔵 [SELLER-SIGNUP-OTP-SEND] SUCCESS:', {
+        email,
+        phoneNumber: `${mobileNumber.substring(0, 6)}****`,
+        requestId: otpResult.response?.request_id || 'N/A'
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'OTP has been sent to your phone number',
+        data: {
+          phoneNumber: `${mobileNumber.substring(0, 6)}****${mobileNumber.slice(-2)}`
+        }
+      });
+
+    } catch (otpError) {
+      console.error('🔵 [SELLER-SIGNUP-OTP-SEND] ERROR:', {
+        email,
+        error: otpError.message
+      });
+
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP. Please try again later.',
+        error: process.env.NODE_ENV === 'development' ? otpError.message : undefined
+      });
+    }
+
+  } catch (error) {
+    console.error('🔵 [SELLER-SIGNUP-OTP-SEND] ERROR:', {
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send signup OTP',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// 🔧 NEW: Verify signup OTP and register seller
+// @desc    Verify OTP and create seller account
+// @route   POST /api/sellers/verify-signup-otp
+// @access  Public
+exports.verifySignupOTPAndRegister = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Validation failed',
+        errors: errors.array() 
+      });
+    }
+
+    const { firstName, email, password, mobileNumber, otp, shop, bankDetails } = req.body;
+
+    if (!otp || otp.length !== 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid 6-digit OTP is required'
+      });
+    }
+
+    console.log('🟢 [SELLER-SIGNUP-OTP-VERIFY] START:', {
+      firstName,
+      email: email?.toLowerCase(),
+      mobileNumber,
+      otpLength: otp.length
+    });
+
+    // Verify OTP using msg91Service
+    const verificationResult = await msg91Service.verifyOTPSession(
+      mobileNumber,
+      'signup',
+      otp
+    );
+
+    if (!verificationResult.success) {
+      console.warn('🟢 [SELLER-SIGNUP-OTP-VERIFY] FAILED:', {
+        email,
+        message: verificationResult.message
+      });
+
+      return res.status(400).json({
+        success: false,
+        message: verificationResult.message || 'Invalid or expired OTP'
+      });
+    }
+
+    // OTP verified - get seller data from session (stored during OTP send)
+    const sellerDataFromSession = verificationResult.userData || {};
+    
+    // Use session data or request body data (session data takes precedence)
+    const finalFirstName = sellerDataFromSession.firstName || firstName;
+    const finalEmail = (sellerDataFromSession.email || email).toLowerCase().trim();
+    const finalMobileNumber = sellerDataFromSession.mobileNumber || mobileNumber.trim().replace(/\D/g, '');
+
+    // Double-check seller doesn't exist (race condition protection)
+    const sellerExists = await Seller.findOne({ email: finalEmail });
+    if (sellerExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'Seller already exists with this email'
+      });
+    }
+
+    const cleanedPhone = finalMobileNumber.replace(/\D/g, '');
+    const searchVariants = [
+      cleanedPhone,
+      cleanedPhone.length === 10 ? `91${cleanedPhone}` : null,
+      cleanedPhone.startsWith('91') ? cleanedPhone : `91${cleanedPhone}`,
+      cleanedPhone.replace(/^91/, '')
+    ].filter(Boolean);
+
+    const mobileExists = await Seller.findOne({ 
+      mobileNumber: { $in: searchVariants } 
+    });
+    if (mobileExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number already registered'
+      });
+    }
+
+    // Create seller data
+    const sellerData = {
+      firstName: finalFirstName,
+      email: finalEmail,
+      password, // Will be hashed by pre-save middleware
+      mobileNumber: cleanedPhone.length === 10 ? `91${cleanedPhone}` : cleanedPhone,
+      shop: shop || {},
+      bankDetails: bankDetails || {}
+    };
+
+    const seller = await Seller.create(sellerData);
+
+    console.log('🟢 [SELLER-SIGNUP-OTP-VERIFY] SUCCESS:', {
+      sellerId: seller._id,
+      email: seller.email,
+      otpVerified: true
+    });
+
+    // Generate JWT token
+    const token = generateToken(seller._id, 'seller');
+
+    res.status(201).json({
+      success: true,
+      message: 'Seller registered successfully',
+      data: {
+        _id: seller._id,
+        firstName: seller.firstName,
+        email: seller.email,
+        mobileNumber: seller.mobileNumber,
+        shop: seller.shop,
+        token
+      }
+    });
+
+  } catch (error) {
+    console.error('🟢 [SELLER-SIGNUP-OTP-VERIFY] ERROR:', {
+      error: error.message,
+      stack: error.stack
+    });
+    
+    // Check for duplicate key error (MongoDB unique constraint)
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      return res.status(400).json({
+        success: false,
+        message: `${field === 'email' ? 'Email' : 'Mobile number'} already registered`
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Server error during seller registration',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -436,51 +689,249 @@ exports.updateSellerProfile = async (req, res) => {
   }
 };
 
-// Request Password Reset
+// 🔧 NEW: Request password reset with OTP via MSG91 (uses LOGIN_TEMPLATE_ID)
+// @desc    Request password reset - sends OTP to seller's phone
+// @route   POST /api/sellers/forgot-password
+// @access  Public
 exports.forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
-    
-    // Find seller by email
-    const seller = await Seller.findOne({ email });
-    
-    if (!seller) {
-      return res.status(404).json({
+    const { email, phoneNumber } = req.body;
+
+    // Accept either email or phone number
+    if (!email && !phoneNumber) {
+      return res.status(400).json({
         success: false,
-        message: 'Seller with this email does not exist'
+        message: 'Email or phone number is required'
       });
     }
-    
-    // Generate reset token
-    const resetToken = crypto.randomBytes(20).toString('hex');
-    
-    // Set token expiry (1 hour from now)
-    seller.resetPasswordToken = resetToken;
-    seller.resetPasswordExpires = Date.now() + 3600000; // 1 hour in milliseconds
-    
-    await seller.save();
-    
-    // In a real implementation, send an email with the reset link
-    // For now, we'll just return success
-    // The reset link would be: `${process.env.FRONTEND_URL}/seller/reset-password/${resetToken}`
-    
-    return res.status(200).json({
-      success: true,
-      message: 'Password reset link sent to your email',
-      // In development, we can return the token directly
-      // In production, remove this and send email instead
-      devToken: resetToken
+
+    console.log('🟠 [SELLER-FORGOT-PASSWORD] START:', { 
+      email: email || null,
+      phoneNumber: phoneNumber || null,
+      requestTime: new Date().toISOString()
     });
+
+    // Find seller by email or phone number
+    let seller;
+    if (email) {
+      seller = await Seller.findOne({ email: email.toLowerCase().trim() });
+    } else {
+      // Normalize phone number for search - try multiple formats
+      const cleanedPhone = phoneNumber.trim().replace(/\D/g, '');
+      const searchVariants = [
+        cleanedPhone,
+        cleanedPhone.length === 10 ? `91${cleanedPhone}` : null,
+        cleanedPhone.startsWith('91') ? cleanedPhone : `91${cleanedPhone}`,
+        cleanedPhone.replace(/^91/, '')
+      ].filter(Boolean);
+      
+      seller = await Seller.findOne({ 
+        mobileNumber: { $in: searchVariants } 
+      });
+    }
+
+    if (!seller) {
+      console.warn('🟠 [SELLER-FORGOT-PASSWORD] SELLER NOT FOUND:', { 
+        email: email || null,
+        phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 6)}****` : null
+      });
+      // Don't reveal if seller exists or not for security
+      return res.status(200).json({
+        success: true,
+        message: 'If a seller with that email/phone exists, an OTP has been sent.'
+      });
+    }
+
+    // Check if seller has a mobile number
+    if (!seller.mobileNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Seller account does not have a registered phone number for OTP verification'
+      });
+    }
+
+    // Send OTP via MSG91 (uses LOGIN_TEMPLATE_ID)
+    try {
+      const otpResult = await msg91Service.sendOTPForForgotPassword(seller.mobileNumber, {
+        userName: seller.firstName || seller.email.split('@')[0],
+        purpose: 'forgot_password'
+      });
+
+      if (!otpResult.success) {
+        console.error('🟠 [SELLER-FORGOT-PASSWORD] OTP SEND FAILED:', {
+          sellerId: seller._id,
+          error: otpResult.error
+        });
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to send OTP. Please try again later.'
+        });
+      }
+
+      console.log('🟠 [SELLER-FORGOT-PASSWORD] OTP SENT:', {
+        sellerId: seller._id,
+        email: seller.email,
+        phoneNumber: `${seller.mobileNumber.substring(0, 6)}****`,
+        requestId: otpResult.response?.request_id || 'N/A'
+      });
+
+      // Return masked phone number
+      res.status(200).json({
+        success: true,
+        message: 'OTP has been sent to your phone number',
+        data: {
+          phoneNumber: `${seller.mobileNumber.substring(0, 6)}****${seller.mobileNumber.slice(-2)}`
+        }
+      });
+
+    } catch (otpError) {
+      console.error('🟠 [SELLER-FORGOT-PASSWORD] ERROR:', {
+        sellerId: seller._id,
+        error: otpError.message
+      });
+
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP. Please try again later.',
+        error: process.env.NODE_ENV === 'development' ? otpError.message : undefined
+      });
+    }
+
   } catch (error) {
-    console.error('Forgot password error:', error);
-    return res.status(500).json({
+    console.error('🟠 [SELLER-FORGOT-PASSWORD] ERROR:', { 
+      error: error.message,
+      stack: error.stack 
+    });
+    
+    res.status(500).json({
       success: false,
-      message: 'Error processing your request'
+      message: 'Failed to process password reset request',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-// Verify Reset Token
+// 🔧 NEW: Verify OTP for password reset (uses LOGIN_TEMPLATE_ID OTP)
+// @desc    Verify OTP sent for password reset
+// @route   POST /api/sellers/verify-forgot-password-otp
+// @access  Public
+exports.verifyForgotPasswordOTP = async (req, res) => {
+  try {
+    const { email, phoneNumber, otp } = req.body;
+
+    if (!otp || otp.length !== 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid 6-digit OTP is required'
+      });
+    }
+
+    if (!email && !phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email or phone number is required'
+      });
+    }
+
+    console.log('🟡 [SELLER-VERIFY-FORGOT-PASSWORD-OTP] START:', {
+      email: email || null,
+      phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 6)}****` : null,
+      otpLength: otp.length
+    });
+
+    // Find seller - normalize phone number for consistent searching
+    let seller;
+    if (email) {
+      seller = await Seller.findOne({ email: email.toLowerCase().trim() });
+    } else {
+      // Normalize phone number for search - try multiple formats
+      const cleanedPhone = phoneNumber.trim().replace(/\D/g, '');
+      const searchVariants = [
+        cleanedPhone,
+        cleanedPhone.length === 10 ? `91${cleanedPhone}` : null,
+        cleanedPhone.startsWith('91') ? cleanedPhone : `91${cleanedPhone}`,
+        cleanedPhone.replace(/^91/, '')
+      ].filter(Boolean);
+      
+      seller = await Seller.findOne({ 
+        mobileNumber: { $in: searchVariants } 
+      });
+    }
+
+    if (!seller) {
+      console.warn('🟡 [SELLER-VERIFY-FORGOT-PASSWORD-OTP] SELLER NOT FOUND:', { 
+        email: email || null,
+        phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 6)}****` : null
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email/phone number or OTP'
+      });
+    }
+
+    if (!seller.mobileNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Seller account does not have a registered phone number'
+      });
+    }
+
+    // Verify OTP using msg91Service
+    const verificationResult = await msg91Service.verifyOTPSession(
+      seller.mobileNumber,
+      'forgot_password',
+      otp
+    );
+
+    if (!verificationResult.success) {
+      console.warn('🟡 [SELLER-VERIFY-FORGOT-PASSWORD-OTP] FAILED:', {
+        sellerId: seller._id,
+        message: verificationResult.message
+      });
+
+      return res.status(400).json({
+        success: false,
+        message: verificationResult.message || 'Invalid or expired OTP'
+      });
+    }
+
+    // OTP verified successfully - generate reset token
+    const resetToken = seller.getResetPasswordToken();
+    await seller.save({ validateBeforeSave: false });
+
+    console.log('🟡 [SELLER-VERIFY-FORGOT-PASSWORD-OTP] SUCCESS:', {
+      sellerId: seller._id,
+      email: seller.email,
+      tokenLength: resetToken.length,
+      expiresAt: new Date(seller.resetPasswordExpires).toISOString()
+    });
+
+    // Return reset token (frontend will use this for password reset)
+    res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully',
+      data: {
+        resetToken,
+        expiresAt: seller.resetPasswordExpires
+      }
+    });
+
+  } catch (error) {
+    console.error('🟡 [SELLER-VERIFY-FORGOT-PASSWORD-OTP] ERROR:', {
+      error: error.message,
+      stack: error.stack
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify OTP',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Verify Reset Token (DEPRECATED - Use OTP flow instead)
 exports.verifyResetToken = async (req, res) => {
   try {
     const { token } = req.params;
@@ -511,60 +962,79 @@ exports.verifyResetToken = async (req, res) => {
   }
 };
 
-// Reset Password
+// Reset Password (uses reset token from OTP verification)
+// @desc    Reset password using token from OTP verification
+// @route   PUT /api/sellers/reset-password/:resetToken
+// @access  Public
 exports.resetPassword = async (req, res) => {
   try {
-    const { token, password } = req.body;
-    
-    console.log('🔄 [ResetPassword] Password reset attempt:', {
-      tokenLength: token?.length || 0,
+    const { resetToken } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters'
+      });
+    }
+
+    console.log('🔄 [SELLER-RESET-PASSWORD] START:', {
+      tokenLength: resetToken?.length || 0,
       passwordLength: password?.length || 0
     });
-    
+
+    // Hash the token to compare with stored hash (similar to User model)
+    const crypto = require('crypto');
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
+
     // Find seller by reset token and check if token is not expired
     const seller = await Seller.findOne({
-      resetPasswordToken: token,
+      resetPasswordToken: hashedToken,
       resetPasswordExpires: { $gt: Date.now() }
     });
-    
+
     if (!seller) {
-      console.log('❌ [ResetPassword] Invalid or expired token:', { token });
+      console.log('❌ [SELLER-RESET-PASSWORD] Invalid or expired token');
       return res.status(400).json({
         success: false,
         message: 'Password reset token is invalid or has expired'
       });
     }
-    
-    console.log('✅ [ResetPassword] Seller found:', {
+
+    console.log('✅ [SELLER-RESET-PASSWORD] Seller found:', {
       sellerId: seller._id,
       sellerName: seller.firstName,
-      currentPasswordLength: seller.password?.length || 0
+      email: seller.email
     });
-    
-    // 🎯 FIX: Use markModified to ensure pre-save middleware triggers
+
+    // Update password (will be hashed by pre-save middleware)
     seller.password = password;
     seller.markModified('password');
-    
+
     // Clear reset token fields
     seller.resetPasswordToken = undefined;
     seller.resetPasswordExpires = undefined;
-    
+
     await seller.save();
-    
-    console.log('✅ [ResetPassword] Password reset successful:', {
+
+    console.log('✅ [SELLER-RESET-PASSWORD] SUCCESS:', {
       sellerId: seller._id,
-      newPasswordLength: seller.password?.length || 0
+      email: seller.email
     });
-    
+
     return res.status(200).json({
       success: true,
       message: 'Password has been reset successfully'
     });
   } catch (error) {
-    console.error('❌ [ResetPassword] Error:', error);
+    console.error('❌ [SELLER-RESET-PASSWORD] ERROR:', error);
     return res.status(500).json({
       success: false,
-      message: 'Error resetting password'
+      message: 'Error resetting password',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

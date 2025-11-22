@@ -9,7 +9,10 @@ const {
   getSellerProfile,
   updateSellerProfile,
   uploadShopImages,
+  sendSignupOTP,
+  verifySignupOTPAndRegister,
   forgotPassword,
+  verifyForgotPasswordOTP,
   verifyResetToken,
   resetPassword,
   resetPasswordDirect,
@@ -23,7 +26,33 @@ const {
 const { debugPasswordIssues, testPasswordComparison } = require('../utils/passwordDebug');
 const Seller = require('../models/Seller');
 
-// Register a seller
+// 🔧 NEW: Send OTP for seller signup
+// @desc    Send OTP to phone number for seller signup verification
+// @route   POST /api/sellers/send-signup-otp
+// @access  Public
+router.post('/send-signup-otp', [
+  body('firstName').notEmpty().withMessage('First name is required'),
+  body('email').isEmail().withMessage('Please enter a valid email'),
+  body('mobileNumber').notEmpty().withMessage('Mobile number is required')
+], sendSignupOTP);
+
+// 🔧 NEW: Verify signup OTP and register seller
+// @desc    Verify OTP and create seller account
+// @route   POST /api/sellers/verify-signup-otp
+// @access  Public
+router.post('/verify-signup-otp', [
+  body('firstName').notEmpty().withMessage('First name is required'),
+  body('email').isEmail().withMessage('Please enter a valid email'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('mobileNumber').notEmpty().withMessage('Mobile number is required'),
+  body('otp').isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits'),
+  body('shop.name').notEmpty().withMessage('Shop name is required'),
+  body('shop.address').notEmpty().withMessage('Shop address is required'),
+  body('shop.phoneNumber.main').notEmpty().withMessage('Shop phone number is required'),
+  body('shop.category').notEmpty().withMessage('Shop category is required')
+], verifySignupOTPAndRegister);
+
+// Register a seller (DEPRECATED - Use OTP flow instead)
 router.post(
   '/register',
   [
@@ -55,8 +84,29 @@ router.get('/profile', protectSeller, getSellerProfile);
 // Update seller profile
 router.put('/profile', protectSeller, updateSellerProfile);
 
-// Password reset routes
+// 🔧 NEW: Password reset routes with OTP (uses LOGIN_TEMPLATE_ID)
+// @desc    Request password reset - sends OTP to seller's phone
+// @route   POST /api/sellers/forgot-password
+// @access  Public
 router.post('/forgot-password', forgotPassword);
+
+// 🔧 NEW: Verify OTP for password reset
+// @desc    Verify OTP sent for password reset
+// @route   POST /api/sellers/verify-forgot-password-otp
+// @access  Public
+router.post('/verify-forgot-password-otp', [
+  body('otp').isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits')
+], verifyForgotPasswordOTP);
+
+// Reset password using token from OTP verification
+// @desc    Reset password using token from OTP verification
+// @route   PUT /api/sellers/reset-password/:resetToken
+// @access  Public
+router.put('/reset-password/:resetToken', [
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+], resetPassword);
+
+// Legacy routes (DEPRECATED)
 router.get('/reset-password/:token', verifyResetToken);
 router.post('/reset-password', resetPassword);
 
