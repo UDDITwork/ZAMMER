@@ -57,18 +57,21 @@ const generateToken = (id) => {
 // @access  Public
 const sendSignupOTP = async (req, res) => {
   try {
-    const { name, email, mobileNumber } = req.body;
-
-    if (!name || !email || !mobileNumber) {
+    // Check validation errors from express-validator
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        message: 'Name, email, and mobile number are required'
+        message: 'Validation failed',
+        errors: errors.array()
       });
     }
 
+    const { name, email, mobileNumber } = req.body;
+
     logUser('SEND_SIGNUP_OTP_START', {
       name,
-      email: email.toLowerCase(),
+      email: email?.toLowerCase(),
       mobileNumber
     }, 'auth');
 
@@ -137,8 +140,18 @@ const sendSignupOTP = async (req, res) => {
     } catch (otpError) {
       logUser('SEND_SIGNUP_OTP_ERROR', {
         email,
-        error: otpError.message
+        error: otpError.message,
+        stack: otpError.stack
       }, 'error');
+
+      // Check if it's a template ID configuration error
+      if (otpError.message && otpError.message.includes('template ID not configured')) {
+        return res.status(500).json({
+          success: false,
+          message: 'OTP service configuration error. Please contact support.',
+          error: process.env.NODE_ENV === 'development' ? otpError.message : undefined
+        });
+      }
 
       return res.status(500).json({
         success: false,

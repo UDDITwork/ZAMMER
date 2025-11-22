@@ -219,6 +219,27 @@ class MSG91Service {
     }, payload);
 
     if (result.success) {
+      // 🎯 FIX: Double-check response body for success indicators
+      // MSG91 success responses typically have "type": "success" or contain "request_id"
+      const response = result.response || {};
+      const hasSuccessIndicator = response.type === 'success' || response.request_id || response.message?.toLowerCase().includes('success');
+      const hasErrorIndicator = response.type === 'error' || (response.message && (
+        response.message.toLowerCase().includes('error') ||
+        response.message.toLowerCase().includes('invalid') ||
+        response.message.toLowerCase().includes('missing') ||
+        response.message.toLowerCase().includes('failed')
+      ));
+
+      if (hasErrorIndicator || !hasSuccessIndicator) {
+        // Treat as error even though HTTP status was 200
+        terminalLog('MSG91_SEND_OTP_ERROR', 'ERROR', {
+          response: response,
+          error: response.message || 'Unknown MSG91 error',
+          errorType: response.type || 'unknown'
+        });
+        return { success: false, error: response.message || 'MSG91 returned an error', otpCode };
+      }
+
       terminalLog('MSG91_SEND_OTP_SUCCESS', 'SUCCESS', result.response);
       
       // 🔧 CRITICAL FIX: Store OTP in session for authentication purposes (signup/login/forgot_password)
@@ -242,7 +263,7 @@ class MSG91Service {
     }
 
     terminalLog('MSG91_SEND_OTP_ERROR', 'ERROR', result, result.errorDetails);
-    return { success: false, error: result.error, otpCode };
+    return { success: false, error: result.error || 'MSG91 request failed', otpCode };
   }
 
   // 🎯 NEW: Send OTP for Signup
@@ -634,15 +655,32 @@ class MSG91Service {
             parsedBody = { raw: responseBody };
           }
 
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            resolve({ success: true, response: parsedBody });
-          } else {
+          // 🎯 FIX: Check both HTTP status code AND response body for errors
+          // MSG91 sometimes returns 200 status with error in response body
+          const hasHttpError = res.statusCode < 200 || res.statusCode >= 300;
+          const hasResponseError = parsedBody && (
+            parsedBody.type === 'error' ||
+            (parsedBody.message && (
+              parsedBody.message.toLowerCase().includes('error') ||
+              parsedBody.message.toLowerCase().includes('invalid') ||
+              parsedBody.message.toLowerCase().includes('missing') ||
+              parsedBody.message.toLowerCase().includes('failed')
+            ))
+          );
+
+          if (hasHttpError || hasResponseError) {
+            const errorMessage = parsedBody?.message || 'MSG91 request failed';
+            const errorType = parsedBody?.type || 'unknown';
+            
             resolve({
               success: false,
-              error: parsedBody?.message || 'MSG91 request failed',
+              error: errorMessage,
+              errorType: errorType,
               errorDetails: parsedBody,
               statusCode: res.statusCode
             });
+          } else {
+            resolve({ success: true, response: parsedBody });
           }
         });
       });
