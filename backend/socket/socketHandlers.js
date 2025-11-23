@@ -626,6 +626,20 @@ const setupSocketHandlers = (io) => {
           return;
         }
 
+        // 🎯 NEW: Check if delivery agent has reached buyer location
+        // If agent has reached buyer location, buyer cannot cancel the order
+        const hasReachedBuyerLocation = 
+          order.deliveryAgent?.status === 'location_reached' ||
+          order.delivery?.locationReachedAt ||
+          order.deliveryAgent?.locationReachedAt;
+
+        if (hasReachedBuyerLocation) {
+          socket.emit('error', { 
+            message: 'Cannot cancel order. Delivery agent has already reached your location. Please contact support if you need assistance.' 
+          });
+          return;
+        }
+
         const previousStatus = order.status;
         
         // Update order status
@@ -678,6 +692,20 @@ const setupSocketHandlers = (io) => {
         };
 
         global.emitToSeller(order.seller._id, 'order-cancelled-by-buyer', cancellationData);
+
+        // 🎯 NEW: Notify admin about order cancellation
+        global.emitToAdmin('order-cancelled-by-buyer', {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: 'Cancelled',
+          previousStatus: previousStatus,
+          user: order.user,
+          seller: order.seller,
+          reason: reason || 'No reason provided',
+          cancelledAt: new Date().toISOString(),
+          cancellationDetails: order.cancellationDetails,
+          cancelledBy: 'buyer'
+        });
 
       } catch (error) {
         logSocketOperation('BuyerCancelOrder', {

@@ -240,11 +240,37 @@ const MyOrdersPage = () => {
     }
   }, [userAuth.isAuthenticated, navigate]);
 
+  // 🎯 NEW: Check if order can be cancelled
+  const canCancelOrder = (order) => {
+    // Check order status
+    if (!['Pending', 'Processing'].includes(order.status)) {
+      return false;
+    }
+    
+    // 🎯 NEW: Check if delivery agent has reached buyer location
+    // If agent has reached buyer location, buyer cannot cancel
+    const hasReachedBuyerLocation = 
+      order.deliveryAgent?.status === 'location_reached' ||
+      order.delivery?.locationReachedAt ||
+      order.deliveryAgent?.locationReachedAt;
+    
+    if (hasReachedBuyerLocation) {
+      return false;
+    }
+    
+    return true;
+  };
+
   // 🎯 NEW: Handle order cancellation by buyer
   const handleCancelOrder = (order) => {
     // Check if order can be cancelled
-    if (!['Pending', 'Processing'].includes(order.status)) {
-      toast.error(`Cannot cancel order with status: ${order.status}`);
+    if (!canCancelOrder(order)) {
+      // Check specific reason
+      if (!['Pending', 'Processing'].includes(order.status)) {
+        toast.error(`Cannot cancel order with status: ${order.status}`);
+      } else {
+        toast.error('Cannot cancel order. Delivery agent has already reached your location. Please contact support if you need assistance.');
+      }
       return;
     }
     
@@ -657,7 +683,7 @@ const MyOrdersPage = () => {
                         </button>
                         
                         {/* 🎯 PREMIUM: Cancel order button */}
-                        {['Pending', 'Processing'].includes(order.status) && (
+                        {canCancelOrder(order) && (
                           <button
                             onClick={() => handleCancelOrder(order)}
                             className="bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold flex items-center justify-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
