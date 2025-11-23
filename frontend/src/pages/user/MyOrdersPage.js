@@ -91,13 +91,13 @@ const MyOrdersPage = () => {
         });
 
         // 🎯 NEW: Listen for order cancellation confirmations
+        // This is a persistent listener for real-time updates
+        // The one-time listener in confirmCancelOrder handles immediate responses with proper cleanup
         socketService.socket?.on('order-cancelled', (data) => {
-          console.log('❌ Order cancellation confirmed:', data);
-          toast.success(`Order ${data.orderNumber} cancelled successfully`);
+          console.log('❌ Order cancellation confirmed (persistent listener):', data);
+          // Always refresh orders to get latest status
+          // The one-time listener will handle the immediate UI updates
           fetchOrders();
-          setShowCancelModal(false);
-          setCancellingOrder(null);
-          setCancelReason(''); // Reset cancel reason
         });
 
         // 🎯 FIX: Listen for socket errors during cancellation
@@ -116,8 +116,7 @@ const MyOrdersPage = () => {
         return () => {
           clearInterval(connectionInterval);
           socketService.removeListener('order-status-update');
-          socketService.socket?.off('order-cancelled');
-          socketService.socket?.off('error');
+          // Note: order-cancelled and error listeners are handled per-request in confirmCancelOrder
         };
       }
     }
