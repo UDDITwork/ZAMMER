@@ -7,6 +7,25 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
+
+// 🎯 HELPER: Format QR code as base64 data URL for image display (EXACT MATCH with AssignedOrders.js)
+const formatQRCodeAsDataURL = (qrCode) => {
+  if (!qrCode) return null;
+  
+  // If already a data URL, return as is
+  if (qrCode.startsWith('data:image')) {
+    return qrCode;
+  }
+  
+  // If it's a base64 string, format it as a data URL
+  // SMEPay typically returns PNG format QR codes
+  if (qrCode.startsWith('/9j/') || qrCode.match(/^[A-Za-z0-9+/=]+$/)) {
+    return `data:image/png;base64,${qrCode}`;
+  }
+  
+  // Return as is if format is unknown
+  return qrCode;
+};
 import { 
   FiPackage, 
   FiMapPin, 
@@ -58,6 +77,11 @@ const DeliveryDashboard = () => {
     qr: false
   });
   const [flowModalLoading, setFlowModalLoading] = useState(false);
+  // 🎯 EXACT MATCH: Payment status tracking (like AssignedOrders.js)
+  const [flowPaymentCompleted, setFlowPaymentCompleted] = useState(false);
+  const [flowPaymentStatus, setFlowPaymentStatus] = useState(null); // 'pending', 'completed', 'failed'
+  const [flowPaymentPolling, setFlowPaymentPolling] = useState(null);
+  const [flowPaymentId, setFlowPaymentId] = useState(null);
   const mergeActiveOrderFlow = useCallback((orderId, updater) => {
     setActiveOrderFlow(prev => {
       if (!prev || prev._id !== orderId) return prev;
@@ -102,6 +126,77 @@ const DeliveryDashboard = () => {
 
   // API Base URL
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+
+  // 🎯 EXACT MATCH: Socket.io listener for payment completion (like AssignedOrders.js lines 78-205)
+  useEffect(() => {
+    if (!deliveryAgentAuth.isAuthenticated || !deliveryAgentAuth.deliveryAgent) return;
+
+    const initializeSocket = () => {
+      try {
+        const socketConnection = window.io();
+        
+        socketConnection.on('connect', () => {
+          console.log('🚚 [DELIVERY-DASHBOARD] Socket connected for delivery agent');
+          const deliveryAgentId = deliveryAgentAuth.deliveryAgent?._id || localStorage.getItem('deliveryAgentId');
+          if (deliveryAgentId) {
+            socketConnection.emit('delivery-agent-join', deliveryAgentId);
+          }
+        });
+
+        // 🎯 CRITICAL: Listen for payment completion events (exactly like AssignedOrders.js)
+        socketConnection.on('payment-completed', (data) => {
+          console.log('💳 [DELIVERY-DASHBOARD] Payment completed event received:', data);
+          
+          // Update payment status if this order is currently active in flow
+          if (activeOrderFlow && data.data && data.data._id === activeOrderFlow._id) {
+            console.log('✅ [DELIVERY-DASHBOARD] Updating payment status in real-time');
+            
+            // Update order flow state
+            setActiveOrderFlow(prevOrder => ({
+              ...prevOrder,
+              isPaid: true,
+              paymentStatus: 'completed',
+              status: data.data.status || prevOrder.status
+            }));
+            
+            // 🎯 CRITICAL: Clear QR code and mark payment as completed
+            setFlowPaymentData(prev => ({
+              ...(prev || {}),
+              qrCode: null // Hide QR code after payment
+            }));
+            setFlowPaymentCompleted(true);
+            setFlowPaymentStatus('completed');
+            
+            // Stop polling
+            stopFlowPaymentPolling();
+            
+            toast.success('Payment completed! Please enter OTP from buyer to complete delivery.');
+          }
+        });
+
+        socketConnection.on('disconnect', () => {
+          console.log('🚚 [DELIVERY-DASHBOARD] Socket disconnected');
+        });
+
+        socketConnection.on('error', (error) => {
+          console.error('🚚 [DELIVERY-DASHBOARD] Socket error:', error);
+        });
+
+        return socketConnection;
+      } catch (error) {
+        console.error('🚚 [DELIVERY-DASHBOARD] Error initializing socket:', error);
+        return null;
+      }
+    };
+
+    const socket = initializeSocket();
+
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, [deliveryAgentAuth.isAuthenticated, deliveryAgentAuth.deliveryAgent, activeOrderFlow?._id]);
 
   // Get auth headers
   const getAuthHeaders = useCallback(() => {
@@ -1094,58 +1189,261 @@ const DeliveryDashboard = () => {
     );
 
     if (responseData?.paymentData) {
-      setFlowPaymentData(responseData.paymentData);
+      // 🎯 EXACT MATCH: Format QR code if present (like AssignedOrders.js)
+      const paymentData = responseData.paymentData;
+      if (paymentData.qrCode) {
+        paymentData.qrCode = formatQRCodeAsDataURL(paymentData.qrCode);
+      }
+      setFlowPaymentData(paymentData);
+      
+      // 🎯 EXACT MATCH: Start polling if QR code is present (like AssignedOrders.js)
+      if (paymentData.qrCode && paymentData.paymentId) {
+        startFlowPaymentPolling(activeOrderFlow._id, paymentData.paymentId);
+      }
     }
 
     setFlowProcessing(prev => ({ ...prev, reachBuyer: false }));
   };
 
-  const handleFlowRegenerateQr = async () => {
+  // 🎯 EXACT MATCH: Handle COD payment type selection (like AssignedOrders.js handleCODPaymentType)
+  const handleFlowCODPaymentType = async (paymentType) => {
     if (!activeOrderFlow) return;
-
-    if (activeOrderFlow.deliveryAgent?.status !== 'location_reached') {
-      toast.error('Reach the buyer location before generating a payment QR.');
+    
+    // 🎯 VALIDATION: COD orders are those that are NOT prepaid (isPaid === false)
+    const isCOD = !activeOrderFlow.isPaid;
+    
+    if (!isCOD) {
+      toast.error('QR code generation is only available for COD orders (unpaid orders)');
       return;
     }
-
-    setFlowProcessing(prev => ({ ...prev, qr: true }));
-    try {
-      const qrResponse = await paymentService.generatePaymentQR(activeOrderFlow._id);
-
-      if (qrResponse?.success) {
-        const qrData = qrResponse?.data?.data || qrResponse?.data || {};
+    
+    if (paymentType === 'qr' && !flowPaymentData?.qrCode) {
+      // Generate QR code via API (EXACT MATCH with AssignedOrders.js)
+      try {
+        setFlowProcessing(prev => ({ ...prev, qr: true }));
         
-        // 🎯 CRITICAL FIX: Format QR code as base64 data URL for image display
-        const formatQRCodeAsDataURL = (qrCode) => {
-          if (!qrCode) return '';
-          if (qrCode.startsWith('data:image')) return qrCode;
-          if (qrCode.startsWith('/9j/') || qrCode.match(/^[A-Za-z0-9+/=]+$/)) {
-            return `data:image/png;base64,${qrCode}`;
+        const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
+        const response = await fetch(`${API_BASE_URL}/delivery/orders/${activeOrderFlow._id}/generate-qr`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
-          return qrCode;
-        };
+        });
+
+        // 🎯 ERROR HANDLING: Check if response is JSON before parsing
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          throw new Error(`Invalid response format: ${text.substring(0, 100)}`);
+        }
+
+        const data = await response.json();
         
-        setFlowPaymentData(prev => ({
-          ...(prev || {}),
-          type: 'COD',
-          qrCode: formatQRCodeAsDataURL(qrData.qrCode || prev?.qrCode || ''),
-          amount: qrData.amount || prev?.amount || activeOrderFlow.totalPrice,
-          upiLinks: qrData.upiLinks || prev?.upiLinks || []
-        }));
-        toast.success('QR code generated successfully');
-      } else {
-        toast.error(qrResponse?.message || 'Failed to generate QR code');
+        // 🎯 ERROR HANDLING: Check HTTP status
+        if (!response.ok) {
+          throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        if (data.success) {
+          // 🎯 CRITICAL FIX: Format QR code as base64 data URL for image display
+          const formattedQRCode = formatQRCodeAsDataURL(data.data.qrCode);
+          
+          setFlowPaymentData(prev => ({
+            ...(prev || {}),
+            type: 'COD',
+            qrCode: formattedQRCode,
+            amount: data.data.amount || activeOrderFlow.totalPrice,
+            paymentId: data.data.paymentId
+          }));
+          setFlowPaymentId(data.data.paymentId);
+          setFlowPaymentStatus('pending');
+          toast.success('QR code generated successfully');
+          
+          // 🎯 EXACT MATCH: Start payment status polling immediately (like AssignedOrders.js)
+          startFlowPaymentPolling(activeOrderFlow._id, data.data.paymentId);
+        } else {
+          toast.error(data.message || 'Failed to generate QR code');
+        }
+      } catch (error) {
+        console.error('Error generating QR:', error);
+        toast.error('Failed to generate QR code. Please try again.');
+      } finally {
+        setFlowProcessing(prev => ({ ...prev, qr: false }));
       }
-    } catch (error) {
-      console.error('❌ QR code generation failed:', error);
-      toast.error('Failed to generate QR code');
-    } finally {
-      setFlowProcessing(prev => ({ ...prev, qr: false }));
+    } else {
+      // For cash payment, just set the type
+      setFlowPaymentData(prev => ({
+        ...(prev || {}),
+        type: 'COD',
+        method: paymentType
+      }));
     }
   };
 
-  const handleFlowCollectCash = async (method = 'cash') => {
-    if (!activeOrderFlow) return;
+  // 🎯 EXACT MATCH: Start payment status polling (like AssignedOrders.js startPaymentPolling)
+  const startFlowPaymentPolling = (orderId, paymentId) => {
+    // Clear any existing polling
+    if (flowPaymentPolling) {
+      clearInterval(flowPaymentPolling);
+    }
+
+    let pollAttempts = 0;
+    const MAX_POLL_ATTEMPTS = 120; // 5 minutes max (120 * 2.5 seconds = 300 seconds)
+    
+    const pollInterval = setInterval(async () => {
+      pollAttempts++;
+      
+      // 🎯 STOP POLLING: Maximum attempts reached
+      if (pollAttempts > MAX_POLL_ATTEMPTS) {
+        clearInterval(pollInterval);
+        setFlowPaymentPolling(null);
+        setFlowPaymentStatus('timeout');
+        toast.warning('Payment status check timeout. Please refresh or try again.');
+        return;
+      }
+      
+      try {
+        const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
+        const response = await fetch(`${API_BASE_URL}/delivery/orders/${orderId}/check-payment-status`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        // 🎯 ERROR HANDLING: Check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error('Invalid response format from server');
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          // 🎯 HANDLE AUTO-GENERATED QR: If backend auto-generated QR, update frontend state
+          if (data.data.qrAutoGenerated && data.data.qrCode) {
+            // 🎯 CRITICAL FIX: Format QR code as base64 data URL for image display
+            const formattedQRCode = formatQRCodeAsDataURL(data.data.qrCode);
+            
+            setFlowPaymentData(prev => ({
+              ...(prev || {}),
+              type: 'COD',
+              qrCode: formattedQRCode,
+              paymentId: data.data.paymentId
+            }));
+            setFlowPaymentId(data.data.paymentId);
+            setFlowPaymentStatus('pending');
+            toast.info('QR code has been generated. Please scan to make payment.');
+          }
+          
+          const isPaymentCompleted = data.data.isPaymentCompleted || data.data.isPaymentSuccessful;
+          
+          if (isPaymentCompleted) {
+            // Payment completed - stop polling
+            clearInterval(pollInterval);
+            setFlowPaymentPolling(null);
+            setFlowPaymentCompleted(true);
+            setFlowPaymentStatus('completed');
+            
+            // 🎯 CRITICAL: Clear QR code from form when payment is completed
+            setFlowPaymentData(prev => ({
+              ...(prev || {}),
+              qrCode: null // Hide QR code after payment
+            }));
+            
+            if (data.data.otpGenerated) {
+              toast.success('Payment completed! OTP has been sent to buyer.');
+            } else {
+              toast.success('Payment completed! QR code payment successful.');
+            }
+          } else {
+            // Still pending - continue polling
+            setFlowPaymentStatus('pending');
+          }
+        } else {
+          // API returned error - stop polling to prevent infinite attempts
+          console.error('Payment status check failed:', data.message);
+          if (pollAttempts >= 5) {
+            clearInterval(pollInterval);
+            setFlowPaymentPolling(null);
+            toast.error(data.message || 'Failed to check payment status');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking payment status:', error);
+        // Stop polling after multiple consecutive errors
+        if (pollAttempts >= 10) {
+          clearInterval(pollInterval);
+          setFlowPaymentPolling(null);
+          toast.error('Failed to check payment status. Please try again.');
+        }
+        // Continue polling for first few errors (network issues might be temporary)
+      }
+    }, 2500); // Poll every 2.5 seconds
+
+    setFlowPaymentPolling(pollInterval);
+  };
+
+  // 🎯 EXACT MATCH: Stop payment polling (like AssignedOrders.js stopPaymentPolling)
+  const stopFlowPaymentPolling = () => {
+    if (flowPaymentPolling) {
+      clearInterval(flowPaymentPolling);
+      setFlowPaymentPolling(null);
+    }
+  };
+
+  // 🎯 EXACT MATCH: Cleanup polling on unmount (like AssignedOrders.js)
+  useEffect(() => {
+    return () => {
+      stopFlowPaymentPolling();
+    };
+  }, []); // Empty dependency array - cleanup only on unmount
+
+  // 🎯 EXACT MATCH: Cleanup polling when modal closes
+  useEffect(() => {
+    if (!showOrderFlowModal) {
+      stopFlowPaymentPolling();
+      setFlowPaymentCompleted(false);
+      setFlowPaymentStatus(null);
+      setFlowPaymentId(null);
+    }
+  }, [showOrderFlowModal]);
+
+  const handleFlowRegenerateQr = async () => {
+    // 🎯 EXACT MATCH: Use same function as payment type selection
+    await handleFlowCODPaymentType('qr');
+  };
+
+  // 🎯 EXACT MATCH: Handle delivery completion (like AssignedOrders.js handleDeliveryComplete)
+  const handleFlowCompleteDelivery = async () => {
+    if (!activeOrderFlow) {
+      toast.error('No order selected');
+      return;
+    }
+
+    // Validate based on payment type
+    const isCOD = !activeOrderFlow.isPaid;
+    
+    if (isCOD) {
+      // For COD orders, check if payment method is selected
+      if (!flowPaymentData?.method && !flowPaymentData?.qrCode) {
+        toast.error('Please select payment method (QR Code or Cash)');
+        return;
+      }
+      // For COD QR payments, check if payment is completed and OTP is required
+      if (flowPaymentData?.qrCode && flowPaymentCompleted && !flowBuyerOTP?.trim()) {
+        toast.error('Please enter OTP from buyer to complete delivery');
+        return;
+      }
+    } else {
+      // For prepaid orders, OTP is required
+      if (!flowBuyerOTP?.trim()) {
+        toast.error('Please enter OTP from customer');
+        return;
+      }
+    }
 
     // 🎯 FIX: Check pickup.isCompleted flag explicitly before allowing delivery
     const pickupCompleted = Boolean(activeOrderFlow.pickup?.isCompleted);
@@ -1160,49 +1458,71 @@ const DeliveryDashboard = () => {
     }
 
     setFlowProcessing(prev => ({ ...prev, delivery: true }));
-    const success = await completeDeliveryFlow(activeOrderFlow, {
-      notes: flowBuyerNotes,
-      codPayment: {
-        amount: activeOrderFlow.totalPrice,
-        method
+    
+    try {
+      const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
+      
+      const requestBody = {
+        deliveryNotes: flowBuyerNotes,
+      };
+
+      // Add OTP for prepaid orders or COD QR payments
+      if (!isCOD) {
+        requestBody.otp = flowBuyerOTP;
+      } else {
+        // For COD, include payment confirmation
+        requestBody.codPayment = {
+          method: flowPaymentData?.qrCode ? 'qr' : 'cash',
+          collected: true
+        };
+        
+        // For COD QR payments, include OTP if payment completed
+        if (flowPaymentData?.qrCode && flowPaymentCompleted && flowBuyerOTP) {
+          requestBody.otp = flowBuyerOTP;
+        }
       }
-    });
+      
+      const response = await fetch(`${API_BASE_URL}/delivery/orders/${activeOrderFlow._id}/deliver`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
 
-    if (success) {
-      closeOrderFlowModal();
-    } else {
+      const data = await response.json();
+
+      if (data.success) {
+        // Stop polling
+        stopFlowPaymentPolling();
+        toast.success('Delivery completed successfully!');
+        closeOrderFlowModal();
+        // Refresh orders
+        fetchAssignedOrders();
+      } else {
+        toast.error(data.message || 'Failed to complete delivery');
+      }
+    } catch (error) {
+      console.error('Error completing delivery:', error);
+      toast.error('Failed to complete delivery. Please try again.');
+    } finally {
       setFlowProcessing(prev => ({ ...prev, delivery: false }));
     }
   };
 
-  const handleFlowVerifyOtp = async () => {
-    if (!activeOrderFlow) return;
-
-    // 🎯 FIX: Check pickup.isCompleted flag explicitly before allowing delivery
-    const pickupCompleted = Boolean(activeOrderFlow.pickup?.isCompleted);
-    if (!pickupCompleted) {
-      toast.error('Pickup verification not completed. Please complete pickup first by entering the Order ID.');
-      return;
-    }
-
-    if (activeOrderFlow.deliveryAgent?.status !== 'location_reached') {
-      toast.error('Reach the buyer location before entering OTP.');
-      return;
-    }
-
-    setFlowProcessing(prev => ({ ...prev, delivery: true }));
-    const success = await completeDeliveryFlow(activeOrderFlow, {
-      otpValue: flowBuyerOTP,
-      notes: flowBuyerNotes
-    });
-
-    if (success) {
-      setFlowBuyerOTP('');
-      closeOrderFlowModal();
-    } else {
-      setFlowProcessing(prev => ({ ...prev, delivery: false }));
-    }
+  const handleFlowCollectCash = async (method = 'cash') => {
+    // 🎯 EXACT MATCH: Set payment method and proceed (like AssignedOrders.js)
+    setFlowPaymentData(prev => ({
+      ...(prev || {}),
+      type: 'COD',
+      method: method
+    }));
+    // Note: Don't complete delivery here - user should click "Complete Delivery" button
+    toast.info('Payment method selected. Click "Complete Delivery" to finish.');
   };
+
+  // 🎯 REMOVED: handleFlowVerifyOtp - Now using handleFlowCompleteDelivery for all cases (EXACT MATCH with AssignedOrders.js)
 
   // Get next action for order
   const getNextAction = (order) => {
@@ -1783,7 +2103,7 @@ const DeliveryDashboard = () => {
               <div>
                 <h2 className="text-lg font-medium text-gray-900">📋 My Assigned Orders</h2>
                 <p className="text-xs text-gray-500 mt-1">
-                  This is your live Orders-in-Transit queue. Tap any order card to open the delivery flow modal.
+                  Orders you have accepted. Tap any order card to open the delivery flow modal.
                 </p>
               </div>
               <div className="flex items-center space-x-3">
@@ -1833,92 +2153,37 @@ const DeliveryDashboard = () => {
                     </div>
                   )}
                   
-                  {/* 🎯 NEW: Latest 2 Accepted Orders Section */}
-                  {(() => {
-                    // Sort orders: newest accepted first, then by assignedAt
-                    const sortedOrders = [...assignedOrders].sort((a, b) => {
-                      // Prioritize accepted orders
+                  {/* 🎯 SIMPLIFIED: Show all assigned orders together (no separate sections) */}
+                  {assignedOrders
+                    .sort((a, b) => {
+                      // Sort by acceptedAt (newest first), fallback to assignedAt
                       const aAccepted = a.acceptedAt ? new Date(a.acceptedAt).getTime() : 0;
                       const bAccepted = b.acceptedAt ? new Date(b.acceptedAt).getTime() : 0;
                       
-                      // If both are accepted, sort by acceptedAt (newest first)
                       if (aAccepted && bAccepted) {
                         return bAccepted - aAccepted;
                       }
                       
-                      // If only one is accepted, prioritize it
-                      if (aAccepted && !bAccepted) return -1;
-                      if (!aAccepted && bAccepted) return 1;
-                      
-                      // If neither is accepted, sort by assignedAt (newest first)
                       const aAssigned = a.assignedAt ? new Date(a.assignedAt).getTime() : 0;
                       const bAssigned = b.assignedAt ? new Date(b.assignedAt).getTime() : 0;
                       return bAssigned - aAssigned;
-                    });
-                    
-                    // Get latest 2 accepted orders
-                    const latestAcceptedOrders = sortedOrders
-                      .filter(order => order.deliveryStatus === 'accepted' || order.acceptedAt)
-                      .slice(0, 2);
-                    
-                    // Get remaining orders (excluding the 2 latest accepted)
-                    const remainingOrders = sortedOrders.filter(order => 
-                      !latestAcceptedOrders.some(latest => latest._id === order._id)
-                    );
-                    
-                    return (
-                      <>
-                        {/* Latest 2 Accepted Orders */}
-                        {latestAcceptedOrders.length > 0 && (
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="text-sm font-semibold text-gray-700">Latest Accepted Orders</h4>
-                              <span className="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded-full">
-                                {latestAcceptedOrders.length} {latestAcceptedOrders.length === 1 ? 'order' : 'orders'}
-                              </span>
-                            </div>
-                            {latestAcceptedOrders.map((order) => (
-                              <OrderCard
-                                key={order._id}
-                                order={order}
-                                isAssigned={true}
-                                onOpenFlow={openOrderFlowModal}
-                              />
-                            ))}
-                          </div>
-                        )}
-                        
-                        {/* Remaining Orders */}
-                        {remainingOrders.length > 0 && (
-                          <div className="space-y-3">
-                            {latestAcceptedOrders.length > 0 && (
-                              <div className="flex items-center justify-between mb-2 pt-2 border-t border-gray-200">
-                                <h4 className="text-sm font-semibold text-gray-700">Other Orders</h4>
-                                <span className="text-xs text-gray-500">
-                                  {remainingOrders.length} {remainingOrders.length === 1 ? 'order' : 'orders'}
-                                </span>
-                              </div>
-                            )}
-                            {remainingOrders.slice(0, latestAcceptedOrders.length > 0 ? 3 : 5).map((order) => (
-                              <OrderCard
-                                key={order._id}
-                                order={order}
-                                isAssigned={true}
-                                onOpenFlow={openOrderFlowModal}
-                              />
-                            ))}
-                            {remainingOrders.length > (latestAcceptedOrders.length > 0 ? 3 : 5) && (
-                              <div className="text-center pt-2">
-                                <Link to="/delivery/orders/assigned" className="text-sm text-blue-600 hover:text-blue-800">
-                                  +{remainingOrders.length - (latestAcceptedOrders.length > 0 ? 3 : 5)} more orders
-                                </Link>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
+                    })
+                    .slice(0, 5)
+                    .map((order) => (
+                      <OrderCard
+                        key={order._id}
+                        order={order}
+                        isAssigned={true}
+                        onOpenFlow={openOrderFlowModal}
+                      />
+                    ))}
+                  {assignedOrders.length > 5 && (
+                    <div className="text-center pt-2">
+                      <Link to="/delivery/orders/assigned" className="text-sm text-blue-600 hover:text-blue-800">
+                        +{assignedOrders.length - 5} more orders
+                      </Link>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-8">
@@ -2310,7 +2575,7 @@ const DeliveryDashboard = () => {
                     Phone: {buyerPhone || 'Not shared'} • Payment: {activeOrderFlow.paymentMethod || 'N/A'} • Status: {activeOrderFlow.deliveryAgent?.status || 'pending'}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
-                    Remember: this modal replaces the “Orders in Transit” screen. Complete each checkpoint sequentially.
+                    Complete each checkpoint sequentially to deliver the order.
                   </p>
                 </div>
                 <button
@@ -2327,7 +2592,7 @@ const DeliveryDashboard = () => {
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">1. Seller checkpoint</h3>
                       <p className="text-sm text-gray-500">
-                        Reach the seller, enter the order ID they verbally share, and move the parcel into transit.
+                        Reach the seller, enter the order ID they verbally share, and complete pickup.
                       </p>
                     </div>
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -2409,7 +2674,7 @@ const DeliveryDashboard = () => {
 
                   {pickupCompleted && (
                     <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 text-green-800 text-sm">
-                      ✅ Pickup verified. This order is now in the Assigned Orders lane. Proceed to the buyer section below.
+                        ✅ Pickup verified. Proceed to the buyer section below.
                     </div>
                   )}
                   </section>
@@ -2430,7 +2695,7 @@ const DeliveryDashboard = () => {
                           ? 'bg-blue-100 text-blue-800'
                           : 'bg-orange-100 text-orange-800'
                     }`}>
-                      {deliveryCompleted ? 'Delivered' : buyerLocationReached ? 'At Buyer Location' : 'In Transit'}
+                      {deliveryCompleted ? 'Delivered' : buyerLocationReached ? 'At Buyer Location' : 'En Route to Buyer'}
                     </span>
                   </div>
 
@@ -2474,51 +2739,120 @@ const DeliveryDashboard = () => {
                   {buyerLocationReached && !deliveryCompleted && (
                     <div className="mt-4 space-y-4">
                       {codOrder ? (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
-                          <p className="text-sm font-medium text-green-900">
-                            Payment mode was Cash on Delivery (COD). Collect payment via SME Pay QR or cash.
-                          </p>
-                          {flowPaymentData?.qrCode && (
-                            <div className="flex flex-col md:flex-row md:items-center gap-4">
-                              <img
-                                src={flowPaymentData.qrCode}
-                                alt="Payment QR code"
-                                className="w-40 h-40 object-contain border border-green-200 rounded-lg bg-white"
-                              />
-                              <div>
-                                <p className="text-sm text-green-800">
-                                  Amount: ₹{flowPaymentData.amount || activeOrderFlow.totalPrice}
-                                </p>
-                                <p className="text-xs text-green-700 mt-1">
-                                  Ask the buyer to scan the QR code via SME Pay. Once payment succeeds, confirm below.
-                                </p>
-                              </div>
+                        <>
+                          {/* 🎯 EXACT MATCH: Payment status indicator (like AssignedOrders.js lines 1390-1399) */}
+                          {flowPaymentStatus && (
+                            <div className={`p-3 rounded-md ${
+                              flowPaymentStatus === 'completed' 
+                                ? 'bg-green-50 border border-green-200' 
+                                : 'bg-yellow-50 border border-yellow-200'
+                            }`}>
+                              <p className={`text-sm ${
+                                flowPaymentStatus === 'completed' ? 'text-green-800' : 'text-yellow-800'
+                              }`}>
+                                {flowPaymentStatus === 'completed' 
+                                  ? '✅ Payment completed! Enter OTP from buyer.' 
+                                  : '⏳ Waiting for payment...'}
+                              </p>
                             </div>
                           )}
-                          <div className="flex flex-wrap gap-3">
-                            <button
-                              onClick={handleFlowRegenerateQr}
-                              disabled={flowProcessing.qr}
-                              className="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium text-green-900 bg-white border border-green-300 hover:bg-green-100 disabled:opacity-60"
-                            >
-                              {flowProcessing.qr ? 'Generating...' : 'Generate QR Code'}
-                            </button>
-                            <button
-                              onClick={() => handleFlowCollectCash('cash')}
-                              disabled={flowProcessing.delivery}
-                              className="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-60"
-                            >
-                              {flowProcessing.delivery ? 'Confirming...' : 'Collected in Cash'}
-                            </button>
-                            <button
-                              onClick={() => handleFlowCollectCash('upi')}
-                              disabled={flowProcessing.delivery}
-                              className="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium text-green-900 bg-green-100 hover:bg-green-200 disabled:opacity-60"
-                            >
-                              {flowProcessing.delivery ? 'Confirming...' : 'Payment completed via SME Pay'}
-                            </button>
+
+                          {/* 🎯 EXACT MATCH: Payment Method Selection (like AssignedOrders.js lines 1401-1457) */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Payment Method <span className="text-red-500">*</span>
+                            </label>
+                            <div className="space-y-2">
+                              <button
+                                onClick={() => handleFlowCODPaymentType('qr')}
+                                disabled={flowProcessing.qr || flowPaymentCompleted}
+                                className={`w-full border-2 rounded-md p-3 text-left transition-colors ${
+                                  flowPaymentData?.qrCode
+                                    ? 'border-orange-500 bg-orange-50'
+                                    : 'border-gray-300 hover:border-orange-300'
+                                } ${(flowProcessing.qr || flowPaymentCompleted) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              >
+                                <div className="flex items-center">
+                                  <input
+                                    type="radio"
+                                    checked={!!flowPaymentData?.qrCode}
+                                    onChange={() => handleFlowCODPaymentType('qr')}
+                                    disabled={flowProcessing.qr || flowPaymentCompleted}
+                                    className="mr-2"
+                                  />
+                                  <span className="font-medium">
+                                    {flowProcessing.qr 
+                                      ? 'Generating QR Code...' 
+                                      : 'Generate SMEPay QR Code'}
+                                  </span>
+                                </div>
+                                {flowPaymentData?.qrCode && !flowPaymentCompleted && (
+                                  <div className="mt-2 p-2 bg-white rounded border">
+                                    <img src={flowPaymentData.qrCode} alt="QR Code" className="w-32 h-32 mx-auto" />
+                                    <p className="text-xs text-center text-gray-600 mt-2">Scan this QR code to pay</p>
+                                  </div>
+                                )}
+                              </button>
+                              
+                              <button
+                                onClick={() => handleFlowCODPaymentType('cash')}
+                                disabled={flowPaymentCompleted}
+                                className={`w-full border-2 rounded-md p-3 text-left transition-colors ${
+                                  flowPaymentData?.method === 'cash'
+                                    ? 'border-orange-500 bg-orange-50'
+                                    : 'border-gray-300 hover:border-orange-300'
+                                } ${flowPaymentCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              >
+                                <div className="flex items-center">
+                                  <input
+                                    type="radio"
+                                    checked={flowPaymentData?.method === 'cash'}
+                                    onChange={() => handleFlowCODPaymentType('cash')}
+                                    disabled={flowPaymentCompleted}
+                                    className="mr-2"
+                                  />
+                                  <span className="font-medium">Payment Collected in Cash</span>
+                                </div>
+                              </button>
+                            </div>
                           </div>
-                        </div>
+
+                          {/* 🎯 EXACT MATCH: OTP Input after QR payment completion (like AssignedOrders.js lines 1508-1510) */}
+                          {flowPaymentCompleted && flowPaymentData?.qrCode && !flowBuyerOTP?.trim() && (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Enter OTP from Buyer <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={flowBuyerOTP}
+                                onChange={(e) => setFlowBuyerOTP(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                placeholder="Enter OTP from buyer"
+                                maxLength={6}
+                              />
+                              <p className="text-xs text-red-600 mt-1">Please enter OTP from buyer to complete delivery</p>
+                            </div>
+                          )}
+
+                          {/* 🎯 EXACT MATCH: Complete Delivery Button (like AssignedOrders.js lines 1500-1510) */}
+                          <div className="mt-4">
+                            <button
+                              onClick={handleFlowCompleteDelivery}
+                              disabled={flowProcessing.delivery || (flowPaymentData?.qrCode && flowPaymentCompleted && !flowBuyerOTP?.trim())}
+                              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white py-2 px-4 rounded-md font-medium transition-colors"
+                            >
+                              {flowProcessing.delivery 
+                                ? 'Processing...' 
+                                : (flowPaymentData?.qrCode && flowPaymentCompleted && !flowBuyerOTP?.trim())
+                                  ? 'Enter OTP First'
+                                  : 'Complete Delivery'}
+                            </button>
+                            {flowPaymentData?.qrCode && flowPaymentCompleted && !flowBuyerOTP?.trim() && (
+                              <p className="text-xs text-red-600 mt-1 text-center w-full">Please enter OTP from buyer to complete delivery</p>
+                            )}
+                          </div>
+                        </>
                       ) : (
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
                           <p className="text-sm font-medium text-blue-900">
@@ -2531,12 +2865,12 @@ const DeliveryDashboard = () => {
                             type="text"
                             value={flowBuyerOTP}
                             maxLength={6}
-                            onChange={(e) => setFlowBuyerOTP(e.target.value)}
+                            onChange={(e) => setFlowBuyerOTP(e.target.value.replace(/\D/g, '').slice(0, 6))}
                             className="w-full border border-blue-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="Enter OTP here"
                           />
                           <button
-                            onClick={handleFlowVerifyOtp}
+                            onClick={handleFlowCompleteDelivery}
                             disabled={flowProcessing.delivery || !flowBuyerOTP.trim()}
                             className="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
                           >
