@@ -541,25 +541,41 @@ class DeliveryService {
         
         // Transform to match component expectations
         // Backend format: { customer: { name, mobileNumber, email }, seller: { name, shopName }, delivery: { completedAt, notes, agentEarnings } }
-        const transformedHistory = history.map(order => ({
-          _id: order._id,
-          orderId: order.orderNumber || order._id,
-          status: order.status === 'Delivered' ? 'completed' : (order.status?.toLowerCase() || 'completed'),
-          deliveredAt: order.delivery?.completedAt || order.deliveredAt || order.createdAt,
-          deliveryFee: order.delivery?.agentEarnings || order.deliveryFees?.agentEarning || (typeof order.deliveryFees === 'number' ? order.deliveryFees : order.deliveryFees?.totalFee) || 0,
-          paymentMethod: order.paymentMethod === 'Cash on Delivery' ? 'cod' : 'prepaid',
-          customer: {
-            name: order.customer?.name || 'N/A',
-            phone: order.customer?.mobileNumber || 'N/A',
-            email: order.customer?.email || 'N/A'
-          },
-          seller: {
-            name: order.seller?.name || 'N/A',
-            shopName: order.seller?.shopName || 'N/A'
-          },
-          deliveryNotes: order.delivery?.notes || '',
-          rating: order.rating || null
-        }));
+        const transformedHistory = history.map(order => {
+          // Handle deliveryFees - can be object or number
+          let deliveryFee = 0;
+          if (order.delivery?.agentEarnings) {
+            deliveryFee = order.delivery.agentEarnings;
+          } else if (order.deliveryFees) {
+            if (typeof order.deliveryFees === 'number') {
+              deliveryFee = order.deliveryFees;
+            } else if (order.deliveryFees.agentEarning) {
+              deliveryFee = order.deliveryFees.agentEarning;
+            } else if (order.deliveryFees.totalFee) {
+              deliveryFee = order.deliveryFees.totalFee;
+            }
+          }
+
+          return {
+            _id: order._id,
+            orderId: order.orderNumber || order._id,
+            status: order.status === 'Delivered' ? 'completed' : (order.status?.toLowerCase() || 'completed'),
+            deliveredAt: order.delivery?.completedAt || order.deliveredAt || order.createdAt,
+            deliveryFee: deliveryFee,
+            paymentMethod: order.paymentMethod === 'Cash on Delivery' ? 'cod' : 'prepaid',
+            customer: {
+              name: order.customer?.name || 'N/A',
+              phone: order.customer?.mobileNumber || 'N/A',
+              email: order.customer?.email || 'N/A'
+            },
+            seller: {
+              name: order.seller?.name || 'N/A',
+              shopName: order.seller?.shopName || 'N/A'
+            },
+            deliveryNotes: order.delivery?.notes || '',
+            rating: order.rating || null
+          };
+        });
         
         return {
           success: true,

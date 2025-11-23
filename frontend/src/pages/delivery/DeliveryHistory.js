@@ -26,8 +26,18 @@ const DeliveryHistory = () => {
   const [itemsPerPage] = useState(10);
 
   useEffect(() => {
-    loadDeliveryHistory();
-    loadStats();
+    // Wrap in try-catch to prevent crashes
+    const loadData = async () => {
+      try {
+        await Promise.all([
+          loadDeliveryHistory(),
+          loadStats()
+        ]);
+      } catch (error) {
+        console.error('Error loading delivery history data:', error);
+      }
+    };
+    loadData();
   }, [loadDeliveryHistory, loadStats]);
 
   // Filter and sort history when filters change
