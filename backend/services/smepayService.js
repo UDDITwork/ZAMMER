@@ -307,6 +307,16 @@ class SMEPayService {
         throw new Error('Authentication token expired. Please retry the request.');
       }
 
+      // 🎯 HANDLE 409: Order ID already exists - return specific error code
+      if (response.status === 409) {
+        const errorMessage = response.data?.message || response.data?.errors?.order_id?.[0] || 'Order ID already exists';
+        const error = new Error(`SMEPay API Error (409): ${errorMessage}`);
+        error.code = 'ORDER_ALREADY_EXISTS';
+        error.statusCode = 409;
+        error.details = response.data;
+        throw error;
+      }
+
       if (response.status >= 400) {
         throw new Error(`SMEPay API Error (${response.status}): ${response.data?.message || response.statusText}`);
       }
@@ -354,16 +364,19 @@ class SMEPayService {
       terminalLog('CREATE_ORDER_ERROR', 'ERROR', {
         orderId: orderData.orderId,
         error: error.message,
-        status: error.response?.status,
+        status: error.response?.status || error.statusCode,
         statusText: error.response?.statusText,
-        responseData: error.response?.data,
+        responseData: error.response?.data || error.details,
+        errorCode: error.code,
         mode: this.mode
       });
 
       return {
         success: false,
         error: error.message,
-        details: error.response?.data
+        errorCode: error.code || 'CREATE_ORDER_ERROR',
+        statusCode: error.statusCode || error.response?.status,
+        details: error.response?.data || error.details
       };
     }
   }
