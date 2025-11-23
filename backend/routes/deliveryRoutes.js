@@ -22,6 +22,7 @@ const {
   completeDelivery,
   updateLocation,
   getAssignedOrders,
+  getCancelledOrders,
   getOrderById,
   getDeliveryStats,
   toggleAvailability,
@@ -218,6 +219,11 @@ router.get('/orders/available', protectDeliveryAgent, getAvailableOrders);
 // @route   GET /api/delivery/orders/assigned
 // @access  Private (Delivery Agent)
 router.get('/orders/assigned', protectDeliveryAgent, getAssignedOrders);
+
+// @desc    Get cancelled orders for delivery agent
+// @route   GET /api/delivery/orders/cancelled
+// @access  Private (Delivery Agent)
+router.get('/orders/cancelled', protectDeliveryAgent, getCancelledOrders);
 
 // @desc    Get single order by ID (exactly like buyer side - for simple polling)
 // @route   GET /api/delivery/orders/:id

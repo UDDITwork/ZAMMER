@@ -28,7 +28,7 @@ const DeliveryHistory = () => {
   useEffect(() => {
     loadDeliveryHistory();
     loadStats();
-  }, []);
+  }, [loadDeliveryHistory, loadStats]);
 
   // Filter and sort history when filters change
   useEffect(() => {
