@@ -1475,6 +1475,9 @@ const completePickup = async (req, res) => {
       });
     }
 
+    // 🎯 ORDER ID VERIFICATION SUCCESS: Set order_id_status to 'verified'
+    order.order_id_status = 'verified';
+
     // 🎯 BUSINESS LOGIC: Update order status and pickup details
     const pickupNotes = req.body.pickupNotes || '';
     const pickupTime = new Date();
@@ -1491,8 +1494,8 @@ const completePickup = async (req, res) => {
     order.pickup.completedBy = agentId;
 
     // Update order status to "Out for Delivery"
-    if (order.status === 'Confirmed' || order.status === 'Processing') {
-      order.status = 'Out for Delivery';
+    if (order.status === 'Confirmed' || order.status === 'Processing' || order.status === 'Pickup_Ready') {
+      order.status = 'Out_for_Delivery';
     }
 
     // Update order timeline

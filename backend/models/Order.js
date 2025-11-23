@@ -287,6 +287,11 @@ const OrderSchema = new mongoose.Schema({
     enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Pickup_Ready', 'Out_for_Delivery'],
     default: 'Pending'
   },
+  order_id_status: {
+    type: String,
+    enum: ['verified', 'unverified'],
+    default: 'unverified'
+  },
   orderNumber: {
     type: String,
     required: true,
