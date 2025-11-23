@@ -97,8 +97,8 @@ const AvailableOrders = () => {
         toast.success('Order accepted successfully!');
         console.log('✅ [AVAILABLE-ORDERS] Order accepted:', orderId);
         loadAvailableOrders(); // Refresh orders
-        // Navigate to order details
-        navigate(`/delivery/orders/${orderId}/pickup`);
+        // Navigate to assigned orders page
+        navigate('/delivery/orders/assigned');
       } else {
         console.error('❌ [AVAILABLE-ORDERS] Failed to accept order:', data.message);
         toast.error(data.message || 'Failed to accept order');
