@@ -131,6 +131,17 @@ const MyOrdersPage = () => {
         });
         console.log('✅ Orders fetched successfully:', ordersData.length);
         
+        // Debug: Log delivered orders
+        const deliveredOrders = ordersData.filter(o => o.status === 'Delivered');
+        console.log('📦 Delivered orders found:', deliveredOrders.length, deliveredOrders.map(o => ({
+          id: o._id,
+          orderNumber: o.orderNumber,
+          status: o.status,
+          isDelivered: o.isDelivered,
+          deliveredAt: o.deliveredAt,
+          hasReturnDetails: !!o.returnDetails?.returnStatus
+        })));
+        
         // Check return eligibility for delivered orders
         checkReturnEligibilityForOrders(ordersData);
       } else {
@@ -157,8 +168,14 @@ const MyOrdersPage = () => {
     const eligibilityMap = {};
     
     for (const order of ordersList) {
-      // Only check eligibility for delivered orders that haven't already been returned
-      if (order.status === 'Delivered' && order.isDelivered && !order.returnDetails?.returnStatus) {
+      // Only check eligibility for delivered orders that don't have an active return request
+      // (returnStatus can be 'eligible', null, or undefined - all are fine)
+      const hasActiveReturn = order.returnDetails?.returnStatus && 
+                             order.returnDetails.returnStatus !== 'eligible' &&
+                             order.returnDetails.returnStatus !== null &&
+                             order.returnDetails.returnStatus !== undefined;
+      
+      if ((order.status === 'Delivered' || order.status?.toLowerCase() === 'delivered') && !hasActiveReturn) {
         try {
           // Use API endpoint to check eligibility (uses backend's checkReturnEligibility method)
           const response = await returnService.checkReturnEligibility(order._id);
@@ -610,6 +627,22 @@ const MyOrdersPage = () => {
                 const progress = getOrderProgress(order.status);
                 const cancellationInfo = getCancellationInfo(order);
                 
+                // Debug: Log order status for delivered orders
+                if (order.status === 'Delivered' || order.status?.toLowerCase() === 'delivered') {
+                  const hasActiveReturn = order.returnDetails?.returnStatus && 
+                                         order.returnDetails.returnStatus !== 'eligible' &&
+                                         order.returnDetails.returnStatus !== null &&
+                                         order.returnDetails.returnStatus !== undefined;
+                  console.log('🔍 Delivered Order Debug:', {
+                    orderId: order._id,
+                    orderNumber: order.orderNumber,
+                    status: order.status,
+                    returnStatus: order.returnDetails?.returnStatus,
+                    hasActiveReturn: hasActiveReturn,
+                    shouldShowReturnButton: !hasActiveReturn
+                  });
+                }
+                
                 return (
                   <div key={order._id} className="group bg-white/80 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-lg hover:shadow-xl border border-white/50 hover:border-white/80 transition-all duration-500 overflow-hidden">
                     {/* 🎯 PREMIUM: Order Header */}
@@ -712,10 +745,12 @@ const MyOrdersPage = () => {
                     </div>
 
                     {/* 🎯 PREMIUM: Return Eligibility Notice for Delivered Orders */}
-                    {order.status === 'Delivered' && 
-                     order.isDelivered && 
+                    {(order.status === 'Delivered' || order.status?.toLowerCase() === 'delivered') && 
                      returnEligibility[order._id]?.eligible && 
-                     !order.returnDetails?.returnStatus && (
+                     !(order.returnDetails?.returnStatus && 
+                       order.returnDetails.returnStatus !== 'eligible' &&
+                       order.returnDetails.returnStatus !== null &&
+                       order.returnDetails.returnStatus !== undefined) && (
                       <div className="px-4 sm:px-6 pb-4 sm:pb-6">
                         <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 sm:p-4 border border-amber-200">
                           <div className="flex items-start gap-2 sm:gap-3">
@@ -725,7 +760,7 @@ const MyOrdersPage = () => {
                             <div className="flex-1 min-w-0">
                               <p className="text-xs sm:text-sm text-amber-800 font-medium">
                                 24-Hour Return Window: You can request a return for this order
-                                {returnEligibility[order._id]?.hoursRemaining !== undefined && (
+                                {returnEligibility[order._id]?.hoursRemaining !== undefined && returnEligibility[order._id].hoursRemaining > 0 && (
                                   <span className="font-bold"> (within {Math.floor(returnEligibility[order._id].hoursRemaining)}h {Math.floor((returnEligibility[order._id].hoursRemaining % 1) * 60)}m remaining)</span>
                                 )}
                               </p>
@@ -761,40 +796,37 @@ const MyOrdersPage = () => {
                           </button>
                         )}
                         
-                        {order.status === 'Delivered' && order.isDelivered && (
-                          <>
-                            {/* Return Button - Show for all delivered orders (eligibility checked on click) */}
-                            {!order.returnDetails?.returnStatus && (
-                              <button
-                                onClick={() => handleReturnClick(order)}
-                                disabled={returnEligibility[order._id]?.eligible === false}
-                                className={`py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold flex items-center justify-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95 ${
-                                  returnEligibility[order._id]?.eligible === false
-                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60'
-                                    : 'bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:via-orange-700 hover:to-amber-600 text-white'
-                                }`}
-                                title={returnEligibility[order._id]?.eligible === false ? returnEligibility[order._id]?.reason || 'Return window expired' : 'Request return for this order'}
-                              >
-                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                <span className="hidden sm:inline">Return Order</span>
-                                <span className="sm:hidden">Return</span>
-                              </button>
-                            )}
-                            
-                            {/* Invoice Button */}
-                            <button
-                              onClick={() => downloadInvoice(order.orderNumber)}
-                              className="bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-700 py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
-                            >
-                              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              <span className="hidden sm:inline">Invoice</span>
-                              <span className="sm:hidden">PDF</span>
-                            </button>
-                          </>
+                        {/* Return Button - Show for all delivered orders (eligibility checked on click) */}
+                        {(order.status === 'Delivered' || order.status?.toLowerCase() === 'delivered') && 
+                         !(order.returnDetails?.returnStatus && 
+                           order.returnDetails.returnStatus !== 'eligible' &&
+                           order.returnDetails.returnStatus !== null &&
+                           order.returnDetails.returnStatus !== undefined) && (
+                          <button
+                            onClick={() => handleReturnClick(order)}
+                            className="bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:via-orange-700 hover:to-amber-600 text-white py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold flex items-center justify-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
+                            title="Request return for this order (within 24 hours of delivery)"
+                          >
+                            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            <span className="hidden sm:inline">Return Order</span>
+                            <span className="sm:hidden">Return</span>
+                          </button>
+                        )}
+                        
+                        {/* Invoice Button - Show for delivered orders */}
+                        {(order.status === 'Delivered' || order.status?.toLowerCase() === 'delivered') && (
+                          <button
+                            onClick={() => downloadInvoice(order.orderNumber)}
+                            className="bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-700 py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
+                          >
+                            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span className="hidden sm:inline">Invoice</span>
+                            <span className="sm:hidden">PDF</span>
+                          </button>
                         )}
                         
                         <Link
