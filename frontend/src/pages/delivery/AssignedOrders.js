@@ -1,6 +1,6 @@
 // frontend/src/pages/delivery/AssignedOrders.js - Assigned Orders Management
 
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { AuthContext } from '../../contexts/AuthContext';
@@ -66,6 +66,11 @@ const AssignedOrders = () => {
   const [socket, setSocket] = useState(null);
   const [paymentDetails, setPaymentDetails] = useState(null); // Store payment transaction details
   
+  // 🎯 FIX: Track if payment notification was already shown to prevent duplicates
+  const paymentNotificationShownRef = useRef(false);
+  const pollingIntervalRef = useRef(null);
+  const pollingTimeoutRef = useRef(null);
+  
   const navigate = useNavigate();
   const { deliveryAgentAuth, logoutDeliveryAgent } = useContext(AuthContext);
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
@@ -90,7 +95,16 @@ const AssignedOrders = () => {
           
           // Update payment status if this order is currently selected
           if (selectedOrder && data.data && data.data._id === selectedOrder._id) {
+            // 🎯 FIX: Check if notification was already shown to prevent duplicates
+            if (paymentNotificationShownRef.current) {
+              console.log('⏹️ Payment notification already shown via polling, skipping socket notification');
+              return;
+            }
+            
             console.log('✅ [ASSIGNED-ORDERS] Updating payment status in real-time');
+            
+            // 🎯 FIX: Mark notification as shown to prevent duplicates
+            paymentNotificationShownRef.current = true;
             
             // 🎯 EXACT MATCH: Update order state like buyer side (setOrder(prevOrder => ({...})))
             setSelectedOrder(prevOrder => ({
@@ -127,7 +141,7 @@ const AssignedOrders = () => {
               isPaid: true
             });
 
-            // 🎯 EXACT MATCH: Show success notification like buyer side
+            // 🎯 FIX: Show success notification ONLY ONCE (limit to 1 notification)
             toast.success(
               <div className="flex items-center">
                 <div className="bg-green-100 rounded-full p-2 mr-3">
@@ -146,6 +160,7 @@ const AssignedOrders = () => {
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
+                toastId: `payment-confirmed-${data.data._id}`, // 🎯 FIX: Prevent duplicate toasts with same ID
               }
             );
           }
@@ -196,6 +211,19 @@ const AssignedOrders = () => {
 
   // 🎯 EXACT MATCH: Payment status polling mechanism (exactly like buyer side OrderConfirmationPage.js line 265-338)
   useEffect(() => {
+    // 🎯 FIX: Reset notification flag when order changes
+    paymentNotificationShownRef.current = false;
+    
+    // Clear any existing polling intervals
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+      pollingTimeoutRef.current = null;
+    }
+    
     // 🎯 EXACT MATCH: Simple condition like buyer side (if (!order || order.isPaid))
     if (!selectedOrder || selectedOrder.isPaid) {
       setIsPollingPayment(false);
@@ -207,6 +235,17 @@ const AssignedOrders = () => {
     
     const pollPaymentStatus = async () => {
       try {
+        // 🎯 FIX: Stop polling if notification was already shown
+        if (paymentNotificationShownRef.current) {
+          console.log('⏹️ Payment notification already shown, stopping polling');
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          setIsPollingPayment(false);
+          return;
+        }
+        
         console.log('🔍 Polling payment status...');
         // 🎯 EXACT MATCH: Use service method like buyer side (orderService.getOrderById)
         const response = await deliveryService.getOrderById(selectedOrder._id);
@@ -228,12 +267,28 @@ const AssignedOrders = () => {
             'updatedOrder.paymentStatus': updatedOrder.paymentStatus,
             'selectedOrder.isPaid': selectedOrder.isPaid,
             'selectedOrder.paymentStatus': selectedOrder.paymentStatus,
-            'willTriggerUpdate': updatedOrder.isPaid && !selectedOrder.isPaid
+            'willTriggerUpdate': updatedOrder.isPaid && !selectedOrder.isPaid,
+            'notificationAlreadyShown': paymentNotificationShownRef.current
           });
           
           // 🎯 EXACT MATCH: Simple check like buyer side (if updatedOrder.isPaid && !order.isPaid)
-          if (updatedOrder.isPaid && !selectedOrder.isPaid) {
+          // 🎯 FIX: Also check if notification was already shown to prevent duplicates
+          if (updatedOrder.isPaid && !selectedOrder.isPaid && !paymentNotificationShownRef.current) {
             console.log('✅ Payment status updated via polling!');
+            
+            // 🎯 FIX: Mark notification as shown IMMEDIATELY to prevent duplicates
+            paymentNotificationShownRef.current = true;
+            
+            // 🎯 FIX: Stop polling IMMEDIATELY to prevent multiple notifications
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
+            if (pollingTimeoutRef.current) {
+              clearTimeout(pollingTimeoutRef.current);
+              pollingTimeoutRef.current = null;
+            }
+            setIsPollingPayment(false);
             
             // 🎯 CRITICAL: Trigger OTP generation by calling checkCODPaymentStatus endpoint
             // This will validate payment with SMEPay and auto-generate OTP if payment is confirmed
@@ -253,7 +308,6 @@ const AssignedOrders = () => {
             
             // 🎯 EXACT MATCH: Update order state like buyer side (setOrder(updatedOrder))
             setSelectedOrder(updatedOrder);
-            setIsPollingPayment(false); // Stop polling once payment is confirmed
             
             // 🎯 CRITICAL FIX: Clear QR code from form state IMMEDIATELY when payment completes
             setDeliveryForm(prev => ({
@@ -275,7 +329,7 @@ const AssignedOrders = () => {
               isPaid: true
             });
             
-            // 🎯 EXACT MATCH: Show success notification like buyer side
+            // 🎯 FIX: Show success notification ONLY ONCE (limit to 1 notification)
             toast.success(
               <div className="flex items-center">
                 <div className="bg-green-100 rounded-full p-2 mr-3">
@@ -295,6 +349,7 @@ const AssignedOrders = () => {
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
+                toastId: `payment-confirmed-${updatedOrder._id}`, // 🎯 FIX: Prevent duplicate toasts with same ID
               }
             );
           }
@@ -305,22 +360,45 @@ const AssignedOrders = () => {
     };
 
     // 🎯 EXACT MATCH: Poll every 3 seconds for the first 30 seconds, then every 10 seconds
-    const initialPolling = setInterval(pollPaymentStatus, 3000);
-    const extendedPolling = setTimeout(() => {
-      clearInterval(initialPolling);
-      const longPolling = setInterval(pollPaymentStatus, 10000);
+    pollingIntervalRef.current = setInterval(pollPaymentStatus, 3000);
+    pollingTimeoutRef.current = setTimeout(() => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      const longPolling = setInterval(() => {
+        // 🎯 FIX: Check notification flag before polling
+        if (paymentNotificationShownRef.current) {
+          clearInterval(longPolling);
+          setIsPollingPayment(false);
+          return;
+        }
+        pollPaymentStatus();
+      }, 10000);
+      
+      // Store long polling interval reference
+      pollingIntervalRef.current = longPolling;
       
       // Stop polling after 5 minutes
-      setTimeout(() => {
-        clearInterval(longPolling);
+      pollingTimeoutRef.current = setTimeout(() => {
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
         setIsPollingPayment(false);
         console.log('⏹️ Stopped payment status polling after 5 minutes');
       }, 300000); // 5 minutes
     }, 30000); // 30 seconds
 
     return () => {
-      clearInterval(initialPolling);
-      clearTimeout(extendedPolling);
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
+      }
       setIsPollingPayment(false);
     };
   }, [selectedOrder]); // 🎯 EXACT MATCH: Only depend on selectedOrder like buyer side depends on order

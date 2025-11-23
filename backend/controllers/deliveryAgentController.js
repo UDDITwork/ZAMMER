@@ -2181,28 +2181,61 @@ const generateCODQR = async (req, res) => {
       });
     }
     
-    // 🎯 FIX: Check if SMEPay order slug exists but QR data is missing
-    // This handles cases where order was created in SMEPay but QR wasn't saved to DB
-    if (order.smepayOrderSlug && (!order.paymentDetails?.codQR || !order.paymentDetails.codQR.paymentId)) {
-      console.log('⚠️ SMEPay order slug exists but QR data missing. Regenerating QR from existing slug...');
-      logDelivery('GENERATE_QR_FROM_EXISTING_SLUG', { orderId, slug: order.smepayOrderSlug });
+    // 🎯 STEP 1: Check for existing slug in multiple places BEFORE creating new order
+    // Priority: 1) order.smepayOrderSlug, 2) order.paymentAttempts[], 3) order.paymentResult.smepay_order_slug
+    let orderSlug = order.smepayOrderSlug;
+    
+    // If slug not in main field, check paymentAttempts array
+    if (!orderSlug && order.paymentAttempts && Array.isArray(order.paymentAttempts)) {
+      const smepayAttempt = order.paymentAttempts
+        .filter(attempt => attempt.gateway === 'smepay' && attempt.orderSlug)
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0]; // Get most recent
+      
+      if (smepayAttempt && smepayAttempt.orderSlug) {
+        orderSlug = smepayAttempt.orderSlug;
+        console.log('✅ Found existing slug in paymentAttempts:', orderSlug);
+        logDelivery('SLUG_RECOVERED_FROM_PAYMENT_ATTEMPTS', { orderId, slug: orderSlug });
+        
+        // 🎯 CRITICAL: Save recovered slug to main field for future use
+        order.smepayOrderSlug = orderSlug;
+        await order.save();
+        console.log('✅ Recovered slug saved to order.smepayOrderSlug');
+      }
+    }
+    
+    // If still not found, check paymentResult
+    if (!orderSlug && order.paymentResult?.smepay_order_slug) {
+      orderSlug = order.paymentResult.smepay_order_slug;
+      console.log('✅ Found existing slug in paymentResult:', orderSlug);
+      logDelivery('SLUG_RECOVERED_FROM_PAYMENT_RESULT', { orderId, slug: orderSlug });
+      
+      // 🎯 CRITICAL: Save recovered slug to main field
+      order.smepayOrderSlug = orderSlug;
+      await order.save();
+      console.log('✅ Recovered slug saved to order.smepayOrderSlug');
+    }
+    
+    // 🎯 If slug exists, try to generate QR from it (skip order creation)
+    if (orderSlug) {
+      console.log('✅ Using existing SMEPay order slug:', orderSlug);
+      logDelivery('GENERATE_QR_FROM_EXISTING_SLUG', { orderId, slug: orderSlug });
       
       try {
         const smepayService = require('../services/smepayService');
         const orderAmount = order.totalAmount || order.totalPrice;
         
-        // Generate QR directly from existing slug (skip order creation)
+        // Generate QR directly from existing slug
         const qrData = await smepayService.generateQRFromSlug({
-          slug: order.smepayOrderSlug,
+          slug: orderSlug,
           amount: Number(orderAmount)
         });
         
         if (qrData && qrData.success) {
-          // Store QR payment details in order
+          // 🎯 CRITICAL: Store QR payment details in order
           if (!order.paymentDetails) order.paymentDetails = {};
           order.paymentDetails.codQR = {
-            paymentId: qrData.paymentId || order.smepayOrderSlug,
-            orderSlug: order.smepayOrderSlug,
+            paymentId: qrData.paymentId || orderSlug,
+            orderSlug: orderSlug,
             qrCode: qrData.qrCode,
             qrData: qrData.qrData,
             amount: orderAmount,
@@ -2213,20 +2246,25 @@ const generateCODQR = async (req, res) => {
           order.paymentDetails.paymentMethod = 'COD';
           order.paymentDetails.amount = orderAmount;
           
+          // 🎯 CRITICAL: Ensure slug is saved to main field (in case it was only in paymentAttempts)
+          if (!order.smepayOrderSlug) {
+            order.smepayOrderSlug = orderSlug;
+          }
+          
           await order.save();
           
-          logDelivery('GENERATE_QR_FROM_SLUG_SUCCESS', { orderId, slug: order.smepayOrderSlug }, 'success');
+          logDelivery('GENERATE_QR_FROM_SLUG_SUCCESS', { orderId, slug: orderSlug }, 'success');
           
           return res.status(200).json({
             success: true,
-            message: 'QR code regenerated from existing order',
+            message: 'QR code generated from existing order',
             data: {
               _id: order._id,
               orderNumber: order.orderNumber,
               qrCode: qrData.qrCode,
               qrData: qrData.qrData,
-              paymentId: qrData.paymentId || order.smepayOrderSlug,
-              orderSlug: order.smepayOrderSlug,
+              paymentId: qrData.paymentId || orderSlug,
+              orderSlug: orderSlug,
               amount: orderAmount,
               currency: 'INR',
               status: 'pending'
@@ -2235,12 +2273,13 @@ const generateCODQR = async (req, res) => {
         }
       } catch (slugError) {
         console.error('❌ Failed to generate QR from existing slug:', slugError);
-        // Fall through to try creating new order (which will fail, but we'll handle it)
-        logDeliveryError('GENERATE_QR_FROM_SLUG_FAILED', slugError, { orderId, slug: order.smepayOrderSlug });
+        logDeliveryError('GENERATE_QR_FROM_SLUG_FAILED', slugError, { orderId, slug: orderSlug });
+        // Continue to try creating new order if slug doesn't work
       }
     }
 
     // 🎯 VALIDATION: Check amount and order number before generating QR
+    // Note: orderAmount is already defined above if slug exists, but we need it here too for the creation path
     const orderAmount = order.totalAmount || order.totalPrice;
     const orderNumber = order.orderNumber;
     
@@ -2287,10 +2326,8 @@ const generateCODQR = async (req, res) => {
       const smepayService = require('../services/smepayService');
       const smepayConfig = require('../config/smepay');
       
-      // 🎯 STEP 1: Create SMEPay order (like buyer side does)
-      // Check if slug already exists in database
-      let orderSlug = order.smepayOrderSlug;
-      
+      // 🎯 STEP 1: Create SMEPay order ONLY if slug doesn't exist
+      // Note: orderSlug was already checked and recovered above, so if it's still null, we need to create
       if (!orderSlug) {
         console.log('📝 Step 1: Creating SMEPay order...');
         
@@ -2313,36 +2350,64 @@ const generateCODQR = async (req, res) => {
         
         const smepayResult = await smepayService.createOrder(smepayOrderData);
         
-        if (!smepayResult.success) {
+        // 🎯 HANDLE 409 ERROR: Order already exists - try to recover slug from paymentAttempts
+        if (!smepayResult.success && smepayResult.errorCode === 'ORDER_ALREADY_EXISTS') {
+          console.log('⚠️ Order already exists in SMEPay (409). Checking paymentAttempts for existing slug...');
+          logDelivery('ORDER_ALREADY_EXISTS_409', { orderId, error: smepayResult.error });
+          
+          // Try to find slug in paymentAttempts
+          if (order.paymentAttempts && Array.isArray(order.paymentAttempts)) {
+            const smepayAttempt = order.paymentAttempts
+              .filter(attempt => attempt.gateway === 'smepay' && attempt.orderSlug)
+              .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+            
+            if (smepayAttempt && smepayAttempt.orderSlug) {
+              orderSlug = smepayAttempt.orderSlug;
+              console.log('✅ Recovered slug from paymentAttempts after 409 error:', orderSlug);
+              logDelivery('SLUG_RECOVERED_AFTER_409', { orderId, slug: orderSlug });
+              
+              // 🎯 CRITICAL: Save recovered slug to main field
+              order.smepayOrderSlug = orderSlug;
+              await order.save();
+              console.log('✅ Recovered slug saved to database');
+            } else {
+              // No slug found anywhere - this is a real problem
+              throw new Error(`Order ID already exists in SMEPay, but no slug found in database. Please contact support. Order ID: ${order._id}`);
+            }
+          } else {
+            throw new Error(`Order ID already exists in SMEPay, but no payment attempts found. Please contact support. Order ID: ${order._id}`);
+          }
+        } else if (!smepayResult.success) {
+          // Other errors
           throw new Error(smepayResult.error || 'Failed to create SMEPay order');
-        }
-        
-        if (!smepayResult.orderSlug) {
+        } else if (!smepayResult.orderSlug) {
           throw new Error('No order slug received from SMEPay');
+        } else {
+          // Success - got new slug
+          orderSlug = smepayResult.orderSlug;
+          
+          // 🎯 CRITICAL: SAVE SLUG TO DATABASE IMMEDIATELY (like buyer side does)
+          // Save to BOTH smepayOrderSlug AND paymentAttempts
+          order.smepayOrderSlug = orderSlug;
+          order.paymentGateway = 'smepay';
+          order.paymentStatus = 'pending';
+          
+          // Add payment attempt to order history
+          if (!order.paymentAttempts) {
+            order.paymentAttempts = [];
+          }
+          order.paymentAttempts.push({
+            gateway: 'smepay',
+            orderSlug: orderSlug,
+            amount: Number(orderAmount),
+            status: 'initiated',
+            createdAt: new Date()
+          });
+          
+          // 🎯 CRITICAL: Save slug to database BEFORE generating QR
+          await order.save();
+          console.log('✅ Step 1 Complete: SMEPay order created, slug saved to database:', orderSlug);
         }
-        
-        orderSlug = smepayResult.orderSlug;
-        
-        // 🎯 SAVE SLUG TO DATABASE IMMEDIATELY (like buyer side does)
-        order.smepayOrderSlug = orderSlug;
-        order.paymentGateway = 'smepay';
-        order.paymentStatus = 'pending';
-        
-        // Add payment attempt to order history
-        if (!order.paymentAttempts) {
-          order.paymentAttempts = [];
-        }
-        order.paymentAttempts.push({
-          gateway: 'smepay',
-          orderSlug: orderSlug,
-          amount: Number(orderAmount),
-          status: 'initiated',
-          createdAt: new Date()
-        });
-        
-        // 🎯 CRITICAL: Save slug to database BEFORE generating QR
-        await order.save();
-        console.log('✅ Step 1 Complete: SMEPay order created, slug saved to database:', orderSlug);
       } else {
         console.log('✅ Step 1 Skip: SMEPay order slug already exists:', orderSlug);
       }
@@ -2364,6 +2429,12 @@ const generateCODQR = async (req, res) => {
         throw new Error('SMEPay did not return QR code data in response');
       }
       
+      // 🎯 CRITICAL: Ensure slug is saved to main field (in case it was recovered from paymentAttempts)
+      if (!order.smepayOrderSlug && orderSlug) {
+        order.smepayOrderSlug = orderSlug;
+        console.log('✅ Ensuring slug is saved to order.smepayOrderSlug:', orderSlug);
+      }
+      
       // 🎯 Store QR payment details in order
       if (!order.paymentDetails) order.paymentDetails = {};
       order.paymentDetails.codQR = {
@@ -2371,17 +2442,39 @@ const generateCODQR = async (req, res) => {
         orderSlug: orderSlug,
         qrCode: qrResult.qrCode,
         qrData: qrResult.qrData,
-        amount: order.totalAmount || order.totalPrice,
+        amount: orderAmount, // Use the orderAmount variable defined above
         generatedAt: new Date(),
         generatedBy: agentId,
         status: 'pending'
       };
       order.paymentDetails.paymentMethod = 'COD';
-      order.paymentDetails.amount = order.totalAmount || order.totalPrice;
+      order.paymentDetails.amount = orderAmount; // Use the orderAmount variable defined above
       
-      // 🎯 Save QR data to database
+      // 🎯 CRITICAL: Ensure slug is also in paymentAttempts if not already there
+      if (!order.paymentAttempts) {
+        order.paymentAttempts = [];
+      }
+      
+      if (Array.isArray(order.paymentAttempts)) {
+        const hasSlugInAttempts = order.paymentAttempts.some(
+          attempt => attempt.gateway === 'smepay' && attempt.orderSlug === orderSlug
+        );
+        
+        if (!hasSlugInAttempts && orderSlug) {
+          order.paymentAttempts.push({
+            gateway: 'smepay',
+            orderSlug: orderSlug,
+            amount: Number(orderAmount),
+            status: 'initiated',
+            createdAt: new Date()
+          });
+          console.log('✅ Slug also saved to paymentAttempts array');
+        }
+      }
+      
+      // 🎯 CRITICAL: Save QR data AND slug to database
       await order.save();
-      console.log('✅ Step 2 Complete: QR code generated and saved to database');
+      console.log('✅ Step 2 Complete: QR code generated and slug saved to database');
       
       // Prepare response data (matching buyer side format)
       const qrData = {
@@ -5431,26 +5524,33 @@ const resendDeliveryOTP = async (req, res) => {
       });
     }
     
-    // Resend OTP using MSG91 service
-    const retryResult = await msg91Service.retryOTP(user.mobileNumber, 'text');
+    // 🎯 FIX: Generate a NEW OTP instead of retrying the old one (which may be expired)
+    // Use sendOTPForForgotPassword to generate a completely new OTP code
+    const otpResult = await msg91Service.sendOTPForForgotPassword(user.mobileNumber, {
+      userName: user.name,
+      purpose: 'delivery_confirmation',
+      orderNumber: order.orderNumber
+    });
     
-    if (!retryResult.success) {
-      logDeliveryError('RESEND_DELIVERY_OTP_FAILED', new Error(retryResult.error), {
+    if (!otpResult.success) {
+      logDeliveryError('RESEND_DELIVERY_OTP_FAILED', new Error(otpResult.error), {
         orderId,
         buyerPhone: user.mobileNumber
       });
       
       return res.status(500).json({
         success: false,
-        message: retryResult.error || 'Failed to resend OTP. Please try again.'
+        message: otpResult.error || 'Failed to resend OTP. Please try again.'
       });
     }
     
-    // Update order OTP verification status
+    // 🎯 FIX: Update order OTP verification status with new OTP generation
     if (!order.otpVerification) order.otpVerification = {};
     order.otpVerification.isRequired = true;
     order.otpVerification.generatedAt = new Date();
     order.otpVerification.isVerified = false;
+    // 🎯 CRITICAL: Reset verification attempts when generating new OTP
+    order.otpVerification.attempts = 0;
     await order.save();
     
     logDelivery('RESEND_DELIVERY_OTP_SUCCESS', {
