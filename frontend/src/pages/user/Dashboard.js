@@ -63,6 +63,7 @@ const Dashboard = () => {
   const isMountedRef = useRef(true);
   const fetchingRef = useRef(false);
   const locationUpdateRef = useRef(false); // Prevent multiple simultaneous updates
+  const sliderRef = useRef(null); // Ref for featured products slider
   const navigate = useNavigate();
 
   // Memoized fetch functions
@@ -427,6 +428,40 @@ const Dashboard = () => {
     };
   }, [userAuth.isAuthenticated, userAuth.user?._id]);
 
+  // 🎯 Auto-slide featured products slider every 2 seconds
+  useEffect(() => {
+    if (!sliderRef.current || trendingProducts.length === 0) return;
+
+    const slider = sliderRef.current;
+    const itemWidth = 320 + 24; // w-80 (320px) + space-x-6 (24px)
+    let currentIndex = 0;
+    const maxIndex = trendingProducts.length - 1;
+
+    // Reset scroll position on mount
+    slider.scrollLeft = 0;
+
+    const autoSlide = () => {
+      if (!slider || !isMountedRef.current) return;
+
+      // Calculate scroll position
+      const scrollAmount = currentIndex * itemWidth;
+      
+      // Smooth scroll to next item
+      slider.scrollTo({
+        left: scrollAmount,
+        behavior: 'smooth'
+      });
+
+      // Move to next item, loop back to start when reaching end
+      currentIndex = (currentIndex + 1) % (maxIndex + 1);
+    };
+
+    // Start auto-sliding every 2 seconds
+    const interval = setInterval(autoSlide, 2000);
+
+    return () => clearInterval(interval);
+  }, [trendingProducts.length]);
+
   useEffect(() => {
     if (!userAuth.isAuthenticated || !userAuth.user?._id) return;
 
@@ -735,7 +770,11 @@ const handleReturnFromTracker = (order) => {
             </div>
             
             <div className="relative">
-              <div className="flex space-x-6 overflow-x-auto pb-4 scrollbar-hide">
+              <div 
+                ref={sliderRef}
+                className="flex space-x-6 overflow-x-hidden scrollbar-hide"
+                style={{ scrollBehavior: 'smooth' }}
+              >
                 {trendingProducts.length > 0 ? (
                   trendingProducts.map((product, index) => (
                     <Link 
