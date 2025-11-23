@@ -893,6 +893,7 @@ const adminService = {
   getAvailableDeliveryAgents,
   getDeliveryAgentProfile,
   getDeliveryAgentHistory,
+  getDeliveryAgentCODCollections,
   updateDeliveryAgentStatus,
   getAssignedAcceptedOrders,
   // Payout Management
