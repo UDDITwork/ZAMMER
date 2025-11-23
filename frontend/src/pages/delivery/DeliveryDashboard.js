@@ -31,6 +31,8 @@ const DeliveryDashboard = () => {
   });
   const [availableOrders, setAvailableOrders] = useState([]);
   const [assignedOrders, setAssignedOrders] = useState([]);
+  const [cancelledOrders, setCancelledOrders] = useState([]);
+  const [cancelledOrdersLoading, setCancelledOrdersLoading] = useState(false);
   const [agentStatus, setAgentStatus] = useState('available');
   
   // Modal states
@@ -196,6 +198,28 @@ const DeliveryDashboard = () => {
       console.error('❌ Failed to fetch assigned orders:', error);
       setAssignedOrders([]);
       return [];
+    }
+  }, [makeApiCall]);
+
+  // Fetch cancelled orders
+  const fetchCancelledOrders = useCallback(async () => {
+    try {
+      setCancelledOrdersLoading(true);
+      console.log('🚚 Fetching cancelled orders...');
+      const response = await makeApiCall('/delivery/orders/cancelled');
+      
+      if (response && response.success) {
+        setCancelledOrders(response.data || []);
+        console.log('✅ Cancelled orders fetched:', response.data?.length || 0);
+        return response.data || [];
+      }
+      return [];
+    } catch (error) {
+      console.error('❌ Failed to fetch cancelled orders:', error);
+      setCancelledOrders([]);
+      return [];
+    } finally {
+      setCancelledOrdersLoading(false);
     }
   }, [makeApiCall]);
 
@@ -450,8 +474,7 @@ const DeliveryDashboard = () => {
       await Promise.all([
         fetchStats(),
         fetchAvailableOrders(),
-        fetchAssignedOrders(),
-        fetchReturnAssignments()
+        fetchAssignedOrders()
       ]);
 
       console.log('✅ Dashboard initialized successfully');
@@ -497,6 +520,20 @@ const DeliveryDashboard = () => {
     
     initializeDashboard();
   }, [deliveryAgentAuth.isAuthenticated, deliveryAgentAuth.deliveryAgent, authLoading, navigate, initializeDashboard, logoutDeliveryAgent]);
+
+  // Fetch cancelled orders when cancelled tab is active
+  useEffect(() => {
+    if (activeTab === 'cancelled' && deliveryAgentAuth.isAuthenticated) {
+      fetchCancelledOrders();
+    }
+  }, [activeTab, deliveryAgentAuth.isAuthenticated, fetchCancelledOrders]);
+
+  // Fetch return assignments when returns tab is active
+  useEffect(() => {
+    if (activeTab === 'returns' && deliveryAgentAuth.isAuthenticated) {
+      fetchReturnAssignments();
+    }
+  }, [activeTab, deliveryAgentAuth.isAuthenticated, fetchReturnAssignments]);
 
   // Handle order acceptance
   const handleAcceptOrder = async (orderId) => {
@@ -1629,6 +1666,25 @@ const DeliveryDashboard = () => {
               <FiRotateCcw className="w-4 h-4 inline mr-1" />
               Returns
             </button>
+            <button
+              onClick={() => {
+                setActiveTab('cancelled');
+                fetchCancelledOrders();
+              }}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'cancelled'
+                  ? 'border-red-500 text-red-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <FiAlertCircle className="w-4 h-4 inline mr-1" />
+              Cancelled
+              {cancelledOrders.length > 0 && (
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                  {cancelledOrders.length}
+                </span>
+              )}
+            </button>
           </nav>
         </div>
       </div>
@@ -2092,6 +2148,121 @@ const DeliveryDashboard = () => {
                             </div>
                           );
                         })()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Cancelled Orders Tab Content */}
+        {activeTab === 'cancelled' && (
+          <div>
+            {/* Cancelled Orders Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <div className="flex items-center">
+                  <div className="p-3 rounded-lg bg-red-100">
+                    <FiAlertCircle className="w-6 h-6 text-red-600" />
+                  </div>
+                  <div className="ml-4">
+                    <h3 className="text-lg font-medium text-gray-900">Cancelled Orders</h3>
+                    <p className="text-2xl font-bold text-red-600">{cancelledOrders.length}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Cancelled Orders List */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-medium text-gray-900">My Cancelled Orders</h2>
+              </div>
+              
+              {cancelledOrdersLoading ? (
+                <div className="p-8 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
+                  <p className="mt-2 text-gray-600">Loading cancelled orders...</p>
+                </div>
+              ) : cancelledOrders.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  <FiAlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                  <p>No cancelled orders found</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-200">
+                  {cancelledOrders.map((order) => (
+                    <div key={order._id} className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-medium text-gray-900">
+                              Order #{order.orderNumber}
+                            </h3>
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              <FiAlertCircle className="w-3 h-3" />
+                              Cancelled
+                            </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
+                            <div>
+                              <p><strong>Customer:</strong> {order.user?.name}</p>
+                              <p><strong>Phone:</strong> {order.user?.phone}</p>
+                              <p><strong>Amount:</strong> ₹{order.totalPrice?.toFixed(2) || '0.00'}</p>
+                            </div>
+                            <div>
+                              <p><strong>Cancelled At:</strong> {order.cancellationDetails?.cancelledAt ? new Date(order.cancellationDetails.cancelledAt).toLocaleString() : 'N/A'}</p>
+                              <p><strong>Cancelled By:</strong> {order.cancellationDetails?.cancelledByName || 'Delivery Agent'}</p>
+                              <p><strong>Payment Method:</strong> {order.paymentMethod || 'N/A'}</p>
+                            </div>
+                          </div>
+
+                          {order.cancellationDetails?.cancellationReason && (
+                            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                              <p className="text-sm font-medium text-red-800 mb-1">Cancellation Reason:</p>
+                              <p className="text-sm text-red-700">{order.cancellationDetails.cancellationReason}</p>
+                            </div>
+                          )}
+
+                          {/* Order Items */}
+                          {order.orderItems && order.orderItems.length > 0 && (
+                            <div className="mt-4">
+                              <p className="text-sm font-medium text-gray-700 mb-2">Order Items:</p>
+                              <div className="space-y-2">
+                                {order.orderItems.map((item, idx) => (
+                                  <div key={idx} className="flex items-center gap-3 text-sm text-gray-600">
+                                    {item.image && (
+                                      <img 
+                                        src={item.image} 
+                                        alt={item.name} 
+                                        className="w-12 h-12 object-cover rounded"
+                                      />
+                                    )}
+                                    <div>
+                                      <p className="font-medium">{item.name}</p>
+                                      <p className="text-xs text-gray-500">
+                                        Qty: {item.quantity}
+                                        {item.size && ` | Size: ${item.size}`}
+                                        {item.color && ` | Color: ${item.color}`}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Shipping Address */}
+                          {order.shippingAddress && (
+                            <div className="mt-4 text-sm text-gray-600">
+                              <p className="font-medium text-gray-700 mb-1">Delivery Address:</p>
+                              <p>{order.shippingAddress.address}, {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.pincode}</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}

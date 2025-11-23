@@ -2340,7 +2340,7 @@ const generateCODQR = async (req, res) => {
         const smepayOrderData = {
           orderId: order._id.toString(), // 🎯 EXACT MATCH: Buyer side line 82
           amount: Number(orderAmount),
-          customerDetails: {
+        customerDetails: {
             email: order.user.email, // 🎯 EXACT MATCH: Buyer side line 85 (no optional chaining)
             mobile: order.user.mobileNumber, // 🎯 EXACT MATCH: Buyer side line 86
             name: order.user.name // 🎯 EXACT MATCH: Buyer side line 87
@@ -2813,8 +2813,8 @@ const checkCODPaymentStatus = async (req, res) => {
       if (order.smepayOrderSlug) {
         // We have slug but no QR in DB - this means QR was never generated or was lost
         // Return error asking agent to generate QR manually (don't auto-generate during status check)
-              return res.status(400).json({
-                success: false,
+      return res.status(400).json({
+        success: false,
           message: 'QR code not found for this order. Please generate QR code first using the "Generate SMEPay QR Code" button.',
                 code: 'QR_NOT_GENERATED',
           hasOrderSlug: true,
@@ -2869,7 +2869,7 @@ const checkCODPaymentStatus = async (req, res) => {
             slug: orderSlug,
           amount: codQR.amount || order.totalAmount || order.totalPrice
         });
-
+        
       if (!validateResult.success) {
         logDelivery('CHECK_PAYMENT_STATUS_VALIDATION_FAILED', {
           orderId,
@@ -3993,6 +3993,145 @@ const getAssignedOrders = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch assigned orders',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
+// @desc    Get cancelled orders for delivery agent  
+// @route   GET /api/delivery/orders/cancelled
+// @access  Private (Delivery Agent)
+const getCancelledOrders = async (req, res) => {
+  try {
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
+    
+    logDelivery('CANCELLED_ORDERS_REQUEST', { agentId });
+    
+    console.log(`
+📋 ===============================
+   FETCHING CANCELLED ORDERS
+===============================
+🚚 Agent: ${req.deliveryAgent.name}
+🆔 Agent ID: ${agentId}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    // 🎯 BUSINESS LOGIC: Get orders that were cancelled by this delivery agent
+    // Note: deliveryAgent.agent is set to null after cancellation, so we check statusHistory
+    // to find orders where this agent was involved and then cancelled
+    const allCancelledOrders = await Order.find({
+      status: 'Cancelled',
+      'cancellationDetails.cancelledBy': 'delivery_agent'
+    })
+    .populate('user', 'name email mobileNumber')
+    .populate('seller', 'firstName lastName email shop')
+    .populate('orderItems.product', 'name images');
+    
+    // Filter to only include orders cancelled by this specific agent
+    // We check if the cancelledByName matches the agent's name
+    const agentName = req.deliveryAgent.name;
+    const cancelledOrders = allCancelledOrders.filter(order => {
+      // Check if cancellation was done by this agent (by name match)
+      const cancelledByName = order.cancellationDetails?.cancelledByName || '';
+      if (cancelledByName === agentName) {
+        return true;
+      }
+      
+      // Also check statusHistory for entries from this agent
+      // Look for status history entries where changedBy is 'delivery_agent'
+      // and the notes mention this agent's name
+      const hasAgentHistory = order.statusHistory?.some(entry => 
+        entry.changedBy === 'delivery_agent' && 
+        entry.notes && 
+        entry.notes.includes(agentName)
+      );
+      
+      return hasAgentHistory;
+    });
+    
+    // Sort by cancellation date (most recently cancelled first)
+    cancelledOrders.sort((a, b) => {
+      const aDate = a.cancellationDetails?.cancelledAt ? new Date(a.cancellationDetails.cancelledAt).getTime() : 0;
+      const bDate = b.cancellationDetails?.cancelledAt ? new Date(b.cancellationDetails.cancelledAt).getTime() : 0;
+      return bDate - aDate;
+    });
+    
+    // Limit to 50 most recent
+    const limitedCancelledOrders = cancelledOrders.slice(0, 50);
+
+    console.log(`
+✅ ===============================
+   CANCELLED ORDERS FETCHED
+===============================
+📦 Orders Found: ${limitedCancelledOrders.length}
+🚚 Agent: ${req.deliveryAgent.name}
+📅 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    const formattedOrders = limitedCancelledOrders.map(order => ({
+      _id: order._id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      totalPrice: order.totalPrice,
+      deliveryFees: order.deliveryFees,
+      
+      // Customer information
+      user: {
+        name: order.user?.name || 'N/A',
+        phone: order.user?.mobileNumber || 'N/A',
+        email: order.user?.email || 'N/A'
+      },
+      
+      // Seller information
+      seller: {
+        name: order.seller ? (order.seller.firstName + (order.seller.lastName ? ' ' + order.seller.lastName : '')) : 'N/A',
+        shopName: order.seller?.shop?.name || 'Shop',
+        email: order.seller?.email || 'N/A',
+        phone: order.seller?.shop?.phoneNumber?.main || order.seller?.mobileNumber || 'N/A',
+        address: order.seller?.shop?.address || 'Address not provided'
+      },
+      
+      // Delivery information
+      shippingAddress: order.shippingAddress,
+      
+      // Order items summary
+      orderItems: (order.orderItems || []).map(item => ({
+        name: item.name || item.product?.name || 'Product',
+        quantity: item.quantity,
+        image: item.image || item.product?.images?.[0] || '',
+        size: item.size,
+        color: item.color
+      })),
+      
+      // Cancellation details
+      cancellationDetails: {
+        cancelledBy: order.cancellationDetails?.cancelledBy,
+        cancelledAt: order.cancellationDetails?.cancelledAt,
+        cancellationReason: order.cancellationDetails?.cancellationReason,
+        cancelledByName: order.cancellationDetails?.cancelledByName
+      },
+      
+      // Timeline information
+      assignedAt: order.deliveryAgent?.assignedAt,
+      acceptedAt: order.deliveryAgent?.acceptedAt,
+      createdAt: order.createdAt,
+      paymentMethod: order.paymentMethod,
+      isPaid: order.isPaid
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: 'Cancelled orders retrieved successfully',
+      count: formattedOrders.length,
+      data: formattedOrders
+    });
+
+  } catch (error) {
+    logDeliveryError('CANCELLED_ORDERS_FAILED', error, { agentId: req.deliveryAgent?.id });
+    console.error('❌ Get Cancelled Orders Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch cancelled orders',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
@@ -5769,6 +5908,7 @@ module.exports = {
   completeDelivery,
   updateLocation,
   getAssignedOrders,
+  getCancelledOrders,
   getDeliveryStats,
   toggleAvailability,
   getDeliveryHistory,

@@ -524,19 +524,49 @@ class DeliveryService {
   }
 
   // 🚚 GET DELIVERY HISTORY
-  async getDeliveryHistory(page = 1, limit = 10) {
+  async getHistory(page = 1, limit = 50) {
     try {
       logDeliveryService('HISTORY_REQUEST_STARTED', { page, limit });
 
       const response = await makeApiCall(`/delivery/history?page=${page}&limit=${limit}`);
 
       if (response.success) {
+        // Backend returns: { success: true, data: { history: [...], pagination: {...}, summary: {...} } }
+        const history = response.data?.history || [];
         logDeliveryService('HISTORY_RETRIEVED', { 
-          orderCount: response.data.orders.length,
-          totalOrders: response.data.totalOrders,
+          orderCount: history.length,
+          totalOrders: response.data?.pagination?.totalCount || history.length,
           page
         }, 'success');
-        return response;
+        
+        // Transform to match component expectations
+        // Backend format: { customer: { name, mobileNumber, email }, seller: { name, shopName }, delivery: { completedAt, notes, agentEarnings } }
+        const transformedHistory = history.map(order => ({
+          _id: order._id,
+          orderId: order.orderNumber || order._id,
+          status: order.status === 'Delivered' ? 'completed' : (order.status?.toLowerCase() || 'completed'),
+          deliveredAt: order.delivery?.completedAt || order.deliveredAt || order.createdAt,
+          deliveryFee: order.delivery?.agentEarnings || order.deliveryFees?.agentEarning || (typeof order.deliveryFees === 'number' ? order.deliveryFees : order.deliveryFees?.totalFee) || 0,
+          paymentMethod: order.paymentMethod === 'Cash on Delivery' ? 'cod' : 'prepaid',
+          customer: {
+            name: order.customer?.name || 'N/A',
+            phone: order.customer?.mobileNumber || 'N/A',
+            email: order.customer?.email || 'N/A'
+          },
+          seller: {
+            name: order.seller?.name || 'N/A',
+            shopName: order.seller?.shopName || 'N/A'
+          },
+          deliveryNotes: order.delivery?.notes || '',
+          rating: order.rating || null
+        }));
+        
+        return {
+          success: true,
+          data: transformedHistory,
+          pagination: response.data?.pagination,
+          summary: response.data?.summary
+        };
       } else {
         throw new Error(response.message || 'Failed to get delivery history');
       }
@@ -544,6 +574,11 @@ class DeliveryService {
       logDeliveryServiceError('HISTORY_RETRIEVAL_FAILED', error);
       throw error;
     }
+  }
+
+  // Alias for backward compatibility
+  async getDeliveryHistory(page = 1, limit = 50) {
+    return this.getHistory(page, limit);
   }
 
   // 🚚 LOCATION TRACKING

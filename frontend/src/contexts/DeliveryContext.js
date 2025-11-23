@@ -31,6 +31,7 @@ export const DeliveryProvider = ({ children }) => {
     performance: { rating: 0, completionRate: 0 }
   });
   
+  const [deliveryHistory, setDeliveryHistory] = useState([]);
   const [isOnline, setIsOnline] = useState(false);
   const [isAvailable, setIsAvailable] = useState(true);
   const [notification, setNotification] = useState(null);
@@ -75,6 +76,28 @@ export const DeliveryProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Failed to load stats:', error);
+      setError(error.message || 'Failed to load stats');
+    }
+  };
+
+  const loadDeliveryHistory = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await deliveryService.getHistory(1, 100); // Get first 100 records
+      if (result.success && result.data) {
+        // Service already transforms the data to match component expectations
+        const history = Array.isArray(result.data) ? result.data : [];
+        setDeliveryHistory(history);
+      } else {
+        setDeliveryHistory([]);
+      }
+    } catch (error) {
+      console.error('Failed to load delivery history:', error);
+      setError(error.message || 'Failed to load delivery history');
+      setDeliveryHistory([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -128,6 +151,7 @@ export const DeliveryProvider = ({ children }) => {
     
     // Delivery specific state
     stats,
+    deliveryHistory,
     isOnline,
     isAvailable,
     notification,
@@ -140,7 +164,8 @@ export const DeliveryProvider = ({ children }) => {
     clearNotification,
     clearError,
     logout,
-    loadStats
+    loadStats,
+    loadDeliveryHistory
   };
 
   return (
