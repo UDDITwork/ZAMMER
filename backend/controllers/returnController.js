@@ -60,8 +60,8 @@ const getReturnEligibility = async (req, res) => {
       });
     }
 
-    // Check if user is authorized to view this order
-    if (order.user._id.toString() !== userId) {
+    // Check if user is authorized to view this order (only if user is logged in)
+    if (userId && order.user._id.toString() !== userId) {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized to access this order'
@@ -175,8 +175,8 @@ const requestReturn = async (req, res) => {
       returnStatus: order.returnDetails?.returnStatus
     }, null, 2));
 
-    // Check if user is authorized to request return for this order
-    if (order.user._id.toString() !== userId) {
+    // Check if user is authorized to request return for this order (only if user is logged in)
+    if (userId && order.user._id.toString() !== userId) {
       console.error(`❌ [${requestId}] [RETURN-CONTROLLER] RequestReturn - UNAUTHORIZED:`, JSON.stringify({
         requestId,
         orderUserId: order.user._id.toString(),
@@ -1451,8 +1451,8 @@ const getReturnStatus = async (req, res) => {
       });
     }
 
-    // Check if user is authorized to view this order
-    if (order.user._id.toString() !== userId) {
+    // Check if user is authorized to view this order (only if user is logged in)
+    if (userId && order.user._id.toString() !== userId) {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized to view return status for this order'
