@@ -268,15 +268,16 @@ const DeliveryAgents = () => {
 
   // Profile Modal Component
   const ProfileModal = () => {
-    if (!selectedAgent) return null;
-
     // Fetch COD collections when COD tab is activated
+    // Hook must be called before any conditional returns
     useEffect(() => {
       if (showProfileModal && activeTab === 'cod' && selectedAgent && !codCollections) {
         fetchCODCollections(selectedAgent._id);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeTab, showProfileModal]);
+    }, [activeTab, showProfileModal, selectedAgent]);
+
+    if (!selectedAgent) return null;
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
