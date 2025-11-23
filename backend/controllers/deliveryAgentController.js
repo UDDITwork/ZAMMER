@@ -5476,6 +5476,178 @@ const resendDeliveryOTP = async (req, res) => {
   }
 };
 
+// @desc    Cancel order by delivery agent
+// @route   PUT /api/delivery/orders/:id/cancel
+// @access  Private (Delivery Agent)
+const cancelOrder = async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
+    const orderId = req.params.id;
+    const { cancellationReason } = req.body;
+    
+    logDelivery('CANCEL_ORDER_STARTED', { 
+      agentId, 
+      orderId,
+      agentName: req.deliveryAgent.name,
+      reason: cancellationReason || 'No reason provided'
+    });
+    
+    console.log(`
+📦 ===============================
+   CANCEL ORDER BY DELIVERY AGENT
+===============================
+📋 Order ID: ${orderId}
+🚚 Agent: ${req.deliveryAgent.name}
+📝 Reason: ${cancellationReason || 'No reason provided'}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    // 🎯 VALIDATION: Check if cancellation reason is provided
+    if (!cancellationReason || cancellationReason.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cancellation reason is required',
+        code: 'CANCELLATION_REASON_REQUIRED'
+      });
+    }
+
+    // 🎯 VALIDATION: Check if order exists and is assigned to this agent
+    const order = await Order.findById(orderId)
+      .populate('user', 'name mobileNumber email')
+      .populate('seller', 'firstName shop')
+      .populate('orderItems.product', 'name images');
+
+    if (!order) {
+      logDeliveryError('CANCEL_ORDER_NOT_FOUND', new Error('Order not found'), { orderId });
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found',
+        code: 'ORDER_NOT_FOUND'
+      });
+    }
+
+    // 🎯 AUTHORIZATION: Verify order is assigned to this agent
+    const assignedAgentId = order.deliveryAgent.agent?.toString();
+    const currentAgentId = agentId?.toString();
+    
+    if (assignedAgentId !== currentAgentId) {
+      logDeliveryError('CANCEL_ORDER_UNAUTHORIZED', new Error('Order not assigned to this agent'), { 
+        orderId, 
+        assignedAgentId, 
+        currentAgentId 
+      });
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to cancel this order',
+        code: 'UNAUTHORIZED_AGENT'
+      });
+    }
+
+    // 🎯 VALIDATION: Check if order can be cancelled (not already delivered or cancelled)
+    if (order.status === 'Delivered') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot cancel an already delivered order',
+        code: 'ORDER_ALREADY_DELIVERED'
+      });
+    }
+
+    if (order.status === 'Cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Order is already cancelled',
+        code: 'ORDER_ALREADY_CANCELLED'
+      });
+    }
+
+    // 🎯 UPDATE: Cancel the order using the Order model's updateStatus method
+    order._cancelledByName = req.deliveryAgent.name;
+    await order.updateStatus('Cancelled', 'delivery_agent', cancellationReason.trim());
+
+    // 🎯 UPDATE: Update delivery agent status
+    order.deliveryAgent.status = 'rejected';
+    order.deliveryAgent.rejectedAt = new Date();
+    order.deliveryAgent.rejectionReason = `Order cancelled: ${cancellationReason.trim()}`;
+    
+    // 🎯 UPDATE: Reset delivery agent assignment so admin can reassign
+    order.deliveryAgent.agent = null;
+    order.deliveryAgent.assignedAt = null;
+    order.deliveryAgent.status = 'unassigned';
+
+    await order.save();
+
+    // 🎯 UPDATE: Update delivery agent's order count
+    const deliveryAgent = await DeliveryAgent.findById(agentId);
+    if (deliveryAgent) {
+      // Decrement assigned orders count if it exists
+      if (deliveryAgent.assignedOrdersCount > 0) {
+        deliveryAgent.assignedOrdersCount -= 1;
+      }
+      await deliveryAgent.save();
+    }
+
+    const processingTime = Date.now() - startTime;
+    
+    logDelivery('CANCEL_ORDER_SUCCESS', {
+      orderId,
+      orderNumber: order.orderNumber,
+      agentId,
+      processingTime: `${processingTime}ms`
+    });
+
+    console.log(`
+✅ ===============================
+   ORDER CANCELLED SUCCESSFULLY
+===============================
+📦 Order: ${order.orderNumber}
+🚚 Agent: ${req.deliveryAgent.name}
+📝 Reason: ${cancellationReason}
+⏱️ Processing Time: ${processingTime}ms
+===============================`);
+
+    // 📤 SUCCESS RESPONSE
+    res.status(200).json({
+      success: true,
+      message: 'Order cancelled successfully',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        cancelledBy: 'delivery_agent',
+        cancelledAt: order.cancellationDetails.cancelledAt,
+        cancellationReason: order.cancellationDetails.cancellationReason
+      }
+    });
+
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+    logDeliveryError('CANCEL_ORDER_ERROR', error, {
+      orderId: req.params.id,
+      agentId: req.deliveryAgent?._id || req.deliveryAgent?.id,
+      processingTime: `${processingTime}ms`
+    });
+
+    console.error(`
+❌ ===============================
+   ORDER CANCELLATION FAILED
+===============================
+📦 Order ID: ${req.params.id}
+🚚 Agent: ${req.deliveryAgent?.name || 'Unknown'}
+❌ Error: ${error.message}
+⏱️ Processing Time: ${processingTime}ms
+===============================`);
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to cancel order',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: 'CANCEL_ORDER_ERROR'
+    });
+  }
+};
+
 module.exports = {
   getOrderById,
   registerDeliveryAgent,
@@ -5503,5 +5675,6 @@ module.exports = {
   sendDeliveryOTP,
   verifyDeliveryOTP,
   resendDeliveryOTP,
-  markCashPaymentCollected
+  markCashPaymentCollected,
+  cancelOrder
 };

@@ -40,8 +40,10 @@ const AssignedOrders = () => {
   const [showReachedDeliveryModal, setShowReachedDeliveryModal] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [showDeliverySuccessModal, setShowDeliverySuccessModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [deliverySuccessData, setDeliverySuccessData] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
   
   // Order state tracking
   
@@ -1152,6 +1154,61 @@ const AssignedOrders = () => {
     }
   };
 
+  // Handle order cancellation
+  const handleCancelOrder = async () => {
+    if (!selectedOrder) {
+      toast.error('No order selected');
+      return;
+    }
+
+    if (!cancelReason || cancelReason.trim().length === 0) {
+      toast.error('Please provide a cancellation reason');
+      return;
+    }
+
+    try {
+      setProcessingOrder(selectedOrder._id);
+      setActionType('cancel');
+
+      const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
+      const response = await fetch(`${API_BASE_URL}/delivery/orders/${selectedOrder._id}/cancel`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          cancellationReason: cancelReason.trim()
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success('Order cancelled successfully');
+        console.log('✅ [ASSIGNED-ORDERS] Order cancelled:', selectedOrder._id);
+        
+        // Close modals and reset state
+        setShowCancelModal(false);
+        setShowDeliveryModal(false);
+        setSelectedOrder(null);
+        setCancelReason('');
+        
+        // Refresh orders list
+        loadAssignedOrders();
+      } else {
+        console.error('❌ [ASSIGNED-ORDERS] Failed to cancel order:', data.message);
+        toast.error(data.message || 'Failed to cancel order');
+      }
+    } catch (error) {
+      console.error('❌ [ASSIGNED-ORDERS] Error cancelling order:', error);
+      toast.error('Failed to cancel order. Please try again.');
+    } finally {
+      setProcessingOrder(null);
+      setActionType(null);
+    }
+  };
+
   // Determine current order step aligned with backend deliveryAgent.status
   const getOrderStep = (order) => {
     const agentStatus = order.deliveryAgent?.status || order.deliveryStatus || 'assigned';
@@ -2059,6 +2116,13 @@ const AssignedOrders = () => {
                 Cancel
               </button>
               <button
+                onClick={() => setShowCancelModal(true)}
+                disabled={processingOrder === selectedOrder._id}
+                className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-white py-2 px-4 rounded-md font-medium transition-colors"
+              >
+                Cancel Order
+              </button>
+              <button
                 onClick={handleDeliveryComplete}
                 disabled={
                   processingOrder === selectedOrder._id || 
@@ -2075,6 +2139,69 @@ const AssignedOrders = () => {
               {paymentCompleted && deliveryForm.codPaymentType === 'qr' && !deliveryForm.otp?.trim() && (
                 <p className="text-xs text-red-600 mt-1 text-center w-full">Please enter OTP from buyer to complete delivery</p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Order Modal */}
+      {showCancelModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">❌ Cancel Order</h2>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-4">
+                Are you sure you want to cancel this order? Please provide a valid reason for cancellation.
+              </p>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Cancellation Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  rows="4"
+                  placeholder="e.g., Customer unavailable, Wrong address, Other valid reason..."
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Please provide a clear reason for cancelling this order. This will be visible to admin, buyer, and seller.
+                </p>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4">
+                <p className="text-sm text-yellow-800">
+                  <strong>Note:</strong> Once cancelled, this order will be moved to the Cancelled tab and can be reassigned by admin if needed.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex space-x-4">
+              <button
+                onClick={() => {
+                  setShowCancelModal(false);
+                  setCancelReason('');
+                }}
+                disabled={processingOrder === selectedOrder._id && actionType === 'cancel'}
+                className="flex-1 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-2 px-4 rounded-md font-medium transition-colors"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={handleCancelOrder}
+                disabled={
+                  (processingOrder === selectedOrder._id && actionType === 'cancel') ||
+                  !cancelReason || cancelReason.trim().length === 0
+                }
+                className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-white py-2 px-4 rounded-md font-medium transition-colors"
+              >
+                {processingOrder === selectedOrder._id && actionType === 'cancel'
+                  ? 'Cancelling...'
+                  : 'Confirm Cancellation'}
+              </button>
             </div>
           </div>
         </div>
