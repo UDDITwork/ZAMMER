@@ -363,8 +363,30 @@ const AssignedOrders = () => {
       if (response.ok) {
         const data = await response.json();
         console.log('✅ [ASSIGNED-ORDERS] Orders fetched successfully:', data.count || 0);
-        setAssignedOrders(data.data || []);
-        return data.data || [];
+        
+        // 🎯 SORT: Newly accepted orders first, then by assignedAt (newest first)
+        const sortedOrders = (data.data || []).sort((a, b) => {
+          // Prioritize accepted orders
+          const aAccepted = a.acceptedAt ? new Date(a.acceptedAt).getTime() : 0;
+          const bAccepted = b.acceptedAt ? new Date(b.acceptedAt).getTime() : 0;
+          
+          // If both are accepted, sort by acceptedAt (newest first)
+          if (aAccepted && bAccepted) {
+            return bAccepted - aAccepted;
+          }
+          
+          // If only one is accepted, prioritize it
+          if (aAccepted && !bAccepted) return -1;
+          if (!aAccepted && bAccepted) return 1;
+          
+          // If neither is accepted, sort by assignedAt (newest first)
+          const aAssigned = a.assignedAt ? new Date(a.assignedAt).getTime() : 0;
+          const bAssigned = b.assignedAt ? new Date(b.assignedAt).getTime() : 0;
+          return bAssigned - aAssigned;
+        });
+        
+        setAssignedOrders(sortedOrders);
+        return sortedOrders;
       } else {
         console.error('❌ [ASSIGNED-ORDERS] Failed to fetch orders:', response.status);
         if (response.status === 401) {
