@@ -152,17 +152,52 @@ const Orders = () => {
   useEffect(() => {
     if (orders.length > 0) {
       let filtered = orders.filter(order => {
+        // 🎯 PRIORITY 1: Cancelled orders always appear in Cancelled tab regardless of other conditions
+        if (activeTab === 'Cancelled') {
+          return order.status === 'Cancelled';
+        }
+        // If order is cancelled, it should only appear in Cancelled tab
+        if (order.status === 'Cancelled') {
+          return false;
+        }
+        
+        // 🎯 PRIORITY 2: Delivered orders always appear in Delivered tab
+        if (activeTab === 'Delivered') {
+          return order.status === 'Delivered';
+        }
+        // If order is delivered, it should only appear in Delivered tab
+        if (order.status === 'Delivered') {
+          return false;
+        }
+        
         // 🎯 MAP STATUS FOR FILTERING: Use mapped status for tab filtering
         const mappedStatus = mapStatusForDisplay(order.status);
+        const orderIdStatus = order.order_id_status || 'unverified'; // Default to 'unverified' for backward compatibility
+        
+        if (activeTab === 'Pending') {
+          return mappedStatus === 'Pending';
+        }
         
         if (activeTab === 'Processing') {
-          // Include both "Processing" and "Pickup_Ready" statuses
-          return mappedStatus === 'Processing';
+          // "Ready to Ship" tab: Show orders where:
+          // - Status is Processing or Pickup_Ready AND
+          // - order_id_status is 'unverified'
+          return mappedStatus === 'Processing' && orderIdStatus === 'unverified';
         }
+        
         if (activeTab === 'Shipped') {
-          // Include both "Shipped" and "Out_for_Delivery" statuses
-          return mappedStatus === 'Shipped';
+          // "Shipped" tab: Show orders where:
+          // - Status is Out_for_Delivery or Shipped OR
+          // - (order_id_status is 'verified' AND status is Processing or Pickup_Ready)
+          if (mappedStatus === 'Shipped') {
+            return true;
+          }
+          if (mappedStatus === 'Processing' && orderIdStatus === 'verified') {
+            return true;
+          }
+          return false;
         }
+        
         return mappedStatus === activeTab;
       });
       
@@ -187,6 +222,42 @@ const Orders = () => {
     fetchStats();
     setupSocketConnection();
   }, [fetchOrders, fetchStats, setupSocketConnection]);
+
+  // 🎯 POLLING: Check for order_id_status updates for orders in "Ready to Ship" tab
+  useEffect(() => {
+    // Only poll when on "Ready to Ship" tab
+    if (activeTab !== 'Processing') {
+      return;
+    }
+
+    // Find orders that need polling (unverified orders in Ready to Ship tab)
+    const unverifiedOrders = orders.filter(order => {
+      // Skip cancelled and delivered orders
+      if (order.status === 'Cancelled' || order.status === 'Delivered') {
+        return false;
+      }
+      const mappedStatus = mapStatusForDisplay(order.status);
+      const orderIdStatus = order.order_id_status || 'unverified';
+      return mappedStatus === 'Processing' && orderIdStatus === 'unverified';
+    });
+
+    // If no unverified orders, don't poll
+    if (unverifiedOrders.length === 0) {
+      return;
+    }
+
+    console.log(`🔄 Polling ${unverifiedOrders.length} unverified order(s) for status updates...`);
+
+    // Set up polling interval (every 5 seconds)
+    const pollInterval = setInterval(() => {
+      fetchOrders();
+    }, 5000);
+
+    // Cleanup interval on unmount, tab change, or when orders update
+    return () => {
+      clearInterval(pollInterval);
+    };
+  }, [activeTab, orders.length, fetchOrders]); // Use orders.length instead of orders to reduce re-renders
 
   const handleStatusUpdate = async (orderId, newStatus) => {
     try {
