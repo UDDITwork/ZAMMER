@@ -703,16 +703,49 @@ const orderService = {
     } catch (error) {
       return handleApiError(error, 'downloadShippingLabel');
     }
-  }
-};
+  },
 
-// Add confirmation fetch helper
-orderService.getOrderConfirmation = async (orderId) => {
-  try {
-    const response = await api.get(`/orders/${orderId}/confirmation`);
-    return response.data;
-  } catch (error) {
-    return handleApiError(error, 'getOrderConfirmation');
+  // Add confirmation fetch helper
+  getOrderConfirmation: async (orderId) => {
+    try {
+      const response = await api.get(`/orders/${orderId}/confirmation`);
+      return response.data;
+    } catch (error) {
+      return handleApiError(error, 'getOrderConfirmation');
+    }
+  },
+
+  // 🎯 NEW: Cancel order by buyer
+  cancelOrderByBuyer: async (orderId, cancellationReason) => {
+    try {
+      logOperation('Cancelling Order by Buyer', { orderId, hasReason: !!cancellationReason }, 'info');
+
+      if (!orderId) {
+        throw new Error('Order ID is required');
+      }
+
+      if (!cancellationReason || cancellationReason.trim().length === 0) {
+        throw new Error('Cancellation reason is required');
+      }
+
+      if (cancellationReason.trim().length < 5 || cancellationReason.trim().length > 500) {
+        throw new Error('Cancellation reason must be between 5 and 500 characters');
+      }
+
+      const response = await api.put(`/orders/${orderId}/cancel-by-buyer`, {
+        cancellationReason: cancellationReason.trim()
+      });
+      
+      logOperation('Order Cancelled by Buyer', {
+        orderId,
+        orderNumber: response.data.data?.orderNumber,
+        status: response.data.data?.status
+      }, 'success');
+
+      return response.data;
+    } catch (error) {
+      return handleApiError(error, 'cancelOrderByBuyer');
+    }
   }
 };
 
