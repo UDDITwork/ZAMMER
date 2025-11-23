@@ -1,6 +1,19 @@
 const express = require('express');
-const { body } = require('express-validator');
+const { body, validationResult } = require('express-validator');
 const router = express.Router();
+
+// Validation middleware
+const validateRequest = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    });
+  }
+  next();
+};
 const {
   createOrder,
   getOrderById,
@@ -11,7 +24,8 @@ const {
   getOrderInvoice,
   updateOrderPaymentStatus,
   getOrderConfirmationDetails,
-  getAdminDashboardOrders
+  getAdminDashboardOrders,
+  cancelOrderByBuyer
 } = require('../controllers/orderController');
 const { protectUser, protectSeller, protectAdmin, protectUserOrSeller } = require('../middleware/authMiddleware');
 
@@ -56,5 +70,19 @@ router.put('/:id/payment-status', protectUser, updateOrderPaymentStatus);
 
 // 🎯 NEW: Get order invoice
 router.get('/:id/invoice', protectUser, getOrderInvoice);
+
+// 🎯 NEW: Cancel order by buyer
+router.put('/:id/cancel-by-buyer', 
+  protectUser,
+  [
+    body('cancellationReason')
+      .notEmpty()
+      .withMessage('Cancellation reason is required')
+      .isLength({ min: 5, max: 500 })
+      .withMessage('Cancellation reason must be between 5 and 500 characters')
+  ],
+  validateRequest,
+  cancelOrderByBuyer
+);
 
 module.exports = router;

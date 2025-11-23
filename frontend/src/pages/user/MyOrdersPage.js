@@ -90,15 +90,8 @@ const MyOrdersPage = () => {
           fetchOrders();
         });
 
-        // 🎯 NEW: Listen for order cancellation confirmations
-        // This is a persistent listener for real-time updates
-        // The one-time listener in confirmCancelOrder handles immediate responses with proper cleanup
-        socketService.socket?.on('order-cancelled', (data) => {
-          console.log('❌ Order cancellation confirmed (persistent listener):', data);
-          // Always refresh orders to get latest status
-          // The one-time listener will handle the immediate UI updates
-          fetchOrders();
-        });
+        // 🎯 REMOVED: Order cancellation now uses REST API instead of socket.io
+        // Real-time updates for other order status changes are still handled via socket.io
 
         // 🎯 FIX: Listen for socket errors during cancellation
         // Note: We'll handle this in confirmCancelOrder with a ref to avoid stale closure
@@ -159,18 +152,38 @@ const MyOrdersPage = () => {
     }
   };
 
-  // Check return eligibility for orders
+  // Check return eligibility for orders using API
   const checkReturnEligibilityForOrders = async (ordersList) => {
     const eligibilityMap = {};
     
     for (const order of ordersList) {
-      if (order.status === 'Delivered' && order.isDelivered) {
+      // Only check eligibility for delivered orders that haven't already been returned
+      if (order.status === 'Delivered' && order.isDelivered && !order.returnDetails?.returnStatus) {
         try {
-          const eligibility = returnService.canRequestReturn(order);
-          eligibilityMap[order._id] = eligibility;
+          // Use API endpoint to check eligibility (uses backend's checkReturnEligibility method)
+          const response = await returnService.checkReturnEligibility(order._id);
+          if (response.success && response.data) {
+            eligibilityMap[order._id] = {
+              canRequest: response.data.eligible,
+              eligible: response.data.eligible,
+              reason: response.data.reason,
+              hoursRemaining: response.data.hoursRemaining,
+              deadline: response.data.deadline
+            };
+          } else {
+            eligibilityMap[order._id] = { 
+              canRequest: false, 
+              eligible: false,
+              reason: response.message || 'Unable to check eligibility' 
+            };
+          }
         } catch (error) {
           console.error(`Error checking return eligibility for order ${order._id}:`, error);
-          eligibilityMap[order._id] = { canRequest: false, reason: 'Unable to check eligibility' };
+          eligibilityMap[order._id] = { 
+            canRequest: false, 
+            eligible: false,
+            reason: 'Unable to check eligibility' 
+          };
         }
       }
     }
@@ -199,11 +212,13 @@ const MyOrdersPage = () => {
   const handleReturnClick = async (order) => {
     if (!order) return;
     
-    // Check eligibility first
+    // Double-check eligibility via API before showing modal
     const eligibility = await checkReturnEligibility(order._id);
     
     if (!eligibility || !eligibility.eligible) {
-      toast.error(eligibility?.reason || 'This order is not eligible for return');
+      toast.error(eligibility?.reason || 'This order is not eligible for return. Return window is only 24 hours from delivery.');
+      // Refresh eligibility data
+      await checkReturnEligibilityForOrders([order]);
       return;
     }
     
@@ -282,82 +297,70 @@ const MyOrdersPage = () => {
     setShowCancelModal(true);
   };
 
-  // 🎯 NEW: Confirm order cancellation
-  const confirmCancelOrder = () => {
-    if (!cancellingOrder || !socketConnected) {
+  // 🎯 NEW: Confirm order cancellation via REST API
+  const confirmCancelOrder = async () => {
+    if (!cancellingOrder) {
       toast.error('Unable to cancel order. Please try again.');
       return;
     }
 
-    const currentOrderId = cancellingOrder._id; // Capture order ID for cleanup
-    console.log('🎯 Sending cancel order request:', {
+    // Validate cancellation reason
+    if (!cancelReason || cancelReason.trim().length < 5) {
+      toast.error('Please provide a cancellation reason (at least 5 characters)');
+      return;
+    }
+
+    if (cancelReason.trim().length > 500) {
+      toast.error('Cancellation reason must be less than 500 characters');
+      return;
+    }
+
+    const currentOrderId = cancellingOrder._id;
+    console.log('🎯 Cancelling order via REST API:', {
       orderId: currentOrderId,
       reason: cancelReason
     });
 
-    // Set a timeout to handle cases where backend doesn't respond
-    const timeoutId = setTimeout(() => {
-      console.error('⏱️ Cancel order request timeout');
-      toast.error('Request timed out. Please check your connection and try again.');
-      setShowCancelModal(false);
-      setCancellingOrder(null);
-      setCancelReason('');
-      // Clean up listeners
-      if (socketService.socket) {
-        socketService.socket.off('order-cancelled', handleSuccess);
-        socketService.socket.off('error', handleError);
-      }
-    }, 15000); // 15 second timeout
+    try {
+      // Show loading state
+      toast.info('Cancelling order...', { autoClose: 2000 });
 
-    // Handle successful cancellation
-    const handleSuccess = (data) => {
-      // Only process if this is the order we're cancelling
-      if (data.orderId === currentOrderId || data.orderNumber === cancellingOrder.orderNumber) {
-        clearTimeout(timeoutId);
-        console.log('✅ Order cancellation confirmed:', data);
-        toast.success(`Order ${data.orderNumber || cancellingOrder.orderNumber} cancelled successfully`);
-        fetchOrders();
+      // Call REST API to cancel order
+      const response = await orderService.cancelOrderByBuyer(currentOrderId, cancelReason);
+
+      if (response.success) {
+        console.log('✅ Order cancellation successful:', response.data);
+        toast.success(`Order ${response.data.orderNumber || cancellingOrder.orderNumber} cancelled successfully`);
+        
+        // Refresh orders list to show updated status
+        await fetchOrders(pagination.currentPage);
+        
+        // Close modal and reset state
         setShowCancelModal(false);
         setCancellingOrder(null);
         setCancelReason('');
-        // Clean up listeners
-        if (socketService.socket) {
-          socketService.socket.off('order-cancelled', handleSuccess);
-          socketService.socket.off('error', handleError);
-        }
+      } else {
+        throw new Error(response.message || 'Failed to cancel order');
       }
-    };
-
-    // Handle cancellation error
-    const handleError = (error) => {
-      // Only process if we're still cancelling this order
-      if (cancellingOrder && cancellingOrder._id === currentOrderId) {
-        clearTimeout(timeoutId);
-        console.error('❌ Socket error during cancellation:', error);
-        toast.error(error.message || 'Failed to cancel order. Please try again.');
-        setShowCancelModal(false);
-        setCancellingOrder(null);
-        setCancelReason('');
-        // Clean up listeners
-        if (socketService.socket) {
-          socketService.socket.off('order-cancelled', handleSuccess);
-          socketService.socket.off('error', handleError);
-        }
+    } catch (error) {
+      console.error('❌ Error cancelling order:', error);
+      
+      // Extract error message
+      let errorMessage = 'Failed to cancel order. Please try again.';
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
       }
-    };
-
-    // Set up one-time listeners
-    socketService.socket?.once('order-cancelled', handleSuccess);
-    socketService.socket?.once('error', handleError);
-
-    // Send cancellation request via socket
-    socketService.socket?.emit('cancel-order', {
-      orderId: currentOrderId,
-      reason: cancelReason || 'No reason provided'
-    });
-
-    // Show loading state
-    toast.info('Cancelling order...', { autoClose: 2000 });
+      
+      toast.error(errorMessage);
+      
+      // Don't close modal on error so user can retry
+      // setShowCancelModal(false);
+      // setCancellingOrder(null);
+      // setCancelReason('');
+    }
   };
 
   // Helper functions
@@ -709,7 +712,10 @@ const MyOrdersPage = () => {
                     </div>
 
                     {/* 🎯 PREMIUM: Return Eligibility Notice for Delivered Orders */}
-                    {order.status === 'Delivered' && returnEligibility[order._id]?.canRequest && !order.returnDetails?.returnStatus && (
+                    {order.status === 'Delivered' && 
+                     order.isDelivered && 
+                     returnEligibility[order._id]?.eligible && 
+                     !order.returnDetails?.returnStatus && (
                       <div className="px-4 sm:px-6 pb-4 sm:pb-6">
                         <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 sm:p-4 border border-amber-200">
                           <div className="flex items-start gap-2 sm:gap-3">
@@ -719,8 +725,8 @@ const MyOrdersPage = () => {
                             <div className="flex-1 min-w-0">
                               <p className="text-xs sm:text-sm text-amber-800 font-medium">
                                 24-Hour Return Window: You can request a return for this order
-                                {returnEligibility[order._id]?.hoursRemaining && (
-                                  <span className="font-bold"> (within {Math.floor(returnEligibility[order._id].hoursRemaining)}h {Math.floor((returnEligibility[order._id].hoursRemaining % 1) * 60)}m)</span>
+                                {returnEligibility[order._id]?.hoursRemaining !== undefined && (
+                                  <span className="font-bold"> (within {Math.floor(returnEligibility[order._id].hoursRemaining)}h {Math.floor((returnEligibility[order._id].hoursRemaining % 1) * 60)}m remaining)</span>
                                 )}
                               </p>
                             </div>
@@ -755,18 +761,24 @@ const MyOrdersPage = () => {
                           </button>
                         )}
                         
-                        {order.status === 'Delivered' && (
+                        {order.status === 'Delivered' && order.isDelivered && (
                           <>
-                            {/* Return Button - Show if eligible within 24 hours */}
-                            {returnEligibility[order._id]?.canRequest && !order.returnDetails?.returnStatus && (
+                            {/* Return Button - Show for all delivered orders (eligibility checked on click) */}
+                            {!order.returnDetails?.returnStatus && (
                               <button
                                 onClick={() => handleReturnClick(order)}
-                                className="bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:via-orange-700 hover:to-amber-600 text-white py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold flex items-center justify-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
+                                disabled={returnEligibility[order._id]?.eligible === false}
+                                className={`py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold flex items-center justify-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95 ${
+                                  returnEligibility[order._id]?.eligible === false
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60'
+                                    : 'bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:via-orange-700 hover:to-amber-600 text-white'
+                                }`}
+                                title={returnEligibility[order._id]?.eligible === false ? returnEligibility[order._id]?.reason || 'Return window expired' : 'Request return for this order'}
                               >
                                 <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                 </svg>
-                                <span className="hidden sm:inline">Return</span>
+                                <span className="hidden sm:inline">Return Order</span>
                                 <span className="sm:hidden">Return</span>
                               </button>
                             )}

@@ -150,11 +150,11 @@ const requestReturn = async (req, res) => {
       });
     }
 
-    // Check if return is already requested
-    if (order.returnDetails?.returnStatus === 'requested') {
+    // Check if return is already requested or approved
+    if (order.returnDetails?.returnStatus === 'requested' || order.returnDetails?.returnStatus === 'approved') {
       return res.status(400).json({
         success: false,
-        message: 'Return already requested for this order'
+        message: 'Return already requested and approved for this order'
       });
     }
 
@@ -167,10 +167,11 @@ const requestReturn = async (req, res) => {
         orderId,
         orderNumber: order.orderNumber,
         reason,
-        returnStatus: order.returnDetails.returnStatus
+        returnStatus: order.returnDetails.returnStatus,
+        autoApproved: true
       }, 'success');
 
-      // Notify seller about return request
+      // Notify seller about return request (auto-approved)
       if (global.emitToSeller) {
         global.emitToSeller(order.seller._id, 'return-requested', {
           orderId: order._id,
@@ -178,11 +179,13 @@ const requestReturn = async (req, res) => {
           user: order.user,
           reason,
           requestedAt: order.returnDetails.returnRequestedAt,
+          returnStatus: 'approved',
+          approvedAt: order.returnDetails.returnApprovedAt,
           returnDeadline: order.returnDetails.returnWindow.returnDeadline
         });
       }
 
-      // Notify admin about return request
+      // Notify admin about return request (auto-approved) - appears in admin portal
       if (global.emitToAdmin) {
         global.emitToAdmin('return-requested', {
           orderId: order._id,
@@ -190,19 +193,24 @@ const requestReturn = async (req, res) => {
           user: order.user,
           seller: order.seller,
           reason,
-          requestedAt: order.returnDetails.returnRequestedAt
+          requestedAt: order.returnDetails.returnRequestedAt,
+          returnStatus: 'approved',
+          approvedAt: order.returnDetails.returnApprovedAt,
+          autoApproved: true
         });
       }
 
       res.json({
         success: true,
-        message: 'Return request submitted successfully',
+        message: 'Return request submitted and auto-approved successfully',
         data: {
           orderId: order._id,
           orderNumber: order.orderNumber,
           returnStatus: order.returnDetails.returnStatus,
           requestedAt: order.returnDetails.returnRequestedAt,
-          returnDeadline: order.returnDetails.returnWindow.returnDeadline
+          approvedAt: order.returnDetails.returnApprovedAt,
+          returnDeadline: order.returnDetails.returnWindow.returnDeadline,
+          autoApproved: true
         }
       });
 
@@ -238,7 +246,7 @@ const requestReturn = async (req, res) => {
 const getReturnOrders = async (req, res) => {
   try {
     const { status } = req.query;
-    const adminId = req.user?.id;
+    const adminId = req.admin?._id;
 
     logReturnOperation('GetReturnOrders', {
       status,
@@ -316,7 +324,8 @@ const assignReturnAgent = async (req, res) => {
   try {
     const { returnId } = req.params;
     const { agentId } = req.body;
-    const adminId = req.user?.id;
+    // 🎯 FIXED: Use req.admin?._id for admin routes (consistent with getReturnOrders)
+    const adminId = req.admin?._id || req.user?.id;
 
     logReturnOperation('AssignReturnAgent', {
       returnId,
@@ -345,11 +354,11 @@ const assignReturnAgent = async (req, res) => {
       });
     }
 
-    // Check if return is in correct status
-    if (order.returnDetails?.returnStatus !== 'requested') {
+    // 🎯 UPDATED: Check if return is in correct status (allow both 'requested' and 'approved')
+    if (order.returnDetails?.returnStatus !== 'requested' && order.returnDetails?.returnStatus !== 'approved') {
       return res.status(400).json({
         success: false,
-        message: `Cannot assign agent. Return status is: ${order.returnDetails?.returnStatus}`
+        message: `Cannot assign agent. Return status must be 'requested' or 'approved'. Current status: ${order.returnDetails?.returnStatus}`
       });
     }
 

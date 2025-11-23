@@ -1891,3 +1891,233 @@ exports.getAdminDashboardOrders = async (req, res) => {
     });
   }
 };
+
+// 🎯 NEW: Cancel order by buyer
+// @desc    Cancel order by buyer (user)
+// @route   PUT /api/orders/:orderId/cancel-by-buyer
+// @access  Private (User)
+exports.cancelOrderByBuyer = async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    const userId = req.user._id || req.user.id;
+    const orderId = req.params.id;
+    const { cancellationReason } = req.body;
+    
+    terminalLog('CANCEL_ORDER_BY_BUYER_START', 'PROCESSING', {
+      userId,
+      orderId,
+      userName: req.user.name,
+      reason: cancellationReason || 'No reason provided'
+    });
+    
+    console.log(`
+📦 ===============================
+   CANCEL ORDER BY BUYER
+===============================
+📋 Order ID: ${orderId}
+👤 Buyer: ${req.user.name}
+📝 Reason: ${cancellationReason || 'No reason provided'}
+🕐 Time: ${new Date().toLocaleString()}
+===============================`);
+
+    // 🎯 VALIDATION: Check if cancellation reason is provided
+    if (!cancellationReason || cancellationReason.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cancellation reason is required',
+        code: 'CANCELLATION_REASON_REQUIRED'
+      });
+    }
+
+    // 🎯 VALIDATION: Check if order exists
+    const order = await Order.findById(orderId)
+      .populate('user', 'name mobileNumber email')
+      .populate('seller', 'firstName lastName shop email')
+      .populate('orderItems.product', 'name images');
+
+    if (!order) {
+      terminalLog('CANCEL_ORDER_BY_BUYER_NOT_FOUND', 'ERROR', { orderId });
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found',
+        code: 'ORDER_NOT_FOUND'
+      });
+    }
+
+    // 🎯 AUTHORIZATION: Verify order belongs to this buyer
+    const orderUserId = order.user._id?.toString() || order.user.toString();
+    const currentUserId = userId?.toString();
+    
+    if (orderUserId !== currentUserId) {
+      terminalLog('CANCEL_ORDER_BY_BUYER_UNAUTHORIZED', 'ERROR', { 
+        orderId, 
+        orderUserId, 
+        currentUserId 
+      });
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to cancel this order',
+        code: 'UNAUTHORIZED_USER'
+      });
+    }
+
+    // 🎯 VALIDATION: Check if order can be cancelled (only Pending and Processing)
+    if (!['Pending', 'Processing'].includes(order.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot cancel order with status: ${order.status}. Only Pending or Processing orders can be cancelled.`,
+        code: 'INVALID_ORDER_STATUS',
+        currentStatus: order.status
+      });
+    }
+
+    // 🎯 VALIDATION: Check if order is already cancelled
+    if (order.status === 'Cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Order is already cancelled',
+        code: 'ORDER_ALREADY_CANCELLED'
+      });
+    }
+
+    // 🎯 VALIDATION: Check if delivery agent has reached buyer location
+    // If agent has reached buyer location, buyer cannot cancel the order
+    const hasReachedBuyerLocation = 
+      order.deliveryAgent?.status === 'location_reached' ||
+      order.delivery?.locationReachedAt ||
+      order.deliveryAgent?.locationReachedAt;
+
+    if (hasReachedBuyerLocation) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot cancel order. Delivery agent has already reached your location. Please contact support if you need assistance.',
+        code: 'AGENT_REACHED_LOCATION'
+      });
+    }
+
+    const previousStatus = order.status;
+    
+    // 🎯 UPDATE: Cancel the order using the Order model's updateStatus method
+    order._cancelledByName = req.user.name;
+    await order.updateStatus('Cancelled', 'buyer', cancellationReason.trim());
+
+    // 🎯 UPDATE: Update order notes
+    order.notes = `Cancelled by buyer: ${cancellationReason.trim()}`;
+
+    await order.save();
+
+    const processingTime = Date.now() - startTime;
+    
+    terminalLog('CANCEL_ORDER_BY_BUYER_SUCCESS', 'SUCCESS', {
+      orderId,
+      orderNumber: order.orderNumber,
+      userId,
+      processingTime: `${processingTime}ms`
+    });
+
+    console.log(`
+✅ ===============================
+   ORDER CANCELLED BY BUYER
+===============================
+📦 Order: ${order.orderNumber}
+👤 Buyer: ${req.user.name}
+📝 Reason: ${cancellationReason}
+⏱️ Processing Time: ${processingTime}ms
+===============================`);
+
+    // 🎯 NOTIFICATION: Notify seller about cancellation
+    try {
+      if (global.emitToSeller) {
+        const sellerStatus = mapStatusForSeller(order.status);
+        const sellerPreviousStatus = mapStatusForSeller(previousStatus);
+        
+        const cancellationData = {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: sellerStatus,
+          previousStatus: sellerPreviousStatus,
+          user: order.user,
+          reason: cancellationReason.trim(),
+          cancelledAt: new Date().toISOString(),
+          cancellationDetails: order.cancellationDetails
+        };
+
+        global.emitToSeller(order.seller._id, 'order-cancelled-by-buyer', cancellationData);
+        terminalLog('SELLER_NOTIFICATION_SENT', 'SUCCESS', { sellerId: order.seller._id, orderId });
+      }
+    } catch (notificationError) {
+      terminalLog('SELLER_NOTIFICATION_FAILED', 'ERROR', { 
+        sellerId: order.seller._id, 
+        orderId, 
+        error: notificationError.message 
+      });
+    }
+
+    // 🎯 NOTIFICATION: Notify admin about order cancellation
+    try {
+      if (global.emitToAdmin) {
+        global.emitToAdmin('order-cancelled-by-buyer', {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          status: 'Cancelled',
+          previousStatus: previousStatus,
+          user: order.user,
+          seller: order.seller,
+          reason: cancellationReason.trim(),
+          cancelledAt: new Date().toISOString(),
+          cancellationDetails: order.cancellationDetails,
+          cancelledBy: 'buyer'
+        });
+        terminalLog('ADMIN_NOTIFICATION_SENT', 'SUCCESS', { orderId });
+      }
+    } catch (notificationError) {
+      terminalLog('ADMIN_NOTIFICATION_FAILED', 'ERROR', { 
+        orderId, 
+        error: notificationError.message 
+      });
+    }
+
+    // 📤 SUCCESS RESPONSE
+    res.status(200).json({
+      success: true,
+      message: 'Order cancelled successfully',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        cancelledBy: 'buyer',
+        cancelledAt: order.cancellationDetails.cancelledAt,
+        cancellationReason: order.cancellationDetails.cancellationReason,
+        previousStatus: previousStatus
+      }
+    });
+
+  } catch (error) {
+    const processingTime = Date.now() - startTime;
+    terminalLog('CANCEL_ORDER_BY_BUYER_ERROR', 'ERROR', {
+      orderId: req.params.id,
+      userId: req.user?._id || req.user?.id,
+      error: error.message,
+      stack: error.stack,
+      processingTime: `${processingTime}ms`
+    });
+
+    console.error(`
+❌ ===============================
+   ORDER CANCELLATION BY BUYER FAILED
+===============================
+📦 Order ID: ${req.params.id}
+👤 Buyer: ${req.user?.name || 'Unknown'}
+❌ Error: ${error.message}
+⏱️ Processing Time: ${processingTime}ms
+===============================`);
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to cancel order',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: 'CANCEL_ORDER_ERROR'
+    });
+  }
+};

@@ -718,6 +718,10 @@ const OrderSchema = new mongoose.Schema({
       type: Date,
       default: null
     },
+    returnApprovedAt: {
+      type: Date,
+      default: null
+    },
     returnReason: {
       type: String,
       default: ''
@@ -1365,7 +1369,7 @@ OrderSchema.methods.checkReturnEligibility = function() {
   };
 };
 
-// Method to request return
+// Method to request return (with auto-approval)
 OrderSchema.methods.requestReturn = function(reason, userId) {
   const eligibility = this.checkReturnEligibility();
   
@@ -1381,7 +1385,9 @@ OrderSchema.methods.requestReturn = function(reason, userId) {
   this.returnDetails.isReturned = true;
   this.returnDetails.returnRequestedAt = new Date();
   this.returnDetails.returnReason = reason;
-  this.returnDetails.returnStatus = 'requested';
+  // 🎯 AUTO-APPROVE: Set status directly to 'approved' instead of 'requested'
+  this.returnDetails.returnStatus = 'approved';
+  this.returnDetails.returnApprovedAt = new Date();
   this.returnDetails.returnWindow = {
     deliveredAt: this.deliveredAt,
     returnDeadline: eligibility.deadline,
@@ -1393,6 +1399,7 @@ OrderSchema.methods.requestReturn = function(reason, userId) {
     this.returnDetails.returnHistory = [];
   }
   
+  // Add 'requested' status to history
   this.returnDetails.returnHistory.push({
     status: 'requested',
     changedBy: 'buyer',
@@ -1400,13 +1407,22 @@ OrderSchema.methods.requestReturn = function(reason, userId) {
     notes: `Return requested: ${reason}`
   });
   
+  // 🎯 AUTO-APPROVE: Add 'approved' status to history immediately
+  this.returnDetails.returnHistory.push({
+    status: 'approved',
+    changedBy: 'system',
+    changedAt: new Date(),
+    notes: 'Return auto-approved by system'
+  });
+  
   return this.save();
 };
 
 // Method to assign return delivery agent
 OrderSchema.methods.assignReturnAgent = function(agentId, adminId) {
-  if (this.returnDetails.returnStatus !== 'requested') {
-    throw new Error('Return must be in requested status to assign agent');
+  // 🎯 UPDATED: Allow assignment from both 'requested' and 'approved' status
+  if (this.returnDetails.returnStatus !== 'requested' && this.returnDetails.returnStatus !== 'approved') {
+    throw new Error('Return must be in requested or approved status to assign agent');
   }
   
   this.returnDetails.returnAssignment = {
@@ -1451,13 +1467,14 @@ OrderSchema.methods.handleReturnAgentResponse = function(response, reason = '') 
     this.returnDetails.returnAssignment.deliveryAgent = null;
     this.returnDetails.returnAssignment.assignedAt = null;
     this.returnDetails.returnAssignment.status = 'unassigned';
-    this.returnDetails.returnStatus = 'requested';
+    // 🎯 FIXED: Since returns are auto-approved, status should go back to 'approved' (not 'requested')
+    this.returnDetails.returnStatus = 'approved';
     
     this.returnDetails.returnHistory.push({
       status: 'rejected',
       changedBy: 'delivery_agent',
       changedAt: new Date(),
-      notes: `Return assignment rejected: ${reason}`
+      notes: `Return assignment rejected: ${reason}. Status reset to approved for reassignment.`
     });
   }
   
