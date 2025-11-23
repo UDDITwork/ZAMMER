@@ -246,29 +246,6 @@ const DeliveryDashboard = () => {
     }
   }, []);
 
-  // 🎯 NEW: Return management functions - MOVED UP to avoid "before initialization" error
-  const fetchReturnAssignments = useCallback(async () => {
-    try {
-      setReturnLoading(true);
-      console.log('🚚 Fetching return assignments for delivery agent...');
-      
-      const response = await returnService.getDeliveryAgentReturns();
-      
-      if (response && response.success) {
-        const assignments = Array.isArray(response.data) ? response.data : [];
-        setReturnAssignments(assignments);
-        console.log('✅ Return assignments fetched:', assignments.length);
-      } else {
-        setReturnAssignments([]);
-      }
-    } catch (error) {
-      console.error('❌ Failed to fetch return assignments:', error);
-      setReturnAssignments([]);
-    } finally {
-      setReturnLoading(false);
-    }
-  }, []);
-
   const markSellerLocationReached = useCallback(async (order) => {
     if (!order) {
       toast.error('No order selected');
