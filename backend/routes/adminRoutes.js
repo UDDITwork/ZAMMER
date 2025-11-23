@@ -24,6 +24,7 @@ const {
   getDeliveryAgents,
   getAvailableDeliveryAgents,
   getDeliveryAgentProfile,
+  getDeliveryAgentCODCollections,
   // Payout management functions
   getPayoutAnalytics,
   getAllPayouts,
@@ -304,6 +305,27 @@ router.get('/delivery-agents/:agentId', [
     .isMongoId()
     .withMessage('Invalid agent ID format')
 ], validateRequest, getDeliveryAgentProfile);
+
+// @route   GET /api/admin/delivery-agents/:agentId/cod-collections
+// @desc    Get COD collections with date-wise breakdown for a delivery agent
+// @access  Private (Admin)
+router.get('/delivery-agents/:agentId/cod-collections', [
+  param('agentId')
+    .isMongoId()
+    .withMessage('Invalid agent ID format'),
+  query('dateFrom')
+    .optional()
+    .isISO8601()
+    .withMessage('Invalid date format for dateFrom'),
+  query('dateTo')
+    .optional()
+    .isISO8601()
+    .withMessage('Invalid date format for dateTo'),
+  query('paymentMethod')
+    .optional()
+    .isIn(['cash', 'upi', 'smepay', 'all'])
+    .withMessage('Invalid payment method filter')
+], validateRequest, getDeliveryAgentCODCollections);
 
 // @route   POST /api/admin/delivery-agents
 // @desc    Create a new delivery agent
