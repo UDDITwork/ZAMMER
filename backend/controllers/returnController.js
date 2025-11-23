@@ -111,19 +111,39 @@ const getReturnEligibility = async (req, res) => {
 
 // 🎯 REQUEST RETURN
 const requestReturn = async (req, res) => {
+  const requestId = `REQ-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
   try {
     const { orderId } = req.params;
     const { reason } = req.body;
     const userId = req.user?.id;
 
-    logReturnOperation('RequestReturn', {
+    // 🎯 AGGRESSIVE LOGGING: Entry point
+    console.log(`🔄 [${requestId}] [RETURN-CONTROLLER] RequestReturn - ENTRY:`, JSON.stringify({
+      requestId,
       orderId,
-      reason,
+      reason: reason?.substring(0, 50), // Truncate for logging
+      userId,
+      timestamp: new Date().toISOString()
+    }, null, 2));
+
+    logReturnOperation('RequestReturn', {
+      requestId,
+      orderId,
+      reason: reason?.substring(0, 50),
       userId,
       timestamp: new Date().toISOString()
     }, 'return');
 
+    // 🎯 VALIDATION LOGGING
     if (!orderId || !reason) {
+      console.error(`❌ [${requestId}] [RETURN-CONTROLLER] RequestReturn - VALIDATION FAILED:`, JSON.stringify({
+        requestId,
+        hasOrderId: !!orderId,
+        hasReason: !!reason,
+        error: 'Order ID and return reason are required'
+      }, null, 2));
+      
       return res.status(400).json({
         success: false,
         message: 'Order ID and return reason are required'
@@ -131,19 +151,39 @@ const requestReturn = async (req, res) => {
     }
 
     // Find the order
+    console.log(`🔍 [${requestId}] [RETURN-CONTROLLER] RequestReturn - FETCHING ORDER:`, orderId);
     const order = await Order.findById(orderId)
       .populate('user', 'name email')
       .populate('seller', 'firstName shop email');
 
     if (!order) {
+      console.error(`❌ [${requestId}] [RETURN-CONTROLLER] RequestReturn - ORDER NOT FOUND:`, orderId);
       return res.status(404).json({
         success: false,
         message: 'Order not found'
       });
     }
 
+    console.log(`✅ [${requestId}] [RETURN-CONTROLLER] RequestReturn - ORDER FOUND:`, JSON.stringify({
+      requestId,
+      orderId: order._id.toString(),
+      orderNumber: order.orderNumber,
+      orderStatus: order.status,
+      isDelivered: order.isDelivered,
+      deliveredAt: order.deliveredAt,
+      userId: order.user._id.toString(),
+      returnStatus: order.returnDetails?.returnStatus
+    }, null, 2));
+
     // Check if user is authorized to request return for this order
     if (order.user._id.toString() !== userId) {
+      console.error(`❌ [${requestId}] [RETURN-CONTROLLER] RequestReturn - UNAUTHORIZED:`, JSON.stringify({
+        requestId,
+        orderUserId: order.user._id.toString(),
+        requestUserId: userId,
+        error: 'User mismatch'
+      }, null, 2));
+      
       return res.status(403).json({
         success: false,
         message: 'Unauthorized to request return for this order'
@@ -152,6 +192,12 @@ const requestReturn = async (req, res) => {
 
     // Check if return is already requested or approved
     if (order.returnDetails?.returnStatus === 'requested' || order.returnDetails?.returnStatus === 'approved') {
+      console.error(`❌ [${requestId}] [RETURN-CONTROLLER] RequestReturn - ALREADY REQUESTED:`, JSON.stringify({
+        requestId,
+        currentReturnStatus: order.returnDetails?.returnStatus,
+        error: 'Return already in progress'
+      }, null, 2));
+      
       return res.status(400).json({
         success: false,
         message: 'Return already requested and approved for this order'
@@ -159,14 +205,49 @@ const requestReturn = async (req, res) => {
     }
 
     try {
+      // 🎯 LOGGING: Before calling model method
+      console.log(`🔄 [${requestId}] [RETURN-CONTROLLER] RequestReturn - CALLING MODEL METHOD:`, JSON.stringify({
+        requestId,
+        orderId: order._id.toString(),
+        orderStatus: order.status,
+        currentReturnStatus: order.returnDetails?.returnStatus,
+        beforeState: {
+          returnStatus: order.returnDetails?.returnStatus,
+          hasReturnDetails: !!order.returnDetails
+        }
+      }, null, 2));
+      
       // Request return using the model method
       await order.requestReturn(reason, userId);
+      
+      // 🎯 LOGGING: After model method call
+      console.log(`✅ [${requestId}] [RETURN-CONTROLLER] RequestReturn - MODEL METHOD SUCCESS:`, JSON.stringify({
+        requestId,
+        orderId: order._id.toString(),
+        afterState: {
+          returnStatus: order.returnDetails?.returnStatus,
+          returnRequestedAt: order.returnDetails?.returnRequestedAt,
+          returnApprovedAt: order.returnDetails?.returnApprovedAt
+        }
+      }, null, 2));
 
+      // 🎯 LOGGING: Success response
+      console.log(`✅ [${requestId}] [RETURN-CONTROLLER] RequestReturn - SUCCESS:`, JSON.stringify({
+        requestId,
+        orderId: order._id.toString(),
+        orderNumber: order.orderNumber,
+        returnStatus: order.returnDetails.returnStatus,
+        returnRequestedAt: order.returnDetails.returnRequestedAt,
+        returnApprovedAt: order.returnDetails.returnApprovedAt,
+        autoApproved: true
+      }, null, 2));
+      
       logReturnOperation('RequestReturn', {
+        requestId,
         success: true,
         orderId,
         orderNumber: order.orderNumber,
-        reason,
+        reason: reason?.substring(0, 50),
         returnStatus: order.returnDetails.returnStatus,
         autoApproved: true
       }, 'success');
@@ -215,10 +296,21 @@ const requestReturn = async (req, res) => {
       });
 
     } catch (eligibilityError) {
+      // 🎯 LOGGING: Eligibility error
+      console.error(`❌ [${requestId}] [RETURN-CONTROLLER] RequestReturn - ELIGIBILITY ERROR:`, JSON.stringify({
+        requestId,
+        orderId,
+        error: eligibilityError.message,
+        stack: eligibilityError.stack,
+        errorType: eligibilityError.constructor.name
+      }, null, 2));
+      
       logReturnOperation('RequestReturn', {
+        requestId,
         error: eligibilityError.message,
         orderId,
-        reason
+        reason: reason?.substring(0, 50),
+        stack: eligibilityError.stack
       }, 'error');
 
       res.status(400).json({
@@ -228,7 +320,18 @@ const requestReturn = async (req, res) => {
     }
 
   } catch (error) {
+    // 🎯 LOGGING: General error
+    console.error(`❌ [${requestId}] [RETURN-CONTROLLER] RequestReturn - GENERAL ERROR:`, JSON.stringify({
+      requestId,
+      orderId: req.params.orderId,
+      error: error.message,
+      stack: error.stack,
+      errorType: error.constructor.name,
+      errorName: error.name
+    }, null, 2));
+    
     logReturnOperation('RequestReturn', {
+      requestId,
       error: error.message,
       orderId: req.params.orderId,
       stack: error.stack

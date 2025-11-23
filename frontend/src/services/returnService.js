@@ -5,39 +5,158 @@ const API_BASE_URL = RAW_API_BASE.replace(/\/api\/?$/, '');
 
 class ReturnService {
   constructor() {
-    this.token = localStorage.getItem('token');
+    // 🎯 FIXED: Don't store token in constructor - get it fresh each time
+    // Token may change during session (login/logout)
   }
 
-  // Get authorization headers
+  // Get authorization headers - fetch token fresh each time
   getHeaders() {
+    const token = localStorage.getItem('token');
+    
+    // 🎯 LOGGING: Log token status (without exposing full token)
+    if (!token) {
+      console.error('❌ [RETURN-SERVICE] No token found in localStorage');
+    } else if (token.length < 10) {
+      console.error('❌ [RETURN-SERVICE] Token appears invalid (too short):', {
+        tokenLength: token.length,
+        tokenPreview: token.substring(0, 10) + '...'
+      });
+    } else {
+      console.log('✅ [RETURN-SERVICE] Token found:', {
+        tokenLength: token.length,
+        tokenPreview: token.substring(0, 20) + '...',
+        hasBearer: token.startsWith('Bearer ')
+      });
+    }
+    
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.token}`
+      'Authorization': `Bearer ${token}`
     };
   }
 
   // Handle API responses
   async handleResponse(response) {
-    const data = await response.json();
+    // 🎯 LOGGING: Response handling
+    const requestId = `RESP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log(`📥 [${requestId}] [RETURN-SERVICE] handleResponse - PROCESSING:`, {
+      requestId,
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      contentType: response.headers.get('content-type')
+    });
+    
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      console.error(`❌ [${requestId}] [RETURN-SERVICE] handleResponse - JSON PARSE ERROR:`, {
+        requestId,
+        error: parseError.message,
+        status: response.status,
+        statusText: response.statusText
+      });
+      throw new Error(`Failed to parse response: ${response.statusText}`);
+    }
+    
+    console.log(`📊 [${requestId}] [RETURN-SERVICE] handleResponse - PARSED DATA:`, {
+      requestId,
+      success: data.success,
+      hasMessage: !!data.message,
+      hasData: !!data.data,
+      status: response.status
+    });
     
     if (!response.ok) {
-      throw new Error(data.message || 'An error occurred');
+      const errorMessage = data.message || `HTTP ${response.status}: ${response.statusText}`;
+      console.error(`❌ [${requestId}] [RETURN-SERVICE] handleResponse - ERROR RESPONSE:`, {
+        requestId,
+        status: response.status,
+        error: errorMessage,
+        data: data
+      });
+      throw new Error(errorMessage);
     }
+    
+    console.log(`✅ [${requestId}] [RETURN-SERVICE] handleResponse - SUCCESS:`, {
+      requestId,
+      success: data.success
+    });
     
     return data;
   }
 
   // 🎯 CHECK RETURN ELIGIBILITY
   async checkReturnEligibility(orderId) {
+    const requestId = `ELIG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
     try {
+      // 🎯 LOGGING: Request start
+      console.log(`🔄 [${requestId}] [RETURN-SERVICE] checkReturnEligibility - START:`, {
+        requestId,
+        orderId,
+        apiBaseUrl: API_BASE_URL,
+        endpoint: `${API_BASE_URL}/api/returns/eligibility/${orderId}`,
+        hasToken: !!localStorage.getItem('token'),
+        tokenLength: localStorage.getItem('token')?.length || 0
+      });
+      
+      const headers = this.getHeaders();
+      
+      console.log(`📤 [${requestId}] [RETURN-SERVICE] checkReturnEligibility - SENDING REQUEST:`, {
+        requestId,
+        method: 'GET',
+        url: `${API_BASE_URL}/api/returns/eligibility/${orderId}`,
+        headers: {
+          ...headers,
+          Authorization: headers.Authorization ? `${headers.Authorization.substring(0, 20)}...` : 'MISSING'
+        }
+      });
+      
       const response = await fetch(`${API_BASE_URL}/api/returns/eligibility/${orderId}`, {
         method: 'GET',
-        headers: this.getHeaders()
+        headers: headers
       });
 
-      return await this.handleResponse(response);
+      console.log(`📥 [${requestId}] [RETURN-SERVICE] checkReturnEligibility - RESPONSE RECEIVED:`, {
+        requestId,
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
+      // 🎯 LOGGING: Handle 401 specifically
+      if (response.status === 401) {
+        console.error(`❌ [${requestId}] [RETURN-SERVICE] checkReturnEligibility - AUTHENTICATION FAILED:`, {
+          requestId,
+          status: 401,
+          message: 'Unauthorized - token may be invalid or expired',
+          tokenExists: !!localStorage.getItem('token'),
+          tokenLength: localStorage.getItem('token')?.length || 0
+        });
+      }
+
+      const result = await this.handleResponse(response);
+      
+      console.log(`✅ [${requestId}] [RETURN-SERVICE] checkReturnEligibility - SUCCESS:`, {
+        requestId,
+        success: result.success,
+        eligible: result.data?.eligible,
+        reason: result.data?.reason
+      });
+      
+      return result;
     } catch (error) {
-      console.error('Error checking return eligibility:', error);
+      console.error(`❌ [${requestId}] [RETURN-SERVICE] checkReturnEligibility - ERROR:`, {
+        requestId,
+        orderId,
+        error: error.message,
+        errorType: error.constructor.name,
+        stack: error.stack
+      });
       throw error;
     }
   }

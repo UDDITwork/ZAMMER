@@ -1340,47 +1340,120 @@ OrderSchema.methods.generateShippingLabel = function() {
 
 // Method to check return eligibility (24-hour window)
 OrderSchema.methods.checkReturnEligibility = function() {
-  if (!this.isDelivered || !this.deliveredAt) {
-    return { 
+  // 🎯 FIXED: Check status === 'Delivered' instead of isDelivered flag
+  // 🎯 LOGGING: Aggressive error logging for debugging
+  const logContext = {
+    orderId: this._id?.toString(),
+    orderNumber: this.orderNumber,
+    status: this.status,
+    isDelivered: this.isDelivered,
+    deliveredAt: this.deliveredAt,
+    hasReturnDetails: !!this.returnDetails,
+    returnStatus: this.returnDetails?.returnStatus,
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log('🔍 [RETURN-ELIGIBILITY-CHECK] Starting eligibility check:', JSON.stringify(logContext, null, 2));
+  
+  // 🎯 FIXED: Use status === 'Delivered' as per requirement
+  if (this.status !== 'Delivered') {
+    const result = { 
       eligible: false, 
-      reason: 'Order not delivered yet',
+      reason: `Order status is '${this.status}', not 'Delivered'`,
       hoursRemaining: 0 
     };
+    console.log('❌ [RETURN-ELIGIBILITY-CHECK] Order not delivered:', JSON.stringify({ ...logContext, result }, null, 2));
+    return result;
+  }
+  
+  if (!this.deliveredAt) {
+    const result = { 
+      eligible: false, 
+      reason: 'Order deliveredAt timestamp is missing',
+      hoursRemaining: 0 
+    };
+    console.log('❌ [RETURN-ELIGIBILITY-CHECK] Missing deliveredAt:', JSON.stringify({ ...logContext, result }, null, 2));
+    return result;
   }
   
   const deliveryTime = new Date(this.deliveredAt);
   const currentTime = new Date();
   const hoursSinceDelivery = (currentTime - deliveryTime) / (1000 * 60 * 60);
   
+  console.log('⏰ [RETURN-ELIGIBILITY-CHECK] Time calculation:', JSON.stringify({
+    ...logContext,
+    deliveryTime: deliveryTime.toISOString(),
+    currentTime: currentTime.toISOString(),
+    hoursSinceDelivery: hoursSinceDelivery.toFixed(2),
+    hoursRemaining: Math.max(0, 24 - hoursSinceDelivery).toFixed(2)
+  }, null, 2));
+  
   if (hoursSinceDelivery > 24) {
-    return { 
+    const result = { 
       eligible: false, 
       reason: 'Return window expired (24 hours)',
       hoursRemaining: 0,
       hoursExpired: hoursSinceDelivery - 24
     };
+    console.log('❌ [RETURN-ELIGIBILITY-CHECK] Window expired:', JSON.stringify({ ...logContext, result }, null, 2));
+    return result;
   }
   
-  return { 
+  const result = { 
     eligible: true, 
     reason: 'Within 24-hour return window',
     hoursRemaining: Math.max(0, 24 - hoursSinceDelivery),
     deadline: new Date(deliveryTime.getTime() + 24 * 60 * 60 * 1000)
   };
+  
+  console.log('✅ [RETURN-ELIGIBILITY-CHECK] Eligible for return:', JSON.stringify({ ...logContext, result }, null, 2));
+  return result;
 };
 
 // Method to request return (with auto-approval)
 OrderSchema.methods.requestReturn = function(reason, userId) {
+  // 🎯 LOGGING: Aggressive error logging
+  const logContext = {
+    orderId: this._id?.toString(),
+    orderNumber: this.orderNumber,
+    userId: userId?.toString(),
+    reason: reason,
+    currentStatus: this.status,
+    currentReturnStatus: this.returnDetails?.returnStatus,
+    deliveredAt: this.deliveredAt,
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log('🔄 [RETURN-REQUEST] Starting return request:', JSON.stringify(logContext, null, 2));
+  
   const eligibility = this.checkReturnEligibility();
   
+  console.log('🔍 [RETURN-REQUEST] Eligibility check result:', JSON.stringify({
+    ...logContext,
+    eligibility: eligibility
+  }, null, 2));
+  
   if (!eligibility.eligible) {
-    throw new Error(eligibility.reason);
+    const error = new Error(eligibility.reason);
+    console.error('❌ [RETURN-REQUEST] Eligibility check failed:', JSON.stringify({
+      ...logContext,
+      error: error.message,
+      eligibility: eligibility
+    }, null, 2));
+    throw error;
   }
   
   // Initialize return details if not exists
   if (!this.returnDetails) {
+    console.log('📝 [RETURN-REQUEST] Initializing returnDetails object');
     this.returnDetails = {};
   }
+  
+  const beforeState = {
+    returnStatus: this.returnDetails.returnStatus,
+    hasReturnDetails: !!this.returnDetails,
+    hasHistory: !!this.returnDetails.returnHistory
+  };
   
   this.returnDetails.isReturned = true;
   this.returnDetails.returnRequestedAt = new Date();
@@ -1415,15 +1488,55 @@ OrderSchema.methods.requestReturn = function(reason, userId) {
     notes: 'Return auto-approved by system'
   });
   
+  const afterState = {
+    returnStatus: this.returnDetails.returnStatus,
+    returnRequestedAt: this.returnDetails.returnRequestedAt,
+    returnApprovedAt: this.returnDetails.returnApprovedAt,
+    historyLength: this.returnDetails.returnHistory.length
+  };
+  
+  console.log('✅ [RETURN-REQUEST] State transition:', JSON.stringify({
+    ...logContext,
+    beforeState: beforeState,
+    afterState: afterState,
+    transition: `${beforeState.returnStatus || 'null'} → ${afterState.returnStatus}`
+  }, null, 2));
+  
   return this.save();
 };
 
 // Method to assign return delivery agent
 OrderSchema.methods.assignReturnAgent = function(agentId, adminId) {
+  // 🎯 LOGGING: Aggressive error logging
+  const logContext = {
+    orderId: this._id?.toString(),
+    orderNumber: this.orderNumber,
+    agentId: agentId?.toString(),
+    adminId: adminId?.toString(),
+    currentReturnStatus: this.returnDetails?.returnStatus,
+    currentAssignmentStatus: this.returnDetails?.returnAssignment?.status,
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log('🔄 [RETURN-ASSIGN-AGENT] Starting agent assignment:', JSON.stringify(logContext, null, 2));
+  
   // 🎯 UPDATED: Allow assignment from both 'requested' and 'approved' status
   if (this.returnDetails.returnStatus !== 'requested' && this.returnDetails.returnStatus !== 'approved') {
-    throw new Error('Return must be in requested or approved status to assign agent');
+    const error = new Error(`Return must be in requested or approved status to assign agent. Current status: ${this.returnDetails.returnStatus}`);
+    console.error('❌ [RETURN-ASSIGN-AGENT] Invalid status for assignment:', JSON.stringify({
+      ...logContext,
+      error: error.message,
+      allowedStatuses: ['requested', 'approved'],
+      actualStatus: this.returnDetails.returnStatus
+    }, null, 2));
+    throw error;
   }
+  
+  const beforeState = {
+    returnStatus: this.returnDetails.returnStatus,
+    assignmentStatus: this.returnDetails.returnAssignment?.status,
+    assignedAgent: this.returnDetails.returnAssignment?.deliveryAgent?.toString()
+  };
   
   this.returnDetails.returnAssignment = {
     deliveryAgent: agentId,
@@ -1435,6 +1548,10 @@ OrderSchema.methods.assignReturnAgent = function(agentId, adminId) {
   this.returnDetails.returnStatus = 'assigned';
   
   // Add to return history
+  if (!this.returnDetails.returnHistory) {
+    this.returnDetails.returnHistory = [];
+  }
+  
   this.returnDetails.returnHistory.push({
     status: 'assigned',
     changedBy: 'admin',
@@ -1442,15 +1559,72 @@ OrderSchema.methods.assignReturnAgent = function(agentId, adminId) {
     notes: 'Return assigned to delivery agent'
   });
   
+  const afterState = {
+    returnStatus: this.returnDetails.returnStatus,
+    assignmentStatus: this.returnDetails.returnAssignment.status,
+    assignedAgent: this.returnDetails.returnAssignment.deliveryAgent?.toString()
+  };
+  
+  console.log('✅ [RETURN-ASSIGN-AGENT] State transition:', JSON.stringify({
+    ...logContext,
+    beforeState: beforeState,
+    afterState: afterState,
+    transition: `${beforeState.returnStatus} → ${afterState.returnStatus}`
+  }, null, 2));
+  
   return this.save();
 };
 
 // Method to handle return agent response
 OrderSchema.methods.handleReturnAgentResponse = function(response, reason = '') {
+  // 🎯 LOGGING: Aggressive error logging
+  const logContext = {
+    orderId: this._id?.toString(),
+    orderNumber: this.orderNumber,
+    response: response,
+    reason: reason,
+    currentReturnStatus: this.returnDetails?.returnStatus,
+    currentAssignmentStatus: this.returnDetails?.returnAssignment?.status,
+    assignedAgent: this.returnDetails?.returnAssignment?.deliveryAgent?.toString(),
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log('🔄 [RETURN-AGENT-RESPONSE] Handling agent response:', JSON.stringify(logContext, null, 2));
+  
+  // Validate response
+  if (response !== 'accepted' && response !== 'rejected') {
+    const error = new Error(`Invalid response. Must be 'accepted' or 'rejected', got: ${response}`);
+    console.error('❌ [RETURN-AGENT-RESPONSE] Invalid response:', JSON.stringify({
+      ...logContext,
+      error: error.message
+    }, null, 2));
+    throw error;
+  }
+  
+  // Validate current state
+  if (this.returnDetails?.returnAssignment?.status !== 'assigned') {
+    const error = new Error(`Cannot handle response. Assignment status must be 'assigned', but is: ${this.returnDetails?.returnAssignment?.status}`);
+    console.error('❌ [RETURN-AGENT-RESPONSE] Invalid assignment status:', JSON.stringify({
+      ...logContext,
+      error: error.message
+    }, null, 2));
+    throw error;
+  }
+  
+  const beforeState = {
+    returnStatus: this.returnDetails.returnStatus,
+    assignmentStatus: this.returnDetails.returnAssignment.status,
+    assignedAgent: this.returnDetails.returnAssignment.deliveryAgent?.toString()
+  };
+  
   if (response === 'accepted') {
     this.returnDetails.returnAssignment.status = 'accepted';
     this.returnDetails.returnAssignment.acceptedAt = new Date();
     this.returnDetails.returnStatus = 'accepted';
+    
+    if (!this.returnDetails.returnHistory) {
+      this.returnDetails.returnHistory = [];
+    }
     
     this.returnDetails.returnHistory.push({
       status: 'accepted',
@@ -1458,6 +1632,20 @@ OrderSchema.methods.handleReturnAgentResponse = function(response, reason = '') 
       changedAt: new Date(),
       notes: 'Return assignment accepted'
     });
+    
+    const afterState = {
+      returnStatus: this.returnDetails.returnStatus,
+      assignmentStatus: this.returnDetails.returnAssignment.status,
+      acceptedAt: this.returnDetails.returnAssignment.acceptedAt
+    };
+    
+    console.log('✅ [RETURN-AGENT-RESPONSE] Accepted - State transition:', JSON.stringify({
+      ...logContext,
+      beforeState: beforeState,
+      afterState: afterState,
+      transition: `${beforeState.returnStatus} → ${afterState.returnStatus}`
+    }, null, 2));
+    
   } else if (response === 'rejected') {
     this.returnDetails.returnAssignment.status = 'rejected';
     this.returnDetails.returnAssignment.rejectedAt = new Date();
@@ -1470,12 +1658,29 @@ OrderSchema.methods.handleReturnAgentResponse = function(response, reason = '') 
     // 🎯 FIXED: Since returns are auto-approved, status should go back to 'approved' (not 'requested')
     this.returnDetails.returnStatus = 'approved';
     
+    if (!this.returnDetails.returnHistory) {
+      this.returnDetails.returnHistory = [];
+    }
+    
     this.returnDetails.returnHistory.push({
       status: 'rejected',
       changedBy: 'delivery_agent',
       changedAt: new Date(),
       notes: `Return assignment rejected: ${reason}. Status reset to approved for reassignment.`
     });
+    
+    const afterState = {
+      returnStatus: this.returnDetails.returnStatus,
+      assignmentStatus: this.returnDetails.returnAssignment.status,
+      rejectedAt: this.returnDetails.returnAssignment.rejectedAt
+    };
+    
+    console.log('✅ [RETURN-AGENT-RESPONSE] Rejected - State transition:', JSON.stringify({
+      ...logContext,
+      beforeState: beforeState,
+      afterState: afterState,
+      transition: `${beforeState.returnStatus} → ${afterState.returnStatus}`
+    }, null, 2));
   }
   
   return this.save();
@@ -1483,10 +1688,39 @@ OrderSchema.methods.handleReturnAgentResponse = function(response, reason = '') 
 
 // Method to complete return pickup
 OrderSchema.methods.completeReturnPickup = function(verificationData = {}) {
+  // 🎯 LOGGING: Aggressive error logging
+  const logContext = {
+    orderId: this._id?.toString(),
+    orderNumber: this.orderNumber,
+    verificationData: {
+      hasLocation: !!verificationData.location,
+      hasOTP: !!verificationData.pickupOTP,
+      hasNotes: !!verificationData.notes
+    },
+    currentReturnStatus: this.returnDetails?.returnStatus,
+    currentAssignmentStatus: this.returnDetails?.returnAssignment?.status,
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log('🔄 [RETURN-PICKUP] Starting pickup completion:', JSON.stringify(logContext, null, 2));
+  
   const assignmentStatus = this.returnDetails.returnAssignment.status;
   if (!['accepted', 'agent_reached_buyer'].includes(assignmentStatus)) {
-    throw new Error(`Return must be accepted or agent must have reached buyer before pickup. Current status: ${assignmentStatus}`);
+    const error = new Error(`Return must be accepted or agent must have reached buyer before pickup. Current status: ${assignmentStatus}`);
+    console.error('❌ [RETURN-PICKUP] Invalid assignment status:', JSON.stringify({
+      ...logContext,
+      error: error.message,
+      allowedStatuses: ['accepted', 'agent_reached_buyer'],
+      actualStatus: assignmentStatus
+    }, null, 2));
+    throw error;
   }
+  
+  const beforeState = {
+    returnStatus: this.returnDetails.returnStatus,
+    assignmentStatus: this.returnDetails.returnAssignment.status,
+    pickupCompleted: this.returnDetails.returnPickup?.isCompleted
+  };
   
   this.returnDetails.returnPickup = {
     isCompleted: true,
@@ -1505,6 +1739,10 @@ OrderSchema.methods.completeReturnPickup = function(verificationData = {}) {
     this.returnDetails.returnAssignment.lastKnownLocation = verificationData.location;
   }
   
+  if (!this.returnDetails.returnHistory) {
+    this.returnDetails.returnHistory = [];
+  }
+  
   this.returnDetails.returnHistory.push({
     status: 'picked_up',
     changedBy: 'delivery_agent',
@@ -1513,14 +1751,57 @@ OrderSchema.methods.completeReturnPickup = function(verificationData = {}) {
     location: verificationData.location
   });
   
+  const afterState = {
+    returnStatus: this.returnDetails.returnStatus,
+    assignmentStatus: this.returnDetails.returnAssignment.status,
+    pickupCompleted: this.returnDetails.returnPickup.isCompleted,
+    pickupCompletedAt: this.returnDetails.returnPickup.completedAt
+  };
+  
+  console.log('✅ [RETURN-PICKUP] State transition:', JSON.stringify({
+    ...logContext,
+    beforeState: beforeState,
+    afterState: afterState,
+    transition: `${beforeState.returnStatus} → ${afterState.returnStatus}`
+  }, null, 2));
+  
   return this.save();
 };
 
 // Method to complete return delivery to seller
 OrderSchema.methods.completeReturnDelivery = function(verificationData = {}) {
+  // 🎯 LOGGING: Aggressive error logging
+  const logContext = {
+    orderId: this._id?.toString(),
+    orderNumber: this.orderNumber,
+    verificationData: {
+      hasLocation: !!verificationData.location,
+      hasOTP: !!verificationData.sellerOTP,
+      hasNotes: !!verificationData.notes
+    },
+    currentReturnStatus: this.returnDetails?.returnStatus,
+    currentAssignmentStatus: this.returnDetails?.returnAssignment?.status,
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log('🔄 [RETURN-DELIVERY] Starting delivery completion:', JSON.stringify(logContext, null, 2));
+  
   if (this.returnDetails.returnAssignment.status !== 'agent_reached_seller') {
-    throw new Error(`Return must have agent reached seller before delivery. Current status: ${this.returnDetails.returnAssignment.status}`);
+    const error = new Error(`Return must have agent reached seller before delivery. Current status: ${this.returnDetails.returnAssignment.status}`);
+    console.error('❌ [RETURN-DELIVERY] Invalid assignment status:', JSON.stringify({
+      ...logContext,
+      error: error.message,
+      requiredStatus: 'agent_reached_seller',
+      actualStatus: this.returnDetails.returnAssignment.status
+    }, null, 2));
+    throw error;
   }
+  
+  const beforeState = {
+    returnStatus: this.returnDetails.returnStatus,
+    assignmentStatus: this.returnDetails.returnAssignment.status,
+    deliveryCompleted: this.returnDetails.returnDelivery?.isCompleted
+  };
   
   this.returnDetails.returnDelivery = {
     isCompleted: true,
@@ -1539,6 +1820,10 @@ OrderSchema.methods.completeReturnDelivery = function(verificationData = {}) {
     this.returnDetails.returnAssignment.lastKnownLocation = verificationData.location;
   }
   
+  if (!this.returnDetails.returnHistory) {
+    this.returnDetails.returnHistory = [];
+  }
+  
   this.returnDetails.returnHistory.push({
     status: 'returned_to_seller',
     changedBy: 'delivery_agent',
@@ -1547,12 +1832,58 @@ OrderSchema.methods.completeReturnDelivery = function(verificationData = {}) {
     location: verificationData.location
   });
   
+  const afterState = {
+    returnStatus: this.returnDetails.returnStatus,
+    assignmentStatus: this.returnDetails.returnAssignment.status,
+    deliveryCompleted: this.returnDetails.returnDelivery.isCompleted,
+    deliveryCompletedAt: this.returnDetails.returnDelivery.completedAt
+  };
+  
+  console.log('✅ [RETURN-DELIVERY] State transition:', JSON.stringify({
+    ...logContext,
+    beforeState: beforeState,
+    afterState: afterState,
+    transition: `${beforeState.returnStatus} → ${afterState.returnStatus}`
+  }, null, 2));
+  
   return this.save();
 };
 
 // Method to complete return process
 OrderSchema.methods.completeReturn = function() {
+  // 🎯 LOGGING: Aggressive error logging
+  const logContext = {
+    orderId: this._id?.toString(),
+    orderNumber: this.orderNumber,
+    currentReturnStatus: this.returnDetails?.returnStatus,
+    currentAssignmentStatus: this.returnDetails?.returnAssignment?.status,
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log('🔄 [RETURN-COMPLETE] Starting return completion:', JSON.stringify(logContext, null, 2));
+  
+  // Validate current state
+  if (this.returnDetails.returnStatus !== 'returned_to_seller') {
+    const error = new Error(`Cannot complete return. Status must be 'returned_to_seller', but is: ${this.returnDetails.returnStatus}`);
+    console.error('❌ [RETURN-COMPLETE] Invalid status:', JSON.stringify({
+      ...logContext,
+      error: error.message,
+      requiredStatus: 'returned_to_seller',
+      actualStatus: this.returnDetails.returnStatus
+    }, null, 2));
+    throw error;
+  }
+  
+  const beforeState = {
+    returnStatus: this.returnDetails.returnStatus,
+    assignmentStatus: this.returnDetails.returnAssignment?.status
+  };
+  
   this.returnDetails.returnStatus = 'completed';
+  
+  if (!this.returnDetails.returnHistory) {
+    this.returnDetails.returnHistory = [];
+  }
   
   this.returnDetails.returnHistory.push({
     status: 'completed',
@@ -1560,6 +1891,17 @@ OrderSchema.methods.completeReturn = function() {
     changedAt: new Date(),
     notes: 'Return process completed'
   });
+  
+  const afterState = {
+    returnStatus: this.returnDetails.returnStatus
+  };
+  
+  console.log('✅ [RETURN-COMPLETE] State transition:', JSON.stringify({
+    ...logContext,
+    beforeState: beforeState,
+    afterState: afterState,
+    transition: `${beforeState.returnStatus} → ${afterState.returnStatus}`
+  }, null, 2));
   
   return this.save();
 };
