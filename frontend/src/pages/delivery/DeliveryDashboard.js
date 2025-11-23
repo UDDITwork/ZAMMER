@@ -211,8 +211,8 @@ const DeliveryDashboard = () => {
   const makeApiCall = useCallback(async (endpoint, options = {}) => {
     const url = `${API_BASE_URL}${endpoint}`;
     const headers = {
-      ...getAuthHeaders(),
-      ...options.headers
+          ...getAuthHeaders(),
+          ...options.headers
     };
 
     // Stringify body if it's an object
@@ -661,7 +661,7 @@ const DeliveryDashboard = () => {
           });
         }
       } else {
-        console.log('✅ Dashboard initialized successfully');
+      console.log('✅ Dashboard initialized successfully');
       }
     } catch (error) {
       console.error('❌ Dashboard initialization failed:', error);
@@ -670,7 +670,7 @@ const DeliveryDashboard = () => {
           autoClose: 5000
         });
       } else {
-        toast.error('Failed to load dashboard');
+      toast.error('Failed to load dashboard');
       }
     } finally {
       setLoading(false);
@@ -2173,39 +2173,39 @@ const DeliveryDashboard = () => {
               </div>
             </div>
           </Link>
-        </div>
-
-        {/* Available Orders Preview */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 className="text-lg font-medium text-gray-900">🆕 Available Orders</h2>
-            <Link to="/delivery/orders/available" className="text-sm text-blue-600 hover:text-blue-800">
-              View All →
-            </Link>
           </div>
-          <div className="p-6">
-            {availableOrders.length > 0 ? (
-              <div className="space-y-4">
-                {availableOrders.slice(0, 2).map((order) => (
-                  <OrderCard key={order._id} order={order} isAssigned={false} />
-                ))}
-                {availableOrders.length > 2 && (
-                  <div className="text-center pt-4">
-                    <Link to="/delivery/orders/available" className="text-sm text-blue-600 hover:text-blue-800">
-                      +{availableOrders.length - 2} more orders
-                    </Link>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Available Orders</h3>
-                <p className="text-gray-600">Check back later for new delivery opportunities</p>
-              </div>
-            )}
+
+          {/* Available Orders Preview */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-lg font-medium text-gray-900">🆕 Available Orders</h2>
+              <Link to="/delivery/orders/available" className="text-sm text-blue-600 hover:text-blue-800">
+                View All →
+              </Link>
+            </div>
+            <div className="p-6">
+              {availableOrders.length > 0 ? (
+                <div className="space-y-4">
+                  {availableOrders.slice(0, 2).map((order) => (
+                    <OrderCard key={order._id} order={order} isAssigned={false} />
+                  ))}
+                  {availableOrders.length > 2 && (
+                    <div className="text-center pt-4">
+                      <Link to="/delivery/orders/available" className="text-sm text-blue-600 hover:text-blue-800">
+                        +{availableOrders.length - 2} more orders
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Available Orders</h3>
+                  <p className="text-gray-600">Check back later for new delivery opportunities</p>
+                </div>
+              )}
           </div>
         </div>
           </>

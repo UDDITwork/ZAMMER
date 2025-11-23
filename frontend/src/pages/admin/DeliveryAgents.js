@@ -19,6 +19,7 @@ const DeliveryAgents = () => {
   // COD Collections state
   const [codCollections, setCodCollections] = useState(null);
   const [codLoading, setCodLoading] = useState(false);
+  const [codError, setCodError] = useState(null);
   const [codFilters, setCodFilters] = useState({
     dateFrom: '',
     dateTo: '',
@@ -91,8 +92,15 @@ const DeliveryAgents = () => {
   };
 
   const fetchCODCollections = async (agentId) => {
+    // Prevent duplicate calls while loading
+    if (codLoading) {
+      return;
+    }
+
     try {
       setCodLoading(true);
+      setCodError(null); // Clear previous errors
+      
       const filters = {};
       if (codFilters.dateFrom) filters.dateFrom = codFilters.dateFrom;
       if (codFilters.dateTo) filters.dateTo = codFilters.dateTo;
@@ -104,12 +112,47 @@ const DeliveryAgents = () => {
       
       if (response.success) {
         setCodCollections(response.data);
+        setCodError(null);
       } else {
-        toast.error(response.message || 'Failed to load COD collections');
+        const errorMessage = response.message || 'Failed to load COD collections';
+        setCodError(errorMessage);
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error('Failed to fetch COD collections:', error);
-      toast.error('Failed to load COD collections');
+      
+      // Extract detailed error message
+      let errorMessage = 'Failed to load COD collections';
+      
+      if (error.response) {
+        // Server responded with error status
+        const status = error.response.status;
+        const data = error.response.data;
+        
+        if (data?.message) {
+          errorMessage = data.message;
+        } else if (status === 404) {
+          errorMessage = 'Delivery agent not found';
+        } else if (status === 401) {
+          errorMessage = 'Unauthorized. Please login again.';
+        } else if (status === 403) {
+          errorMessage = 'Access denied. You do not have permission.';
+        } else if (status >= 500) {
+          errorMessage = 'Server error. Please try again later.';
+        } else {
+          errorMessage = `Request failed with status ${status}`;
+        }
+      } else if (error.request) {
+        // Request was made but no response received
+        errorMessage = 'Network error. Please check your connection.';
+      } else {
+        // Error setting up the request
+        errorMessage = error.message || 'An unexpected error occurred';
+      }
+      
+      setCodError(errorMessage);
+      toast.error(errorMessage);
+      setCodCollections(null); // Clear collections on error
     } finally {
       setCodLoading(false);
     }
@@ -120,7 +163,8 @@ const DeliveryAgents = () => {
   };
 
   const applyCODFilters = () => {
-    if (selectedAgent) {
+    if (selectedAgent && !codLoading) {
+      setCodError(null); // Clear error when applying filters
       fetchCODCollections(selectedAgent._id);
     }
   };
@@ -131,7 +175,8 @@ const DeliveryAgents = () => {
       dateTo: '',
       paymentMethod: 'all'
     });
-    if (selectedAgent) {
+    if (selectedAgent && !codLoading) {
+      setCodError(null); // Clear error when resetting filters
       fetchCODCollections(selectedAgent._id);
     }
   };
@@ -268,15 +313,6 @@ const DeliveryAgents = () => {
 
   // Profile Modal Component
   const ProfileModal = () => {
-    // Fetch COD collections when COD tab is activated
-    // Hook must be called before any conditional returns
-    useEffect(() => {
-      if (showProfileModal && activeTab === 'cod' && selectedAgent && !codCollections) {
-        fetchCODCollections(selectedAgent._id);
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeTab, showProfileModal, selectedAgent]);
-
     if (!selectedAgent) return null;
 
     return (
@@ -293,6 +329,7 @@ const DeliveryAgents = () => {
                     setShowProfileModal(false);
                     setActiveTab('profile');
                     setCodCollections(null);
+                    setCodError(null); // Clear error when closing modal
                   }}
                   className="text-gray-400 hover:text-gray-600"
                 >
@@ -318,7 +355,9 @@ const DeliveryAgents = () => {
               <button
                 onClick={() => {
                   setActiveTab('cod');
-                  if (!codCollections) {
+                  // Only fetch if not already loading and no data exists
+                  if (!codLoading && !codCollections && selectedAgent) {
+                    setCodError(null); // Clear error when switching to COD tab
                     fetchCODCollections(selectedAgent._id);
                   }
                 }}
@@ -432,6 +471,7 @@ const DeliveryAgents = () => {
                 agentId={selectedAgent._id}
                 codCollections={codCollections}
                 codLoading={codLoading}
+                codError={codError}
                 codFilters={codFilters}
                 onFilterChange={handleCODFilterChange}
                 onApplyFilters={applyCODFilters}
@@ -451,6 +491,7 @@ const DeliveryAgents = () => {
     agentId,
     codCollections,
     codLoading,
+    codError,
     codFilters,
     onFilterChange,
     onApplyFilters,
@@ -547,13 +588,30 @@ const DeliveryAgents = () => {
           </div>
         )}
 
+        {/* Error Message */}
+        {codError && !codLoading && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Error loading COD collections</h3>
+                <p className="mt-1 text-sm text-red-700">{codError}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Daily Breakdown Table */}
         {codLoading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto"></div>
             <p className="mt-4 text-gray-600">Loading COD collections...</p>
           </div>
-        ) : codCollections?.dailyBreakdown && codCollections.dailyBreakdown.length > 0 ? (
+        ) : codError ? null : codCollections?.dailyBreakdown && codCollections.dailyBreakdown.length > 0 ? (
           <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -649,7 +707,7 @@ const DeliveryAgents = () => {
               </table>
             </div>
           </div>
-        ) : (
+        ) : codError ? null : (
           <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
             <p className="text-gray-500">No COD collections found for the selected filters</p>
           </div>

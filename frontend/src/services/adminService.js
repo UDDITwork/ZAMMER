@@ -619,10 +619,39 @@ export const getDeliveryAgentCODCollections = async (agentId, filters = {}) => {
       agentId,
       filters,
       status: error.response?.status,
-      message: error.response?.data?.message || error.message
+      statusText: error.response?.statusText,
+      message: error.response?.data?.message || error.message,
+      errorData: error.response?.data
     }, 'error');
     
-    throw error.response?.data || { success: false, message: 'Failed to fetch COD collections' };
+    // Structure error for consistent handling
+    if (error.response?.data) {
+      // Server responded with error data
+      const errorData = error.response.data;
+      const structuredError = {
+        ...errorData,
+        status: error.response.status,
+        statusText: error.response.statusText,
+        isNetworkError: false
+      };
+      throw structuredError;
+    } else if (error.request) {
+      // Request was made but no response received (network error)
+      throw {
+        success: false,
+        message: 'Network error. Please check your connection and try again.',
+        isNetworkError: true,
+        originalError: error.message
+      };
+    } else {
+      // Error setting up the request
+      throw {
+        success: false,
+        message: error.message || 'Failed to fetch COD collections',
+        isNetworkError: false,
+        originalError: error.message
+      };
+    }
   }
 };
 
