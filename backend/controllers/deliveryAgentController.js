@@ -3787,7 +3787,10 @@ const getAssignedOrders = async (req, res) => {
     .populate('user', 'name email mobileNumber')
     .populate('seller', 'firstName lastName email shop')
     .populate('orderItems.product', 'name images')
-    .sort({ 'deliveryAgent.assignedAt': 1 }) // FIFO - oldest assignments first
+    .sort({ 
+      'deliveryAgent.acceptedAt': -1, // Newest accepted orders first
+      'deliveryAgent.assignedAt': -1  // If not accepted, newest assigned first
+    })
     .limit(50); // Reasonable limit
 
     const statusBreakdown = assignedOrders.reduce((acc, order) => {

@@ -1774,21 +1774,93 @@ const DeliveryDashboard = () => {
                       </button>
                     </div>
                   )}
-                  {assignedOrders.slice(0, 2).map((order) => (
-                    <OrderCard
-                      key={order._id}
-                      order={order}
-                      isAssigned={true}
-                      onOpenFlow={openOrderFlowModal}
-                    />
-                  ))}
-                  {assignedOrders.length > 2 && (
-                    <div className="text-center pt-4">
-                      <Link to="/delivery/orders/assigned" className="text-sm text-blue-600 hover:text-blue-800">
-                        +{assignedOrders.length - 2} more orders
-                      </Link>
-                    </div>
-                  )}
+                  
+                  {/* 🎯 NEW: Latest 2 Accepted Orders Section */}
+                  {(() => {
+                    // Sort orders: newest accepted first, then by assignedAt
+                    const sortedOrders = [...assignedOrders].sort((a, b) => {
+                      // Prioritize accepted orders
+                      const aAccepted = a.acceptedAt ? new Date(a.acceptedAt).getTime() : 0;
+                      const bAccepted = b.acceptedAt ? new Date(b.acceptedAt).getTime() : 0;
+                      
+                      // If both are accepted, sort by acceptedAt (newest first)
+                      if (aAccepted && bAccepted) {
+                        return bAccepted - aAccepted;
+                      }
+                      
+                      // If only one is accepted, prioritize it
+                      if (aAccepted && !bAccepted) return -1;
+                      if (!aAccepted && bAccepted) return 1;
+                      
+                      // If neither is accepted, sort by assignedAt (newest first)
+                      const aAssigned = a.assignedAt ? new Date(a.assignedAt).getTime() : 0;
+                      const bAssigned = b.assignedAt ? new Date(b.assignedAt).getTime() : 0;
+                      return bAssigned - aAssigned;
+                    });
+                    
+                    // Get latest 2 accepted orders
+                    const latestAcceptedOrders = sortedOrders
+                      .filter(order => order.deliveryStatus === 'accepted' || order.acceptedAt)
+                      .slice(0, 2);
+                    
+                    // Get remaining orders (excluding the 2 latest accepted)
+                    const remainingOrders = sortedOrders.filter(order => 
+                      !latestAcceptedOrders.some(latest => latest._id === order._id)
+                    );
+                    
+                    return (
+                      <>
+                        {/* Latest 2 Accepted Orders */}
+                        {latestAcceptedOrders.length > 0 && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="text-sm font-semibold text-gray-700">Latest Accepted Orders</h4>
+                              <span className="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded-full">
+                                {latestAcceptedOrders.length} {latestAcceptedOrders.length === 1 ? 'order' : 'orders'}
+                              </span>
+                            </div>
+                            {latestAcceptedOrders.map((order) => (
+                              <OrderCard
+                                key={order._id}
+                                order={order}
+                                isAssigned={true}
+                                onOpenFlow={openOrderFlowModal}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        
+                        {/* Remaining Orders */}
+                        {remainingOrders.length > 0 && (
+                          <div className="space-y-3">
+                            {latestAcceptedOrders.length > 0 && (
+                              <div className="flex items-center justify-between mb-2 pt-2 border-t border-gray-200">
+                                <h4 className="text-sm font-semibold text-gray-700">Other Orders</h4>
+                                <span className="text-xs text-gray-500">
+                                  {remainingOrders.length} {remainingOrders.length === 1 ? 'order' : 'orders'}
+                                </span>
+                              </div>
+                            )}
+                            {remainingOrders.slice(0, latestAcceptedOrders.length > 0 ? 3 : 5).map((order) => (
+                              <OrderCard
+                                key={order._id}
+                                order={order}
+                                isAssigned={true}
+                                onOpenFlow={openOrderFlowModal}
+                              />
+                            ))}
+                            {remainingOrders.length > (latestAcceptedOrders.length > 0 ? 3 : 5) && (
+                              <div className="text-center pt-2">
+                                <Link to="/delivery/orders/assigned" className="text-sm text-blue-600 hover:text-blue-800">
+                                  +{remainingOrders.length - (latestAcceptedOrders.length > 0 ? 3 : 5)} more orders
+                                </Link>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               ) : (
                 <div className="text-center py-8">
