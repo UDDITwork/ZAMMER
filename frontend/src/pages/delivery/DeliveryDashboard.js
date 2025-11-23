@@ -864,10 +864,10 @@ const DeliveryDashboard = () => {
     ).toLowerCase();
   };
 
+  // COD orders are those that are NOT prepaid (isPaid === false)
+  // Prepaid orders (SMEPay, Cashfree) have isPaid === true
   const isCODOrder = (order) => {
-    const method = getPaymentMethodLabel(order);
-    if (!method) return false;
-    return method.includes('cod') || method.includes('cash');
+    return !order.isPaid;
   };
 
   const getBuyerAddress = (order) => {
@@ -1054,10 +1054,21 @@ const DeliveryDashboard = () => {
 
       if (qrResponse?.success) {
         const qrData = qrResponse?.data?.data || qrResponse?.data || {};
+        
+        // 🎯 CRITICAL FIX: Format QR code as base64 data URL for image display
+        const formatQRCodeAsDataURL = (qrCode) => {
+          if (!qrCode) return '';
+          if (qrCode.startsWith('data:image')) return qrCode;
+          if (qrCode.startsWith('/9j/') || qrCode.match(/^[A-Za-z0-9+/=]+$/)) {
+            return `data:image/png;base64,${qrCode}`;
+          }
+          return qrCode;
+        };
+        
         setFlowPaymentData(prev => ({
           ...(prev || {}),
           type: 'COD',
-          qrCode: qrData.qrCode || prev?.qrCode || '',
+          qrCode: formatQRCodeAsDataURL(qrData.qrCode || prev?.qrCode || ''),
           amount: qrData.amount || prev?.amount || activeOrderFlow.totalPrice,
           upiLinks: qrData.upiLinks || prev?.upiLinks || []
         }));

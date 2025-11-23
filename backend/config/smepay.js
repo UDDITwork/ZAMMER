@@ -4,10 +4,11 @@ require('dotenv').config();
 
 // 🎯 OFFICIAL SMEPay API Configuration based on WooCommerce plugin documentation
 const smepayConfig = {
-  // 🔥 CORRECT API URLs based on mode
+  // 🔥 UPDATED API URLs - Single base URL (no dev/prod split per new documentation)
+  // Documentation: https://documenter.getpostman.com/view/43640931/2sB3HnJK8V
   baseURL: {
-    development: 'https://apps.typof.in/api',
-    production: 'https://apps.typof.com/api'
+    development: 'https://extranet.smepay.in/api/wiz',
+    production: 'https://extranet.smepay.in/api/wiz' // Same URL for both (per new API)
   },
   
   // Get base URL based on environment
@@ -21,14 +22,15 @@ const smepayConfig = {
   clientSecret: process.env.SMEPAY_CLIENT_SECRET,
   mode: process.env.SMEPAY_MODE || 'development', // 'development' or 'production'
   
-  // 🔥 OFFICIAL API ENDPOINTS from SMEPay documentation
+  // 🔥 UPDATED API ENDPOINTS from SMEPay V2 documentation
+  // Documentation: https://documenter.getpostman.com/view/43640931/2sB3HnJK8V
   endpoints: {
-    auth: '/external/auth',                    // POST - Get access token
-    createOrder: '/external/create-order',     // POST - Create payment order
-    validateOrder: '/external/validate-order', // POST - Validate payment status
-    generateQR: '/external/generate-qr',       // POST - Generate QR code
-    paymentStatus: '/external/payment-status', // GET - Check payment status
-    checkQRStatus: '/external/check-qr-status' // POST - Check QR payment status
+    auth: '/external/auth',                    // POST - Get access token (path unchanged)
+    createOrder: '/external/order/create',     // POST - Create payment order (path changed)
+    validateOrder: '/external/order/validate', // POST - Validate payment status (path changed)
+    generateQR: '/external/generate-qr',       // POST - Generate QR code (verify if changed)
+    paymentStatus: '/external/payment-status', // GET - Check payment status (verify if changed)
+    checkQRStatus: '/external/qr/status'        // POST - Check QR payment status (path changed)
   },
   
   // Widget script configuration
@@ -135,8 +137,9 @@ SMEPAY_CLIENT_SECRET=your_smepay_client_secret_here
 SMEPAY_MODE=development
 
 # SMEPAY_MODE Options:
-# - development: Uses https://apps.typof.in/api (for testing)
-# - production: Uses https://apps.typof.com/api (for live payments)
+# - development: Uses https://extranet.smepay.in/api/wiz (for testing)
+# - production: Uses https://extranet.smepay.in/api/wiz (for live payments)
+# Note: Both use same URL per new SMEPay V2 API documentation
 
 # Frontend URL for callbacks
 FRONTEND_URL=http://localhost:3000

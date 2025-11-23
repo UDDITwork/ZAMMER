@@ -5,7 +5,9 @@ const mongoose = require('mongoose');
 const DeliveryAgent = require('../models/DeliveryAgent');
 const Order = require('../models/Order');
 const OtpVerification = require('../models/OtpVerification');
+const User = require('../models/User'); // 🎯 EXACT MATCH: Import User model like buyer side
 const msg91Config = require('../config/msg91');
+const msg91Service = require('../services/msg91Service'); // 🎯 EXACT MATCH: Import msg91Service at top level like buyer side (userController.js line 10)
 const { generateDeliveryAgentToken, verifyDeliveryAgentToken } = require('../utils/jwtToken');
 const { validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
@@ -1700,7 +1702,8 @@ const markReachedLocation = async (req, res) => {
       let paymentData = {};
       const reachedTime = order.delivery?.locationReachedAt || order.deliveryAgent.locationReachedAt || new Date();
 
-      if (order.paymentMethod === 'COD') {
+      // COD orders are those that are NOT prepaid (isPaid === false)
+      if (!order.isPaid) {
         const codQR = order.paymentDetails?.codQR;
         paymentData = {
           type: 'COD',
@@ -1771,7 +1774,7 @@ const markReachedLocation = async (req, res) => {
           deliveryStatus: order.deliveryAgent.status,
           reachedTime,
           paymentData,
-          nextStep: order.paymentMethod === 'COD'
+          nextStep: !order.isPaid
             ? 'Wait for customer to scan QR code and make payment'
             : 'Wait for customer to provide OTP for delivery verification'
         }
@@ -1814,9 +1817,10 @@ const markReachedLocation = async (req, res) => {
     });
 
     // 🎯 GENERATE PAYMENT DATA BASED ON ORDER TYPE
+    // COD orders are those that are NOT prepaid (isPaid === false)
     let paymentData = {};
     
-    if (order.paymentMethod === 'COD') {
+    if (!order.isPaid) {
       // Generate SMEPay QR code for COD orders
       try {
         const smepayService = require('../services/smepayService');
@@ -2041,7 +2045,7 @@ ${paymentData.type === 'COD' ? `💰 COD Amount: ₹${paymentData.amount}` : `�
         deliveryStatus: order.deliveryAgent.status,
         reachedTime: reachedTime,
         paymentData: paymentData,
-        nextStep: order.paymentMethod === 'COD' 
+        nextStep: !order.isPaid
           ? 'Wait for customer to scan QR code and make payment'
           : 'Wait for customer to provide OTP for delivery verification'
       }
@@ -2089,8 +2093,9 @@ const generateCODQR = async (req, res) => {
 ===============================`);
 
     // 🎯 VALIDATION: Check if order exists and is assigned to this agent
+    // 🎯 CRITICAL: Populate user EXACTLY like buyer side does (line 45 in paymentController.js)
     const order = await Order.findById(orderId)
-      .populate('user', 'name mobileNumber email')
+      .populate('user') // 🎯 EXACT MATCH: Buyer side uses .populate('user') without field selection
       .populate('seller', 'firstName shop')
       .populate('orderItems.product', 'name images');
 
@@ -2121,15 +2126,23 @@ const generateCODQR = async (req, res) => {
     }
 
     // 🎯 VALIDATION: Check if order is COD
-    if (order.paymentMethod !== 'COD' && order.paymentMethod !== 'Cash on Delivery') {
+    // COD orders are those that are NOT prepaid (isPaid === false)
+    // Prepaid orders (SMEPay, Cashfree) have isPaid === true
+    const isCOD = !order.isPaid;
+    
+    if (!isCOD) {
       logDeliveryError('GENERATE_QR_NOT_COD', new Error('Order is not COD'), { 
         orderId, 
-        paymentMethod: order.paymentMethod 
+        paymentMethod: order.paymentMethod,
+        isPaid: order.isPaid,
+        paymentStatus: order.paymentStatus
       });
       return res.status(400).json({
         success: false,
-        message: 'QR code generation is only available for COD orders',
-        code: 'NOT_COD_ORDER'
+        message: `QR code generation is only available for COD orders. This order is already paid (prepaid payment method: ${order.paymentMethod || 'unknown'}).`,
+        code: 'NOT_COD_ORDER',
+        orderPaymentMethod: order.paymentMethod,
+        isPaid: order.isPaid
       });
     }
 
@@ -2160,11 +2173,71 @@ const generateCODQR = async (req, res) => {
           qrCode: existingQR.qrCode,
           qrData: existingQR.qrData,
           paymentId: existingQR.paymentId,
+          orderSlug: existingQR.orderSlug,
           amount: existingQR.amount || order.totalAmount || order.totalPrice,
           currency: 'INR',
           status: existingQR.status || 'pending'
         }
       });
+    }
+    
+    // 🎯 FIX: Check if SMEPay order slug exists but QR data is missing
+    // This handles cases where order was created in SMEPay but QR wasn't saved to DB
+    if (order.smepayOrderSlug && (!order.paymentDetails?.codQR || !order.paymentDetails.codQR.paymentId)) {
+      console.log('⚠️ SMEPay order slug exists but QR data missing. Regenerating QR from existing slug...');
+      logDelivery('GENERATE_QR_FROM_EXISTING_SLUG', { orderId, slug: order.smepayOrderSlug });
+      
+      try {
+        const smepayService = require('../services/smepayService');
+        const orderAmount = order.totalAmount || order.totalPrice;
+        
+        // Generate QR directly from existing slug (skip order creation)
+        const qrData = await smepayService.generateQRFromSlug({
+          slug: order.smepayOrderSlug,
+          amount: Number(orderAmount)
+        });
+        
+        if (qrData && qrData.success) {
+          // Store QR payment details in order
+          if (!order.paymentDetails) order.paymentDetails = {};
+          order.paymentDetails.codQR = {
+            paymentId: qrData.paymentId || order.smepayOrderSlug,
+            orderSlug: order.smepayOrderSlug,
+            qrCode: qrData.qrCode,
+            qrData: qrData.qrData,
+            amount: orderAmount,
+            generatedAt: new Date(),
+            generatedBy: agentId,
+            status: 'pending'
+          };
+          order.paymentDetails.paymentMethod = 'COD';
+          order.paymentDetails.amount = orderAmount;
+          
+          await order.save();
+          
+          logDelivery('GENERATE_QR_FROM_SLUG_SUCCESS', { orderId, slug: order.smepayOrderSlug }, 'success');
+          
+          return res.status(200).json({
+            success: true,
+            message: 'QR code regenerated from existing order',
+            data: {
+              _id: order._id,
+              orderNumber: order.orderNumber,
+              qrCode: qrData.qrCode,
+              qrData: qrData.qrData,
+              paymentId: qrData.paymentId || order.smepayOrderSlug,
+              orderSlug: order.smepayOrderSlug,
+              amount: orderAmount,
+              currency: 'INR',
+              status: 'pending'
+            }
+          });
+        }
+      } catch (slugError) {
+        console.error('❌ Failed to generate QR from existing slug:', slugError);
+        // Fall through to try creating new order (which will fail, but we'll handle it)
+        logDeliveryError('GENERATE_QR_FROM_SLUG_FAILED', slugError, { orderId, slug: order.smepayOrderSlug });
+      }
     }
 
     // 🎯 VALIDATION: Check amount and order number before generating QR
@@ -2209,30 +2282,95 @@ const generateCODQR = async (req, res) => {
 📝 Description: Payment for Order #${orderNumber}
 ===============================`);
     
-    // 🎯 GENERATE QR CODE
+    // 🎯 GENERATE QR CODE - FOLLOWING BUYER SIDE PATTERN (2-step process)
     try {
       const smepayService = require('../services/smepayService');
+      const smepayConfig = require('../config/smepay');
       
-      // 🎯 MATCH BUYER SIDE STRUCTURE: Pass customer details like buyer side does
-      const qrData = await smepayService.generateDynamicQR({
-        amount: Number(orderAmount), // Ensure it's a number
-        orderId: orderNumber.trim(), // Ensure it's a trimmed string
-        description: `Payment for Order #${orderNumber}`,
-        // 🎯 ADD CUSTOMER DETAILS: Like buyer side createOrder does
-        customerDetails: {
-          email: order.user?.email || '',
-          mobile: order.user?.mobileNumber || '',
-          name: order.user?.name || 'Customer'
-        },
-        orderIdForSlug: order._id.toString() // Use MongoDB ID for slug generation
+      // 🎯 STEP 1: Create SMEPay order (like buyer side does)
+      // Check if slug already exists in database
+      let orderSlug = order.smepayOrderSlug;
+      
+      if (!orderSlug) {
+        console.log('📝 Step 1: Creating SMEPay order...');
+        
+        // 🎯 MATCH BUYER SIDE EXACTLY: Use MongoDB ObjectId as orderId (line 82 in paymentController.js)
+        // 🎯 CRITICAL: Access user.email directly like buyer side (line 85) - user is already populated
+        if (!order.user || !order.user.email) {
+          throw new Error(`Customer email is missing for order ${order.orderNumber}. Cannot generate QR code.`);
+        }
+        
+        const smepayOrderData = {
+          orderId: order._id.toString(), // 🎯 EXACT MATCH: Buyer side line 82
+          amount: Number(orderAmount),
+          customerDetails: {
+            email: order.user.email, // 🎯 EXACT MATCH: Buyer side line 85 (no optional chaining)
+            mobile: order.user.mobileNumber, // 🎯 EXACT MATCH: Buyer side line 86
+            name: order.user.name // 🎯 EXACT MATCH: Buyer side line 87
+          },
+          callbackUrl: smepayConfig.getCallbackURL('success') // 🎯 EXACT MATCH: Buyer side line 89
+        };
+        
+        const smepayResult = await smepayService.createOrder(smepayOrderData);
+        
+        if (!smepayResult.success) {
+          throw new Error(smepayResult.error || 'Failed to create SMEPay order');
+        }
+        
+        if (!smepayResult.orderSlug) {
+          throw new Error('No order slug received from SMEPay');
+        }
+        
+        orderSlug = smepayResult.orderSlug;
+        
+        // 🎯 SAVE SLUG TO DATABASE IMMEDIATELY (like buyer side does)
+        order.smepayOrderSlug = orderSlug;
+        order.paymentGateway = 'smepay';
+        order.paymentStatus = 'pending';
+        
+        // Add payment attempt to order history
+        if (!order.paymentAttempts) {
+          order.paymentAttempts = [];
+        }
+        order.paymentAttempts.push({
+          gateway: 'smepay',
+          orderSlug: orderSlug,
+          amount: Number(orderAmount),
+          status: 'initiated',
+          createdAt: new Date()
+        });
+        
+        // 🎯 CRITICAL: Save slug to database BEFORE generating QR
+        await order.save();
+        console.log('✅ Step 1 Complete: SMEPay order created, slug saved to database:', orderSlug);
+      } else {
+        console.log('✅ Step 1 Skip: SMEPay order slug already exists:', orderSlug);
+      }
+      
+      // 🎯 STEP 2: Generate QR code from slug - USE EXACT SAME METHOD AS generateDynamicQR
+      // 🎯 CRITICAL: Use generateQRFromSlug which uses the EXACT same code as generateDynamicQR Step 2
+      console.log('📝 Step 2: Generating QR code from slug...');
+      const qrResult = await smepayService.generateQRFromSlug({
+        slug: orderSlug,
+        amount: Number(orderAmount)
       });
       
-      // Store QR payment details in order
+      if (!qrResult.success) {
+        throw new Error(qrResult.error || 'Failed to generate QR code');
+      }
+      
+      // 🎯 VALIDATE: Ensure we got QR code data (same validation as generateDynamicQR)
+      if (!qrResult.qrCode && !qrResult.qrData) {
+        throw new Error('SMEPay did not return QR code data in response');
+      }
+      
+      // 🎯 Store QR payment details in order
       if (!order.paymentDetails) order.paymentDetails = {};
       order.paymentDetails.codQR = {
-        paymentId: qrData.paymentId,
-        qrCode: qrData.qrCode,
-        qrData: qrData.qrData,
+        paymentId: qrResult.paymentId || orderSlug,
+        orderSlug: orderSlug,
+        qrCode: qrResult.qrCode,
+        qrData: qrResult.qrData,
         amount: order.totalAmount || order.totalPrice,
         generatedAt: new Date(),
         generatedBy: agentId,
@@ -2240,8 +2378,21 @@ const generateCODQR = async (req, res) => {
       };
       order.paymentDetails.paymentMethod = 'COD';
       order.paymentDetails.amount = order.totalAmount || order.totalPrice;
-
+      
+      // 🎯 Save QR data to database
       await order.save();
+      console.log('✅ Step 2 Complete: QR code generated and saved to database');
+      
+      // Prepare response data (matching buyer side format)
+      const qrData = {
+        paymentId: qrResult.paymentId || orderSlug,
+        orderSlug: orderSlug,
+        qrCode: qrResult.qrCode,
+        qrData: qrResult.qrData,
+        amount: order.totalAmount || order.totalPrice,
+        currency: 'INR',
+        status: 'pending'
+      };
 
       const processingTime = Date.now() - startTime;
       
@@ -2272,6 +2423,7 @@ const generateCODQR = async (req, res) => {
           qrCode: qrData.qrCode,
           qrData: qrData.qrData,
           paymentId: qrData.paymentId,
+          orderSlug: qrData.orderSlug, // 🎯 CRITICAL: Include orderSlug for payment status checks
           amount: order.totalAmount || order.totalPrice,
           currency: qrData.currency || 'INR',
           expiryTime: qrData.expiryTime,
@@ -2358,10 +2510,21 @@ const checkCODPaymentStatus = async (req, res) => {
     const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
     const orderId = req.params.id;
     
+    // 🎯 CRITICAL: Log that endpoint was called
+    console.log(`
+🚨 ===============================
+   CHECK_COD_PAYMENT_STATUS CALLED
+===============================
+📦 Order ID: ${orderId}
+🚚 Agent ID: ${agentId}
+⏰ Time: ${new Date().toISOString()}
+===============================`);
+    
     logDelivery('CHECK_COD_PAYMENT_STATUS_STARTED', { agentId, orderId });
 
     // 🎯 VALIDATION: Check if order exists and is assigned to this agent
-    const order = await Order.findById(orderId)
+    // 🎯 FIX: Refresh order from DB to ensure we have latest data including QR code
+    let order = await Order.findById(orderId)
       .populate('user', 'name mobileNumber email')
       .populate('seller', 'firstName shop');
 
@@ -2391,76 +2554,399 @@ const checkCODPaymentStatus = async (req, res) => {
       });
     }
 
-    // 🎯 VALIDATION: Check if order is COD and has QR code
-    if (order.paymentMethod !== 'COD' && order.paymentMethod !== 'Cash on Delivery') {
+    // 🎯 VALIDATION: Check if order is COD
+    // COD orders are those that are NOT prepaid (isPaid === false)
+    // BUT: If order is already paid (isPaid === true), we should still allow checking to generate OTP
+    // So we only block if it's a prepaid order (paymentMethod !== 'COD')
+    if (order.isPaid && order.paymentMethod && order.paymentMethod !== 'COD') {
       return res.status(400).json({
         success: false,
-        message: 'Payment status check is only available for COD orders',
-        code: 'NOT_COD_ORDER'
+        message: 'Payment status check is only available for COD orders. This order is already paid (prepaid).',
+        code: 'NOT_COD_ORDER',
+        isPaid: order.isPaid,
+        paymentMethod: order.paymentMethod
       });
     }
+    
+    // 🎯 CRITICAL: If order is already paid (isPaid === true), generate OTP immediately
+    // This handles cases where payment was confirmed via webhook but OTP wasn't sent yet
+    if (order.isPaid === true) {
+      console.log(`
+🎯 ===============================
+   ORDER ALREADY PAID - CHECKING OTP
+===============================
+📦 Order: ${order.orderNumber}
+✅ isPaid: ${order.isPaid}
+🔑 OTP Required: ${order.otpVerification?.isRequired || false}
+✅ OTP Verified: ${order.otpVerification?.isVerified || false}
+===============================`);
+      
+      // Skip payment validation if already paid, go directly to OTP generation
+      const needsOTPGeneration = !order.otpVerification?.isRequired || 
+        (order.otpVerification.isRequired && !order.otpVerification.isVerified);
+      
+      if (needsOTPGeneration) {
+        // Generate OTP for already paid order
+        let otpGenerated = false;
+        let otpData = null;
+        
+        try {
+          // 🎯 EXACT MATCH: Fetch user directly from User model (same as buyer side)
+          const user = await User.findById(order.user._id || order.user);
+          
+          if (!user) {
+            logDeliveryError('OTP_GENERATION_USER_NOT_FOUND', new Error('User not found'), {
+              orderId: order._id,
+              userId: order.user._id || order.user
+            });
+            // Continue without OTP - don't block response
+          } else if (!user.mobileNumber) {
+            logDeliveryError('OTP_GENERATION_MISSING_PHONE', new Error('User mobile number not found'), {
+              orderId: order._id,
+              userId: user._id,
+              email: user.email
+            });
+            // Continue without OTP - don't block response
+          } else if (!msg91Config.authKey || !msg91Config.loginTemplateId) {
+            logDeliveryError('OTP_GENERATION_MSG91_CONFIG_MISSING', new Error('MSG91 configuration missing'), {
+              hasAuthKey: !!msg91Config.authKey,
+              hasLoginTemplateId: !!msg91Config.loginTemplateId
+            });
+            // Continue without OTP - don't block response
+          } else {
+            // Generate OTP
+            console.log(`
+🎯 ===============================
+   AUTO-GENERATING OTP FOR PAID ORDER
+===============================
+📦 Order: ${order.orderNumber}
+📞 Buyer Phone: ${user.mobileNumber} (from User model)
+👤 Buyer Name: ${user.name}
+💳 Payment Status: Already Paid (isPaid=true)
+🔑 MSG91 Auth Key: ${msg91Config.authKey ? `${msg91Config.authKey.substring(0, 10)}...` : 'NOT_SET'}
+🧾 MSG91 Login Template ID: ${msg91Config.loginTemplateId || 'NOT_SET'}
+===============================`);
+            
+            otpData = await msg91Service.createDeliveryOTP({
+              orderId: order._id,
+              userId: user._id,
+              deliveryAgentId: agentId,
+              userPhone: user.mobileNumber,
+              purpose: 'delivery_confirmation',
+              deliveryLocation: {
+                type: 'Point',
+                coordinates: [0, 0]
+              },
+              notes: 'OTP generated for already paid COD order',
+              orderNumber: order.orderNumber,
+              userName: user.name
+            });
+            
+            if (otpData?.success) {
+              if (!order.otpVerification) order.otpVerification = {};
+              order.otpVerification = {
+                isRequired: true,
+                otpId: otpData.otpId,
+            generatedAt: new Date(),
+                expiresAt: otpData.expiresAt,
+                isVerified: false
+          };
+          
+              otpGenerated = true;
+          await order.save();
+          
+              console.log(`
+✅ ===============================
+   OTP GENERATED SUCCESSFULLY!
+===============================
+📱 OTP Sent to: ${user.mobileNumber}
+🔑 OTP ID: ${otpData.otpId}
+⏰ Expires At: ${otpData.expiresAt}
+===============================`);
+            }
+          }
+        } catch (otpError) {
+          logDeliveryError('OTP_GENERATION_EXCEPTION', otpError, { 
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            error: otpError.message
+          });
+        }
+        
+        // Return response for already paid order
+        return res.status(200).json({
+          success: true,
+          message: 'Payment already confirmed',
+          data: {
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            isPaymentSuccessful: true,
+            paymentStatus: 'completed',
+            isPaid: true,
+            orderStatus: order.status,
+            otpGenerated: otpGenerated,
+            otpRequired: order.otpVerification?.isRequired || false,
+            otpVerified: order.otpVerification?.isVerified || false
+          }
+        });
+      } else {
+        // OTP already generated or verified
+        return res.status(200).json({
+          success: true,
+          message: 'Payment already confirmed',
+          data: {
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            isPaymentSuccessful: true,
+            paymentStatus: 'completed',
+            isPaid: true,
+            orderStatus: order.status,
+            otpGenerated: false,
+            otpRequired: order.otpVerification?.isRequired || false,
+            otpVerified: order.otpVerification?.isVerified || false
+          }
+        });
+      }
+    }
 
-    const codQR = order.paymentDetails?.codQR;
+    // 🎯 CRITICAL FIX: Only check payment status, DO NOT regenerate QR code (exactly like buyer side)
+    // Buyer side generates QR once and it stays the same until payment is confirmed
+    // We should only check status, not regenerate QR during polling
+    let codQR = order.paymentDetails?.codQR;
+    
+    // 🎯 FIX: If QR code doesn't exist, return error asking to generate it first (don't auto-generate)
     if (!codQR || !codQR.paymentId) {
-      return res.status(400).json({
-        success: false,
-        message: 'QR code not generated for this order. Please generate QR code first.',
-        code: 'QR_NOT_GENERATED'
+      // Check if we have orderSlug but no QR code in DB
+      if (order.smepayOrderSlug) {
+        // We have slug but no QR in DB - this means QR was never generated or was lost
+        // Return error asking agent to generate QR manually (don't auto-generate during status check)
+              return res.status(400).json({
+                success: false,
+          message: 'QR code not found for this order. Please generate QR code first using the "Generate SMEPay QR Code" button.',
+                code: 'QR_NOT_GENERATED',
+          hasOrderSlug: true,
+          orderSlug: order.smepayOrderSlug,
+          suggestion: 'Click "Generate SMEPay QR Code" button to create QR code'
+              });
+          }
+          
+      // No QR and no slug - QR was never generated
+          return res.status(400).json({
+            success: false,
+        message: 'QR code not generated for this order. Please generate QR code first using the "Generate SMEPay QR Code" button.',
+            code: 'QR_NOT_GENERATED',
+        suggestion: 'Click "Generate SMEPay QR Code" button to create QR code'
+            });
+          }
+          
+    // 🎯 EXACT MATCH: Use same fast-check logic as buyer side (fastConfirmSMEPayPayment)
+    // If already paid, return immediately (like buyer side line 714)
+    if (order.isPaid) {
+      return res.status(200).json({
+        success: true,
+        message: 'Payment already confirmed',
+        data: {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          isPaymentSuccessful: true,
+          paymentStatus: 'completed',
+          isPaid: true,
+          orderStatus: order.status
+        }
       });
     }
 
-    // 🎯 CHECK PAYMENT STATUS
+    // 🎯 CHECK PAYMENT STATUS - Only validate if not already paid (exactly like buyer side)
     try {
       const smepayService = require('../services/smepayService');
-      const statusResult = await smepayService.checkQRPaymentStatus(codQR.paymentId);
       
-      const isPaymentCompleted = statusResult.status === 'completed' || statusResult.status === 'success';
+      // 🎯 USE ORDER SLUG: For COD QR payments, use orderSlug for status checks (like buyer side)
+      const orderSlug = codQR.orderSlug || order.smepayOrderSlug;
+            
+      if (!orderSlug) {
+        return res.status(400).json({
+          success: false,
+          message: 'No SMEPay payment found for this order',
+          code: 'NO_SMEPAY_SLUG'
+        });
+          }
+          
+      // 🚀 OPTIMIZED: Quick validation with cached results (exactly like buyer side line 737)
+      const validateResult = await smepayService.validateOrder({
+            slug: orderSlug,
+          amount: codQR.amount || order.totalAmount || order.totalPrice
+        });
+
+      if (!validateResult.success) {
+        logDelivery('CHECK_PAYMENT_STATUS_VALIDATION_FAILED', {
+          orderId,
+          error: validateResult.error
+        }, 'error');
+
+              return res.status(400).json({
+                success: false,
+          message: validateResult.error || 'Failed to confirm payment',
+          code: 'VALIDATION_FAILED'
+        });
+      }
+      
+      // 🎯 EXACT MATCH: Use isPaymentSuccessful like buyer side (line 755 in paymentController.js)
+      const isPaymentCompleted = validateResult.isPaymentSuccessful;
       
       // 🎯 AUTO-GENERATE OTP IF PAYMENT IS COMPLETED
       let otpGenerated = false;
       let otpData = null;
       
-      // 🎯 UPDATE PAYMENT STATUS: Save payment completion even if OTP generation fails
-      if (isPaymentCompleted) {
-        // Update payment status (paymentStatus is at order level, not codPayment level)
-        if (!order.codPayment) order.codPayment = {};
-        order.paymentStatus = 'completed';
-        order.codPayment.transactionId = statusResult.transactionId || codQR.paymentId;
+      // 🎯 UPDATE PAYMENT STATUS: EXACT MATCH with buyer side (lines 755-788 in paymentController.js)
+      if (isPaymentCompleted && !order.isPaid) {
+        console.log(`🎉 Payment confirmed for COD order: ${order.orderNumber}`);
+        
+        // 🎯 EXACT MATCH: Update payment status like buyer side
         order.isPaid = true;
-        order.paidAt = statusResult.paidAt || new Date();
+        order.paidAt = new Date();
+        order.paymentStatus = 'completed';
+        
+        // 🎯 EXACT MATCH: Create paymentResult object like buyer side (lines 762-767)
+        order.paymentResult = {
+          gateway: 'smepay',
+          transactionId: validateResult.data?.transactionId || codQR.paymentId || 'smepay_' + Date.now(),
+          paidAt: new Date(),
+          paymentMethod: 'COD_QR'
+        };
+        
+        // 🎯 EXACT MATCH: Add status history like buyer side (lines 769-786)
+        if (!order.statusHistory || order.statusHistory.length === 0) {
+          order.statusHistory = [];
+        }
+        
+        const hasPaymentConfirmedHistory = order.statusHistory.some(
+          h => h.notes && h.notes.includes('Payment confirmed')
+        );
+        
+        if (!hasPaymentConfirmedHistory) {
+          order.statusHistory.push({
+            status: 'Pending',
+            changedBy: 'system',
+            changedAt: new Date(),
+            notes: 'Payment confirmed via SMEPay COD QR, awaiting seller confirmation'
+          });
+        }
         
         // Update QR status
         if (order.paymentDetails?.codQR) {
           order.paymentDetails.codQR.status = 'completed';
-          order.paymentDetails.codQR.paidAt = statusResult.paidAt || new Date();
+          order.paymentDetails.codQR.paidAt = new Date();
         }
+        
+        // Update codPayment for backward compatibility
+        if (!order.codPayment) order.codPayment = {};
+        order.codPayment.transactionId = order.paymentResult.transactionId;
+        
+        // 🎯 CRITICAL: Save order to database after updating isPaid (exactly like buyer side)
+        await order.save();
+        console.log(`✅ Order ${order.orderNumber} saved with isPaid=true after SMEPay verification`);
+        
+        // 🎯 CRITICAL: Refresh order from DB to ensure we have latest data (including isPaid=true)
+        // This ensures OTP generation sees the updated isPaid status
+        order = await Order.findById(orderId)
+          .populate('user', 'name mobileNumber email')
+          .populate('seller', 'firstName shop');
+        
+        console.log(`🔄 Order refreshed from DB - isPaid: ${order.isPaid}`);
       }
       
       // 🎯 AUTO-GENERATE OTP IF PAYMENT IS COMPLETED AND OTP NOT ALREADY VERIFIED
-      // Generate OTP if payment completed but OTP not required yet OR required but not verified
-      const needsOTPGeneration = isPaymentCompleted && (
+      // Generate OTP if payment completed (from validation) OR order is already marked as paid (from webhook/previous check)
+      // AND OTP not required yet OR required but not verified
+      // 🎯 CRITICAL: Check order.isPaid AFTER potential update and refresh
+      const needsOTPGeneration = (isPaymentCompleted || order.isPaid === true) && (
         !order.otpVerification?.isRequired || 
         (order.otpVerification.isRequired && !order.otpVerification.isVerified)
       );
       
+      // 🎯 DEBUG: Log OTP generation condition check
+      console.log(`
+🔍 ===============================
+   OTP GENERATION CONDITION CHECK
+===============================
+📦 Order: ${order.orderNumber}
+💳 isPaymentCompleted: ${isPaymentCompleted}
+✅ order.isPaid: ${order.isPaid}
+🔑 needsOTPGeneration: ${needsOTPGeneration}
+📋 OTP Required: ${order.otpVerification?.isRequired || false}
+✅ OTP Verified: ${order.otpVerification?.isVerified || false}
+===============================`);
+      
       if (needsOTPGeneration && !order.otpVerification?.isVerified) {
         try {
-          const msg91Service = require('../services/msg91Service');
+          // 🎯 EXACT MATCH: msg91Service and User are already imported at top level (like buyer side)
+          
+          // 🎯 EXACT MATCH: Fetch user directly from User model (same as buyer side userController.js line 809/820)
+          // Buyer side: user = await User.findOne({ email }) or User.findOne({ mobileNumber: { $in: searchVariants } })
+          // Delivery side: Fetch user by userId from order
+          const user = await User.findById(order.user._id || order.user);
+          
+          if (!user) {
+            logDeliveryError('OTP_GENERATION_USER_NOT_FOUND', new Error('User not found'), {
+              orderId: order._id,
+              userId: order.user._id || order.user
+            });
+            return res.status(404).json({
+              success: false,
+              message: 'User not found. Cannot send OTP.',
+              code: 'USER_NOT_FOUND'
+            });
+          }
+          
+          // 🎯 EXACT MATCH: Check if user has mobile number (same as buyer side userController.js line 839)
+          if (!user.mobileNumber) {
+            logDeliveryError('OTP_GENERATION_MISSING_PHONE', new Error('User mobile number not found'), {
+              orderId: order._id,
+              userId: user._id,
+              email: user.email
+            });
+            return res.status(400).json({
+              success: false,
+              message: 'User account does not have a registered phone number. Cannot send OTP.',
+              code: 'MISSING_PHONE_NUMBER'
+            });
+          }
+          
+          // 🎯 CRITICAL: Validate MSG91 configuration
+          if (!msg91Config.authKey || !msg91Config.loginTemplateId) {
+            logDeliveryError('OTP_GENERATION_MSG91_CONFIG_MISSING', new Error('MSG91 configuration missing'), {
+              hasAuthKey: !!msg91Config.authKey,
+              hasLoginTemplateId: !!msg91Config.loginTemplateId,
+              authKeyFromEnv: !!process.env.MSG91_AUTH_KEY,
+              loginTemplateIdFromEnv: !!process.env.LOGIN_TEMPLATE_ID
+            });
+            return res.status(500).json({
+              success: false,
+              message: 'MSG91 service not configured. Cannot send OTP.',
+              code: 'MSG91_CONFIG_ERROR'
+            });
+          }
           
           console.log(`
 🎯 ===============================
    AUTO-GENERATING OTP FOR COD
 ===============================
 📦 Order: ${order.orderNumber}
-📞 Buyer Phone: ${order.user.mobileNumber}
+📞 Buyer Phone: ${user.mobileNumber} (from User model - EXACT MATCH buyer side)
+👤 Buyer Name: ${user.name}
 💳 Payment Status: Completed
+🔑 MSG91 Auth Key: ${msg91Config.authKey ? `${msg91Config.authKey.substring(0, 10)}...` : 'NOT_SET'}
+🧾 MSG91 Login Template ID: ${msg91Config.loginTemplateId || 'NOT_SET'}
 ===============================`);
           
+          // 🎯 EXACT MATCH: Use user.mobileNumber directly (same variable path as buyer side userController.js line 860)
+          // Buyer side: await msg91Service.sendOTPForForgotPassword(user.mobileNumber, { userName: user.name, purpose: 'forgot_password' })
+          // Delivery side: await msg91Service.sendOTPForForgotPassword(user.mobileNumber, { userName: user.name, purpose: 'delivery_confirmation', ... })
           otpData = await msg91Service.createDeliveryOTP({
             orderId: order._id,
-            userId: order.user._id,
+            userId: user._id,
             deliveryAgentId: agentId,
-            userPhone: order.user.mobileNumber,
+            userPhone: user.mobileNumber, // 🎯 EXACT MATCH: Use user.mobileNumber (same variable path as buyer side)
             purpose: 'delivery_confirmation',
             deliveryLocation: {
               type: 'Point',
@@ -2468,7 +2954,7 @@ const checkCODPaymentStatus = async (req, res) => {
             },
             notes: 'OTP generated after COD QR payment completion',
             orderNumber: order.orderNumber,
-            userName: order.user.name
+            userName: user.name // 🎯 EXACT MATCH: Use user.name (same variable path as buyer side)
           });
           
           if (otpData?.success) {
@@ -2491,11 +2977,44 @@ const checkCODPaymentStatus = async (req, res) => {
 📱 OTP Sent to: ${order.user.mobileNumber}
 🔑 OTP ID: ${otpData.otpId}
 ⏰ Expires At: ${otpData.expiresAt}
+📋 Request ID: ${otpData.requestId || 'N/A'}
+===============================`);
+          } else {
+            // 🎯 CRITICAL: Log OTP generation failure
+            logDeliveryError('OTP_GENERATION_FAILED', new Error(otpData?.error || 'Unknown error'), {
+              orderId: order._id,
+              orderNumber: order.orderNumber,
+              buyerPhone: order.user.mobileNumber,
+              error: otpData?.error
+            });
+            console.error(`
+❌ ===============================
+   OTP GENERATION FAILED!
+===============================
+📦 Order: ${order.orderNumber}
+📞 Buyer Phone: ${order.user.mobileNumber}
+❌ Error: ${otpData?.error || 'Unknown error'}
 ===============================`);
           }
         } catch (otpError) {
-          console.error('❌ OTP Generation Failed:', otpError);
+          logDeliveryError('OTP_GENERATION_EXCEPTION', otpError, { 
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            buyerPhone: order.user?.mobileNumber,
+            error: otpError.message,
+            stack: otpError.stack?.substring(0, 300)
+          });
+          console.error(`
+❌ ===============================
+   OTP GENERATION EXCEPTION!
+===============================
+📦 Order: ${order.orderNumber}
+📞 Buyer Phone: ${order.user?.mobileNumber || 'NOT_FOUND'}
+❌ Error: ${otpError.message}
+📋 Stack: ${otpError.stack?.substring(0, 200)}...
+===============================`);
           // Continue even if OTP generation fails - payment status already saved
+          otpData = { success: false, error: otpError.message };
         }
       } else if (order.otpVerification?.isRequired) {
         // OTP already generated or required
@@ -2514,37 +3033,54 @@ const checkCODPaymentStatus = async (req, res) => {
 
       const processingTime = Date.now() - startTime;
       
+      // 🎯 EXACT MATCH: Log success like buyer side (line 790 in paymentController.js)
+      if (isPaymentCompleted && order.isPaid) {
+        console.log(`
+✅ ===============================
+   COD PAYMENT CONFIRMED!
+===============================
+📦 Order: ${order.orderNumber}
+💳 Payment ID: ${codQR.paymentId}
+💰 Amount: ₹${codQR.amount || order.totalAmount || order.totalPrice}
+✅ isPaid: ${order.isPaid}
+📊 Payment Status: ${order.paymentStatus}
+===============================`);
+      }
+      
       logDelivery('CHECK_COD_PAYMENT_STATUS_SUCCESS', { 
         agentId, 
         orderId,
-        paymentStatus: statusResult.status,
+        paymentStatus: validateResult.paymentStatus || 'pending',
         isPaymentCompleted,
+        isPaid: order.isPaid,
         otpGenerated,
         processingTime: `${processingTime}ms`
       }, 'success');
 
-      // 📤 SUCCESS RESPONSE
+      // 📤 SUCCESS RESPONSE - EXACT MATCH with buyer side format (lines 798-810 in paymentController.js)
       res.status(200).json({
         success: true,
-        message: 'Payment status checked successfully',
+        message: 'Payment confirmation completed', // 🎯 EXACT MATCH: Same message as buyer side
         data: {
-          _id: order._id,
+          orderId: order._id, // 🎯 EXACT MATCH: Use orderId (not _id) like buyer side
           orderNumber: order.orderNumber,
-          paymentStatus: statusResult.status,
-          isPaymentCompleted: isPaymentCompleted,
+          // 🎯 EXACT MATCH: Use same field names as buyer side (fast-confirm endpoint line 804)
+          isPaymentSuccessful: isPaymentCompleted, // Primary field (matches buyer side exactly)
+          paymentStatus: validateResult.paymentStatus || (isPaymentCompleted ? 'completed' : 'pending'),
+          isPaid: order.isPaid, // 🎯 CRITICAL: Include isPaid like buyer side
+          orderStatus: order.status, // 🎯 EXACT MATCH: Include orderStatus like buyer side
+          // 🎯 DELIVERY-SPECIFIC: Additional fields for delivery agent workflow
           paymentId: codQR.paymentId,
-          transactionId: statusResult.transactionId,
+          transactionId: validateResult.data?.transactionId || codQR.paymentId,
           amount: codQR.amount || order.totalAmount || order.totalPrice,
-          paidAt: statusResult.paidAt,
+          paidAt: order.paidAt || new Date(),
           otpGenerated: otpGenerated,
           otpData: otpData ? {
             otpId: otpData.otpId,
             expiresAt: otpData.expiresAt,
             isVerified: otpData.isVerified || false
           } : null,
-          nextStep: isPaymentCompleted 
-            ? (otpGenerated ? 'Enter OTP from buyer to complete delivery' : 'OTP generation in progress')
-            : 'Wait for customer to scan QR code and make payment'
+          smepayData: validateResult.data // 🎯 EXACT MATCH: Include smepayData like buyer side
         }
       });
 
@@ -2676,7 +3212,9 @@ const completeDelivery = async (req, res) => {
     }
 
     // 🎯 OTP VERIFICATION: Check if OTP verification is required
-    const isCOD = order.paymentMethod === 'COD' || order.paymentMethod === 'Cash on Delivery';
+    // COD orders are those that are NOT prepaid (isPaid === false)
+    // Prepaid orders (SMEPay, Cashfree) have isPaid === true
+    const isCOD = !order.isPaid;
     const codPayment = req.body.codPayment;
     const isCODQRPayment = isCOD && codPayment?.method === 'qr';
     const isCODCashPayment = isCOD && codPayment?.method === 'cash';
@@ -2694,27 +3232,38 @@ const completeDelivery = async (req, res) => {
         });
       }
       
-      // 🎯 Verify OTP using MSG91 standard verification method
+      // 🎯 Verify OTP using MSG91 API directly (same as standalone verify endpoint)
+      // Use verifyOTP() directly instead of verifyDeliveryOTP() to avoid database record dependency
       try {
         const msg91Service = require('../services/msg91Service');
+        const msg91Config = require('../config/msg91');
         
-        const verificationResult = await msg91Service.verifyDeliveryOTP({
-          otpId: order.otpVerification.otpId,
-          enteredCode: otpCode.trim(),
-          orderId: order._id,
-          verifiedBy: 'delivery_agent',
-          deliveryAgentId: agentId,
-          deliveryLocation: {
-            type: 'Point',
-            coordinates: [0, 0] // Will be updated with actual coordinates if provided
-          }
-        });
+        // Fetch user to get phone number
+        const user = await User.findById(order.user._id || order.user);
         
-        if (!verificationResult.success) {
-          logDeliveryError('DELIVERY_OTP_VERIFICATION_FAILED', new Error(verificationResult.message), { orderId });
+        if (!user || !user.mobileNumber) {
           return res.status(400).json({
             success: false,
-            message: verificationResult.message || 'Invalid OTP. Please check and try again.',
+            message: 'Buyer phone number not found. Cannot verify OTP.',
+            code: 'PHONE_NOT_FOUND'
+          });
+        }
+        
+        // 🎯 Verify OTP directly with MSG91 API (authoritative verification)
+        const verifyResult = await msg91Service.verifyOTP({
+          phoneNumber: user.mobileNumber, // Will be normalized inside verifyOTP
+          otp: otpCode.trim() // 🎯 CRITICAL: Trim whitespace from OTP
+        });
+        
+        if (!verifyResult.success) {
+          logDeliveryError('DELIVERY_OTP_VERIFICATION_FAILED', new Error(verifyResult.message), { 
+            orderId,
+            buyerPhone: user.mobileNumber,
+            otpLength: otpCode?.length
+          });
+          return res.status(400).json({
+            success: false,
+            message: verifyResult.message || 'Invalid OTP. Please check and try again.',
             code: 'OTP_VERIFICATION_FAILED'
           });
         }
@@ -2746,27 +3295,38 @@ const completeDelivery = async (req, res) => {
         });
       }
       
-      // 🎯 Verify OTP using MSG91 standard verification method for cash payment
+      // 🎯 Verify OTP using MSG91 API directly (same as standalone verify endpoint)
+      // Use verifyOTP() directly instead of verifyDeliveryOTP() to avoid database record dependency
       try {
         const msg91Service = require('../services/msg91Service');
+        const msg91Config = require('../config/msg91');
         
-        const verificationResult = await msg91Service.verifyDeliveryOTP({
-          otpId: order.otpVerification.otpId,
-          enteredCode: otpCode.trim(),
-          orderId: order._id,
-          verifiedBy: 'delivery_agent',
-          deliveryAgentId: agentId,
-          deliveryLocation: {
-            type: 'Point',
-            coordinates: [0, 0] // Will be updated with actual coordinates if provided
-          }
-        });
+        // Fetch user to get phone number
+        const user = await User.findById(order.user._id || order.user);
         
-        if (!verificationResult.success) {
-          logDeliveryError('DELIVERY_OTP_VERIFICATION_FAILED', new Error(verificationResult.message), { orderId });
+        if (!user || !user.mobileNumber) {
           return res.status(400).json({
             success: false,
-            message: verificationResult.message || 'Invalid OTP. Please check and try again.',
+            message: 'Buyer phone number not found. Cannot verify OTP.',
+            code: 'PHONE_NOT_FOUND'
+          });
+        }
+        
+        // 🎯 Verify OTP directly with MSG91 API (authoritative verification)
+        const verifyResult = await msg91Service.verifyOTP({
+          phoneNumber: user.mobileNumber, // Will be normalized inside verifyOTP
+          otp: otpCode.trim() // 🎯 CRITICAL: Trim whitespace from OTP
+        });
+        
+        if (!verifyResult.success) {
+          logDeliveryError('DELIVERY_OTP_VERIFICATION_FAILED', new Error(verifyResult.message), { 
+            orderId,
+            buyerPhone: user.mobileNumber,
+            otpLength: otpCode?.length
+          });
+          return res.status(400).json({
+            success: false,
+            message: verifyResult.message || 'Invalid OTP. Please check and try again.',
             code: 'OTP_VERIFICATION_FAILED'
           });
         }
@@ -2802,27 +3362,38 @@ const completeDelivery = async (req, res) => {
       if (order.otpVerification.isVerified) {
         console.log(`✅ OTP already verified for prepaid order`);
       } else {
-        // 🎯 Verify OTP using MSG91 standard verification method
+        // 🎯 Verify OTP using MSG91 API directly (same as standalone verify endpoint)
+        // Use verifyOTP() directly instead of verifyDeliveryOTP() to avoid database record dependency
         try {
           const msg91Service = require('../services/msg91Service');
+          const msg91Config = require('../config/msg91');
           
-          const verificationResult = await msg91Service.verifyDeliveryOTP({
-            otpId: order.otpVerification.otpId,
-            enteredCode: otpCode.trim(),
-            orderId: order._id,
-            verifiedBy: 'delivery_agent',
-            deliveryAgentId: agentId,
-            deliveryLocation: {
-              type: 'Point',
-              coordinates: [0, 0] // Will be updated with actual coordinates if provided
-            }
-          });
+          // Fetch user to get phone number
+          const user = await User.findById(order.user._id || order.user);
           
-          if (!verificationResult.success) {
-            logDeliveryError('DELIVERY_OTP_VERIFICATION_FAILED', new Error(verificationResult.message), { orderId });
+          if (!user || !user.mobileNumber) {
             return res.status(400).json({
               success: false,
-              message: verificationResult.message || 'Invalid OTP. Please check and try again.',
+              message: 'Buyer phone number not found. Cannot verify OTP.',
+              code: 'PHONE_NOT_FOUND'
+            });
+          }
+          
+          // 🎯 Verify OTP directly with MSG91 API (authoritative verification)
+          const verifyResult = await msg91Service.verifyOTP({
+            phoneNumber: user.mobileNumber, // Will be normalized inside verifyOTP
+            otp: otpCode.trim() // 🎯 CRITICAL: Trim whitespace from OTP
+          });
+          
+          if (!verifyResult.success) {
+            logDeliveryError('DELIVERY_OTP_VERIFICATION_FAILED', new Error(verifyResult.message), { 
+              orderId,
+              buyerPhone: user.mobileNumber,
+              otpLength: otpCode?.length
+            });
+            return res.status(400).json({
+              success: false,
+              message: verifyResult.message || 'Invalid OTP. Please check and try again.',
               code: 'OTP_VERIFICATION_FAILED'
             });
           }
@@ -3086,6 +3657,92 @@ const completeDelivery = async (req, res) => {
       message: 'Failed to complete delivery',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
       code: 'DELIVERY_COMPLETE_ERROR'
+    });
+  }
+};
+
+// @desc    Get single order by ID for delivery agent (exactly like buyer side)
+// @route   GET /api/delivery/orders/:id
+// @access  Private (Delivery Agent)
+const getOrderById = async (req, res) => {
+  try {
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
+    const orderId = req.params.id;
+    
+    logDelivery('GET_ORDER_BY_ID_START', { agentId, orderId });
+
+    // 🎯 CRITICAL: Fetch order with latest data from DB (no caching)
+    // This ensures we get the most up-to-date isPaid and paymentStatus
+    const order = await Order.findById(orderId)
+      .populate('user', 'name email mobileNumber')
+      .populate('seller', 'firstName shop')
+      .populate('orderItems.product', 'name images');
+
+    if (!order) {
+      logDeliveryError('GET_ORDER_BY_ID_NOT_FOUND', new Error('Order not found'), { orderId });
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Check if order is assigned to this agent
+    const assignedAgentId = order.deliveryAgent?.agent?.toString();
+    const currentAgentId = agentId?.toString();
+    
+    if (assignedAgentId !== currentAgentId) {
+      logDeliveryError('GET_ORDER_BY_ID_UNAUTHORIZED', new Error('Order not assigned to this agent'), { 
+        orderId, 
+        assignedAgent: assignedAgentId, 
+        currentAgent: currentAgentId
+      });
+      return res.status(403).json({
+        success: false,
+        message: 'Order is not assigned to you'
+      });
+    }
+
+    // 🎯 DEBUG: Log payment status to verify what's being returned
+    console.log(`
+🔍 ===============================
+   GET_ORDER_BY_ID - PAYMENT STATUS
+===============================
+📦 Order: ${order.orderNumber}
+✅ isPaid: ${order.isPaid}
+💳 paymentStatus: ${order.paymentStatus}
+📅 paidAt: ${order.paidAt || 'NOT_SET'}
+🔑 paymentResult: ${order.paymentResult ? 'EXISTS' : 'NOT_SET'}
+📋 paymentDetails.codQR.status: ${order.paymentDetails?.codQR?.status || 'NOT_SET'}
+===============================`);
+
+    logDelivery('GET_ORDER_BY_ID_SUCCESS', { 
+      agentId, 
+      orderId, 
+      orderNumber: order.orderNumber,
+      isPaid: order.isPaid,
+      paymentStatus: order.paymentStatus
+    }, 'success');
+
+    // 🎯 CRITICAL: Return order with all payment fields explicitly included
+    // This ensures frontend receives isPaid and paymentStatus correctly
+    return res.status(200).json({
+      success: true,
+      data: {
+        ...order.toObject(), // Convert to plain object to ensure all fields are included
+        isPaid: order.isPaid, // 🎯 EXPLICIT: Ensure isPaid is included
+        paymentStatus: order.paymentStatus, // 🎯 EXPLICIT: Ensure paymentStatus is included
+        paidAt: order.paidAt, // 🎯 EXPLICIT: Include paidAt
+        paymentResult: order.paymentResult, // 🎯 EXPLICIT: Include paymentResult
+        paymentDetails: order.paymentDetails // 🎯 EXPLICIT: Include paymentDetails
+      }
+    });
+  } catch (error) {
+    logDeliveryError('GET_ORDER_BY_ID_ERROR', error, { orderId: req.params.id });
+    console.error('❌ Get Order By ID Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch order',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -4405,7 +5062,422 @@ const rejectOrder = async (req, res) => {
   }
 };
 
+// @desc    Manually send OTP to buyer for delivery confirmation
+// @route   POST /api/delivery/orders/:id/send-otp
+// @access  Private (Delivery Agent)
+const sendDeliveryOTP = async (req, res) => {
+  try {
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
+    const orderId = req.params.id;
+    
+    logDelivery('SEND_DELIVERY_OTP_START', { agentId, orderId });
+    
+    // Fetch order with user details
+    const order = await Order.findById(orderId)
+      .populate('user', 'name mobileNumber email');
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+    
+    // Check authorization
+    const assignedAgentId = order.deliveryAgent?.agent?.toString();
+    const currentAgentId = agentId?.toString();
+    
+    if (assignedAgentId !== currentAgentId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Order is not assigned to you'
+      });
+    }
+    
+    // Fetch user directly from User model (same as buyer side)
+    const user = await User.findById(order.user._id || order.user);
+    
+    if (!user || !user.mobileNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Buyer phone number not found. Cannot send OTP.'
+      });
+    }
+    
+    // Generate OTP using MSG91 service (same as buyer side forgot password)
+    const otpResult = await msg91Service.sendOTPForForgotPassword(user.mobileNumber, {
+      userName: user.name,
+      purpose: 'delivery_confirmation',
+      orderNumber: order.orderNumber
+    });
+    
+    if (!otpResult.success) {
+      logDeliveryError('SEND_DELIVERY_OTP_FAILED', new Error(otpResult.error), {
+        orderId,
+        buyerPhone: user.mobileNumber
+      });
+      
+      return res.status(500).json({
+        success: false,
+        message: otpResult.error || 'Failed to send OTP. Please try again.'
+      });
+    }
+    
+    // Store OTP in order for verification
+    if (!order.otpVerification) order.otpVerification = {};
+    order.otpVerification.isRequired = true;
+    order.otpVerification.generatedAt = new Date();
+    order.otpVerification.isVerified = false;
+    await order.save();
+    
+    logDelivery('SEND_DELIVERY_OTP_SUCCESS', {
+      orderId,
+      orderNumber: order.orderNumber,
+      buyerPhone: `${user.mobileNumber.substring(0, 6)}****`
+    }, 'success');
+    
+    res.status(200).json({
+      success: true,
+      message: 'OTP has been sent to buyer\'s registered phone number',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        phoneNumber: `${user.mobileNumber.substring(0, 6)}****${user.mobileNumber.slice(-2)}`
+      }
+    });
+    
+  } catch (error) {
+    logDeliveryError('SEND_DELIVERY_OTP_ERROR', error, { orderId: req.params.id });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send OTP',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Verify OTP from buyer for delivery confirmation
+// @route   POST /api/delivery/orders/:id/verify-otp
+// @access  Private (Delivery Agent)
+const verifyDeliveryOTP = async (req, res) => {
+  try {
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
+    const orderId = req.params.id;
+    const { otp } = req.body;
+    
+    if (!otp || otp.length !== 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid 6-digit OTP'
+      });
+    }
+    
+    logDelivery('VERIFY_DELIVERY_OTP_START', { agentId, orderId });
+    
+    // Fetch order with user details
+    const order = await Order.findById(orderId)
+      .populate('user', 'name mobileNumber email');
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+    
+    // Check authorization
+    const assignedAgentId = order.deliveryAgent?.agent?.toString();
+    const currentAgentId = agentId?.toString();
+    
+    if (assignedAgentId !== currentAgentId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Order is not assigned to you'
+      });
+    }
+    
+    // Fetch user directly from User model
+    const user = await User.findById(order.user._id || order.user);
+    
+    if (!user || !user.mobileNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Buyer phone number not found. Cannot verify OTP.'
+      });
+    }
+    
+    // 🎯 CRITICAL: Import msg91Config for phone normalization
+    const msg91Config = require('../config/msg91');
+    
+    // 🎯 DEBUG: Log phone number and OTP before verification
+    const normalizedPhone = msg91Config.normalizePhoneNumber(user.mobileNumber);
+    console.log(`
+🔍 ===============================
+   OTP VERIFICATION DEBUG
+===============================
+📦 Order: ${order.orderNumber}
+📞 Buyer Phone (raw): ${user.mobileNumber}
+📞 Buyer Phone (normalized): ${normalizedPhone}
+📞 Buyer Phone (type): ${typeof user.mobileNumber}
+📞 Buyer Phone (length): ${user.mobileNumber?.toString().length}
+🔑 OTP Entered: ${otp}
+🔑 OTP (trimmed): ${otp.trim()}
+🔑 OTP Length: ${otp?.length}
+===============================`);
+    
+    // 🎯 Verify OTP using MSG91 service (authoritative verification)
+    // MSG91 API is the source of truth - it verifies against the OTP it sent
+    const verifyResult = await msg91Service.verifyOTP({
+      phoneNumber: user.mobileNumber, // Will be normalized inside verifyOTP
+      otp: otp.trim() // 🎯 CRITICAL: Trim whitespace from OTP
+    });
+    
+    // 🎯 DEBUG: Log verification result
+    console.log(`
+🔍 ===============================
+   MSG91 VERIFICATION RESULT
+===============================
+✅ Success: ${verifyResult.success}
+📝 Message: ${verifyResult.message}
+📞 Phone: ${user.mobileNumber}
+🔑 OTP: ${otp}
+${verifyResult.error ? `❌ Error: ${JSON.stringify(verifyResult.error)}` : ''}
+===============================`);
+    
+    if (!verifyResult.success) {
+      logDeliveryError('VERIFY_DELIVERY_OTP_FAILED', new Error(verifyResult.message), {
+        orderId,
+        orderNumber: order.orderNumber,
+        buyerPhone: user.mobileNumber,
+        otpLength: otp?.length,
+        verifyResult: verifyResult
+      });
+      
+      return res.status(400).json({
+        success: false,
+        message: verifyResult.message || 'Invalid OTP. Please check the OTP and try again.',
+        details: process.env.NODE_ENV === 'development' ? {
+          phoneNumber: user.mobileNumber,
+          otpLength: otp?.length,
+          error: verifyResult.error
+        } : undefined
+      });
+    }
+    
+    // Update order with verified OTP
+    if (!order.otpVerification) order.otpVerification = {};
+    order.otpVerification.isVerified = true;
+    order.otpVerification.verifiedAt = new Date();
+    order.otpVerification.verifiedBy = agentId;
+    await order.save();
+    
+    logDelivery('VERIFY_DELIVERY_OTP_SUCCESS', {
+      orderId,
+      orderNumber: order.orderNumber
+    }, 'success');
+    
+    res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        otpVerified: true
+      }
+    });
+    
+  } catch (error) {
+    logDeliveryError('VERIFY_DELIVERY_OTP_ERROR', error, { orderId: req.params.id });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify OTP',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Mark cash payment as collected (when "Payment Collected in Cash" is clicked)
+// @route   POST /api/delivery/orders/:id/mark-cash-collected
+// @access  Private (Delivery Agent)
+const markCashPaymentCollected = async (req, res) => {
+  try {
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
+    const orderId = req.params.id;
+    
+    logDelivery('MARK_CASH_PAYMENT_COLLECTED_START', { agentId, orderId });
+    
+    // Fetch order
+    const order = await Order.findById(orderId);
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+    
+    // Check authorization
+    const assignedAgentId = order.deliveryAgent?.agent?.toString();
+    const currentAgentId = agentId?.toString();
+    
+    if (assignedAgentId !== currentAgentId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Order is not assigned to you'
+      });
+    }
+    
+    // Check if order is COD
+    const isCOD = !order.isPaid;
+    
+    if (!isCOD) {
+      return res.status(400).json({
+        success: false,
+        message: 'This order is not a COD order. Cash collection is only for COD orders.'
+      });
+    }
+    
+    // 🎯 MARK CASH PAYMENT AS COLLECTED
+    if (!order.codPayment) order.codPayment = {};
+    
+    order.codPayment.isCollected = true;
+    order.codPayment.collectedAt = new Date();
+    order.codPayment.collectedAmount = order.totalAmount || order.totalPrice;
+    order.codPayment.paymentMethod = 'cash';
+    order.codPayment.collectedBy = agentId;
+    
+    // Mark as paid when cash is collected
+    order.isPaid = true;
+    order.paidAt = new Date();
+    order.paymentStatus = 'completed';
+    
+    await order.save();
+    
+    logDelivery('MARK_CASH_PAYMENT_COLLECTED_SUCCESS', {
+      orderId,
+      orderNumber: order.orderNumber,
+      amount: order.codPayment.collectedAmount
+    }, 'success');
+    
+    res.status(200).json({
+      success: true,
+      message: 'Cash payment marked as collected',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        codPayment: {
+          isCollected: order.codPayment.isCollected,
+          paymentMethod: order.codPayment.paymentMethod,
+          collectedAt: order.codPayment.collectedAt,
+          collectedAmount: order.codPayment.collectedAmount
+        },
+        isPaid: order.isPaid,
+        paymentStatus: order.paymentStatus
+      }
+    });
+    
+  } catch (error) {
+    logDeliveryError('MARK_CASH_PAYMENT_COLLECTED_ERROR', error, { orderId: req.params.id });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mark cash payment as collected',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Resend OTP to buyer for delivery confirmation
+// @route   POST /api/delivery/orders/:id/resend-otp
+// @access  Private (Delivery Agent)
+const resendDeliveryOTP = async (req, res) => {
+  try {
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
+    const orderId = req.params.id;
+    
+    logDelivery('RESEND_DELIVERY_OTP_START', { agentId, orderId });
+    
+    // Fetch order with user details
+    const order = await Order.findById(orderId)
+      .populate('user', 'name mobileNumber email');
+    
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+    
+    // Check authorization
+    const assignedAgentId = order.deliveryAgent?.agent?.toString();
+    const currentAgentId = agentId?.toString();
+    
+    if (assignedAgentId !== currentAgentId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Order is not assigned to you'
+      });
+    }
+    
+    // Fetch user directly from User model
+    const user = await User.findById(order.user._id || order.user);
+    
+    if (!user || !user.mobileNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Buyer phone number not found. Cannot resend OTP.'
+      });
+    }
+    
+    // Resend OTP using MSG91 service
+    const retryResult = await msg91Service.retryOTP(user.mobileNumber, 'text');
+    
+    if (!retryResult.success) {
+      logDeliveryError('RESEND_DELIVERY_OTP_FAILED', new Error(retryResult.error), {
+        orderId,
+        buyerPhone: user.mobileNumber
+      });
+      
+      return res.status(500).json({
+        success: false,
+        message: retryResult.error || 'Failed to resend OTP. Please try again.'
+      });
+    }
+    
+    // Update order OTP verification status
+    if (!order.otpVerification) order.otpVerification = {};
+    order.otpVerification.isRequired = true;
+    order.otpVerification.generatedAt = new Date();
+    order.otpVerification.isVerified = false;
+    await order.save();
+    
+    logDelivery('RESEND_DELIVERY_OTP_SUCCESS', {
+      orderId,
+      orderNumber: order.orderNumber,
+      buyerPhone: `${user.mobileNumber.substring(0, 6)}****`
+    }, 'success');
+    
+    res.status(200).json({
+      success: true,
+      message: 'OTP has been resent to buyer\'s registered phone number',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        phoneNumber: `${user.mobileNumber.substring(0, 6)}****${user.mobileNumber.slice(-2)}`
+      }
+    });
+    
+  } catch (error) {
+    logDeliveryError('RESEND_DELIVERY_OTP_ERROR', error, { orderId: req.params.id });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to resend OTP',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
+  getOrderById,
   registerDeliveryAgent,
   loginDeliveryAgent,
   getDeliveryAgentProfile,
@@ -4427,5 +5499,9 @@ module.exports = {
   getDeliveryHistory,
   logoutDeliveryAgent,
   getOrderNotifications,
-  rejectOrder
+  rejectOrder,
+  sendDeliveryOTP,
+  verifyDeliveryOTP,
+  resendDeliveryOTP,
+  markCashPaymentCollected
 };

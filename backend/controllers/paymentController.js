@@ -167,6 +167,198 @@ const createSMEPayOrder = async (req, res) => {
   }
 };
 
+// @desc    Create SMEPay payment order (Delivery Agent)
+// @route   POST /api/payments/smepay/create-order-delivery
+// @access  Private (Delivery Agent)
+// @note    EXACT SAME LOGIC as createSMEPayOrder but for delivery agents
+const createSMEPayOrderDelivery = async (req, res) => {
+  try {
+    const { orderId, amount, callbackUrl } = req.body;
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
+
+    logPayment('CREATE_SMEPAY_ORDER_DELIVERY_START', {
+      orderId,
+      amount,
+      agentId: agentId.toString(),
+      callbackUrl
+    });
+
+    // Validate request
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID is required'
+      });
+    }
+
+    // Find the order
+    const order = await Order.findById(orderId).populate('user');
+    
+    if (!order) {
+      logPayment('ORDER_NOT_FOUND_DELIVERY', { orderId }, 'error');
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // 🎯 EXACT MATCH: Check if order is assigned to this delivery agent (instead of user ownership check)
+    const assignedAgentId = order.deliveryAgent?.agent?.toString();
+    const currentAgentId = agentId?.toString();
+    
+    if (assignedAgentId !== currentAgentId) {
+      logPayment('UNAUTHORIZED_ORDER_ACCESS_DELIVERY', {
+        orderId,
+        assignedAgent: assignedAgentId,
+        currentAgent: currentAgentId
+      }, 'error');
+      
+      return res.status(403).json({
+        success: false,
+        message: 'Order is not assigned to you'
+      });
+    }
+
+    // 🎯 EXACT MATCH: Check if order is in correct state for payment (same as buyer side)
+    if (order.isPaid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order is already paid'
+      });
+    }
+
+    // 🎯 EXACT MATCH: Use order total price if amount not provided (EXACTLY like buyer side line 78)
+    const paymentAmount = amount || order.totalPrice; // 🎯 CRITICAL: Only use totalPrice, not totalAmount
+    
+    // 🎯 CRITICAL: Ensure amount is a valid number (SMEPay requires number > 0)
+    if (!paymentAmount || isNaN(paymentAmount) || paymentAmount <= 0) {
+      logPayment('INVALID_AMOUNT_DELIVERY', { 
+        amount, 
+        totalPrice: order.totalPrice,
+        totalAmount: order.totalAmount,
+        calculatedAmount: paymentAmount
+      }, 'error');
+      return res.status(400).json({
+        success: false,
+        message: `Invalid order amount: ${paymentAmount}. Cannot create SMEPay order.`
+      });
+    }
+
+    // 🎯 CRITICAL: Validate customer details before creating SMEPay order
+    if (!order.user || !order.user.email) {
+      logPayment('MISSING_CUSTOMER_EMAIL_DELIVERY', { 
+        orderId,
+        hasUser: !!order.user,
+        hasEmail: !!order.user?.email
+      }, 'error');
+      return res.status(400).json({
+        success: false,
+        message: 'Customer email is missing. Cannot create SMEPay order.'
+      });
+    }
+
+    // 🎯 EXACT MATCH: Prepare SMEPay order data (EXACTLY like buyer side lines 81-90)
+    const smepayOrderData = {
+      orderId: order._id.toString(), // 🎯 EXACT MATCH: Buyer side line 82
+      amount: paymentAmount, // 🎯 EXACT MATCH: Buyer side line 83 (no Number() conversion - SMEPay service handles it)
+      customerDetails: {
+        email: order.user.email, // 🎯 EXACT MATCH: Buyer side line 85 (required)
+        mobile: order.user.mobileNumber || '', // 🎯 EXACT MATCH: Service has fallback, but pass empty string if undefined
+        name: order.user.name || 'Customer' // 🎯 EXACT MATCH: Service has fallback, but pass 'Customer' if undefined
+      },
+      callbackUrl: callbackUrl || smepayConfig.getCallbackURL() // 🎯 EXACT MATCH: Buyer side line 89
+    };
+    
+    // 🎯 DEBUG: Log exact payload being sent to SMEPay (for debugging 422 errors)
+    logPayment('SMEPAY_ORDER_DATA_DELIVERY', {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      amount: paymentAmount,
+      customerEmail: order.user.email,
+      customerMobile: smepayOrderData.customerDetails.mobile,
+      customerName: smepayOrderData.customerDetails.name,
+      smepayPayload: smepayOrderData
+    });
+
+    logPayment('CALLING_SMEPAY_SERVICE_DELIVERY', {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      amount: paymentAmount,
+      customerEmail: order.user.email
+    });
+
+    // 🎯 EXACT MATCH: Create SMEPay order (same as buyer side line 100)
+    const smepayResult = await smepayService.createOrder(smepayOrderData);
+
+    if (!smepayResult.success) {
+      logPayment('SMEPAY_ORDER_CREATION_FAILED_DELIVERY', {
+        orderId,
+        error: smepayResult.error,
+        details: smepayResult.details
+      }, 'error');
+
+      return res.status(400).json({
+        success: false,
+        message: smepayResult.error || 'Failed to create SMEPay order',
+        details: smepayResult.details
+      });
+    }
+
+    // 🎯 EXACT MATCH: Update order with SMEPay details (same as buyer side lines 117-134)
+    order.smepayOrderSlug = smepayResult.orderSlug;
+    order.paymentStatus = 'pending';
+    order.paymentGateway = 'smepay';
+    
+    // Add payment attempt to order history
+    if (!order.paymentAttempts) {
+      order.paymentAttempts = [];
+    }
+    
+    order.paymentAttempts.push({
+      gateway: 'smepay',
+      orderSlug: smepayResult.orderSlug,
+      amount: paymentAmount,
+      status: 'initiated',
+      createdAt: new Date()
+    });
+
+    await order.save();
+
+    logPayment('SMEPAY_ORDER_CREATED_SUCCESS_DELIVERY', {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      smepayOrderSlug: smepayResult.orderSlug,
+      amount: paymentAmount
+    }, 'success');
+
+    // 🎯 EXACT MATCH: Return same response structure as buyer side (lines 143-154)
+    res.status(200).json({
+      success: true,
+      message: 'SMEPay order created successfully',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        smepayOrderSlug: smepayResult.orderSlug,
+        amount: paymentAmount,
+        callbackUrl: smepayOrderData.callbackUrl,
+        smepayData: smepayResult.data
+      }
+    });
+
+  } catch (error) {
+    logPayment('CREATE_SMEPAY_ORDER_ERROR_DELIVERY', {
+      error: error.message,
+      stack: error.stack
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error while creating SMEPay order',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 // @desc    Generate QR code for SMEPay payment
 // @route   POST /api/payments/smepay/generate-qr
 // @access  Private (User)
@@ -1118,6 +1310,7 @@ const getPaymentHistory = async (req, res) => {
 
 module.exports = {
   createSMEPayOrder,
+  createSMEPayOrderDelivery, // 🎯 EXACT MATCH: Delivery agent version (same logic as buyer side)
   generateSMEPayQR,
   checkSMEPayQRStatus,
   validateSMEPayOrder,

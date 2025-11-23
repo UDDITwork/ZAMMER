@@ -4,6 +4,27 @@ import React, { useEffect, useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { AuthContext } from '../../contexts/AuthContext';
+import deliveryService from '../../services/deliveryService';
+import paymentService from '../../services/paymentService'; // 🎯 EXACT MATCH: Import paymentService like buyer side
+
+// 🎯 HELPER: Format QR code as base64 data URL for image display
+const formatQRCodeAsDataURL = (qrCode) => {
+  if (!qrCode) return null;
+  
+  // If already a data URL, return as is
+  if (qrCode.startsWith('data:image')) {
+    return qrCode;
+  }
+  
+  // If it's a base64 string, format it as a data URL
+  // SMEPay typically returns PNG format QR codes
+  if (qrCode.startsWith('/9j/') || qrCode.match(/^[A-Za-z0-9+/=]+$/)) {
+    return `data:image/png;base64,${qrCode}`;
+  }
+  
+  // Return as is if format is unknown
+  return qrCode;
+};
 
 const AssignedOrders = () => {
   const [assignedOrders, setAssignedOrders] = useState([]);
@@ -37,12 +58,270 @@ const AssignedOrders = () => {
     paymentId: null
   });
   const [paymentCompleted, setPaymentCompleted] = useState(false);
-  const [paymentPolling, setPaymentPolling] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState(null); // 'pending', 'completed', 'failed'
+  const [isPollingPayment, setIsPollingPayment] = useState(false);
+  // 🎯 REMOVED: paymentPolling state - using useEffect-based polling (exactly like buyer side)
+  const [socket, setSocket] = useState(null);
+  const [paymentDetails, setPaymentDetails] = useState(null); // Store payment transaction details
   
   const navigate = useNavigate();
   const { deliveryAgentAuth, logoutDeliveryAgent } = useContext(AuthContext);
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+
+  // Socket connection for real-time payment updates (exactly like buyer side)
+  useEffect(() => {
+    const initializeSocket = () => {
+      try {
+        const socketConnection = window.io();
+        
+        socketConnection.on('connect', () => {
+          console.log('🚚 [ASSIGNED-ORDERS] Socket connected for delivery agent');
+          const deliveryAgentId = deliveryAgentAuth.deliveryAgent?._id || localStorage.getItem('deliveryAgentId');
+          if (deliveryAgentId) {
+            socketConnection.emit('delivery-agent-join', deliveryAgentId);
+          }
+        });
+
+        // 🎯 CRITICAL: Listen for payment completion events (exactly like buyer side OrderConfirmationPage.js line 137-179)
+        socketConnection.on('payment-completed', (data) => {
+          console.log('💳 [ASSIGNED-ORDERS] Payment completed event received:', data);
+          
+          // Update payment status if this order is currently selected
+          if (selectedOrder && data.data && data.data._id === selectedOrder._id) {
+            console.log('✅ [ASSIGNED-ORDERS] Updating payment status in real-time');
+            
+            // 🎯 EXACT MATCH: Update order state like buyer side (setOrder(prevOrder => ({...})))
+            setSelectedOrder(prevOrder => ({
+              ...prevOrder,
+              isPaid: true,
+              paymentStatus: 'completed',
+              status: data.data.status || prevOrder.status,
+              paidAt: new Date(),
+              paymentResult: {
+                gateway: 'smepay',
+                transactionId: data.data.transactionId || 'smepay_transaction',
+                paidAt: new Date(),
+                paymentMethod: 'SMEPay'
+              }
+            }));
+            
+            setPaymentCompleted(true);
+            setPaymentStatus('completed');
+            setIsPollingPayment(false);
+            
+            // 🎯 CRITICAL FIX: Clear QR code from form state when payment completes (exactly like buyer side)
+            setDeliveryForm(prev => ({
+              ...prev,
+              qrCode: null, // Remove QR code from display
+              paymentId: prev.paymentId // Keep paymentId for reference
+            }));
+            
+            // Update payment details
+            setPaymentDetails({
+              transactionId: data.data.transactionId || data.data.smepayOrderSlug || 'N/A',
+              paidAt: data.data.paidAt || new Date(),
+              paymentMethod: data.data.paymentMethod || 'SMEPay',
+              paymentStatus: 'completed',
+              isPaid: true
+            });
+
+            // 🎯 EXACT MATCH: Show success notification like buyer side
+            toast.success(
+              <div className="flex items-center">
+                <div className="bg-green-100 rounded-full p-2 mr-3">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-medium">Payment Confirmed! 🎉</p>
+                  <p className="text-sm text-gray-600">Order #{data.data.orderNumber}</p>
+                </div>
+              </div>,
+              {
+                position: "top-center",
+                autoClose: 5000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+              }
+            );
+          }
+        });
+
+        // Listen for order status updates (including payment status changes)
+        socketConnection.on('order-status-update', (data) => {
+          console.log('📦 [ASSIGNED-ORDERS] Order status update received:', data);
+          
+          if (selectedOrder && data.data && data.data._id === selectedOrder._id) {
+            console.log('🔄 [ASSIGNED-ORDERS] Updating order status in real-time');
+            
+            // Update payment status if changed
+            if (data.data.isPaid !== undefined && data.data.isPaid) {
+              setPaymentCompleted(true);
+              setPaymentStatus('completed');
+              setIsPollingPayment(false);
+              
+              // 🎯 CRITICAL FIX: Clear QR code when payment status updates to paid
+              setDeliveryForm(prev => ({
+                ...prev,
+                qrCode: null // Remove QR code from display
+              }));
+            }
+            
+            // Update selected order state
+            setSelectedOrder(prevOrder => ({
+              ...prevOrder,
+              ...data.data
+            }));
+          }
+        });
+
+        setSocket(socketConnection);
+
+        return () => {
+          socketConnection.disconnect();
+        };
+      } catch (error) {
+        console.error('❌ [ASSIGNED-ORDERS] Socket connection error:', error);
+      }
+    };
+
+    if (deliveryAgentAuth.isAuthenticated && deliveryAgentAuth.deliveryAgent) {
+      initializeSocket();
+    }
+  }, [deliveryAgentAuth, selectedOrder]);
+
+  // 🎯 EXACT MATCH: Payment status polling mechanism (exactly like buyer side OrderConfirmationPage.js line 265-338)
+  useEffect(() => {
+    // 🎯 EXACT MATCH: Simple condition like buyer side (if (!order || order.isPaid))
+    if (!selectedOrder || selectedOrder.isPaid) {
+      setIsPollingPayment(false);
+      return; // Don't poll if already paid
+    }
+
+    console.log('🔄 Starting payment status polling for order:', selectedOrder.orderNumber);
+    setIsPollingPayment(true);
+    
+    const pollPaymentStatus = async () => {
+      try {
+        console.log('🔍 Polling payment status...');
+        // 🎯 EXACT MATCH: Use service method like buyer side (orderService.getOrderById)
+        const response = await deliveryService.getOrderById(selectedOrder._id);
+        
+        // 🎯 DEBUG: Log response structure to match buyer side exactly
+        console.log('📊 [DELIVERY-POLL] Response structure:', {
+          hasSuccess: !!response.success,
+          hasData: !!response.data,
+          responseKeys: Object.keys(response),
+          dataKeys: response.data ? Object.keys(response.data) : null
+        });
+        
+        if (response.success && response.data) {
+          const updatedOrder = response.data;
+          
+          // 🎯 DEBUG: Log exact values being compared (EXACTLY like buyer side checks)
+          console.log('📊 [DELIVERY-POLL] Payment status comparison:', {
+            'updatedOrder.isPaid': updatedOrder.isPaid,
+            'updatedOrder.paymentStatus': updatedOrder.paymentStatus,
+            'selectedOrder.isPaid': selectedOrder.isPaid,
+            'selectedOrder.paymentStatus': selectedOrder.paymentStatus,
+            'willTriggerUpdate': updatedOrder.isPaid && !selectedOrder.isPaid
+          });
+          
+          // 🎯 EXACT MATCH: Simple check like buyer side (if updatedOrder.isPaid && !order.isPaid)
+          if (updatedOrder.isPaid && !selectedOrder.isPaid) {
+            console.log('✅ Payment status updated via polling!');
+            
+            // 🎯 CRITICAL: Trigger OTP generation by calling checkCODPaymentStatus endpoint
+            // This will validate payment with SMEPay and auto-generate OTP if payment is confirmed
+            try {
+              console.log('📞 Triggering OTP generation for completed payment...');
+              const otpResponse = await deliveryService.checkCODPaymentStatus(selectedOrder._id);
+              console.log('📞 OTP generation response:', otpResponse);
+              
+              if (otpResponse.success && otpResponse.data?.otpGenerated) {
+                console.log('✅ OTP generated successfully!');
+                toast.info('OTP has been sent to buyer\'s registered phone number');
+              }
+            } catch (otpError) {
+              console.error('❌ Error generating OTP:', otpError);
+              // Don't block payment confirmation if OTP generation fails
+            }
+            
+            // 🎯 EXACT MATCH: Update order state like buyer side (setOrder(updatedOrder))
+            setSelectedOrder(updatedOrder);
+            setIsPollingPayment(false); // Stop polling once payment is confirmed
+            
+            // 🎯 CRITICAL FIX: Clear QR code from form state IMMEDIATELY when payment completes
+            setDeliveryForm(prev => ({
+              ...prev,
+              qrCode: null, // Remove QR code from display - exactly like buyer side
+              paymentId: prev.paymentId // Keep paymentId for reference
+            }));
+            
+            // Update payment status states
+            setPaymentCompleted(true);
+            setPaymentStatus('completed');
+            
+            // Update payment details
+            setPaymentDetails({
+              transactionId: updatedOrder.paymentResult?.transactionId || deliveryForm.paymentId || 'N/A',
+              paidAt: updatedOrder.paidAt || new Date(),
+              paymentMethod: 'SMEPay QR',
+              paymentStatus: 'completed',
+              isPaid: true
+            });
+            
+            // 🎯 EXACT MATCH: Show success notification like buyer side
+            toast.success(
+              <div className="flex items-center">
+                <div className="bg-green-100 rounded-full p-2 mr-3">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-medium">Payment Confirmed! 🎉</p>
+                  <p className="text-sm text-gray-600">Order #{updatedOrder.orderNumber}</p>
+                  <p className="text-xs text-blue-600">Updated via polling</p>
+                </div>
+              </div>,
+              {
+                position: "top-center",
+                autoClose: 5000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+              }
+            );
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error polling payment status:', error);
+      }
+    };
+
+    // 🎯 EXACT MATCH: Poll every 3 seconds for the first 30 seconds, then every 10 seconds
+    const initialPolling = setInterval(pollPaymentStatus, 3000);
+    const extendedPolling = setTimeout(() => {
+      clearInterval(initialPolling);
+      const longPolling = setInterval(pollPaymentStatus, 10000);
+      
+      // Stop polling after 5 minutes
+      setTimeout(() => {
+        clearInterval(longPolling);
+        setIsPollingPayment(false);
+        console.log('⏹️ Stopped payment status polling after 5 minutes');
+      }, 300000); // 5 minutes
+    }, 30000); // 30 seconds
+
+    return () => {
+      clearInterval(initialPolling);
+      clearTimeout(extendedPolling);
+      setIsPollingPayment(false);
+    };
+  }, [selectedOrder]); // 🎯 EXACT MATCH: Only depend on selectedOrder like buyer side depends on order
 
   // Check authentication
   useEffect(() => {
@@ -331,12 +610,17 @@ const AssignedOrders = () => {
       if (data.success) {
         const updatedOrder = data.data || latestOrder;
         if (updatedOrder.paymentMethod === 'COD' || !updatedOrder.isPaid) {
+          // 🎯 CRITICAL FIX: Format QR code as base64 data URL if present
+          const qrCode = formatQRCodeAsDataURL(
+            data.data?.paymentData?.qrCode || data.paymentData?.qrCode || null
+          );
+          
           setSelectedOrder(updatedOrder);
           setDeliveryForm({ 
             otp: '', 
             deliveryNotes: '',
             codPaymentType: null,
-            qrCode: data.data?.paymentData?.qrCode || data.paymentData?.qrCode || null
+            qrCode: qrCode
           });
           toast.success('Please collect payment from customer');
         } else {
@@ -369,16 +653,35 @@ const AssignedOrders = () => {
   };
 
   const openDeliveryModal = async (order) => {
-    if (!order) return;
-
+    // 🎯 CRITICAL: Fetch fresh order data to ensure payment status is current (exactly like buyer side)
+    try {
+      console.log('🔄 [ASSIGNED-ORDERS] Fetching fresh order data to verify payment status...');
     const latestOrder = await refreshOrderState(order._id);
-    if (!latestOrder) {
-      toast.error('Unable to load latest order status. Please refresh.');
-      return;
-    }
+      
+      if (latestOrder) {
+        // Initialize payment details from fresh order data
+        if (latestOrder.isPaid || latestOrder.paymentStatus === 'completed') {
+          setPaymentCompleted(true);
+          setPaymentStatus('completed');
+          setPaymentDetails({
+            transactionId: latestOrder.paymentResult?.transactionId || latestOrder.smepayOrderSlug || 'N/A',
+            paidAt: latestOrder.paidAt || latestOrder.paymentResult?.paidAt || new Date(),
+            paymentMethod: latestOrder.paymentMethod || 'SMEPay',
+            paymentStatus: 'completed',
+            isPaid: true
+          });
+        } else {
+          // Reset payment states for pending payments
+          setPaymentCompleted(false);
+          setPaymentStatus(null);
+          setPaymentDetails(null);
+        }
+        
+        setSelectedOrder(latestOrder);
 
     // ✅ SIMPLIFIED: If delivery button is showing, it means order ID was verified → allow action
-    const pickupCompleted = Boolean(latestOrder.pickup?.isCompleted);
+        const finalOrder = latestOrder;
+        const pickupCompleted = Boolean(finalOrder.pickup?.isCompleted);
     if (!pickupCompleted) {
       toast.error('Order ID verification required. Please complete pickup first.');
       setShowDeliveryModal(false);
@@ -386,219 +689,325 @@ const AssignedOrders = () => {
       return;
     }
 
-    if (!latestOrder.delivery?.locationReachedAt && latestOrder.deliveryAgent?.status !== 'location_reached') {
-      const success = await handleReachedDeliveryLocation(latestOrder);
+        if (!finalOrder.delivery?.locationReachedAt && finalOrder.deliveryAgent?.status !== 'location_reached') {
+          const success = await handleReachedDeliveryLocation(finalOrder);
       if (!success) {
         return;
       }
       return;
     }
 
-    const isCOD = latestOrder.paymentMethod === 'COD' || !latestOrder.isPaid;
-    setSelectedOrder(latestOrder);
+    // COD orders are those that are NOT prepaid (isPaid === false)
+    // Prepaid orders (SMEPay, Cashfree) have isPaid === true
+        const isCOD = !finalOrder.isPaid;
+    
+    // 🎯 CRITICAL FIX: Format QR code as base64 data URL if present
+    const qrCode = isCOD 
+          ? formatQRCodeAsDataURL(finalOrder.paymentData?.qrCode || null)
+      : null;
+    
     setDeliveryForm({
       otp: '',
       deliveryNotes: '',
       codPaymentType: null,
-      qrCode: isCOD ? latestOrder.paymentData?.qrCode || null : null
+      qrCode: qrCode
     });
     setShowDeliveryModal(true);
+      } else {
+        setSelectedOrder(order);
+      }
+    } catch (error) {
+      console.error('❌ [ASSIGNED-ORDERS] Error fetching fresh order data:', error);
+      setSelectedOrder(order);
+    }
   };
 
+
+  // Handle manual OTP send
+  const handleSendOTP = async () => {
+    if (!selectedOrder) return;
+    
+    setProcessingOrder(selectedOrder._id);
+    setActionType('send-otp');
+    
+    try {
+      console.log('📞 Sending OTP manually for order:', selectedOrder.orderNumber);
+      const response = await deliveryService.sendDeliveryOTP(selectedOrder._id);
+      
+      if (response.success) {
+        toast.success('OTP has been sent to buyer\'s registered phone number');
+        // Refresh order to get updated OTP status
+        const orderResponse = await deliveryService.getOrderById(selectedOrder._id);
+        if (orderResponse.success && orderResponse.data) {
+          setSelectedOrder(orderResponse.data);
+        }
+      } else {
+        toast.error(response.message || 'Failed to send OTP');
+      }
+    } catch (error) {
+      console.error('❌ Error sending OTP:', error);
+      toast.error('Failed to send OTP. Please try again.');
+    } finally {
+      setProcessingOrder(null);
+      setActionType(null);
+    }
+  };
+
+  // Handle OTP verification
+  const handleVerifyOTP = async () => {
+    if (!selectedOrder || !deliveryForm.otp || deliveryForm.otp.length !== 6) {
+      toast.error('Please enter a valid 6-digit OTP');
+      return;
+    }
+    
+    // 🎯 CRITICAL: Trim OTP before sending
+    const cleanedOTP = deliveryForm.otp.trim();
+    
+    if (cleanedOTP.length !== 6) {
+      toast.error('Please enter a valid 6-digit OTP (no spaces)');
+      return;
+    }
+    
+    setProcessingOrder(selectedOrder._id);
+    setActionType('verify-otp');
+    
+    try {
+      console.log('🔐 Verifying OTP for order:', selectedOrder.orderNumber);
+      console.log('🔑 OTP entered:', cleanedOTP, 'Length:', cleanedOTP.length);
+      const response = await deliveryService.verifyDeliveryOTP(selectedOrder._id, cleanedOTP);
+      
+      if (response.success) {
+        toast.success('OTP verified successfully! ✅');
+        // Refresh order to get updated verification status
+        const orderResponse = await deliveryService.getOrderById(selectedOrder._id);
+        if (orderResponse.success && orderResponse.data) {
+          setSelectedOrder(orderResponse.data);
+        }
+      } else {
+        toast.error(response.message || 'Invalid OTP. Please try again.');
+      }
+    } catch (error) {
+      console.error('❌ Error verifying OTP:', error);
+      toast.error('Failed to verify OTP. Please try again.');
+    } finally {
+      setProcessingOrder(null);
+      setActionType(null);
+    }
+  };
 
   // Handle OTP resend
   const handleResendOTP = async () => {
     if (!selectedOrder) return;
     
     setProcessingOrder(selectedOrder._id);
+    setActionType('resend-otp');
     
     try {
-      const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
+      console.log('🔄 Resending OTP for order:', selectedOrder.orderNumber);
+      const response = await deliveryService.resendDeliveryOTP(selectedOrder._id);
       
-      // Resend OTP by calling reached location again
-      const response = await fetch(`${API_BASE_URL}/delivery/orders/${selectedOrder._id}/reached-location`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          locationNotes: 'OTP resend requested'
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        toast.success('OTP resent successfully!');
+      if (response.success) {
+        toast.success('OTP has been resent to buyer\'s registered phone number');
+        // Refresh order to get updated OTP status
+        const orderResponse = await deliveryService.getOrderById(selectedOrder._id);
+        if (orderResponse.success && orderResponse.data) {
+          setSelectedOrder(orderResponse.data);
+        }
       } else {
-        toast.error(data.message || 'Failed to resend OTP');
+        toast.error(response.message || 'Failed to resend OTP');
       }
     } catch (error) {
-      console.error('❌ [ASSIGNED-ORDERS] Error resending OTP:', error);
-      toast.error('Failed to resend OTP');
+      console.error('❌ Error resending OTP:', error);
+      toast.error('Failed to resend OTP. Please try again.');
     } finally {
       setProcessingOrder(null);
+      setActionType(null);
     }
   };
 
-  // Handle COD payment type selection
+    // Handle COD payment type selection
   const handleCODPaymentType = async (paymentType) => {
     if (!selectedOrder) return;
     
-    if (paymentType === 'qr' && !deliveryForm.qrCode) {
-      // Generate QR code via API
+    // 🎯 VALIDATION: COD orders are those that are NOT prepaid (isPaid === false)
+    // Prepaid orders (SMEPay, Cashfree) have isPaid === true
+    const isCOD = !selectedOrder.isPaid;
+    
+    if (!isCOD) {
+      toast.error('QR code generation is only available for COD orders (unpaid orders)');
+      return;
+    }
+    
+    // 🎯 CASH PAYMENT: Mark as collected and send OTP when cash payment is selected
+    if (paymentType === 'cash') {
+      setDeliveryForm(prev => ({ ...prev, codPaymentType: 'cash' }));
+      
+      setProcessingOrder(selectedOrder._id);
+      setActionType('mark-cash-collected');
+      
       try {
-        setProcessingOrder(selectedOrder._id);
-        setActionType('generate-qr');
+        console.log('💰 Cash payment selected - marking as collected for order:', selectedOrder.orderNumber);
         
-        const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
-        const response = await fetch(`${API_BASE_URL}/delivery/orders/${selectedOrder._id}/generate-qr`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+        // 🎯 STEP 1: Mark cash payment as collected in database
+        const markCollectedResponse = await deliveryService.markCashPaymentCollected(selectedOrder._id);
+        
+        if (!markCollectedResponse.success) {
+          throw new Error(markCollectedResponse.message || 'Failed to mark cash payment as collected');
+        }
+        
+        console.log('✅ Cash payment marked as collected:', {
+          isCollected: markCollectedResponse.data?.codPayment?.isCollected,
+          paymentMethod: markCollectedResponse.data?.codPayment?.paymentMethod,
+          isPaid: markCollectedResponse.data?.isPaid
         });
-
-        // 🎯 ERROR HANDLING: Check if response is JSON before parsing
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          const text = await response.text();
-          throw new Error(`Invalid response format: ${text.substring(0, 100)}`);
-        }
-
-        const data = await response.json();
         
-        // 🎯 ERROR HANDLING: Check HTTP status
-        if (!response.ok) {
-          throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        if (data.success) {
-          setDeliveryForm(prev => ({
-            ...prev,
-            codPaymentType: 'qr',
-            qrCode: data.data.qrCode,
-            paymentId: data.data.paymentId
-          }));
-          setPaymentStatus('pending');
-          toast.success('QR code generated successfully');
+        // 🎯 STEP 2: Auto-send OTP when cash payment is selected
+        if (!selectedOrder.otpVerification?.isRequired || !selectedOrder.otpVerification?.isVerified) {
+          setActionType('send-otp-cash');
           
-          // Start payment status polling immediately
-          startPaymentPolling(selectedOrder._id, data.data.paymentId);
+          try {
+            console.log('📞 Sending OTP automatically for cash payment...');
+            const otpResponse = await deliveryService.sendDeliveryOTP(selectedOrder._id);
+            
+            if (otpResponse.success) {
+              toast.success('Cash payment collected! OTP has been sent to buyer\'s registered phone number.');
+            } else {
+              toast.warning('Cash payment collected, but failed to send OTP. You can send it manually.');
+            }
+          } catch (otpError) {
+            console.error('❌ Error sending OTP for cash payment:', otpError);
+            toast.warning('Cash payment collected, but failed to send OTP. You can send it manually.');
+          }
         } else {
-          toast.error(data.message || 'Failed to generate QR code');
+          toast.success('Cash payment collected successfully!');
         }
+        
+        // 🎯 STEP 3: Refresh order to get updated payment status
+        const orderResponse = await deliveryService.getOrderById(selectedOrder._id);
+        if (orderResponse.success && orderResponse.data) {
+          setSelectedOrder(orderResponse.data);
+          // Update payment status in UI
+          setPaymentCompleted(true);
+          setPaymentStatus('completed');
+        }
+        
       } catch (error) {
-        console.error('Error generating QR:', error);
-        toast.error('Failed to generate QR code. Please try again.');
+        console.error('❌ Error marking cash payment as collected:', error);
+        toast.error(error.message || 'Failed to mark cash payment as collected. Please try again.');
       } finally {
         setProcessingOrder(null);
         setActionType(null);
       }
-    } else {
+      
+      return; // Don't proceed with QR code logic for cash
+    }
+    
+    if (paymentType === 'qr' && !deliveryForm.qrCode) {
+      // 🎯 EXACT MATCH: Use deliveryService.processRealSMEPayPayment() exactly like buyer side uses paymentService.processRealSMEPayPayment() (PaymentPage.js line 102)
+      try {
+        setProcessingOrder(selectedOrder._id);
+        setActionType('generate-qr');
+        
+        console.log('🎯 [DELIVERY] Starting SMEPay payment flow for order:', selectedOrder._id);
+        
+        // 🎯 EXACT MATCH: Single method call - same as buyer side (PaymentPage.js line 102)
+        // Buyer side: const smepayResult = await paymentService.processRealSMEPayPayment(createdOrderId);
+        // Delivery side: const smepayResult = await deliveryService.processRealSMEPayPayment(selectedOrder._id);
+        const smepayResult = await deliveryService.processRealSMEPayPayment(selectedOrder._id);
+        
+        if (!smepayResult.success) {
+          throw new Error(smepayResult.message || 'SMEPay payment failed');
+        }
+        
+        // 🎯 EXACT MATCH: Log success same way as buyer side (PaymentPage.js line 108-111)
+        console.log('✅ [DELIVERY] SMEPay payment completed via widget');
+        console.log('🎯 [DELIVERY] SMEPAY_PAYMENT_SUCCESS', {
+          orderId: selectedOrder._id,
+          orderNumber: selectedOrder.orderNumber
+        });
+        
+        // 🎯 EXACT MATCH: Update payment status states (like buyer side does after successful payment)
+        // Note: Buyer side redirects, so doesn't update local state. Delivery side stays on page, so updates state.
+        setPaymentCompleted(true);
+        setPaymentStatus('completed');
+        setPaymentDetails({
+          transactionId: smepayResult.data?.transactionId || smepayResult.data?.paymentId || 'N/A',
+          paidAt: new Date(),
+          paymentMethod: 'SMEPay QR',
+          paymentStatus: 'completed',
+          isPaid: true
+        });
+        
+        // 🎯 CRITICAL: Clear QR code from form state (payment completed)
+            setDeliveryForm(prev => ({
+              ...prev,
+              codPaymentType: 'qr',
+          qrCode: null, // Clear QR code - widget handled payment
+          paymentId: smepayResult.data?.paymentId || smepayResult.data?.orderSlug || null
+        }));
+        
+        // 🎯 CRITICAL: After widget payment, validate and update order in database
+        // This ensures isPaid is set to true in the database (not just frontend state)
+        try {
+          console.log('🔄 Validating payment and updating order in database...');
+          const validateResponse = await deliveryService.checkCODPaymentStatus(selectedOrder._id);
+          console.log('✅ Payment validation response:', validateResponse);
+          
+          if (validateResponse.success && validateResponse.data?.isPaymentSuccessful) {
+            console.log('✅ Payment confirmed in database - isPaid should be true now');
+          }
+        } catch (validateError) {
+          console.error('❌ Error validating payment:', validateError);
+          // Continue anyway - payment widget was successful
+        }
+        
+        // 🎯 EXACT MATCH: Refresh order state to get latest payment status
+        // Buyer side doesn't refresh (redirects with order data), but delivery side needs to refresh (stays on page)
+        try {
+          const orderResponse = await deliveryService.getOrderById(selectedOrder._id);
+          if (orderResponse.success && orderResponse.data) {
+            console.log('📊 Refreshed order data:', {
+              isPaid: orderResponse.data.isPaid,
+              paymentStatus: orderResponse.data.paymentStatus
+            });
+            setSelectedOrder(orderResponse.data);
+          }
+        } catch (refreshError) {
+          console.error('Error refreshing order state:', refreshError);
+          // Continue anyway - payment was successful (same as buyer side approach)
+        }
+        
+        // 🎯 EXACT MATCH: Show success toast (same style as buyer side PaymentPage.js line 122-142)
+        toast.success('Payment completed successfully! 🎉');
+        
+      } catch (error) {
+        // 🎯 EXACT MATCH: Error handling same as buyer side (PaymentPage.js line 173-183)
+        console.error('❌ [DELIVERY] SMEPay payment error:', error);
+        console.error('❌ [DELIVERY] REAL_SMEPAY_ERROR', {
+          error: error.message,
+          paymentMethod: 'SMEPay',
+          orderId: selectedOrder._id
+        });
+        
+        // 🎯 EXACT MATCH: Set error states (buyer side sets paymentStep='failed', paymentError)
+        // Note: Delivery side uses paymentStatus instead of paymentError state
+        setDeliveryForm(prev => ({ ...prev, codPaymentType: null, qrCode: null, paymentId: null }));
+        setPaymentStatus('failed');
+        
+        // 🎯 EXACT MATCH: Show error toast (same as buyer side line 183)
+        toast.error(`Payment failed: ${error.message || 'Please try again'}`);
+      } finally {
+        // 🎯 EXACT MATCH: Cleanup same as buyer side (PaymentPage.js line 184-187)
+        setProcessingOrder(null);
+        setActionType(null);
+      }
+            } else {
       setDeliveryForm(prev => ({ ...prev, codPaymentType: paymentType }));
     }
   };
 
-  // Start payment status polling
-  const startPaymentPolling = (orderId, paymentId) => {
-    // Clear any existing polling
-    if (paymentPolling) {
-      clearInterval(paymentPolling);
-    }
-
-    let pollAttempts = 0;
-    const MAX_POLL_ATTEMPTS = 120; // 5 minutes max (120 * 2.5 seconds = 300 seconds)
-    
-    const pollInterval = setInterval(async () => {
-      pollAttempts++;
-      
-      // 🎯 STOP POLLING: Maximum attempts reached
-      if (pollAttempts > MAX_POLL_ATTEMPTS) {
-        clearInterval(pollInterval);
-        setPaymentPolling(null);
-        setPaymentStatus('timeout');
-        toast.warning('Payment status check timeout. Please refresh or try again.');
-        return;
-      }
-      
-      try {
-        const token = deliveryAgentAuth.token || localStorage.getItem('deliveryAgentToken');
-        const response = await fetch(`${API_BASE_URL}/delivery/orders/${orderId}/check-payment-status`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        // 🎯 ERROR HANDLING: Check if response is JSON
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          throw new Error('Invalid response format from server');
-        }
-
-        const data = await response.json();
-
-        if (data.success) {
-          const isPaymentCompleted = data.data.isPaymentCompleted;
-          
-          if (isPaymentCompleted) {
-            // Payment completed - stop polling
-            clearInterval(pollInterval);
-            setPaymentPolling(null);
-            setPaymentCompleted(true);
-            setPaymentStatus('completed');
-            
-            if (data.data.otpGenerated) {
-              toast.success('Payment completed! OTP has been sent to buyer.');
-            } else {
-              toast.info('Payment completed! Waiting for OTP generation...');
-            }
-          } else {
-            // Still pending - continue polling
-            setPaymentStatus('pending');
-          }
-        } else {
-          // API returned error - stop polling to prevent infinite attempts
-          console.error('Payment status check failed:', data.message);
-          if (pollAttempts >= 5) {
-            clearInterval(pollInterval);
-            setPaymentPolling(null);
-            toast.error(data.message || 'Failed to check payment status');
-          }
-        }
-      } catch (error) {
-        console.error('Error checking payment status:', error);
-        // Stop polling after multiple consecutive errors
-        if (pollAttempts >= 10) {
-          clearInterval(pollInterval);
-          setPaymentPolling(null);
-          toast.error('Failed to check payment status. Please try again.');
-        }
-        // Continue polling for first few errors (network issues might be temporary)
-      }
-    }, 2500); // Poll every 2.5 seconds
-
-    setPaymentPolling(pollInterval);
-  };
-
-  // Stop payment polling
-  const stopPaymentPolling = () => {
-    if (paymentPolling) {
-      clearInterval(paymentPolling);
-      setPaymentPolling(null);
-    }
-  };
-
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      stopPaymentPolling();
-    };
-  }, []); // Empty dependency array - cleanup only on unmount
+  // 🎯 REMOVED: Old complex polling function - now using useEffect-based polling (exactly like buyer side)
+  // The useEffect hook (lines 179-283) handles all polling automatically
 
   // Handle delivery completion
   const handleDeliveryComplete = async () => {
@@ -632,7 +1041,8 @@ const AssignedOrders = () => {
     setSelectedOrder(latestOrder);
 
     // Validate based on payment type
-    const isCOD = latestOrder.paymentMethod === 'COD' || !latestOrder.isPaid;
+    // COD orders are those that are NOT prepaid (isPaid === false)
+    const isCOD = !latestOrder.isPaid;
     
     if (isCOD) {
       if (!deliveryForm.codPaymentType) {
@@ -678,6 +1088,11 @@ const AssignedOrders = () => {
         if (deliveryForm.codPaymentType === 'qr' && paymentCompleted && deliveryForm.otp) {
           requestBody.otp = deliveryForm.otp;
         }
+        
+        // For COD Cash payments, include OTP if OTP is required and entered
+        if (deliveryForm.codPaymentType === 'cash' && deliveryForm.otp) {
+          requestBody.otp = deliveryForm.otp;
+        }
       }
       
       const response = await fetch(`${API_BASE_URL}/delivery/orders/${latestOrder._id}/deliver`, {
@@ -692,11 +1107,11 @@ const AssignedOrders = () => {
       const data = await response.json();
 
       if (data.success) {
-        // Stop polling
-        stopPaymentPolling();
+        // 🎯 REMOVED: stopPaymentPolling() - useEffect handles cleanup automatically (exactly like buyer side)
         
         // Prepare success data for confirmation modal
-        const isCOD = latestOrder.paymentMethod === 'COD' || !latestOrder.isPaid;
+        // COD orders are those that are NOT prepaid (isPaid === false)
+        const isCOD = !latestOrder.isPaid;
         const paymentMethod = deliveryForm.codPaymentType === 'qr' ? 'QR Code' : 'Cash';
         
         setDeliverySuccessData({
@@ -1249,7 +1664,10 @@ const AssignedOrders = () => {
             <h2 className="text-xl font-bold text-gray-900 mb-4">🚚 Complete Delivery</h2>
             
             {(() => {
-              const isCOD = selectedOrder.paymentMethod === 'COD' || !selectedOrder.isPaid;
+              // 🎯 COD DETECTION: COD orders are those that are NOT prepaid (isPaid === false)
+              // Prepaid orders (SMEPay, Cashfree) have isPaid === true
+              // This ensures consistent logic - both SMEPay and Cashfree set isPaid = true when payment completes
+              const isCOD = !selectedOrder.isPaid;
               
               return (
                 <div className="space-y-4">
@@ -1294,25 +1712,116 @@ const AssignedOrders = () => {
                         </p>
                       </div>
                       
-                      {/* OTP Entry for COD QR Payment after payment completion */}
-                      {paymentCompleted && deliveryForm.codPaymentType === 'qr' && (
-                        <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-4">
-                          <p className="text-sm text-green-800 mb-3">
-                            <strong>✅ Payment Completed!</strong> OTP has been sent to buyer's registered phone number.
-                          </p>
+                      {/* OTP Entry for COD Cash Payment */}
+                      {deliveryForm.codPaymentType === 'cash' && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-md p-3 mb-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="text-sm text-orange-800">
+                              <strong>💰 Cash Payment Selected!</strong> {selectedOrder.otpVerification?.isRequired && !selectedOrder.otpVerification?.isVerified ? 'OTP has been sent to buyer\'s registered phone number.' : 'OTP will be sent when you select this option.'}
+                            </p>
+                            {/* Manual Send OTP Button */}
+                            <button
+                              onClick={handleSendOTP}
+                              disabled={processingOrder === selectedOrder._id && actionType === 'send-otp'}
+                              className="px-3 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {processingOrder === selectedOrder._id && actionType === 'send-otp' ? 'Sending...' : 'Send OTP'}
+                            </button>
+                          </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                               Enter OTP from Buyer <span className="text-red-500">*</span>
                             </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={deliveryForm.otp}
+                                onChange={(e) => setDeliveryForm(prev => ({ ...prev, otp: e.target.value.replace(/\D/g, '') }))}
+                                className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                placeholder="Enter 6-digit OTP"
+                                maxLength="6"
+                                disabled={selectedOrder.otpVerification?.isVerified}
+                              />
+                              <button
+                                onClick={handleVerifyOTP}
+                                disabled={!deliveryForm.otp || deliveryForm.otp.length !== 6 || (processingOrder === selectedOrder._id && actionType === 'verify-otp') || selectedOrder.otpVerification?.isVerified}
+                                className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                              >
+                                {processingOrder === selectedOrder._id && actionType === 'verify-otp' ? 'Verifying...' : selectedOrder.otpVerification?.isVerified ? 'Verified ✓' : 'Verify'}
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between mt-2">
+                              <p className="text-xs text-gray-500">Ask the buyer for the OTP sent to their phone</p>
+                              <button
+                                onClick={handleResendOTP}
+                                disabled={processingOrder === selectedOrder._id && actionType === 'resend-otp'}
+                                className="text-xs text-orange-600 hover:text-orange-700 underline disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {processingOrder === selectedOrder._id && actionType === 'resend-otp' ? 'Resending...' : 'Resend OTP'}
+                              </button>
+                            </div>
+                            {selectedOrder.otpVerification?.isVerified && (
+                              <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded text-sm text-green-800">
+                                ✅ OTP Verified Successfully! You can now complete the delivery.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* OTP Entry for COD QR Payment after payment completion */}
+                      {(paymentCompleted || selectedOrder.isPaid || paymentStatus === 'completed') && deliveryForm.codPaymentType === 'qr' && (
+                        <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="text-sm text-green-800">
+                              <strong>✅ Payment Completed!</strong> {selectedOrder.otpVerification?.isRequired && !selectedOrder.otpVerification?.isVerified ? 'OTP has been sent to buyer\'s registered phone number.' : 'Enter OTP to complete delivery.'}
+                            </p>
+                            {/* Manual Send OTP Button */}
+                            <button
+                              onClick={handleSendOTP}
+                              disabled={processingOrder === selectedOrder._id && actionType === 'send-otp'}
+                              className="px-3 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {processingOrder === selectedOrder._id && actionType === 'send-otp' ? 'Sending...' : 'Send OTP'}
+                            </button>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Enter OTP from Buyer <span className="text-red-500">*</span>
+                            </label>
+                            <div className="flex gap-2">
                             <input
                               type="text"
                               value={deliveryForm.otp}
                               onChange={(e) => setDeliveryForm(prev => ({ ...prev, otp: e.target.value.replace(/\D/g, '') }))}
-                              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
                               placeholder="Enter 6-digit OTP"
                               maxLength="6"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Ask the buyer for the OTP sent to their phone</p>
+                                disabled={selectedOrder.otpVerification?.isVerified}
+                              />
+                              <button
+                                onClick={handleVerifyOTP}
+                                disabled={!deliveryForm.otp || deliveryForm.otp.length !== 6 || (processingOrder === selectedOrder._id && actionType === 'verify-otp') || selectedOrder.otpVerification?.isVerified}
+                                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                              >
+                                {processingOrder === selectedOrder._id && actionType === 'verify-otp' ? 'Verifying...' : selectedOrder.otpVerification?.isVerified ? 'Verified ✓' : 'Verify'}
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between mt-2">
+                              <p className="text-xs text-gray-500">Ask the buyer for the OTP sent to their phone</p>
+                              <button
+                                onClick={handleResendOTP}
+                                disabled={processingOrder === selectedOrder._id && actionType === 'resend-otp'}
+                                className="text-xs text-orange-600 hover:text-orange-700 underline disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {processingOrder === selectedOrder._id && actionType === 'resend-otp' ? 'Resending...' : 'Resend OTP'}
+                              </button>
+                            </div>
+                            {selectedOrder.otpVerification?.isVerified && (
+                              <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded text-sm text-green-800">
+                                ✅ OTP Verified Successfully!
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -1358,42 +1867,163 @@ const AssignedOrders = () => {
                               />
                               <span className="font-medium">
                                 {processingOrder === selectedOrder._id && actionType === 'generate-qr' 
-                                  ? 'Generating QR Code...' 
-                                  : 'Generate SMEPay QR Code'}
+                                  ? 'Opening SMEPay...' 
+                                  : `Pay ₹${(selectedOrder.totalAmount || selectedOrder.totalPrice || 0).toFixed(2)} with SMEPay`}
                               </span>
                             </div>
-                            {deliveryForm.codPaymentType === 'qr' && deliveryForm.qrCode && (
+                            {/* 🎯 CRITICAL FIX: Show QR code ONLY when payment is NOT completed (exactly like buyer side) */}
+                            {/* 🎯 EXACT MATCH: Check selectedOrder.isPaid like buyer side checks order.isPaid */}
+                            {deliveryForm.codPaymentType === 'qr' && deliveryForm.qrCode && !selectedOrder.isPaid && !paymentCompleted && paymentStatus !== 'completed' && (
                               <div className="mt-2 p-2 bg-white rounded border">
                                 <img src={deliveryForm.qrCode} alt="QR Code" className="w-32 h-32 mx-auto" />
                                 <p className="text-xs text-center text-gray-600 mt-2">Scan this QR code to pay</p>
+                                {(isPollingPayment || paymentStatus === 'pending') && (
+                                  <div className="flex items-center justify-center gap-2 mt-2 text-xs text-blue-600">
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                                    <span>Waiting for payment...</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {/* 🎯 CRITICAL FIX: Show payment completed message INSTEAD of QR code (exactly like buyer side redirects) */}
+                            {/* 🎯 EXACT MATCH: Check selectedOrder.isPaid like buyer side checks order.isPaid */}
+                            {deliveryForm.codPaymentType === 'qr' && (selectedOrder.isPaid || paymentCompleted || paymentStatus === 'completed') && (
+                              <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded">
+                                <div className="flex items-center gap-2 text-green-800 mb-2">
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  <span className="font-medium">Payment Completed Successfully! ✅</span>
+                                </div>
+                                {paymentDetails?.transactionId && (
+                                  <p className="text-xs text-green-700">
+                                    Transaction ID: <span className="font-mono bg-white px-1 py-0.5 rounded">{paymentDetails.transactionId}</span>
+                                  </p>
+                                )}
+                                <p className="text-xs text-green-600 mt-2">
+                                  Please enter the OTP sent to buyer's phone to complete delivery.
+                                </p>
                               </div>
                             )}
                           </button>
                           
                           <button
                             onClick={() => handleCODPaymentType('cash')}
-                            disabled={paymentCompleted}
+                            disabled={paymentCompleted || (processingOrder === selectedOrder._id && actionType === 'send-otp-cash')}
                             className={`w-full border-2 rounded-md p-3 text-left transition-colors ${
                               deliveryForm.codPaymentType === 'cash'
                                 ? 'border-orange-500 bg-orange-50'
                                 : 'border-gray-300 hover:border-orange-300'
-                            } ${paymentCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            } ${paymentCompleted || (processingOrder === selectedOrder._id && actionType === 'send-otp-cash') ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             <div className="flex items-center">
                               <input
                                 type="radio"
                                 checked={deliveryForm.codPaymentType === 'cash'}
                                 onChange={() => handleCODPaymentType('cash')}
-                                disabled={paymentCompleted}
+                                disabled={paymentCompleted || (processingOrder === selectedOrder._id && actionType === 'send-otp-cash')}
                                 className="mr-2"
                               />
-                              <span className="font-medium">Payment Collected in Cash</span>
+                              <span className="font-medium">
+                                {processingOrder === selectedOrder._id && actionType === 'send-otp-cash'
+                                  ? 'Sending OTP...'
+                                  : 'Payment Collected in Cash'}
+                              </span>
                             </div>
                           </button>
                         </div>
                       </div>
                     </>
                   )}
+                  
+                  {/* 🎯 NEW: Payment Confirmation Section (exactly like buyer side) */}
+                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 sm:p-5 border border-purple-100 space-y-3">
+                    <div className="flex items-center gap-2 mb-3">
+                      <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                      <h3 className="text-lg font-bold text-slate-800">Payment Information</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-600 font-medium">Order Amount:</span>
+                        <span className="font-semibold text-slate-800 text-lg">₹{(selectedOrder.totalAmount || selectedOrder.totalPrice || 0).toLocaleString()}</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-600 font-medium">Payment Method:</span>
+                        <span className="font-semibold text-slate-800 bg-white/70 px-3 py-1 rounded-lg">
+                          {(() => {
+                            const isCOD = !selectedOrder.isPaid;
+                            if (isCOD) {
+                              return deliveryForm.codPaymentType === 'qr' ? 'SMEPay QR' : deliveryForm.codPaymentType === 'cash' ? 'Cash' : 'COD';
+                            }
+                            return selectedOrder.paymentMethod || 'Prepaid';
+                          })()}
+                        </span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-600 font-medium">Payment Status:</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`font-semibold px-3 py-1 rounded-lg ${
+                            (paymentCompleted || selectedOrder.isPaid || paymentStatus === 'completed')
+                              ? 'text-emerald-700 bg-emerald-100' 
+                              : 'text-amber-700 bg-amber-100'
+                          }`}>
+                            {(paymentCompleted || selectedOrder.isPaid || paymentStatus === 'completed') ? (
+                              <span className="flex items-center gap-1">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Paid
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Pending
+                              </span>
+                            )}
+                          </span>
+                          {/* 🎯 CRITICAL: Show polling indicator when actively checking payment status (exactly like buyer side) */}
+                          {isPollingPayment && !paymentCompleted && !selectedOrder.isPaid && (
+                            <div className="flex items-center gap-1 text-blue-600 text-xs">
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                              <span>Checking...</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Transaction Details (show when payment is completed) */}
+                      {(paymentCompleted || selectedOrder.isPaid || paymentStatus === 'completed') && (
+                        <div className="md:col-span-2 pt-2 border-t border-purple-200">
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-slate-600">Transaction ID:</span>
+                              <span className="font-mono text-slate-800 bg-white/70 px-2 py-1 rounded">
+                                {paymentDetails?.transactionId || selectedOrder.paymentResult?.transactionId || selectedOrder.smepayOrderSlug || 'N/A'}
+                              </span>
+                            </div>
+                            {(paymentDetails?.paidAt || selectedOrder.paidAt || selectedOrder.paymentResult?.paidAt) && (
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-slate-600">Paid On:</span>
+                                <span className="text-slate-800">
+                                  {new Date(paymentDetails?.paidAt || selectedOrder.paidAt || selectedOrder.paymentResult?.paidAt).toLocaleString('en-IN', {
+                                    dateStyle: 'medium',
+                                    timeStyle: 'short'
+                                  })}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   
                   {/* Delivery Notes */}
                   <div>
@@ -1415,13 +2045,14 @@ const AssignedOrders = () => {
             <div className="flex space-x-4 mt-6">
               <button
                 onClick={() => {
-                  // 🎯 CLEANUP: Stop polling when modal is closed
-                  stopPaymentPolling();
+                  // 🎯 REMOVED: stopPaymentPolling() - useEffect handles cleanup automatically when selectedOrder changes (exactly like buyer side)
                   setShowDeliveryModal(false);
                   setSelectedOrder(null);
                   setDeliveryForm({ otp: '', deliveryNotes: '', codPaymentType: null, qrCode: null, paymentId: null });
                   setPaymentCompleted(false);
                   setPaymentStatus(null);
+                  setPaymentDetails(null);
+                  setIsPollingPayment(false);
                 }}
                 className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-md font-medium transition-colors"
               >
