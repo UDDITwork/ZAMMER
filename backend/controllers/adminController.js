@@ -855,6 +855,188 @@ const getDeliveryAgentProfile = async (req, res) => {
   }
 };
 
+// 🎯 NEW: Get COD collections for delivery agent
+// @desc    Get COD collections with date-wise breakdown for a delivery agent
+// @route   GET /api/admin/delivery-agents/:agentId/cod-collections
+// @access  Private (Admin)
+const getDeliveryAgentCODCollections = async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { dateFrom, dateTo, paymentMethod } = req.query;
+    
+    logAdmin('GET_DELIVERY_AGENT_COD_COLLECTIONS_START', {
+      adminId: req.admin._id,
+      agentId,
+      dateFrom,
+      dateTo,
+      paymentMethod
+    });
+
+    // Verify agent exists
+    const agent = await DeliveryAgent.findById(agentId).select('name email');
+    if (!agent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Delivery agent not found'
+      });
+    }
+
+    // Build query filter
+    const filter = {
+      'deliveryAgent.agent': agentId,
+      status: 'Delivered',
+      'codPayment.isCollected': true,
+      'delivery.completedAt': { $exists: true }
+    };
+
+    // Date filtering
+    if (dateFrom || dateTo) {
+      filter['delivery.completedAt'] = {};
+      if (dateFrom) {
+        const fromDate = new Date(dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        filter['delivery.completedAt'].$gte = fromDate;
+      }
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        filter['delivery.completedAt'].$lte = toDate;
+      }
+    }
+
+    // Payment method filtering
+    if (paymentMethod && paymentMethod !== 'all') {
+      if (paymentMethod === 'cash') {
+        filter['codPayment.paymentMethod'] = 'cash';
+      } else if (paymentMethod === 'upi' || paymentMethod === 'smepay') {
+        filter['codPayment.paymentMethod'] = 'upi';
+      }
+    }
+
+    // Fetch orders
+    const orders = await Order.find(filter)
+      .populate('user', 'name mobileNumber')
+      .populate('seller', 'firstName lastName shop')
+      .populate('orderItems.product', 'name images')
+      .sort({ 'delivery.completedAt': -1 });
+
+    // Group orders by date and payment method
+    const dailyBreakdownMap = new Map();
+    let totalCashCOD = 0;
+    let totalSMEPayCOD = 0;
+    let totalOrders = orders.length;
+
+    orders.forEach(order => {
+      const completedDate = new Date(order.delivery.completedAt);
+      const dateKey = completedDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      if (!dailyBreakdownMap.has(dateKey)) {
+        dailyBreakdownMap.set(dateKey, {
+          date: dateKey,
+          cashCOD: {
+            amount: 0,
+            orderCount: 0,
+            orders: []
+          },
+          smepayCOD: {
+            amount: 0,
+            orderCount: 0,
+            orders: []
+          },
+          total: 0
+        });
+      }
+
+      const dayData = dailyBreakdownMap.get(dateKey);
+      const codAmount = order.codPayment?.collectedAmount || order.totalPrice || 0;
+      const paymentMethod = order.codPayment?.paymentMethod || 'cash';
+
+      // Prepare order summary
+      const orderSummary = {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        customerName: order.user?.name || 'N/A',
+        customerPhone: order.user?.mobileNumber || 'N/A',
+        amount: codAmount,
+        paymentMethod: paymentMethod,
+        collectedAt: order.codPayment?.collectedAt || order.delivery.completedAt,
+        completedAt: order.delivery.completedAt
+      };
+
+      if (paymentMethod === 'cash') {
+        dayData.cashCOD.amount += codAmount;
+        dayData.cashCOD.orderCount += 1;
+        dayData.cashCOD.orders.push(orderSummary);
+        totalCashCOD += codAmount;
+      } else if (paymentMethod === 'upi') {
+        dayData.smepayCOD.amount += codAmount;
+        dayData.smepayCOD.orderCount += 1;
+        dayData.smepayCOD.orders.push(orderSummary);
+        totalSMEPayCOD += codAmount;
+      }
+
+      dayData.total = dayData.cashCOD.amount + dayData.smepayCOD.amount;
+    });
+
+    // Convert map to array and sort by date (newest first)
+    const dailyBreakdown = Array.from(dailyBreakdownMap.values())
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // Calculate summary
+    const summary = {
+      totalCashCOD,
+      totalSMEPayCOD,
+      totalCOD: totalCashCOD + totalSMEPayCOD,
+      totalOrders
+    };
+
+    logAdmin('GET_DELIVERY_AGENT_COD_COLLECTIONS_SUCCESS', {
+      adminId: req.admin._id,
+      agentId,
+      agentName: agent.name,
+      totalOrders,
+      totalCashCOD,
+      totalSMEPayCOD,
+      daysCount: dailyBreakdown.length
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'COD collections retrieved successfully',
+      data: {
+        summary,
+        dailyBreakdown,
+        orders: orders.map(order => ({
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          customerName: order.user?.name || 'N/A',
+          customerPhone: order.user?.mobileNumber || 'N/A',
+          sellerName: order.seller?.firstName || 'N/A',
+          amount: order.codPayment?.collectedAmount || order.totalPrice || 0,
+          paymentMethod: order.codPayment?.paymentMethod || 'cash',
+          collectedAt: order.codPayment?.collectedAt || order.delivery.completedAt,
+          completedAt: order.delivery.completedAt,
+          status: order.status
+        }))
+      }
+    });
+
+  } catch (error) {
+    logAdmin('GET_DELIVERY_AGENT_COD_COLLECTIONS_ERROR', {
+      adminId: req.admin._id,
+      agentId: req.params.agentId,
+      error: error.message,
+      stack: error.stack
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch COD collections',
+      error: error.message
+    });
+  }
+};
+
 // 🎯 NEW: Approve order and assign to delivery agent
 // @desc    Approve an order and assign it to a delivery agent
 // @route   POST /api/admin/orders/approve-assign
@@ -2237,6 +2419,7 @@ module.exports = {
   getDeliveryAgents,
   getAvailableDeliveryAgents,
   getDeliveryAgentProfile,
+  getDeliveryAgentCODCollections,
   // 🎯 NEW: Payout management exports
   getPayoutAnalytics,
   getAllPayouts,

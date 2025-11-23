@@ -14,6 +14,16 @@ const DeliveryAgents = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [agentHistory, setAgentHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('profile'); // 'profile' or 'cod'
+  
+  // COD Collections state
+  const [codCollections, setCodCollections] = useState(null);
+  const [codLoading, setCodLoading] = useState(false);
+  const [codFilters, setCodFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    paymentMethod: 'all'
+  });
   
   // Filters
   const [filters, setFilters] = useState({
@@ -70,12 +80,59 @@ const DeliveryAgents = () => {
         setSelectedAgent(response.data.agent);
         setAgentHistory(response.data.deliveryHistory || []);
         setShowProfileModal(true);
+        setActiveTab('profile'); // Reset to profile tab when opening modal
       }
     } catch (error) {
       console.error('Failed to fetch agent profile:', error);
       toast.error('Failed to load agent profile');
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const fetchCODCollections = async (agentId) => {
+    try {
+      setCodLoading(true);
+      const filters = {};
+      if (codFilters.dateFrom) filters.dateFrom = codFilters.dateFrom;
+      if (codFilters.dateTo) filters.dateTo = codFilters.dateTo;
+      if (codFilters.paymentMethod !== 'all') {
+        filters.paymentMethod = codFilters.paymentMethod === 'smepay' ? 'upi' : codFilters.paymentMethod;
+      }
+      
+      const response = await adminService.getDeliveryAgentCODCollections(agentId, filters);
+      
+      if (response.success) {
+        setCodCollections(response.data);
+      } else {
+        toast.error(response.message || 'Failed to load COD collections');
+      }
+    } catch (error) {
+      console.error('Failed to fetch COD collections:', error);
+      toast.error('Failed to load COD collections');
+    } finally {
+      setCodLoading(false);
+    }
+  };
+
+  const handleCODFilterChange = (key, value) => {
+    setCodFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const applyCODFilters = () => {
+    if (selectedAgent) {
+      fetchCODCollections(selectedAgent._id);
+    }
+  };
+
+  const resetCODFilters = () => {
+    setCodFilters({
+      dateFrom: '',
+      dateTo: '',
+      paymentMethod: 'all'
+    });
+    if (selectedAgent) {
+      fetchCODCollections(selectedAgent._id);
     }
   };
 
@@ -213,26 +270,71 @@ const DeliveryAgents = () => {
   const ProfileModal = () => {
     if (!selectedAgent) return null;
 
+    // Fetch COD collections when COD tab is activated
+    useEffect(() => {
+      if (showProfileModal && activeTab === 'cod' && selectedAgent && !codCollections) {
+        fetchCODCollections(selectedAgent._id);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, showProfileModal]);
+
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-          <div className="sticky top-0 bg-white border-b p-6 z-10">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-900">
-                Delivery Agent Profile
-              </h2>
+        <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 bg-white border-b z-10">
+            <div className="p-6 border-b">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-gray-900">
+                  Delivery Agent Profile
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowProfileModal(false);
+                    setActiveTab('profile');
+                    setCodCollections(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b">
               <button
-                onClick={() => setShowProfileModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                onClick={() => setActiveTab('profile')}
+                className={`px-6 py-3 font-medium text-sm transition-colors ${
+                  activeTab === 'profile'
+                    ? 'border-b-2 border-orange-500 text-orange-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                Profile
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('cod');
+                  if (!codCollections) {
+                    fetchCODCollections(selectedAgent._id);
+                  }
+                }}
+                className={`px-6 py-3 font-medium text-sm transition-colors ${
+                  activeTab === 'cod'
+                    ? 'border-b-2 border-orange-500 text-orange-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                COD Collections
               </button>
             </div>
           </div>
 
           <div className="p-6">
+            {activeTab === 'profile' ? (
+              <>
             {/* Agent Details */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div className="bg-blue-50 p-4 rounded-lg">
@@ -323,8 +425,234 @@ const DeliveryAgents = () => {
                 <p className="text-center text-gray-500 py-8">No delivery history found</p>
               )}
             </div>
+          </>
+            ) : (
+              <CODCollectionsTab
+                agentId={selectedAgent._id}
+                codCollections={codCollections}
+                codLoading={codLoading}
+                codFilters={codFilters}
+                onFilterChange={handleCODFilterChange}
+                onApplyFilters={applyCODFilters}
+                onResetFilters={resetCODFilters}
+                formatCurrency={formatCurrency}
+                formatDate={formatDate}
+              />
+            )}
           </div>
         </div>
+      </div>
+    );
+  };
+
+  // COD Collections Tab Component
+  const CODCollectionsTab = ({
+    agentId,
+    codCollections,
+    codLoading,
+    codFilters,
+    onFilterChange,
+    onApplyFilters,
+    onResetFilters,
+    formatCurrency,
+    formatDate
+  }) => {
+    const [expandedDates, setExpandedDates] = useState(new Set());
+
+    const toggleDateExpansion = (date) => {
+      setExpandedDates(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(date)) {
+          newSet.delete(date);
+        } else {
+          newSet.add(date);
+        }
+        return newSet;
+      });
+    };
+
+    return (
+      <div className="space-y-6">
+        {/* Filters Section */}
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <h3 className="font-semibold text-gray-900 mb-4">Filters</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+              <input
+                type="date"
+                value={codFilters.dateFrom}
+                onChange={(e) => onFilterChange('dateFrom', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+              <input
+                type="date"
+                value={codFilters.dateTo}
+                onChange={(e) => onFilterChange('dateTo', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+              <select
+                value={codFilters.paymentMethod}
+                onChange={(e) => onFilterChange('paymentMethod', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                <option value="all">All</option>
+                <option value="cash">Cash</option>
+                <option value="smepay">SMEPay</option>
+              </select>
+            </div>
+            <div className="flex items-end gap-2">
+              <button
+                onClick={onApplyFilters}
+                className="flex-1 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+              >
+                Apply
+              </button>
+              <button
+                onClick={onResetFilters}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        {codCollections?.summary && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-600 font-medium mb-1">Total Cash COD</p>
+              <p className="text-2xl font-bold text-blue-900">{formatCurrency(codCollections.summary.totalCashCOD)}</p>
+            </div>
+            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+              <p className="text-sm text-green-600 font-medium mb-1">Total SMEPay COD</p>
+              <p className="text-2xl font-bold text-green-900">{formatCurrency(codCollections.summary.totalSMEPayCOD)}</p>
+            </div>
+            <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+              <p className="text-sm text-orange-600 font-medium mb-1">Grand Total</p>
+              <p className="text-2xl font-bold text-orange-900">{formatCurrency(codCollections.summary.totalCOD)}</p>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <p className="text-sm text-gray-600 font-medium mb-1">Total Orders</p>
+              <p className="text-2xl font-bold text-gray-900">{codCollections.summary.totalOrders}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Daily Breakdown Table */}
+        {codLoading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading COD collections...</p>
+          </div>
+        ) : codCollections?.dailyBreakdown && codCollections.dailyBreakdown.length > 0 ? (
+          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cash COD</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SMEPay COD</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Daily Total</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {codCollections.dailyBreakdown.map((day) => (
+                    <React.Fragment key={day.date}>
+                      <tr className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {new Date(day.date).toLocaleDateString('en-IN', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                          <div>
+                            <p className="font-medium">{formatCurrency(day.cashCOD.amount)}</p>
+                            <p className="text-xs text-gray-500">{day.cashCOD.orderCount} order(s)</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                          <div>
+                            <p className="font-medium">{formatCurrency(day.smepayCOD.amount)}</p>
+                            <p className="text-xs text-gray-500">{day.smepayCOD.orderCount} order(s)</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                          {formatCurrency(day.total)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <button
+                            onClick={() => toggleDateExpansion(day.date)}
+                            className="text-orange-600 hover:text-orange-800 font-medium"
+                          >
+                            {expandedDates.has(day.date) ? 'Hide Details' : 'Show Details'}
+                          </button>
+                        </td>
+                      </tr>
+                      {expandedDates.has(day.date) && (
+                        <tr>
+                          <td colSpan="5" className="px-6 py-4 bg-gray-50">
+                            <div className="space-y-4">
+                              {/* Cash COD Orders */}
+                              {day.cashCOD.orders.length > 0 && (
+                                <div>
+                                  <h4 className="font-semibold text-blue-900 mb-2">Cash COD Orders ({day.cashCOD.orders.length})</h4>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {day.cashCOD.orders.map((order) => (
+                                      <div key={order._id} className="bg-white p-3 rounded border border-blue-200">
+                                        <p className="font-medium text-sm">Order #{order.orderNumber}</p>
+                                        <p className="text-xs text-gray-600">Customer: {order.customerName}</p>
+                                        <p className="text-xs text-gray-500">Phone: {order.customerPhone}</p>
+                                        <p className="text-sm font-semibold text-blue-700 mt-1">{formatCurrency(order.amount)}</p>
+                                        <p className="text-xs text-gray-500">Collected: {formatDate(order.collectedAt)}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {/* SMEPay COD Orders */}
+                              {day.smepayCOD.orders.length > 0 && (
+                                <div>
+                                  <h4 className="font-semibold text-green-900 mb-2">SMEPay COD Orders ({day.smepayCOD.orders.length})</h4>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {day.smepayCOD.orders.map((order) => (
+                                      <div key={order._id} className="bg-white p-3 rounded border border-green-200">
+                                        <p className="font-medium text-sm">Order #{order.orderNumber}</p>
+                                        <p className="text-xs text-gray-600">Customer: {order.customerName}</p>
+                                        <p className="text-xs text-gray-500">Phone: {order.customerPhone}</p>
+                                        <p className="text-sm font-semibold text-green-700 mt-1">{formatCurrency(order.amount)}</p>
+                                        <p className="text-xs text-gray-500">Collected: {formatDate(order.collectedAt)}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
+            <p className="text-gray-500">No COD collections found for the selected filters</p>
+          </div>
+        )}
       </div>
     );
   };

@@ -589,6 +589,43 @@ export const getDeliveryAgentHistory = async (agentId, page = 1) => {
   }
 };
 
+// Get delivery agent COD collections
+export const getDeliveryAgentCODCollections = async (agentId, filters = {}) => {
+  try {
+    debugLog('💰 FETCHING DELIVERY AGENT COD COLLECTIONS', { agentId, filters }, 'request');
+    
+    // Build query string from filters
+    const queryParams = new URLSearchParams();
+    if (filters.dateFrom) queryParams.append('dateFrom', filters.dateFrom);
+    if (filters.dateTo) queryParams.append('dateTo', filters.dateTo);
+    if (filters.paymentMethod) queryParams.append('paymentMethod', filters.paymentMethod);
+    
+    const queryString = queryParams.toString();
+    const url = `/admin/delivery-agents/${agentId}/cod-collections${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await api.get(url);
+    
+    debugLog('✅ DELIVERY AGENT COD COLLECTIONS RECEIVED', {
+      agentId,
+      totalOrders: response.data.data?.summary?.totalOrders || 0,
+      totalCashCOD: response.data.data?.summary?.totalCashCOD || 0,
+      totalSMEPayCOD: response.data.data?.summary?.totalSMEPayCOD || 0,
+      daysCount: response.data.data?.dailyBreakdown?.length || 0
+    }, 'success');
+    
+    return response.data;
+  } catch (error) {
+    debugLog('❌ DELIVERY AGENT COD COLLECTIONS ERROR', {
+      agentId,
+      filters,
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message
+    }, 'error');
+    
+    throw error.response?.data || { success: false, message: 'Failed to fetch COD collections' };
+  }
+};
+
 // Update delivery agent status
 export const updateDeliveryAgentStatus = async (agentId, statusData) => {
   try {
