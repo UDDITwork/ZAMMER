@@ -97,7 +97,11 @@ const MyOrdersPage = () => {
           fetchOrders();
           setShowCancelModal(false);
           setCancellingOrder(null);
+          setCancelReason(''); // Reset cancel reason
         });
+
+        // 🎯 FIX: Listen for socket errors during cancellation
+        // Note: We'll handle this in confirmCancelOrder with a ref to avoid stale closure
 
         // Check connection status
         const checkConnection = () => {
@@ -113,6 +117,7 @@ const MyOrdersPage = () => {
           clearInterval(connectionInterval);
           socketService.removeListener('order-status-update');
           socketService.socket?.off('order-cancelled');
+          socketService.socket?.off('error');
         };
       }
     }
@@ -285,19 +290,75 @@ const MyOrdersPage = () => {
       return;
     }
 
+    const currentOrderId = cancellingOrder._id; // Capture order ID for cleanup
     console.log('🎯 Sending cancel order request:', {
-      orderId: cancellingOrder._id,
+      orderId: currentOrderId,
       reason: cancelReason
     });
 
+    // Set a timeout to handle cases where backend doesn't respond
+    const timeoutId = setTimeout(() => {
+      console.error('⏱️ Cancel order request timeout');
+      toast.error('Request timed out. Please check your connection and try again.');
+      setShowCancelModal(false);
+      setCancellingOrder(null);
+      setCancelReason('');
+      // Clean up listeners
+      if (socketService.socket) {
+        socketService.socket.off('order-cancelled', handleSuccess);
+        socketService.socket.off('error', handleError);
+      }
+    }, 15000); // 15 second timeout
+
+    // Handle successful cancellation
+    const handleSuccess = (data) => {
+      // Only process if this is the order we're cancelling
+      if (data.orderId === currentOrderId || data.orderNumber === cancellingOrder.orderNumber) {
+        clearTimeout(timeoutId);
+        console.log('✅ Order cancellation confirmed:', data);
+        toast.success(`Order ${data.orderNumber || cancellingOrder.orderNumber} cancelled successfully`);
+        fetchOrders();
+        setShowCancelModal(false);
+        setCancellingOrder(null);
+        setCancelReason('');
+        // Clean up listeners
+        if (socketService.socket) {
+          socketService.socket.off('order-cancelled', handleSuccess);
+          socketService.socket.off('error', handleError);
+        }
+      }
+    };
+
+    // Handle cancellation error
+    const handleError = (error) => {
+      // Only process if we're still cancelling this order
+      if (cancellingOrder && cancellingOrder._id === currentOrderId) {
+        clearTimeout(timeoutId);
+        console.error('❌ Socket error during cancellation:', error);
+        toast.error(error.message || 'Failed to cancel order. Please try again.');
+        setShowCancelModal(false);
+        setCancellingOrder(null);
+        setCancelReason('');
+        // Clean up listeners
+        if (socketService.socket) {
+          socketService.socket.off('order-cancelled', handleSuccess);
+          socketService.socket.off('error', handleError);
+        }
+      }
+    };
+
+    // Set up one-time listeners
+    socketService.socket?.once('order-cancelled', handleSuccess);
+    socketService.socket?.once('error', handleError);
+
     // Send cancellation request via socket
     socketService.socket?.emit('cancel-order', {
-      orderId: cancellingOrder._id,
+      orderId: currentOrderId,
       reason: cancelReason || 'No reason provided'
     });
 
     // Show loading state
-    toast.info('Cancelling order...');
+    toast.info('Cancelling order...', { autoClose: 2000 });
   };
 
   // Helper functions
