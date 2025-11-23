@@ -32,7 +32,8 @@ const {
   sendDeliveryOTP,
   verifyDeliveryOTP,
   resendDeliveryOTP,
-  markCashPaymentCollected
+  markCashPaymentCollected,
+  cancelOrder
 } = require('../controllers/deliveryAgentController');
 
 // Import middleware
@@ -324,6 +325,11 @@ router.post('/orders/:id/mark-cash-collected', protectDeliveryAgent, markCashPay
 // @route   PUT /api/delivery/orders/:id/deliver
 // @access  Private (Delivery Agent)
 router.put('/orders/:id/deliver', protectDeliveryAgent, deliveryValidation, completeDelivery);
+
+// @desc    Cancel order by delivery agent
+// @route   PUT /api/delivery/orders/:id/cancel
+// @access  Private (Delivery Agent)
+router.put('/orders/:id/cancel', protectDeliveryAgent, cancelOrder);
 
 // 🎯 TRACKING & STATUS ROUTES
 
