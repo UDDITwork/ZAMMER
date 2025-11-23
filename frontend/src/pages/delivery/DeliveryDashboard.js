@@ -1353,7 +1353,7 @@ const DeliveryDashboard = () => {
       setProcessingReturn(true);
       console.log('🚚 Responding to return assignment:', { returnId, response, reason });
 
-      const apiResponse = await returnService.handleReturnAgentResponse(returnId, response, reason);
+      const apiResponse = await returnService.handleReturnAssignmentResponse(returnId, response, reason);
       
       if (apiResponse && apiResponse.success) {
         toast.success(response === 'accepted' ? 'Return assignment accepted!' : 'Return assignment rejected');

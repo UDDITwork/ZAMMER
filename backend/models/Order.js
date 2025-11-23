@@ -1466,8 +1466,9 @@ OrderSchema.methods.handleReturnAgentResponse = function(response, reason = '') 
 
 // Method to complete return pickup
 OrderSchema.methods.completeReturnPickup = function(verificationData = {}) {
-  if (this.returnDetails.returnAssignment.status !== 'accepted') {
-    throw new Error('Return must be accepted by delivery agent before pickup');
+  const assignmentStatus = this.returnDetails.returnAssignment.status;
+  if (!['accepted', 'agent_reached_buyer'].includes(assignmentStatus)) {
+    throw new Error(`Return must be accepted or agent must have reached buyer before pickup. Current status: ${assignmentStatus}`);
   }
   
   this.returnDetails.returnPickup = {
@@ -1500,8 +1501,8 @@ OrderSchema.methods.completeReturnPickup = function(verificationData = {}) {
 
 // Method to complete return delivery to seller
 OrderSchema.methods.completeReturnDelivery = function(verificationData = {}) {
-  if (this.returnDetails.returnAssignment.status !== 'picked_up') {
-    throw new Error('Return must be picked up before delivery to seller');
+  if (this.returnDetails.returnAssignment.status !== 'agent_reached_seller') {
+    throw new Error(`Return must have agent reached seller before delivery. Current status: ${this.returnDetails.returnAssignment.status}`);
   }
   
   this.returnDetails.returnDelivery = {
