@@ -22,12 +22,17 @@ const {
   completeDelivery,
   updateLocation,
   getAssignedOrders,
+  getOrderById,
   getDeliveryStats,
   toggleAvailability,
   getDeliveryHistory,
   logoutDeliveryAgent,
   rejectOrder,
-  getOrderNotifications
+  getOrderNotifications,
+  sendDeliveryOTP,
+  verifyDeliveryOTP,
+  resendDeliveryOTP,
+  markCashPaymentCollected
 } = require('../controllers/deliveryAgentController');
 
 // Import middleware
@@ -213,6 +218,12 @@ router.get('/orders/available', protectDeliveryAgent, getAvailableOrders);
 // @access  Private (Delivery Agent)
 router.get('/orders/assigned', protectDeliveryAgent, getAssignedOrders);
 
+// @desc    Get single order by ID (exactly like buyer side - for simple polling)
+// @route   GET /api/delivery/orders/:id
+// @access  Private (Delivery Agent)
+// 🎯 IMPORTANT: Place this BEFORE other /orders/:id routes to avoid conflicts
+router.get('/orders/:id', protectDeliveryAgent, getOrderById);
+
 // @desc    Accept order for delivery
 // @route   PUT /api/delivery/orders/:id/accept
 // @access  Private (Delivery Agent)
@@ -288,6 +299,26 @@ router.post('/orders/:id/generate-qr', protectDeliveryAgent, generateCODQR);
 // @route   POST /api/delivery/orders/:id/check-payment-status
 // @access  Private (Delivery Agent)
 router.post('/orders/:id/check-payment-status', protectDeliveryAgent, checkCODPaymentStatus);
+
+// @desc    Manually send OTP to buyer
+// @route   POST /api/delivery/orders/:id/send-otp
+// @access  Private (Delivery Agent)
+router.post('/orders/:id/send-otp', protectDeliveryAgent, sendDeliveryOTP);
+
+// @desc    Verify OTP from buyer
+// @route   POST /api/delivery/orders/:id/verify-otp
+// @access  Private (Delivery Agent)
+router.post('/orders/:id/verify-otp', protectDeliveryAgent, verifyDeliveryOTP);
+
+// @desc    Resend OTP to buyer
+// @route   POST /api/delivery/orders/:id/resend-otp
+// @access  Private (Delivery Agent)
+router.post('/orders/:id/resend-otp', protectDeliveryAgent, resendDeliveryOTP);
+
+// @desc    Mark cash payment as collected
+// @route   POST /api/delivery/orders/:id/mark-cash-collected
+// @access  Private (Delivery Agent)
+router.post('/orders/:id/mark-cash-collected', protectDeliveryAgent, markCashPaymentCollected);
 
 // @desc    Complete order delivery
 // @route   PUT /api/delivery/orders/:id/deliver

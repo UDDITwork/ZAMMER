@@ -857,6 +857,14 @@ const forgotPassword = async (req, res) => {
 
     // Send OTP via MSG91
     try {
+      // 🎯 DEBUG: Log phone number format before sending (for comparison with delivery side)
+      logUser('FORGOT_PASSWORD_PHONE_BEFORE_SEND', {
+        mobileNumber: user.mobileNumber,
+        phoneType: typeof user.mobileNumber,
+        phoneLength: user.mobileNumber?.toString().length,
+        userId: user._id
+      }, 'reset');
+      
       const otpResult = await msg91Service.sendOTPForForgotPassword(user.mobileNumber, {
         userName: user.name,
         purpose: 'forgot_password'

@@ -183,12 +183,42 @@ class MSG91Service {
   }
 
   async sendOTP(phoneNumber, options = {}) {
+    // 🎯 CRITICAL: Validate phone number
+    if (!phoneNumber || !phoneNumber.toString().trim()) {
+      terminalLog('MSG91_SEND_OTP_INVALID_PHONE', 'ERROR', { phoneNumber });
+      return { success: false, error: 'Phone number is required and cannot be empty', otpCode: null };
+    }
+    
+    // 🎯 CRITICAL: Validate MSG91 configuration
+    if (!msg91Config.authKey) {
+      terminalLog('MSG91_SEND_OTP_MISSING_AUTH_KEY', 'ERROR', {});
+      return { success: false, error: 'MSG91 auth key not configured. Check MSG91_AUTH_KEY in .env', otpCode: null };
+    }
+    
+    if (!msg91Config.templateId) {
+      terminalLog('MSG91_SEND_OTP_MISSING_TEMPLATE_ID', 'ERROR', {});
+      return { success: false, error: 'MSG91 template ID not configured. Check MSG91_TEMPLATE_ID in .env', otpCode: null };
+    }
+    
     this.checkRateLimit(phoneNumber);
 
     const otpCode = options.otpCode || this.generateOTP();
-    const templateId = options.templateId || msg91Config.templateId;
+    const templateId = options.templateId || msg91Config.templateId; // 🎯 Uses MSG91_TEMPLATE_ID from .env
     const normalizedPhone = msg91Config.normalizePhoneNumber(phoneNumber);
     const expiry = options.expiryMinutes || msg91Config.rateLimitDefaults.otpValidityMinutes;
+    
+    // 🎯 DEBUG: Log exact values being used (including phone number transformation)
+    terminalLog('MSG91_SEND_OTP_CONFIG', 'PROCESSING', {
+      originalPhone: phoneNumber,
+      normalizedPhone: normalizedPhone,
+      phoneTransformed: phoneNumber !== normalizedPhone,
+      templateId: templateId,
+      authKey: msg91Config.authKey ? `${msg91Config.authKey.substring(0, 10)}...` : 'NOT_SET',
+      templateIdFromEnv: !!process.env.MSG91_TEMPLATE_ID,
+      authKeyFromEnv: !!process.env.MSG91_AUTH_KEY,
+      loginTemplateId: msg91Config.loginTemplateId,
+      loginTemplateIdFromEnv: !!process.env.LOGIN_TEMPLATE_ID
+    });
 
     // 🎯 MSG91 STANDARD FORMAT: POST /api/v5/otp?otp_expiry=&template_id=&mobile=&authkey=&realTimeResponse=
     const path = `/api/v5/otp?otp=${encodeURIComponent(otpCode)}&otp_expiry=${encodeURIComponent(expiry)}&template_id=${encodeURIComponent(templateId)}&mobile=${encodeURIComponent(normalizedPhone)}&authkey=${encodeURIComponent(msg91Config.authKey)}&realTimeResponse=1`;
@@ -298,10 +328,25 @@ class MSG91Service {
       throw new Error('Login template ID not configured. Set LOGIN_TEMPLATE_ID in environment variables.');
     }
 
+    // 🎯 DEBUG: Log phone number received (for comparison with buyer side)
+    terminalLog('SEND_OTP_FOR_FORGOT_PASSWORD_PHONE_RECEIVED', 'PROCESSING', {
+      phoneNumber: phoneNumber,
+      phoneType: typeof phoneNumber,
+      phoneLength: phoneNumber?.toString().length,
+      phoneValue: phoneNumber?.toString(),
+      purpose: options.purpose || 'forgot_password',
+      hasUserName: !!options.userName,
+      hasOrderNumber: !!options.orderNumber,
+      hasOtpCode: !!options.otpCode,
+      loginTemplateId: msg91Config.loginTemplateId,
+      loginTemplateIdFromEnv: !!process.env.LOGIN_TEMPLATE_ID
+    });
+
+    // 🎯 EXACT MATCH: Use loginTemplateId (LOGIN_TEMPLATE_ID from .env) - same as buyer side
     return this.sendOTP(phoneNumber, {
       ...options,
-      templateId: msg91Config.loginTemplateId,
-      purpose: 'forgot_password'
+      templateId: msg91Config.loginTemplateId, // 🎯 Uses LOGIN_TEMPLATE_ID from .env (same as buyer side)
+      purpose: options.purpose || 'forgot_password' // 🎯 Allow purpose override for delivery OTP
     });
   }
 
@@ -322,11 +367,24 @@ class MSG91Service {
         notes: orderData.notes
       });
 
-      const smsResult = await this.sendOTP(orderData.userPhone, {
-        purpose: otpRecord.purpose,
-        otpCode: otpRecord.code,
-        orderNumber: orderData.orderNumber,
-        userName: orderData.userName
+      // 🎯 EXACT MATCH: Use sendOTPForForgotPassword() exactly like buyer side (userController.js line 860)
+      // Buyer side: await msg91Service.sendOTPForForgotPassword(user.mobileNumber, { userName: user.name, purpose: 'forgot_password' })
+      // This uses LOGIN_TEMPLATE_ID and same MSG91 API call
+      
+      // 🎯 CRITICAL: Log phone number BEFORE passing to sendOTPForForgotPassword (same as buyer side)
+      terminalLog('CREATE_DELIVERY_OTP_PHONE_BEFORE_SEND', 'PROCESSING', {
+        originalPhone: orderData.userPhone,
+        phoneType: typeof orderData.userPhone,
+        phoneLength: orderData.userPhone?.toString().length,
+        orderId: orderData.orderId,
+        orderNumber: orderData.orderNumber
+      });
+      
+      const smsResult = await this.sendOTPForForgotPassword(orderData.userPhone, {
+        userName: orderData.userName || 'Customer',
+        purpose: 'delivery_confirmation', // Will be overridden to 'forgot_password' but that's okay - same template
+        otpCode: otpRecord.code, // 🎯 Use the OTP code from database record (same as buyer side generates)
+        orderNumber: orderData.orderNumber
       });
 
       if (!smsResult.success) {
@@ -545,24 +603,40 @@ class MSG91Service {
   }
 
   async verifyOTP({ phoneNumber, otp }) {
+    // 🎯 CRITICAL: Trim OTP to remove any whitespace
+    const cleanedOTP = otp ? otp.toString().trim() : '';
     const normalizedPhone = msg91Config.normalizePhoneNumber(phoneNumber);
 
-    // 🎯 MSG91 STANDARD FORMAT: GET /api/v5/otp/verify?otp=&mobile=
-    const path = `/api/v5/otp/verify?otp=${encodeURIComponent(otp)}&mobile=${encodeURIComponent(normalizedPhone)}`;
-
+    // 🎯 DEBUG: Log exact values being sent to MSG91
     terminalLog('MSG91_VERIFY_OTP_REQUEST', 'PROCESSING', {
+      originalPhone: phoneNumber,
+      normalizedPhone: normalizedPhone,
+      originalOTP: otp,
+      cleanedOTP: cleanedOTP,
+      otpLength: cleanedOTP.length,
       phoneNumber: `${normalizedPhone.substring(0, 6)}****`,
-      path,
       method: 'GET',
       hostname: 'control.msg91.com'
     });
 
-    // 🎯 MSG91 STANDARD FORMAT: Headers - authkey: 'Enter your MSG91 authkey'
+    // 🎯 EXACT MSG91 FORMAT: Use the exact format provided by user
+    // const options = {
+    //   method: 'GET',
+    //   hostname: 'control.msg91.com',
+    //   port: null,
+    //   path: '/api/v5/otp/verify?otp=&mobile=',
+    //   headers: {
+    //     authkey: 'Enter your MSG91 authkey'
+    //   }
+    // };
+    const path = `/api/v5/otp/verify?otp=${encodeURIComponent(cleanedOTP)}&mobile=${encodeURIComponent(normalizedPhone)}`;
+
+    // 🎯 EXACT MATCH: Use executeRequest with exact format
     const result = await this.executeRequest({
       method: 'GET',
       path,
       headers: {
-        authkey: msg91Config.authKey
+        authkey: msg91Config.authKey // 🎯 EXACT MATCH: authkey in headers (as per user's format)
       }
     });
 
@@ -577,6 +651,15 @@ class MSG91Service {
     if (result.success) {
       const type = result.response?.type;
       const message = result.response?.message;
+      const fullResponse = result.response;
+
+      // 🎯 DEBUG: Log full MSG91 response for debugging
+      terminalLog('MSG91_VERIFY_OTP_FULL_RESPONSE', 'PROCESSING', {
+        fullResponse: fullResponse,
+        type: type,
+        message: message,
+        phoneNumber: `${normalizedPhone.substring(0, 6)}****`
+      });
 
       if (type === 'success') {
         terminalLog('MSG91_VERIFY_OTP_SUCCESS', 'SUCCESS', {
@@ -587,16 +670,31 @@ class MSG91Service {
         return { success: true, message };
       }
 
+      // 🎯 ENHANCED: Check for specific MSG91 error messages
+      const errorMessage = message || 'OTP verification failed';
+      let userFriendlyMessage = errorMessage;
+      
+      if (errorMessage.toLowerCase().includes('expired')) {
+        userFriendlyMessage = 'OTP has expired. Please request a new OTP.';
+      } else if (errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('incorrect')) {
+        userFriendlyMessage = 'Invalid OTP. Please check and try again.';
+      } else if (errorMessage.toLowerCase().includes('not found') || errorMessage.toLowerCase().includes('no otp')) {
+        userFriendlyMessage = 'OTP not found. The OTP may have expired or was not sent. Please request a new OTP.';
+      }
+
       terminalLog('MSG91_VERIFY_OTP_FAILED', 'ERROR', {
         type,
-        message: message || 'OTP verification failed',
-        phoneNumber: `${normalizedPhone.substring(0, 6)}****`
+        originalMessage: message,
+        userFriendlyMessage: userFriendlyMessage,
+        phoneNumber: `${normalizedPhone.substring(0, 6)}****`,
+        fullResponse: fullResponse
       });
 
       return {
         success: false,
-        message: message || 'OTP verification failed',
-        error: result.response
+        message: userFriendlyMessage,
+        error: result.response,
+        originalMessage: message
       };
     }
 
@@ -624,36 +722,76 @@ class MSG91Service {
     });
 
     // 🎯 MSG91 STANDARD FORMAT: Empty headers (as per MSG91 standard)
+    // EXACT FORMAT: const options = { method: 'GET', hostname: 'control.msg91.com', path: '/api/v5/otp/retry?authkey=&retrytype=&mobile=', headers: {} }
     return this.executeRequest({
       method: 'GET',
       path,
-      headers: {}  // MSG91 standard: empty headers for retry
+      headers: {}  // 🎯 EXACT MATCH: Empty headers for retry (as per user's format)
     });
   }
 
   async executeRequest(options, body = null) {
+    // 🎯 EXACT MSG91 FORMAT: Match user's provided format exactly
+    // const options = {
+    //   method: 'GET',
+    //   hostname: 'control.msg91.com',
+    //   port: null,
+    //   path: '/api/v5/otp/verify?otp=&mobile=',
+    //   headers: {
+    //     authkey: 'Enter your MSG91 authkey'
+    //   }
+    // };
     const requestOptions = {
       method: options.method || 'GET',
       hostname: 'control.msg91.com',
-      port: null,
+      port: null, // 🎯 EXACT MATCH: port: null (as per user's format)
       path: options.path,
       headers: options.headers || {}
     };
 
+    // 🎯 DEBUG: Log exact request options being sent (matching user's format)
+    terminalLog('MSG91_EXECUTE_REQUEST_OPTIONS', 'PROCESSING', {
+      method: requestOptions.method,
+      hostname: requestOptions.hostname,
+      port: requestOptions.port,
+      path: requestOptions.path,
+      headers: {
+        ...requestOptions.headers,
+        authkey: requestOptions.headers.authkey ? `${requestOptions.headers.authkey.substring(0, 10)}...` : 'NOT_SET'
+      }
+    });
+
     return new Promise((resolve) => {
+      // 🎯 EXACT MATCH: const req = http.request(options, function (res) {
+      // User's format: const req = http.request(options, function (res) {
       const req = https.request(requestOptions, (res) => {
         const chunks = [];
 
+        // 🎯 EXACT MATCH: res.on('data', function (chunk) { chunks.push(chunk); });
+        // User's format: res.on('data', function (chunk) { chunks.push(chunk); });
         res.on('data', (chunk) => chunks.push(chunk));
 
+        // 🎯 EXACT MATCH: res.on('end', function () { const body = Buffer.concat(chunks); console.log(body.toString()); });
+        // User's format: res.on('end', function () { const body = Buffer.concat(chunks); console.log(body.toString()); });
         res.on('end', () => {
           const responseBody = Buffer.concat(chunks).toString();
+          
+          // 🎯 EXACT MATCH: console.log(body.toString()) - Log raw response exactly as user's format
+          console.log('📬 MSG91 Raw Response:', responseBody);
+          
           let parsedBody = null;
           try {
             parsedBody = responseBody ? JSON.parse(responseBody) : null;
           } catch (parseError) {
             parsedBody = { raw: responseBody };
           }
+          
+          // 🎯 DEBUG: Log raw response (like user's format: console.log(body.toString()))
+          terminalLog('MSG91_RAW_RESPONSE', 'PROCESSING', {
+            rawResponse: responseBody,
+            parsedResponse: parsedBody,
+            statusCode: res.statusCode
+          });
 
           // 🎯 FIX: Check both HTTP status code AND response body for errors
           // MSG91 sometimes returns 200 status with error in response body

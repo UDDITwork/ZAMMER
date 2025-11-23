@@ -390,6 +390,17 @@ class SMEPayService {
     return null;
   }
 
+  // 🎯 NEW: Clear cached payment status (for delivery agents to get fresh status)
+  _clearCachedPaymentStatus(orderSlug) {
+    const cacheKey = this._getCacheKey(orderSlug);
+    if (this.paymentCache.has(cacheKey)) {
+      this.paymentCache.delete(cacheKey);
+      terminalLog('CACHE_CLEARED', 'SUCCESS', { orderSlug });
+      return true;
+    }
+    return false;
+  }
+
   _setCachedPaymentStatus(orderSlug, data) {
     const cacheKey = this._getCacheKey(orderSlug);
     
@@ -780,33 +791,70 @@ class SMEPayService {
       // Authenticate first
       await this.authenticate();
 
+      // 🎯 CRITICAL FIX: SMEPay API requires a slug from a created order first
+      // Step 1: Create SMEPay order to get the slug (like buyer side does)
+      terminalLog('CREATE_ORDER_FOR_QR', 'PROCESSING', {
+        orderId: paymentData.orderId,
+        amount: paymentData.amount
+      });
+
+      const createOrderResult = await this.createOrder({
+        orderId: paymentData.orderIdForSlug || paymentData.orderId, // Use MongoDB order ID for slug generation
+        amount: paymentData.amount,
+        customerDetails: paymentData.customerDetails || {
+          email: paymentData.customerDetails?.email || '',
+          mobile: paymentData.customerDetails?.mobile || '',
+          name: paymentData.customerDetails?.name || 'Customer'
+        },
+        callbackUrl: smepayConfig.getCallbackURL('success')
+      });
+
+      // 🎯 FIX: If order already exists, throw a specific error that can be handled upstream
+      if (!createOrderResult.success) {
+        // Check if error is "Order ID already exists"
+        const errorMessage = createOrderResult.error || '';
+        const responseData = createOrderResult.details || {};
+        
+        if (errorMessage.includes('Order ID already exists') || 
+            responseData.errors?.order_id?.includes('Order ID already exists')) {
+          // Create a special error that upstream can handle
+          const orderExistsError = new Error('SMEPay order already exists for this order ID');
+          orderExistsError.code = 'ORDER_ALREADY_EXISTS';
+          orderExistsError.orderId = paymentData.orderIdForSlug || paymentData.orderId;
+          throw orderExistsError;
+        }
+        
+        throw new Error(createOrderResult.error || 'Failed to create SMEPay order for QR generation');
+      }
+
+      if (!createOrderResult.orderSlug) {
+        throw new Error('No order slug received from SMEPay order creation');
+      }
+
+      const orderSlug = createOrderResult.orderSlug;
+      terminalLog('ORDER_SLUG_RECEIVED', 'SUCCESS', {
+        orderSlug: orderSlug,
+        orderId: paymentData.orderId
+      });
+
+      // Step 2: Generate QR code using the slug
       const qrEndpoint = `${this.baseURL}${smepayConfig.endpoints.generateQR}`;
       
-      // 🎯 MATCH BUYER SIDE STRUCTURE: Use same payload format as createOrder()
+      // 🎯 CRITICAL: SMEPay API requires slug AND client_id for QR generation
       const qrPayload = {
-        client_id: this.clientId, // 🎯 CRITICAL: Include client_id in body (like createOrder does)
-        amount: parseFloat(paymentData.amount).toFixed(2), // 🎯 CRITICAL: Format amount with 2 decimals (like createOrder does)
-        order_id: paymentData.orderId.toString(), // 🎯 CRITICAL: Convert to string (like createOrder does)
-        description: paymentData.description || `Payment for Order #${paymentData.orderId}`,
+        client_id: this.clientId, // 🎯 REQUIRED: client_id must be in body
+        slug: orderSlug, // 🎯 REQUIRED: Slug from created order
+        amount: parseFloat(paymentData.amount).toFixed(2),
         currency: 'INR',
         payment_method: 'UPI',
-        expiry_minutes: 30, // QR expires in 30 minutes
-        // 🎯 ADD CUSTOMER DETAILS: If provided (optional but might be required)
-        ...(paymentData.customerDetails && {
-          customer_details: {
-            email: paymentData.customerDetails.email || '',
-            mobile: paymentData.customerDetails.mobile || '',
-            name: paymentData.customerDetails.name || 'Customer'
-          }
-        })
+        expiry_minutes: 30 // QR expires in 30 minutes
       };
 
       terminalLog('QR_GENERATION_REQUEST', 'PROCESSING', {
         endpoint: qrEndpoint,
         payload: {
-          ...qrPayload,
-          amount: paymentData.amount,
-          order_id: paymentData.orderId
+          slug: orderSlug,
+          amount: paymentData.amount
         }
       });
 
@@ -820,27 +868,51 @@ class SMEPayService {
           'Accept': 'application/json',
           'Authorization': `Bearer ${this.accessToken}`,
           'X-Client-ID': this.clientId
+        },
+        validateStatus: function (status) {
+          return status < 500; // Don't throw for 4xx errors
         }
       });
 
-      if (response.data && response.data.success) {
-        const qrData = response.data.data;
+      // 🎯 HANDLE ERROR RESPONSES
+      if (response.status >= 400) {
+        terminalLog('QR_GENERATION_API_ERROR', 'ERROR', {
+          status: response.status,
+          statusText: response.statusText,
+          responseData: response.data
+        });
+        throw new Error(`SMEPay API Error (${response.status}): ${response.data?.message || JSON.stringify(response.data?.errors || response.data)}`);
+      }
+
+      if (response.data && (response.data.success || response.data.status === true)) {
+        const qrData = response.data.data || response.data;
+        
+        // 🎯 CRITICAL FIX: SMEPay returns "qrcode" (lowercase) and "link" object
+        const qrCode = response.data.qrcode || qrData.qrcode || qrData.qr_code || qrData.qrCode;
+        const upiLinks = response.data.link || qrData.link || {};
+        const qrDataString = upiLinks.bhim || upiLinks.phonepe || upiLinks.paytm || upiLinks.gpay || 
+                            qrData.qr_data || qrData.qr_string || qrData.qrData;
+        const refId = response.data.ref_id || qrData.ref_id || qrData.refId || orderSlug;
         
         terminalLog('QR_GENERATION_SUCCESS', 'SUCCESS', {
-          paymentId: qrData.payment_id,
-          qrCode: qrData.qr_code ? 'Generated' : 'Not provided',
-          amount: qrData.amount,
-          expiry: qrData.expiry_time
+          paymentId: refId,
+          qrCode: qrCode ? 'Generated' : 'Not provided',
+          hasUpiLinks: !!upiLinks && Object.keys(upiLinks).length > 0,
+          amount: qrData.amount || response.data.data?.amount || paymentData.amount,
+          expiry: qrData.expiry_time || qrData.expiryTime,
+          orderSlug: orderSlug
         });
 
         return {
           success: true,
-          paymentId: qrData.payment_id,
-          qrCode: qrData.qr_code,
-          qrData: qrData.qr_data || qrData.qr_string,
-          amount: qrData.amount,
+          paymentId: refId,
+          orderSlug: orderSlug, // Return slug for future status checks
+          qrCode: qrCode,
+          qrData: qrDataString,
+          upiLinks: upiLinks, // Include full link object
+          amount: qrData.amount || response.data.data?.amount || paymentData.amount,
           currency: qrData.currency || 'INR',
-          expiryTime: qrData.expiry_time,
+          expiryTime: qrData.expiry_time || qrData.expiryTime,
           status: 'pending',
           timestamp: new Date().toISOString()
         };
@@ -875,6 +947,116 @@ class SMEPayService {
         };
       }
 
+      throw error;
+    }
+  }
+
+  // 🎯 NEW: Generate QR Code from existing SMEPay order slug (without creating new order)
+  async generateQRFromSlug({ slug, amount }) {
+    try {
+      terminalLog('GENERATE_QR_FROM_SLUG_START', 'PROCESSING', {
+        slug: slug,
+        amount: amount
+      });
+
+      // Authenticate first
+      await this.authenticate();
+
+      // Generate QR code directly using the existing slug
+      const qrEndpoint = `${this.baseURL}${smepayConfig.endpoints.generateQR}`;
+      
+      const qrPayload = {
+        client_id: this.clientId,
+        slug: slug,
+        amount: parseFloat(amount).toFixed(2),
+        currency: 'INR',
+        payment_method: 'UPI',
+        expiry_minutes: 30
+      };
+
+      terminalLog('QR_GENERATION_FROM_SLUG_REQUEST', 'PROCESSING', {
+        endpoint: qrEndpoint,
+        slug: slug,
+        amount: amount
+      });
+
+      const response = await axios({
+        method: 'POST',
+        url: qrEndpoint,
+        data: qrPayload,
+        timeout: 15000,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${this.accessToken}`,
+          'X-Client-ID': this.clientId
+        },
+        validateStatus: function (status) {
+          return status < 500;
+        }
+      });
+
+      // Handle error responses
+      if (response.status >= 400) {
+        terminalLog('QR_GENERATION_FROM_SLUG_ERROR', 'ERROR', {
+          status: response.status,
+          statusText: response.statusText,
+          responseData: response.data
+        });
+        throw new Error(`SMEPay API Error (${response.status}): ${response.data?.message || JSON.stringify(response.data?.errors || response.data)}`);
+      }
+
+      // 🎯 DEBUG: Log full response to see what SMEPay actually returns
+      terminalLog('QR_GENERATION_FROM_SLUG_RESPONSE', 'PROCESSING', {
+        status: response.status,
+        responseKeys: Object.keys(response.data || {}),
+        fullResponse: response.data
+      });
+
+      // 🎯 EXACT MATCH: Use the same response parsing as generateDynamicQR (lines 876-898)
+      if (response.data && (response.data.success || response.data.status === true)) {
+        const qrData = response.data.data || response.data;
+        
+        // 🎯 CRITICAL FIX: SMEPay returns "qrcode" (lowercase) and "link" object, not "qr_code" or "qrData"
+        const qrCode = response.data.qrcode || qrData.qrcode || qrData.qr_code || qrData.qrCode;
+        const upiLinks = response.data.link || qrData.link || {};
+        // Extract UPI string from link object (use bhim as default, or first available)
+        const qrDataString = upiLinks.bhim || upiLinks.phonepe || upiLinks.paytm || upiLinks.gpay || 
+                            qrData.qr_data || qrData.qr_string || qrData.qrData;
+        const refId = response.data.ref_id || qrData.ref_id || qrData.refId || slug;
+        
+        terminalLog('QR_GENERATION_FROM_SLUG_SUCCESS', 'SUCCESS', {
+          paymentId: refId,
+          qrCode: qrCode ? 'Generated' : 'Not provided',
+          hasUpiLinks: !!upiLinks && Object.keys(upiLinks).length > 0,
+          amount: qrData.amount || response.data.data?.amount || amount,
+          slug: slug
+        });
+
+        // 🎯 EXACT MATCH: Return same structure as generateDynamicQR but with correct field names
+        return {
+          success: true,
+          paymentId: refId,
+          orderSlug: slug,
+          qrCode: qrCode,
+          qrData: qrDataString,
+          upiLinks: upiLinks, // Include full link object like buyer side expects
+          amount: qrData.amount || response.data.data?.amount || amount,
+          currency: qrData.currency || 'INR',
+          expiryTime: qrData.expiry_time || qrData.expiryTime,
+          status: 'pending',
+          timestamp: new Date().toISOString()
+        };
+      } else {
+        throw new Error(response.data?.message || 'Failed to generate QR code from slug');
+      }
+
+    } catch (error) {
+      terminalLog('QR_GENERATION_FROM_SLUG_FAILED', 'ERROR', {
+        error: error.message,
+        slug: slug,
+        amount: amount
+      });
       throw error;
     }
   }

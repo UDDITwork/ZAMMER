@@ -277,8 +277,25 @@ const OrderConfirmationPage = () => {
         console.log('🔍 Polling payment status...');
         const response = await orderService.getOrderById(order._id);
         
+        // 🎯 DEBUG: Log response structure (for comparison with delivery side)
+        console.log('📊 [BUYER-POLL] Response structure:', {
+          hasSuccess: !!response.success,
+          hasData: !!response.data,
+          responseKeys: Object.keys(response),
+          dataKeys: response.data ? Object.keys(response.data) : null
+        });
+        
         if (response.success && response.data) {
           const updatedOrder = response.data;
+          
+          // 🎯 DEBUG: Log exact values being compared
+          console.log('📊 [BUYER-POLL] Payment status comparison:', {
+            'updatedOrder.isPaid': updatedOrder.isPaid,
+            'updatedOrder.paymentStatus': updatedOrder.paymentStatus,
+            'order.isPaid': order.isPaid,
+            'order.paymentStatus': order.paymentStatus,
+            'willTriggerUpdate': updatedOrder.isPaid && !order.isPaid
+          });
           
           // Check if payment status has changed
           if (updatedOrder.isPaid && !order.isPaid) {

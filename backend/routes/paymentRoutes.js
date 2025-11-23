@@ -7,6 +7,7 @@ const router = express.Router();
 // Import payment controller (COMPLETE with SMEPay integration)
 const {
   createSMEPayOrder,
+  createSMEPayOrderDelivery, // 🎯 EXACT MATCH: Delivery agent version
   generateSMEPayQR,
   checkSMEPayQRStatus,
   validateSMEPayOrder,
@@ -25,7 +26,7 @@ const {
 } = require('../controllers/cashfreePGController');
 
 // Import authentication middleware
-const { protectUser } = require('../middleware/authMiddleware');
+const { protectUser, protectDeliveryAgent } = require('../middleware/authMiddleware');
 
 // 🎯 VALIDATION RULES
 const createOrderValidation = [
@@ -35,10 +36,13 @@ const createOrderValidation = [
     .isMongoId()
     .withMessage('Invalid order ID format'),
   body('amount')
-    .isNumeric()
-    .withMessage('Amount must be a number')
-    .isFloat({ min: 1 })
-    .withMessage('Amount must be at least ₹1'),
+    .optional() // 🎯 FIX: Make amount optional (buyer side also allows null)
+    .custom((value) => {
+      if (value === null || value === undefined) return true; // Allow null/undefined
+      if (typeof value === 'number' && value >= 1) return true; // Valid number
+      if (typeof value === 'string' && !isNaN(value) && parseFloat(value) >= 1) return true; // Valid string number
+      throw new Error('Amount must be a number and at least ₹1');
+    }),
   body('callbackUrl')
     .optional()
     .isURL()
@@ -79,6 +83,17 @@ router.post(
   protectUser,
   createOrderValidation,
   createSMEPayOrder
+);
+
+// @desc    Create SMEPay payment order (Delivery Agent)
+// @route   POST /api/payments/smepay/create-order-delivery
+// @access  Private (Delivery Agent)
+// @note    EXACT SAME LOGIC as createSMEPayOrder but for delivery agents
+router.post(
+  '/smepay/create-order-delivery',
+  protectDeliveryAgent,
+  createOrderValidation,
+  createSMEPayOrderDelivery
 );
 
 // @desc    Generate QR code for SMEPay order

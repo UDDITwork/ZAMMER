@@ -1,5 +1,9 @@
 // 🚚 DELIVERY SERVICE - COMPREHENSIVE LOGGING
 // services/deliveryService.js 
+
+// 🎯 EXACT MATCH: Import paymentService at top (like buyer side would if it needed to)
+import paymentService from './paymentService';
+
 // 🚚 DELIVERY SERVICE LOGGING UTILITIES
 const logDeliveryService = (action, data, type = 'info') => {
   const timestamp = new Date().toISOString();
@@ -12,14 +16,6 @@ const logDeliveryService = (action, data, type = 'info') => {
 const logDeliveryServiceError = (action, error, additionalData = {}) => {
   const timestamp = new Date().toISOString();
   console.error(`\x1b[31m🚚 [DELIVERY-SERVICE-ERROR] ${timestamp} | ${action} | Error: ${error.message} | Stack: ${error.stack} | Data: ${JSON.stringify(additionalData)}\x1b[0m`);
-};
-
-const logDelivery = (action, data, type = 'info') => {
-  const timestamp = new Date().toISOString();
-  const logColor = type === 'error' ? '\x1b[31m' : type === 'success' ? '\x1b[32m' : '\x1b[36m';
-  const resetColor = '\x1b[0m';
-  
-  console.log(`${logColor}🚚 [DELIVERY-SERVICE] ${timestamp} | ${action} | ${JSON.stringify(data)}${resetColor}`);
 };
 
 const handleDeliveryError = (error, operation) => {
@@ -92,7 +88,30 @@ const makeApiCall = async (endpoint, options = {}) => {
     });
 
     const processingTime = Date.now() - startTime;
-    const responseData = await response.json();
+    
+    // 🎯 CRITICAL FIX: Check content type before parsing JSON (prevents HTML error page parsing)
+    const contentType = response.headers.get('content-type');
+    let responseData;
+    
+    if (contentType && contentType.includes('application/json')) {
+      responseData = await response.json();
+    } else {
+      // If not JSON, get text and try to parse, or throw meaningful error
+      const text = await response.text();
+      logDeliveryServiceError('API_CALL_NON_JSON_RESPONSE', new Error('Server returned non-JSON response'), {
+        url,
+        status: response.status,
+        contentType,
+        responsePreview: text.substring(0, 200)
+      });
+      
+      // Try to parse as JSON if it looks like JSON
+      try {
+        responseData = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error(`Server returned ${response.status} ${response.statusText}. Expected JSON but got ${contentType || 'unknown'}. ${text.substring(0, 100)}`);
+      }
+    }
 
     if (response.ok) {
       logDeliveryService('API_CALL_SUCCESS', { 
@@ -713,6 +732,260 @@ class DeliveryService {
     });
     
     return isValid;
+  }
+
+  // 🚚 GET ORDER BY ID (exactly like buyer side orderService.getOrderById)
+  async getOrderById(orderId) {
+    try {
+      logDeliveryService('GET_ORDER_BY_ID_STARTED', { orderId });
+
+      if (!orderId) {
+        throw new Error('Order ID is required');
+      }
+
+      const response = await makeApiCall(`/delivery/orders/${orderId}`, {
+        method: 'GET'
+      });
+
+      logDeliveryService('GET_ORDER_BY_ID_SUCCESS', {
+        orderId,
+        orderNumber: response.data?.orderNumber,
+        status: response.data?.status
+      }, 'success');
+
+      return response;
+    } catch (error) {
+      logDeliveryServiceError('GET_ORDER_BY_ID_FAILED', error, { orderId });
+      return handleDeliveryError(error, 'getOrderById');
+    }
+  }
+
+  // 🚚 CHECK COD PAYMENT STATUS (exactly like buyer side fast-confirm - validates with SMEPay)
+  async checkCODPaymentStatus(orderId) {
+    try {
+      logDeliveryService('CHECK_COD_PAYMENT_STATUS_STARTED', { orderId });
+
+      if (!orderId) {
+        throw new Error('Order ID is required');
+      }
+
+      // 🎯 EXACT MATCH: Use POST endpoint like buyer side fast-confirm
+      const response = await makeApiCall(`/delivery/orders/${orderId}/check-payment-status`, {
+        method: 'POST'
+      });
+
+      logDeliveryService('CHECK_COD_PAYMENT_STATUS_SUCCESS', {
+        orderId,
+        orderNumber: response.data?.orderNumber,
+        isPaymentSuccessful: response.data?.isPaymentSuccessful,
+        isPaid: response.data?.isPaid,
+        paymentStatus: response.data?.paymentStatus
+      }, 'success');
+
+      return response;
+    } catch (error) {
+      logDeliveryServiceError('CHECK_COD_PAYMENT_STATUS_FAILED', error, { orderId });
+      return handleDeliveryError(error, 'checkCODPaymentStatus');
+    }
+  }
+
+  // 🚚 CREATE SMEPAY ORDER (exactly like buyer side paymentService.createSMEPayOrder)
+  async createSMEPayOrder(orderData) {
+    try {
+      logDeliveryService('CREATE_SMEPAY_ORDER_STARTED', { 
+        orderId: orderData.orderId,
+        amount: orderData.amount
+      });
+
+      if (!orderData.orderId) {
+        throw new Error('Order ID is required');
+      }
+
+      // 🎯 EXACT MATCH: Use delivery agent endpoint (same structure as buyer side)
+      const response = await makeApiCall('/payments/smepay/create-order-delivery', {
+        method: 'POST',
+        body: JSON.stringify({
+          orderId: orderData.orderId,
+          amount: orderData.amount,
+          callbackUrl: orderData.callbackUrl || `${window.location.origin}/payment/callback`
+        })
+      });
+
+      // 🎯 CRITICAL FIX: Buyer side api.post() returns axios response where response.data = { success, data: {...} }
+      // makeApiCall() already returns the parsed JSON directly: { success, data: {...} }
+      // So we return it directly to match buyer side's response.data structure
+      // 🎯 EXACT MATCH: Log same way as buyer side (paymentService.js line 160-163)
+      // Buyer side logs: response.data.data.smepayOrderSlug (where response is axios response)
+      // Delivery side: response.data.smepayOrderSlug (where response is already parsed JSON)
+      logDeliveryService('CREATE_SMEPAY_ORDER_SUCCESS', {
+        orderSlug: response.data?.smepayOrderSlug,
+        orderNumber: response.data?.orderNumber,
+        callbackUrl: response.data?.callbackUrl
+      }, 'success');
+
+      // 🎯 EXACT MATCH: Return same structure as buyer side (paymentService.js line 165)
+      // Buyer side: api.post() returns axios response { data: { success, data: {...} } }
+      // Buyer side: return response.data → { success: true, data: { smepayOrderSlug, ... } }
+      // Delivery side: makeApiCall() returns { success: true, data: { smepayOrderSlug, ... } } directly
+      // So we return it as-is to match buyer side's response.data structure
+      return response; // This matches buyer side's response.data structure exactly
+    } catch (error) {
+      logDeliveryServiceError('CREATE_SMEPAY_ORDER_FAILED', error, { orderId: orderData.orderId });
+      return handleDeliveryError(error, 'createSMEPayOrder');
+    }
+  }
+
+  // 🚚 PROCESS REAL SMEPAY PAYMENT (EXACTLY like buyer side paymentService.processRealSMEPayPayment)
+  // This is a single method that does everything - matches buyer side exactly
+  async processRealSMEPayPayment(orderId) {
+    try {
+      logDeliveryService('PROCESS_REAL_SMEPAY_PAYMENT_STARTED', { orderId }, 'info');
+
+      // 🎯 EXACT MATCH: Step 1 - Create SMEPay order (same as buyer side paymentService.processRealSMEPayPayment line 177)
+      const createResult = await this.createSMEPayOrder({
+        orderId: orderId,
+        amount: null // Amount will be fetched from order
+      });
+
+      if (!createResult.success) {
+        return createResult;
+      }
+
+      // 🎯 EXACT MATCH: Extract orderSlug from response (EXACTLY like buyer side line 186)
+      const { smepayOrderSlug, callbackUrl } = createResult.data;
+
+      logDeliveryService('SMEPAY_ORDER_CREATED_OPENING_WIDGET', {
+        orderSlug: smepayOrderSlug,
+        callbackUrl
+      }, 'info');
+
+      // 🎯 EXACT MATCH: Step 2 - Open SMEPay payment widget (same as buyer side line 194)
+      // Buyer side uses: this.openSMEPayWidget() (same class)
+      // Delivery side uses: paymentService.openSMEPayWidget() (imported at top, same functionality)
+      const widgetResult = await paymentService.openSMEPayWidget(smepayOrderSlug, orderId);
+
+      // 🎯 EXACT MATCH: Handle widget result with fallback (EXACTLY like buyer side lines 197-218)
+      if (widgetResult.success) {
+        return widgetResult;
+      } else {
+        // If widget failed but order was created, try to validate the order
+        logDeliveryService('WIDGET_FAILED_VALIDATING_ORDER', { orderSlug: smepayOrderSlug }, 'warning');
+        
+        try {
+          const validateResult = await paymentService.validatePaymentOrder(orderId);
+          if (validateResult.success && validateResult.data?.isPaymentSuccessful) {
+            logDeliveryService('ORDER_VALIDATION_SUCCESS_AFTER_WIDGET_FAILURE', validateResult.data, 'success');
+            return {
+              success: true,
+              message: 'Payment completed successfully (validated)',
+              data: validateResult.data
+            };
+          }
+        } catch (validateError) {
+          logDeliveryServiceError('ORDER_VALIDATION_FAILED', validateError);
+        }
+        
+        return widgetResult; // Return original widget result
+      }
+
+    } catch (error) {
+      logDeliveryServiceError('PROCESS_REAL_SMEPAY_PAYMENT_FAILED', error, { orderId });
+      return handleDeliveryError(error, 'processRealSMEPayPayment');
+    }
+  }
+
+  // 🚚 SEND DELIVERY OTP MANUALLY
+  async sendDeliveryOTP(orderId) {
+    try {
+      logDeliveryService('SEND_DELIVERY_OTP_STARTED', { orderId });
+
+      const response = await makeApiCall(`/delivery/orders/${orderId}/send-otp`, {
+        method: 'POST'
+      });
+
+      logDeliveryService('SEND_DELIVERY_OTP_SUCCESS', {
+        orderId,
+        orderNumber: response.data?.orderNumber
+      }, 'success');
+
+      return response;
+    } catch (error) {
+      logDeliveryServiceError('SEND_DELIVERY_OTP_FAILED', error, { orderId });
+      return handleDeliveryError(error, 'sendDeliveryOTP');
+    }
+  }
+
+  // 🚚 VERIFY DELIVERY OTP
+  async verifyDeliveryOTP(orderId, otp) {
+    try {
+      logDeliveryService('VERIFY_DELIVERY_OTP_STARTED', { orderId });
+
+      if (!otp || otp.length !== 6) {
+        return {
+          success: false,
+          message: 'Please enter a valid 6-digit OTP'
+        };
+      }
+
+      const response = await makeApiCall(`/delivery/orders/${orderId}/verify-otp`, {
+        method: 'POST',
+        body: JSON.stringify({ otp })
+      });
+
+      logDeliveryService('VERIFY_DELIVERY_OTP_SUCCESS', {
+        orderId,
+        orderNumber: response.data?.orderNumber
+      }, 'success');
+
+      return response;
+    } catch (error) {
+      logDeliveryServiceError('VERIFY_DELIVERY_OTP_FAILED', error, { orderId });
+      return handleDeliveryError(error, 'verifyDeliveryOTP');
+    }
+  }
+
+  // 🚚 RESEND DELIVERY OTP
+  async resendDeliveryOTP(orderId) {
+    try {
+      logDeliveryService('RESEND_DELIVERY_OTP_STARTED', { orderId });
+
+      const response = await makeApiCall(`/delivery/orders/${orderId}/resend-otp`, {
+        method: 'POST'
+      });
+
+      logDeliveryService('RESEND_DELIVERY_OTP_SUCCESS', {
+        orderId,
+        orderNumber: response.data?.orderNumber
+      }, 'success');
+
+      return response;
+    } catch (error) {
+      logDeliveryServiceError('RESEND_DELIVERY_OTP_FAILED', error, { orderId });
+      return handleDeliveryError(error, 'resendDeliveryOTP');
+    }
+  }
+
+  // 🚚 MARK CASH PAYMENT AS COLLECTED
+  async markCashPaymentCollected(orderId) {
+    try {
+      logDeliveryService('MARK_CASH_PAYMENT_COLLECTED_STARTED', { orderId });
+
+      const response = await makeApiCall(`/delivery/orders/${orderId}/mark-cash-collected`, {
+        method: 'POST'
+      });
+
+      logDeliveryService('MARK_CASH_PAYMENT_COLLECTED_SUCCESS', {
+        orderId,
+        orderNumber: response.data?.orderNumber,
+        isCollected: response.data?.codPayment?.isCollected,
+        paymentMethod: response.data?.codPayment?.paymentMethod
+      }, 'success');
+
+      return response;
+    } catch (error) {
+      logDeliveryServiceError('MARK_CASH_PAYMENT_COLLECTED_FAILED', error, { orderId });
+      return handleDeliveryError(error, 'markCashPaymentCollected');
+    }
   }
 
   // 🚚 GET ORDER NOTIFICATIONS
