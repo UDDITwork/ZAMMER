@@ -5,6 +5,8 @@ import UserLayout from '../../components/layouts/UserLayout';
 import { AuthContext } from '../../contexts/AuthContext';
 import orderService from '../../services/orderService';
 import socketService from '../../services/socketService';
+import returnService from '../../services/returnService';
+import ReturnRequestModal from '../../components/return/ReturnRequestModal';
 
 const MyOrdersPage = () => {
   const { userAuth } = useContext(AuthContext);
@@ -20,6 +22,9 @@ const MyOrdersPage = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancellingOrder, setCancellingOrder] = useState(null);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnOrder, setReturnOrder] = useState(null);
+  const [returnEligibility, setReturnEligibility] = useState({});
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
@@ -120,13 +125,17 @@ const MyOrdersPage = () => {
       const response = await orderService.getUserOrders(page, 10);
       
       if (response.success) {
-        setOrders(response.data || []);
+        const ordersData = response.data || [];
+        setOrders(ordersData);
         setPagination({
           currentPage: response.currentPage || 1,
           totalPages: response.totalPages || 1,
           count: response.count || 0
         });
-        console.log('✅ Orders fetched successfully:', (response.data || []).length);
+        console.log('✅ Orders fetched successfully:', ordersData.length);
+        
+        // Check return eligibility for delivered orders
+        checkReturnEligibilityForOrders(ordersData);
       } else {
         console.error('❌ Failed to fetch orders:', response.message);
         
@@ -144,6 +153,69 @@ const MyOrdersPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Check return eligibility for orders
+  const checkReturnEligibilityForOrders = async (ordersList) => {
+    const eligibilityMap = {};
+    
+    for (const order of ordersList) {
+      if (order.status === 'Delivered' && order.isDelivered) {
+        try {
+          const eligibility = returnService.canRequestReturn(order);
+          eligibilityMap[order._id] = eligibility;
+        } catch (error) {
+          console.error(`Error checking return eligibility for order ${order._id}:`, error);
+          eligibilityMap[order._id] = { canRequest: false, reason: 'Unable to check eligibility' };
+        }
+      }
+    }
+    
+    setReturnEligibility(eligibilityMap);
+  };
+
+  // Check return eligibility for a specific order
+  const checkReturnEligibility = async (orderId) => {
+    try {
+      const response = await returnService.checkReturnEligibility(orderId);
+      if (response.success) {
+        setReturnEligibility(prev => ({
+          ...prev,
+          [orderId]: response.data
+        }));
+        return response.data;
+      }
+    } catch (error) {
+      console.error('Error checking return eligibility:', error);
+      return null;
+    }
+  };
+
+  // Handle return button click
+  const handleReturnClick = async (order) => {
+    if (!order) return;
+    
+    // Check eligibility first
+    const eligibility = await checkReturnEligibility(order._id);
+    
+    if (!eligibility || !eligibility.eligible) {
+      toast.error(eligibility?.reason || 'This order is not eligible for return');
+      return;
+    }
+    
+    setReturnOrder(order);
+    setShowReturnModal(true);
+  };
+
+  // Handle return request success
+  const handleReturnRequested = async (returnData) => {
+    console.log('Return requested successfully:', returnData);
+    toast.success('Return request submitted successfully!');
+    setShowReturnModal(false);
+    setReturnOrder(null);
+    
+    // Refresh orders to show updated return status
+    await fetchOrders(pagination.currentPage);
   };
 
   // Filter orders based on active tab
@@ -550,6 +622,27 @@ const MyOrdersPage = () => {
                       </div>
                     </div>
 
+                    {/* 🎯 PREMIUM: Return Eligibility Notice for Delivered Orders */}
+                    {order.status === 'Delivered' && returnEligibility[order._id]?.canRequest && !order.returnDetails?.returnStatus && (
+                      <div className="px-4 sm:px-6 pb-4 sm:pb-6">
+                        <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 sm:p-4 border border-amber-200">
+                          <div className="flex items-start gap-2 sm:gap-3">
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.856-.833-2.598 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs sm:text-sm text-amber-800 font-medium">
+                                24-Hour Return Window: You can request a return for this order
+                                {returnEligibility[order._id]?.hoursRemaining && (
+                                  <span className="font-bold"> (within {Math.floor(returnEligibility[order._id].hoursRemaining)}h {Math.floor((returnEligibility[order._id].hoursRemaining % 1) * 60)}m)</span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* 🎯 PREMIUM: Action Buttons */}
                     <div className="p-4 sm:p-6">
                       <div className="flex flex-wrap gap-2 sm:gap-3 sm:justify-start">
@@ -577,16 +670,33 @@ const MyOrdersPage = () => {
                         )}
                         
                         {order.status === 'Delivered' && (
-                          <button
-                            onClick={() => downloadInvoice(order.orderNumber)}
-                            className="bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-700 py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
-                          >
-                            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            <span className="hidden sm:inline">Invoice</span>
-                            <span className="sm:hidden">PDF</span>
-                          </button>
+                          <>
+                            {/* Return Button - Show if eligible within 24 hours */}
+                            {returnEligibility[order._id]?.canRequest && !order.returnDetails?.returnStatus && (
+                              <button
+                                onClick={() => handleReturnClick(order)}
+                                className="bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:via-orange-700 hover:to-amber-600 text-white py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold flex items-center justify-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
+                              >
+                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span className="hidden sm:inline">Return</span>
+                                <span className="sm:hidden">Return</span>
+                              </button>
+                            )}
+                            
+                            {/* Invoice Button */}
+                            <button
+                              onClick={() => downloadInvoice(order.orderNumber)}
+                              className="bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-700 py-3 sm:py-3.5 px-4 sm:px-6 rounded-xl sm:rounded-2xl text-sm sm:text-base font-semibold flex items-center justify-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
+                            >
+                              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span className="hidden sm:inline">Invoice</span>
+                              <span className="sm:hidden">PDF</span>
+                            </button>
+                          </>
                         )}
                         
                         <Link
@@ -849,6 +959,20 @@ const MyOrdersPage = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Return Request Modal */}
+        {showReturnModal && returnOrder && (
+          <ReturnRequestModal
+            isOpen={showReturnModal}
+            onClose={() => {
+              setShowReturnModal(false);
+              setReturnOrder(null);
+            }}
+            order={returnOrder}
+            onReturnRequested={handleReturnRequested}
+            socket={socketService.socket}
+          />
         )}
       </div>
     </UserLayout>

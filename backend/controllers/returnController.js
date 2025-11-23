@@ -634,11 +634,12 @@ const markReturnBuyerArrival = async (req, res) => {
       });
     }
 
+    // Check if return is in correct status (only accept 'accepted' to prevent redundant calls)
     const assignmentStatus = order.returnDetails?.returnAssignment?.status;
-    if (!['accepted', 'agent_reached_buyer'].includes(assignmentStatus)) {
+    if (assignmentStatus !== 'accepted') {
       return res.status(400).json({
         success: false,
-        message: `Cannot mark buyer arrival. Assignment status is: ${assignmentStatus}`
+        message: `Cannot mark buyer arrival. Assignment status must be 'accepted', but is: ${assignmentStatus}`
       });
     }
 
@@ -749,11 +750,12 @@ const completeReturnPickup = async (req, res) => {
       });
     }
 
-    // Check if return is in correct status
-    if (order.returnDetails?.returnAssignment?.status !== 'accepted') {
+    // Check if return is in correct status (accept both 'accepted' and 'agent_reached_buyer')
+    const assignmentStatus = order.returnDetails?.returnAssignment?.status;
+    if (!['accepted', 'agent_reached_buyer'].includes(assignmentStatus)) {
       return res.status(400).json({
         success: false,
-        message: `Cannot complete pickup. Assignment status is: ${order.returnDetails?.returnAssignment?.status}`
+        message: `Cannot complete pickup. Assignment status is: ${assignmentStatus}`
       });
     }
 
@@ -888,10 +890,10 @@ const markReturnSellerArrival = async (req, res) => {
       });
     }
 
-    if (!['picked_up', 'agent_reached_seller'].includes(order.returnDetails.returnAssignment.status)) {
+    if (order.returnDetails.returnAssignment.status !== 'picked_up') {
       return res.status(400).json({
         success: false,
-        message: `Cannot mark seller arrival. Assignment status is: ${order.returnDetails.returnAssignment.status}`
+        message: `Cannot mark seller arrival. Assignment status must be 'picked_up', but is: ${order.returnDetails.returnAssignment.status}`
       });
     }
 
@@ -907,7 +909,7 @@ const markReturnSellerArrival = async (req, res) => {
       });
     }
 
-    const otpResult = await msg91Service.sendOTP(sellerPhone, {
+    const otpResult = await msg91Service.sendOTPForForgotPassword(sellerPhone, {
       purpose: 'return_delivery',
       orderNumber: order.orderNumber,
       userName: order.seller?.firstName || order.seller?.shop?.name || 'Seller'
@@ -1025,11 +1027,11 @@ const completeReturnDelivery = async (req, res) => {
       });
     }
 
-    // Check if return is in correct status
-    if (order.returnDetails?.returnAssignment?.status !== 'picked_up') {
+    // Check if return is in correct status (must be 'agent_reached_seller' after OTP is sent)
+    if (order.returnDetails?.returnAssignment?.status !== 'agent_reached_seller') {
       return res.status(400).json({
         success: false,
-        message: `Cannot complete delivery. Assignment status is: ${order.returnDetails?.returnAssignment?.status}`
+        message: `Cannot complete delivery. Assignment status must be 'agent_reached_seller', but is: ${order.returnDetails?.returnAssignment?.status}`
       });
     }
 
@@ -1073,11 +1075,10 @@ const completeReturnDelivery = async (req, res) => {
 
     try {
       // Complete return delivery using the model method
+      // Note: sellerOTP is set to null since we're using MSG91 OTP directly (no OtpVerification record)
+      // OTP verification info is stored in sellerOtpMeta instead
       await order.completeReturnDelivery({
-        sellerOTP: {
-          code: otp,
-          verifiedAt: new Date()
-        },
+        sellerOTP: null, // No OtpVerification record created for return deliveries using MSG91
         location: location || {
           type: 'Point',
           coordinates: [0, 0]
@@ -1410,11 +1411,12 @@ const markReturnPickupFailed = async (req, res) => {
       });
     }
 
-    // Check if return is in correct status
-    if (order.returnDetails?.returnAssignment?.status !== 'accepted') {
+    // Check if return is in correct status (accept both 'accepted' and 'agent_reached_buyer')
+    const assignmentStatus = order.returnDetails?.returnAssignment?.status;
+    if (!['accepted', 'agent_reached_buyer'].includes(assignmentStatus)) {
       return res.status(400).json({
         success: false,
-        message: `Cannot mark pickup as failed. Assignment status is: ${order.returnDetails?.returnAssignment?.status}`
+        message: `Cannot mark pickup as failed. Assignment status is: ${assignmentStatus}`
       });
     }
 
