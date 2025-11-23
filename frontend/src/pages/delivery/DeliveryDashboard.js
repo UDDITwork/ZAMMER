@@ -7,6 +7,19 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
+import { 
+  FiPackage, 
+  FiMapPin, 
+  FiClock, 
+  FiCheckCircle, 
+  FiAlertCircle, 
+  FiRotateCcw,
+  FiUser,
+  FiPhone,
+  FiMail
+} from 'react-icons/fi';
+import returnService from '../../services/returnService';
+import paymentService from '../../services/paymentService';
 
 // 🎯 HELPER: Format QR code as base64 data URL for image display (EXACT MATCH with AssignedOrders.js)
 const formatQRCodeAsDataURL = (qrCode) => {
@@ -26,19 +39,6 @@ const formatQRCodeAsDataURL = (qrCode) => {
   // Return as is if format is unknown
   return qrCode;
 };
-import { 
-  FiPackage, 
-  FiMapPin, 
-  FiClock, 
-  FiCheckCircle, 
-  FiAlertCircle, 
-  FiRotateCcw,
-  FiUser,
-  FiPhone,
-  FiMail
-} from 'react-icons/fi';
-import returnService from '../../services/returnService';
-import paymentService from '../../services/paymentService';
 
 const DeliveryDashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -209,13 +209,25 @@ const DeliveryDashboard = () => {
 
   // Make API call utility
   const makeApiCall = useCallback(async (endpoint, options = {}) => {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const headers = {
+      ...getAuthHeaders(),
+      ...options.headers
+    };
+
+    // Stringify body if it's an object
+    const body = options.body && typeof options.body === 'object' 
+      ? JSON.stringify(options.body) 
+      : options.body;
+
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      console.log(`🌐 API Call: ${options.method || 'GET'} ${url}`);
+      
+      const response = await fetch(url, {
         ...options,
-        headers: {
-          ...getAuthHeaders(),
-          ...options.headers
-        }
+        method: options.method || 'GET',
+        headers,
+        body
       });
 
       if (!response.ok) {
@@ -224,12 +236,38 @@ const DeliveryDashboard = () => {
           navigate('/delivery/login');
           return null;
         }
-        throw new Error(`HTTP ${response.status}`);
+        
+        // Try to get error message from response
+        let errorMessage = `HTTP ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          // If response is not JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       return await response.json();
     } catch (error) {
-      console.error(`API Error (${endpoint}):`, error);
+      // Enhanced error logging
+      if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+        console.error(`❌ Network Error (${endpoint}):`, {
+          url,
+          message: 'Failed to connect to API server. Please check:',
+          checks: [
+            '1. Is the backend server running?',
+            `2. Is the API URL correct? (${API_BASE_URL})`,
+            '3. Are there any CORS issues?',
+            '4. Is the network connection working?'
+          ]
+        });
+        throw new Error('Failed to connect to server. Please check if the backend is running.');
+      }
+      
+      console.error(`❌ API Error (${endpoint}):`, error);
       throw error;
     }
   }, [API_BASE_URL, getAuthHeaders, logoutDeliveryAgent, navigate]);
@@ -251,13 +289,17 @@ const DeliveryDashboard = () => {
       }
     } catch (error) {
       console.error('❌ Failed to fetch stats:', error);
-      // Set default stats on error
+      // Set default stats on error - don't show toast for initialization errors
       setStats({
         totalDeliveries: 0,
         totalEarnings: 0,
         todayDeliveries: 0,
         todayEarnings: 0
       });
+      // Only show error if it's a network error (not during initial load)
+      if (error.message && error.message.includes('Failed to connect')) {
+        console.warn('⚠️ Backend server may not be running. Stats will be unavailable.');
+      }
     }
   }, [makeApiCall]);
 
@@ -274,6 +316,10 @@ const DeliveryDashboard = () => {
     } catch (error) {
       console.error('❌ Failed to fetch available orders:', error);
       setAvailableOrders([]);
+      // Only show error if it's a network error (not during initial load)
+      if (error.message && error.message.includes('Failed to connect')) {
+        console.warn('⚠️ Backend server may not be running. Available orders will be unavailable.');
+      }
     }
   }, [makeApiCall]);
 
@@ -292,6 +338,10 @@ const DeliveryDashboard = () => {
     } catch (error) {
       console.error('❌ Failed to fetch assigned orders:', error);
       setAssignedOrders([]);
+      // Only show error if it's a network error (not during initial load)
+      if (error.message && error.message.includes('Failed to connect')) {
+        console.warn('⚠️ Backend server may not be running. Assigned orders will be unavailable.');
+      }
       return [];
     }
   }, [makeApiCall]);
@@ -587,22 +637,45 @@ const DeliveryDashboard = () => {
     try {
       setLoading(true);
       console.log('🚚 Initializing delivery dashboard...');
+      console.log('🌐 API Base URL:', API_BASE_URL);
 
-      // Run all API calls in parallel
-      await Promise.all([
+      // Run all API calls in parallel - use Promise.allSettled to handle individual failures
+      const results = await Promise.allSettled([
         fetchStats(),
         fetchAvailableOrders(),
         fetchAssignedOrders()
       ]);
 
-      console.log('✅ Dashboard initialized successfully');
+      // Check if any requests failed
+      const failures = results.filter(r => r.status === 'rejected');
+      if (failures.length > 0) {
+        console.warn('⚠️ Some dashboard data failed to load:', failures);
+        // Check if it's a network error
+        const networkErrors = failures.filter(f => 
+          f.reason?.message?.includes('Failed to connect') || 
+          f.reason?.message === 'Failed to fetch'
+        );
+        if (networkErrors.length > 0) {
+          toast.error('Cannot connect to backend server. Please ensure the backend is running on port 5001.', {
+            autoClose: 5000
+          });
+        }
+      } else {
+        console.log('✅ Dashboard initialized successfully');
+      }
     } catch (error) {
       console.error('❌ Dashboard initialization failed:', error);
-      toast.error('Failed to load dashboard');
+      if (error.message && (error.message.includes('Failed to connect') || error.message === 'Failed to fetch')) {
+        toast.error('Cannot connect to backend server. Please ensure the backend is running.', {
+          autoClose: 5000
+        });
+      } else {
+        toast.error('Failed to load dashboard');
+      }
     } finally {
       setLoading(false);
     }
-  }, [fetchStats, fetchAvailableOrders, fetchAssignedOrders]);
+  }, [fetchStats, fetchAvailableOrders, fetchAssignedOrders, API_BASE_URL]);
 
   // FIXED: Check authentication and initialize
   useEffect(() => {
@@ -658,6 +731,7 @@ const DeliveryDashboard = () => {
     try {
       setAccepting(true);
       console.log('🚚 Accepting order:', orderId);
+      console.log('🌐 API Base URL:', API_BASE_URL);
 
       const response = await makeApiCall(`/delivery/orders/${orderId}/accept`, {
         method: 'PUT'
@@ -667,18 +741,24 @@ const DeliveryDashboard = () => {
         toast.success('Order accepted successfully!');
         console.log('✅ Order accepted');
         
-        // Refresh data
-        await Promise.all([
-          fetchAvailableOrders(),
-          fetchAssignedOrders(),
-          fetchStats()
-        ]);
+        // Navigate to assigned orders page
+        navigate('/delivery/orders/assigned');
       } else {
         throw new Error(response?.message || 'Failed to accept order');
       }
     } catch (error) {
       console.error('❌ Failed to accept order:', error);
-      toast.error(error.message || 'Failed to accept order');
+      const errorMessage = error.message || 'Failed to accept order';
+      toast.error(errorMessage);
+      
+      // If it's a network error, provide additional guidance
+      if (errorMessage.includes('Failed to connect')) {
+        console.error('💡 Troubleshooting tips:');
+        console.error('   1. Ensure backend server is running on port 5001');
+        console.error(`   2. Check API URL: ${API_BASE_URL}`);
+        console.error('   3. Verify CORS is configured correctly');
+        console.error('   4. Check browser console for CORS errors');
+      }
     } finally {
       setAccepting(false);
     }
@@ -2095,143 +2175,37 @@ const DeliveryDashboard = () => {
           </Link>
         </div>
 
-        {/* Recent Orders Preview */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Assigned Orders Preview */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-medium text-gray-900">📋 My Assigned Orders</h2>
-                <p className="text-xs text-gray-500 mt-1">
-                  Orders you have accepted. Tap any order card to open the delivery flow modal.
-                </p>
-              </div>
-              <div className="flex items-center space-x-3">
-                {/* 🎯 NEW: Bulk Action Buttons */}
-                {assignedOrders.filter(order => order.deliveryStatus === 'assigned').length > 0 && selectedOrders.length > 0 && (
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => openBulkModal('accept')}
-                      className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-                    >
-                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Accept ({selectedOrders.length})
-                    </button>
-                    <button
-                      onClick={() => openBulkModal('reject')}
-                      className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
-                    >
-                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                      Reject ({selectedOrders.length})
-                    </button>
+        {/* Available Orders Preview */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h2 className="text-lg font-medium text-gray-900">🆕 Available Orders</h2>
+            <Link to="/delivery/orders/available" className="text-sm text-blue-600 hover:text-blue-800">
+              View All →
+            </Link>
+          </div>
+          <div className="p-6">
+            {availableOrders.length > 0 ? (
+              <div className="space-y-4">
+                {availableOrders.slice(0, 2).map((order) => (
+                  <OrderCard key={order._id} order={order} isAssigned={false} />
+                ))}
+                {availableOrders.length > 2 && (
+                  <div className="text-center pt-4">
+                    <Link to="/delivery/orders/available" className="text-sm text-blue-600 hover:text-blue-800">
+                      +{availableOrders.length - 2} more orders
+                    </Link>
                   </div>
                 )}
-                <Link to="/delivery/orders/assigned" className="text-sm text-blue-600 hover:text-blue-800">
-                  View All →
-                </Link>
               </div>
-            </div>
-            <div className="p-6">
-              {assignedOrders.length > 0 ? (
-                <div className="space-y-4">
-                  {/* 🎯 NEW: Select All Button */}
-                  {assignedOrders.filter(order => order.deliveryStatus === 'assigned').length > 0 && (
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm text-gray-600">
-                        {selectedOrders.length} of {assignedOrders.filter(order => order.deliveryStatus === 'assigned').length} orders selected
-                      </span>
-                      <button
-                        onClick={handleSelectAllOrders}
-                        className="text-sm text-orange-600 hover:text-orange-500 font-medium"
-                      >
-                        {selectedOrders.length === assignedOrders.filter(order => order.deliveryStatus === 'assigned').length ? 'Deselect All' : 'Select All'}
-                      </button>
-                    </div>
-                  )}
-                  
-                  {/* 🎯 SIMPLIFIED: Show all assigned orders together (no separate sections) */}
-                  {assignedOrders
-                    .sort((a, b) => {
-                      // Sort by acceptedAt (newest first), fallback to assignedAt
-                      const aAccepted = a.acceptedAt ? new Date(a.acceptedAt).getTime() : 0;
-                      const bAccepted = b.acceptedAt ? new Date(b.acceptedAt).getTime() : 0;
-                      
-                      if (aAccepted && bAccepted) {
-                        return bAccepted - aAccepted;
-                      }
-                      
-                      const aAssigned = a.assignedAt ? new Date(a.assignedAt).getTime() : 0;
-                      const bAssigned = b.assignedAt ? new Date(b.assignedAt).getTime() : 0;
-                      return bAssigned - aAssigned;
-                    })
-                    .slice(0, 5)
-                    .map((order) => (
-                      <OrderCard
-                        key={order._id}
-                        order={order}
-                        isAssigned={true}
-                        onOpenFlow={openOrderFlowModal}
-                      />
-                    ))}
-                  {assignedOrders.length > 5 && (
-                    <div className="text-center pt-2">
-                      <Link to="/delivery/orders/assigned" className="text-sm text-blue-600 hover:text-blue-800">
-                        +{assignedOrders.length - 5} more orders
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Assigned Orders</h3>
-                  <p className="text-gray-600 mb-4">You don't have any assigned orders yet</p>
-                  <Link to="/delivery/orders/available" className="text-blue-600 hover:text-blue-800">
-                    Browse Available Orders →
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Available Orders Preview */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">🆕 Available Orders</h2>
-              <Link to="/delivery/orders/available" className="text-sm text-blue-600 hover:text-blue-800">
-                View All →
-              </Link>
-            </div>
-            <div className="p-6">
-              {availableOrders.length > 0 ? (
-                <div className="space-y-4">
-                  {availableOrders.slice(0, 2).map((order) => (
-                    <OrderCard key={order._id} order={order} isAssigned={false} />
-                  ))}
-                  {availableOrders.length > 2 && (
-                    <div className="text-center pt-4">
-                      <Link to="/delivery/orders/available" className="text-sm text-blue-600 hover:text-blue-800">
-                        +{availableOrders.length - 2} more orders
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Available Orders</h3>
-                  <p className="text-gray-600">Check back later for new delivery opportunities</p>
-                </div>
-              )}
-            </div>
+            ) : (
+              <div className="text-center py-8">
+                <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Available Orders</h3>
+                <p className="text-gray-600">Check back later for new delivery opportunities</p>
+              </div>
+            )}
           </div>
         </div>
           </>
