@@ -28,19 +28,19 @@ const { protectAdmin: adminMiddleware } = require('../middleware/adminMiddleware
 
 // Check if order is eligible for return (24-hour window validation)
 router.get('/eligibility/:orderId', 
-  protectUser, 
+  optionalUserAuth, 
   getReturnEligibility
 );
 
 // Request return for an order
 router.post('/request/:orderId', 
-  protectUser, 
+  optionalUserAuth, 
   requestReturn
 );
 
 // Get return status for an order
 router.get('/status/:orderId', 
-  protectUser, 
+  optionalUserAuth, 
   getReturnStatus
 );
 
