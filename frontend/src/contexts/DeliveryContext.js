@@ -70,7 +70,7 @@ export const DeliveryProvider = ({ children }) => {
 
   const loadStats = async () => {
     try {
-      const result = await deliveryService.getStats();
+      const result = await deliveryService.getDeliveryStats();
       if (result.success) {
         setStats(result.data);
       }
