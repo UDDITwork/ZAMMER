@@ -1037,6 +1037,179 @@ const getDeliveryAgentCODCollections = async (req, res) => {
   }
 };
 
+// 🎯 NEW: Get COD Collections for All Delivery Agents
+// @desc    Get COD collections summary for all delivery agents
+// @route   GET /api/admin/cod-collections
+// @access  Private (Admin)
+const getAllDeliveryAgentsCODCollections = async (req, res) => {
+  try {
+    const { dateFrom, dateTo, paymentMethod } = req.query;
+    
+    logAdmin('GET_ALL_DELIVERY_AGENTS_COD_COLLECTIONS_START', {
+      adminId: req.admin._id,
+      dateFrom,
+      dateTo,
+      paymentMethod
+    });
+
+    // Build query filter
+    const filter = {
+      status: 'Delivered',
+      'codPayment.isCollected': true,
+      'deliveryAgent.agent': { $exists: true }
+    };
+
+    // Date filtering - preserve $exists check
+    const dateFilter = { $exists: true };
+    if (dateFrom || dateTo) {
+      if (dateFrom) {
+        const fromDate = new Date(dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        dateFilter.$gte = fromDate;
+      }
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        dateFilter.$lte = toDate;
+      }
+    }
+    filter['delivery.completedAt'] = dateFilter;
+
+    // Payment method filtering
+    if (paymentMethod && paymentMethod !== 'all') {
+      if (paymentMethod === 'cash') {
+        filter['codPayment.paymentMethod'] = 'cash';
+      } else if (paymentMethod === 'upi') {
+        filter['codPayment.paymentMethod'] = 'upi';
+      }
+    }
+
+    // Fetch all COD orders with delivery agent info
+    const orders = await Order.find(filter)
+      .populate('deliveryAgent.agent', 'name email mobileNumber')
+      .populate('user', 'name mobileNumber')
+      .populate('seller', 'firstName lastName shop')
+      .sort({ 'delivery.completedAt': -1 });
+
+    // Group by delivery agent
+    const agentMap = new Map();
+    let grandTotalCash = 0;
+    let grandTotalUPI = 0;
+    let grandTotalOrders = 0;
+
+    orders.forEach(order => {
+      // Handle cases where agent might be null (deleted agent)
+      const agent = order.deliveryAgent?.agent;
+      if (!agent || !agent._id) {
+        // Skip orders with deleted/missing agents
+        return;
+      }
+      
+      const agentId = agent._id.toString();
+
+      if (!agentMap.has(agentId)) {
+        agentMap.set(agentId, {
+          agentId: agentId,
+          agentName: agent.name || 'Unknown',
+          agentEmail: agent.email || 'N/A',
+          agentPhone: agent.mobileNumber || agent.phone || agent.phoneNumber || 'N/A',
+          totalCashCOD: 0,
+          totalUPICOD: 0,
+          totalOrders: 0,
+          orders: []
+        });
+      }
+
+      const agentData = agentMap.get(agentId);
+      // Ensure we use the correct amount field and handle edge cases
+      const codAmount = Number(order.codPayment?.collectedAmount || order.totalPrice || order.totalAmount || 0);
+      const paymentMethod = order.codPayment?.paymentMethod || 'cash';
+      
+      // Validate amount is a valid number
+      if (isNaN(codAmount) || codAmount < 0) {
+        console.warn(`Invalid COD amount for order ${order._id}: ${codAmount}`);
+        return; // Skip invalid orders
+      }
+
+      const orderSummary = {
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        customerName: order.user?.name || 'N/A',
+        customerPhone: order.user?.mobileNumber || 'N/A',
+        sellerName: order.seller ? `${order.seller.firstName} ${order.seller.lastName || ''}`.trim() : 'N/A',
+        amount: codAmount,
+        paymentMethod: paymentMethod,
+        collectedAt: order.codPayment?.collectedAt || order.delivery.completedAt,
+        completedAt: order.delivery.completedAt
+      };
+
+      if (paymentMethod === 'cash') {
+        agentData.totalCashCOD += codAmount;
+        grandTotalCash += codAmount;
+      } else if (paymentMethod === 'upi') {
+        agentData.totalUPICOD += codAmount;
+        grandTotalUPI += codAmount;
+      } else if (paymentMethod === 'card') {
+        // Card payments are treated as UPI (digital payments)
+        agentData.totalUPICOD += codAmount;
+        grandTotalUPI += codAmount;
+      }
+      // Note: Any other payment methods are skipped (shouldn't happen for COD)
+      
+      // Only count orders that had valid payment methods
+      if (paymentMethod === 'cash' || paymentMethod === 'upi' || paymentMethod === 'card') {
+        agentData.totalOrders += 1;
+        agentData.orders.push(orderSummary);
+        grandTotalOrders += 1;
+      }
+    });
+
+    // Convert map to array and calculate totals
+    const agentsData = Array.from(agentMap.values()).map(agent => ({
+      ...agent,
+      totalCOD: agent.totalCashCOD + agent.totalUPICOD,
+      orders: agent.orders.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))
+    })).sort((a, b) => b.totalCOD - a.totalCOD); // Sort by total COD descending
+
+    const summary = {
+      totalAgents: agentsData.length,
+      grandTotalCashCOD: grandTotalCash,
+      grandTotalUPICOD: grandTotalUPI,
+      grandTotalCOD: grandTotalCash + grandTotalUPI,
+      grandTotalOrders: grandTotalOrders
+    };
+
+    logAdmin('GET_ALL_DELIVERY_AGENTS_COD_COLLECTIONS_SUCCESS', {
+      adminId: req.admin._id,
+      totalAgents: agentsData.length,
+      grandTotalCOD: summary.grandTotalCOD,
+      grandTotalOrders: grandTotalOrders
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'COD collections retrieved successfully',
+      data: {
+        summary,
+        agents: agentsData
+      }
+    });
+
+  } catch (error) {
+    logAdmin('GET_ALL_DELIVERY_AGENTS_COD_COLLECTIONS_ERROR', {
+      adminId: req.admin._id,
+      error: error.message,
+      stack: error.stack
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch COD collections',
+      error: error.message
+    });
+  }
+};
+
 // 🎯 NEW: Approve order and assign to delivery agent
 // @desc    Approve an order and assign it to a delivery agent
 // @route   POST /api/admin/orders/approve-assign
@@ -2420,6 +2593,7 @@ module.exports = {
   getAvailableDeliveryAgents,
   getDeliveryAgentProfile,
   getDeliveryAgentCODCollections,
+  getAllDeliveryAgentsCODCollections,
   // 🎯 NEW: Payout management exports
   getPayoutAnalytics,
   getAllPayouts,

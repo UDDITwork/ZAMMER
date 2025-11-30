@@ -655,6 +655,66 @@ export const getDeliveryAgentCODCollections = async (agentId, filters = {}) => {
   }
 };
 
+// Get COD collections for all delivery agents
+export const getAllDeliveryAgentsCODCollections = async (filters = {}) => {
+  try {
+    debugLog('💰 FETCHING ALL DELIVERY AGENTS COD COLLECTIONS', { filters }, 'request');
+    
+    // Build query string from filters
+    const queryParams = new URLSearchParams();
+    if (filters.dateFrom) queryParams.append('dateFrom', filters.dateFrom);
+    if (filters.dateTo) queryParams.append('dateTo', filters.dateTo);
+    if (filters.paymentMethod) queryParams.append('paymentMethod', filters.paymentMethod);
+    
+    const queryString = queryParams.toString();
+    const url = `/admin/cod-collections${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await api.get(url);
+    
+    debugLog('✅ ALL DELIVERY AGENTS COD COLLECTIONS RECEIVED', {
+      totalAgents: response.data.data?.summary?.totalAgents || 0,
+      grandTotalCOD: response.data.data?.summary?.grandTotalCOD || 0,
+      grandTotalOrders: response.data.data?.summary?.grandTotalOrders || 0
+    }, 'success');
+    
+    return response.data;
+  } catch (error) {
+    debugLog('❌ ALL DELIVERY AGENTS COD COLLECTIONS ERROR', {
+      filters,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      message: error.response?.data?.message || error.message,
+      errorData: error.response?.data
+    }, 'error');
+    
+    // Structure error for consistent handling
+    if (error.response?.data) {
+      const errorData = error.response.data;
+      const structuredError = {
+        ...errorData,
+        status: error.response.status,
+        statusText: error.response.statusText,
+        isNetworkError: false
+      };
+      throw structuredError;
+    } else if (error.request) {
+      throw {
+        success: false,
+        message: 'Network error. Please check your connection and try again.',
+        isNetworkError: true,
+        originalError: error.message
+      };
+    } else {
+      throw {
+        success: false,
+        message: error.message || 'Failed to fetch COD collections',
+        isNetworkError: false,
+        originalError: error.message
+      };
+    }
+  }
+};
+
 // Update delivery agent status
 export const updateDeliveryAgentStatus = async (agentId, statusData) => {
   try {
@@ -894,6 +954,7 @@ const adminService = {
   getDeliveryAgentProfile,
   getDeliveryAgentHistory,
   getDeliveryAgentCODCollections,
+  getAllDeliveryAgentsCODCollections,
   updateDeliveryAgentStatus,
   getAssignedAcceptedOrders,
   // Payout Management
