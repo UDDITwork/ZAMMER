@@ -5998,8 +5998,8 @@ const getDeliveryEarnings = async (req, res) => {
 
     // Get all orders with full details (order-wise breakdown)
     const orders = await Order.find(baseMatch)
-      .select('orderNumber totalPrice delivery.completedAt deliveryFees.agentEarning user seller shippingAddress')
-      .populate('user', 'name email phone')
+      .select('orderNumber totalPrice delivery.completedAt deliveryFees.agentEarning user seller shippingAddress paymentMethod codPayment')
+      .populate('user', 'name email mobileNumber')
       .populate('seller', 'firstName shop')
       .sort({ 'delivery.completedAt': -1 });
 
@@ -6011,13 +6011,15 @@ const getDeliveryEarnings = async (req, res) => {
       completedAt: order.delivery?.completedAt,
       customer: order.user ? {
         name: order.user.name,
-        phone: order.user.phone || order.user.mobileNumber
+        phone: order.user.mobileNumber || order.user.phone || 'N/A'
       } : null,
       seller: order.seller ? {
-        name: order.seller.firstName,
-        shop: order.seller.shop?.name
+        name: order.seller.firstName || 'N/A',
+        shop: order.seller.shop?.name || 'N/A'
       } : null,
-      shippingAddress: order.shippingAddress
+      shippingAddress: order.shippingAddress,
+      paymentMethod: order.paymentMethod || 'Cash on Delivery',
+      codPaymentMethod: order.codPayment?.paymentMethod || null // For COD orders, shows how payment was collected (cash/upi/card)
     }));
 
     // Calculate average earnings per delivery

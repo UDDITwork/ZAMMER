@@ -65,6 +65,7 @@ import DeliveryHistory from './pages/delivery/DeliveryHistory';
 import DeliveryProfile from './pages/delivery/DeliveryProfile';
 import OrderDelivery from './pages/delivery/OrderDelivery';
 import OrderPickup from './pages/delivery/OrderPickup';
+import DeliveryEarnings from './pages/delivery/DeliveryEarnings';
 
 // 🎯 ADDED: Import AssignedOrders component for "My Orders" functionality
 import AssignedOrders from './pages/delivery/AssignedOrders';
@@ -244,6 +245,13 @@ function App() {
             <Route path="/delivery/orders/:id/deliver" element={
               <DeliveryProvider>
                 <OrderDelivery />
+              </DeliveryProvider>
+            } />
+            
+            {/* Delivery Earnings Route */}
+            <Route path="/delivery/earnings" element={
+              <DeliveryProvider>
+                <DeliveryEarnings />
               </DeliveryProvider>
             } />
             
