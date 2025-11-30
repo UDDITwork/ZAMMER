@@ -7,12 +7,24 @@ const testReturnRequestAuth = require('./test-return-request-auth');
 const testSellerReturnOrders = require('./test-seller-return-orders');
 const testDeliveryForgotPassword = require('./test-delivery-forgot-password');
 const testDeliveryEarnings = require('./test-delivery-earnings');
+const { checkServerHealth, checkEndpoints } = require('./test-config');
 
 async function runAllTests() {
   console.log('\n🚀 ============================================');
   console.log('   COMPREHENSIVE TEST SUITE');
   console.log('   Testing All Implemented Features');
   console.log('============================================\n');
+
+  // Pre-flight checks
+  console.log('🔍 Running pre-flight checks...\n');
+  const serverRunning = await checkServerHealth();
+  if (!serverRunning) {
+    console.error('\n❌ Server is not running. Please start the backend server first.\n');
+    process.exit(1);
+  }
+  
+  await checkEndpoints();
+  console.log('\n');
 
   const results = {
     passed: [],
@@ -26,7 +38,7 @@ async function runAllTests() {
     await testReturnRequestAuth();
     results.passed.push('Test 1: Return Request Authentication');
   } catch (error) {
-    console.error('❌ Test 1 failed:', error.message);
+    console.error('\n❌ Test 1 failed with error:', error.message);
     results.failed.push('Test 1: Return Request Authentication');
   }
 
@@ -36,7 +48,7 @@ async function runAllTests() {
     await testSellerReturnOrders();
     results.passed.push('Test 2: Seller Return Orders Endpoint');
   } catch (error) {
-    console.error('❌ Test 2 failed:', error.message);
+    console.error('\n❌ Test 2 failed with error:', error.message);
     results.failed.push('Test 2: Seller Return Orders Endpoint');
   }
 
@@ -44,11 +56,11 @@ async function runAllTests() {
   try {
     console.log('\n▶️  Starting Test 3: Delivery Agent Forgot Password\n');
     await testDeliveryForgotPassword();
-    results.passed.push('Test 3: Delivery Agent Forgot Password');
+    // Note: This test may exit early if OTP is needed, so we consider it passed if no error thrown
+    results.passed.push('Test 3: Delivery Agent Forgot Password (partial - OTP may require manual entry)');
   } catch (error) {
-    console.error('❌ Test 3 failed:', error.message);
+    console.error('\n❌ Test 3 failed with error:', error.message);
     results.failed.push('Test 3: Delivery Agent Forgot Password');
-    results.skipped.push('Test 3: Requires manual OTP entry');
   }
 
   // Test 4: Delivery Earnings
@@ -57,7 +69,7 @@ async function runAllTests() {
     await testDeliveryEarnings();
     results.passed.push('Test 4: Delivery Agent Earnings Endpoint');
   } catch (error) {
-    console.error('❌ Test 4 failed:', error.message);
+    console.error('\n❌ Test 4 failed with error:', error.message);
     results.failed.push('Test 4: Delivery Agent Earnings Endpoint');
   }
 

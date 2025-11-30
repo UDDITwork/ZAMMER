@@ -1127,9 +1127,108 @@ class DeliveryService {
     logDeliveryService('DEBUG_INFO', debugInfo);
     return debugInfo;
   }
+
+  // 🚚 FORGOT PASSWORD - Request OTP
+  async requestPasswordReset(email, phoneNumber) {
+    const startTime = Date.now();
+    
+    logDeliveryService('FORGOT_PASSWORD_REQUEST_START', {
+      email: email || 'NOT_PROVIDED',
+      phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 6)}****${phoneNumber.slice(-2)}` : 'NOT_PROVIDED'
+    });
+    
+    try {
+      const payload = email ? { email } : { phoneNumber };
+      
+      const responseData = await makeApiCall('/delivery/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      
+      logDeliveryService('FORGOT_PASSWORD_REQUEST_SUCCESS', {
+        processingTime: `${Date.now() - startTime}ms`,
+        hasData: !!responseData.data
+      }, 'success');
+      
+      return responseData;
+    } catch (error) {
+      logDeliveryServiceError('FORGOT_PASSWORD_REQUEST_ERROR', error, {
+        processingTime: `${Date.now() - startTime}ms`
+      });
+      throw error;
+    }
+  }
+
+  // 🚚 FORGOT PASSWORD - Verify OTP
+  async verifyForgotPasswordOTP(email, phoneNumber, otp) {
+    const startTime = Date.now();
+    
+    logDeliveryService('FORGOT_PASSWORD_OTP_VERIFY_START', {
+      email: email || 'NOT_PROVIDED',
+      phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 6)}****${phoneNumber.slice(-2)}` : 'NOT_PROVIDED',
+      otpLength: otp?.length || 0
+    });
+    
+    try {
+      const payload = { otp };
+      if (email) payload.email = email;
+      if (phoneNumber) payload.phoneNumber = phoneNumber;
+      
+      const responseData = await makeApiCall('/delivery/verify-forgot-password-otp', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      
+      logDeliveryService('FORGOT_PASSWORD_OTP_VERIFY_SUCCESS', {
+        processingTime: `${Date.now() - startTime}ms`,
+        hasResetToken: !!responseData.data?.resetToken
+      }, 'success');
+      
+      return responseData;
+    } catch (error) {
+      logDeliveryServiceError('FORGOT_PASSWORD_OTP_VERIFY_ERROR', error, {
+        processingTime: `${Date.now() - startTime}ms`
+      });
+      throw error;
+    }
+  }
+
+  // 🚚 FORGOT PASSWORD - Reset Password
+  async resetPassword(resetToken, newPassword) {
+    const startTime = Date.now();
+    
+    logDeliveryService('PASSWORD_RESET_START', {
+      hasResetToken: !!resetToken,
+      newPasswordLength: newPassword?.length || 0
+    });
+    
+    try {
+      const responseData = await makeApiCall(`/delivery/reset-password/${resetToken}`, {
+        method: 'PUT',
+        body: JSON.stringify({ newPassword })
+      });
+      
+      logDeliveryService('PASSWORD_RESET_SUCCESS', {
+        processingTime: `${Date.now() - startTime}ms`,
+        hasToken: !!responseData.data?.token
+      }, 'success');
+      
+      return responseData;
+    } catch (error) {
+      logDeliveryServiceError('PASSWORD_RESET_ERROR', error, {
+        processingTime: `${Date.now() - startTime}ms`
+      });
+      throw error;
+    }
+  }
 }
 
 // 🚚 CREATE AND EXPORT SERVICE INSTANCE
 const deliveryService = new DeliveryService();
 
 export default deliveryService;
+
+// Export individual functions for convenience
+export const requestPasswordReset = (email, phoneNumber) => deliveryService.requestPasswordReset(email, phoneNumber);
+export const verifyForgotPasswordOTP = (email, phoneNumber, otp) => deliveryService.verifyForgotPasswordOTP(email, phoneNumber, otp);
+export const resetPassword = (resetToken, newPassword) => deliveryService.resetPassword(resetToken, newPassword);

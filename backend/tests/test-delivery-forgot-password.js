@@ -27,6 +27,9 @@ async function testDeliveryForgotPassword() {
   try {
     // Step 1: Test forgot password with email
     console.log('📝 Step 1: Requesting password reset via email...');
+    console.log(`   URL: ${BASE_URL}/delivery/forgot-password`);
+    console.log(`   Email: ${testDeliveryAgent.email}`);
+    
     try {
       const forgotResponse = await axios.post(
         `${BASE_URL}/delivery/forgot-password`,
@@ -35,26 +38,35 @@ async function testDeliveryForgotPassword() {
 
       if (forgotResponse.data.success) {
         console.log('✅ Forgot password request successful');
-        console.log('Response:', JSON.stringify(forgotResponse.data, null, 2));
+        console.log('   Response:', JSON.stringify(forgotResponse.data, null, 2));
         testPhoneNumber = testDeliveryAgent.phoneNumber;
       } else {
-        console.log('⚠️  Response:', forgotResponse.data);
+        console.log('⚠️  Request returned non-success response:');
+        console.log('   Response:', JSON.stringify(forgotResponse.data, null, 2));
       }
     } catch (error) {
       if (error.response) {
         if (error.response.status === 200) {
           console.log('✅ Request processed (even if agent not found - security measure)');
         } else {
-          console.log('Status:', error.response.status);
-          console.log('Response:', error.response.data);
+          console.error('❌ Error response:');
+          console.error('   Status:', error.response.status);
+          console.error('   Response:', JSON.stringify(error.response.data, null, 2));
         }
+      } else if (error.request) {
+        console.error('❌ Network error - Server may not be running');
+        console.error('   Error:', error.message);
+        console.error(`   Check if server is running on: ${BASE_URL}`);
       } else {
-        console.error('Error:', error.message);
+        console.error('❌ Error:', error.message);
       }
     }
 
     // Step 2: Test forgot password with phone number
     console.log('\n📝 Step 2: Requesting password reset via phone number...');
+    console.log(`   URL: ${BASE_URL}/delivery/forgot-password`);
+    console.log(`   Phone: ${testDeliveryAgent.phoneNumber}`);
+    
     try {
       const forgotPhoneResponse = await axios.post(
         `${BASE_URL}/delivery/forgot-password`,
@@ -63,18 +75,28 @@ async function testDeliveryForgotPassword() {
 
       if (forgotPhoneResponse.data.success) {
         console.log('✅ OTP sent to phone number');
-        console.log('Phone:', forgotPhoneResponse.data.data.phoneNumber);
+        console.log('   Phone:', forgotPhoneResponse.data.data.phoneNumber);
         console.log('\n⚠️  MANUAL STEP REQUIRED:');
-        console.log('Please check your phone for OTP and enter it in the test script');
-        console.log('Update testOtp variable in the script and re-run Step 3');
+        console.log('   1. Check your phone for OTP');
+        console.log('   2. Update testOtp variable in the script');
+        console.log('   3. Re-run the script to continue testing');
         return; // Exit here to allow manual OTP entry
       }
     } catch (error) {
       if (error.response) {
-        console.log('Status:', error.response.status);
-        console.log('Response:', error.response.data);
+        if (error.response.status === 200) {
+          console.log('✅ Request processed (even if agent not found - security measure)');
+        } else {
+          console.error('❌ Error response:');
+          console.error('   Status:', error.response.status);
+          console.error('   Response:', JSON.stringify(error.response.data, null, 2));
+          console.error('\n   💡 TIP: Update testDeliveryAgent credentials in the test script');
+        }
+      } else if (error.request) {
+        console.error('❌ Network error - Server may not be running');
+        console.error('   Error:', error.message);
       } else {
-        console.error('Error:', error.message);
+        console.error('❌ Error:', error.message);
       }
     }
 

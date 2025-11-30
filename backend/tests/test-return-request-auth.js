@@ -23,32 +23,59 @@ async function testReturnRequestAuth() {
   try {
     // Step 1: Login as user to get token
     console.log('📝 Step 1: Logging in as user...');
-    const loginResponse = await axios.post(`${BASE_URL}/users/login`, {
-      email: testUser.email,
-      password: testUser.password
-    });
-
-    if (loginResponse.data.success && loginResponse.data.data.token) {
-      userToken = loginResponse.data.data.token;
-      console.log('✅ Login successful, token obtained');
-      
-      // Get a real order ID from user's orders
-      const ordersResponse = await axios.get(`${BASE_URL}/orders/myorders`, {
-        headers: { Authorization: `Bearer ${userToken}` }
+    console.log(`   URL: ${BASE_URL}/users/login`);
+    console.log(`   Email: ${testUser.email}`);
+    
+    try {
+      const loginResponse = await axios.post(`${BASE_URL}/users/login`, {
+        email: testUser.email,
+        password: testUser.password
       });
-      
-      if (ordersResponse.data.success && ordersResponse.data.data.length > 0) {
-        const deliveredOrder = ordersResponse.data.data.find(
-          order => order.status === 'Delivered'
-        );
-        if (deliveredOrder) {
-          testOrderId = deliveredOrder._id;
-          console.log(`✅ Found test order: ${testOrderId}`);
+
+      if (loginResponse.data.success && loginResponse.data.data.token) {
+        userToken = loginResponse.data.data.token;
+        console.log('✅ Login successful, token obtained');
+        
+        // Get a real order ID from user's orders
+        try {
+          const ordersResponse = await axios.get(`${BASE_URL}/orders/myorders`, {
+            headers: { Authorization: `Bearer ${userToken}` }
+          });
+          
+          if (ordersResponse.data.success && ordersResponse.data.data.length > 0) {
+            const deliveredOrder = ordersResponse.data.data.find(
+              order => order.status === 'Delivered'
+            );
+            if (deliveredOrder) {
+              testOrderId = deliveredOrder._id;
+              console.log(`✅ Found test order: ${testOrderId}`);
+            } else {
+              console.log('⚠️  No delivered orders found, using placeholder order ID for auth test');
+            }
+          }
+        } catch (ordersError) {
+          console.log('⚠️  Could not fetch orders:', ordersError.response?.data?.message || ordersError.message);
+          console.log('   Continuing with auth test using placeholder order ID');
         }
+      } else {
+        console.log('❌ Login failed - Invalid credentials or server error');
+        console.log('   Response:', JSON.stringify(loginResponse.data, null, 2));
+        throw new Error('Login failed');
       }
-    } else {
-      console.log('❌ Login failed');
-      return;
+    } catch (loginError) {
+      console.error('❌ Login error:');
+      if (loginError.response) {
+        console.error('   Status:', loginError.response.status);
+        console.error('   Response:', JSON.stringify(loginError.response.data, null, 2));
+        console.error('\n   💡 TIP: Update testUser credentials in the test script');
+      } else if (loginError.request) {
+        console.error('   Network error - Is the server running?');
+        console.error('   Error:', loginError.message);
+        console.error(`   URL: ${BASE_URL}/users/login`);
+      } else {
+        console.error('   Error:', loginError.message);
+      }
+      throw loginError;
     }
 
     // Step 2: Test without authentication (should fail)
@@ -101,10 +128,15 @@ async function testReturnRequestAuth() {
     console.log('\n✅ Test 1 Complete\n');
 
   } catch (error) {
-    console.error('❌ Test failed with error:', error.message);
+    console.error('\n❌ Test failed with error:', error.message);
     if (error.response) {
-      console.error('Response:', error.response.data);
+      console.error('   Status:', error.response.status);
+      console.error('   Response:', JSON.stringify(error.response.data, null, 2));
+    } else if (error.request) {
+      console.error('   Network error - Server may not be running');
+      console.error(`   Check if server is running on: ${BASE_URL}`);
     }
+    throw error; // Re-throw to let test runner know it failed
   }
 }
 
