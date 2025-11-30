@@ -11,7 +11,6 @@ const UserLogin = () => {
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showTestMode, setShowTestMode] = useState(true);
 
   const { loginUser: contextLogin, userAuth } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -147,62 +146,6 @@ const UserLogin = () => {
     }
   };
 
-  // Test mode login function
-  const handleTestLogin = async () => {
-    debugLog('🧪 TEST LOGIN STARTED', null, 'info');
-    setLoading(true);
-    
-    try {
-      const testCredentials = {
-        email: 'test@example.com',
-        password: 'password123'
-      };
-
-      debugLog('🔑 TEST LOGIN ATTEMPT', testCredentials, 'info');
-
-      const response = await loginUser(testCredentials);
-      
-      debugLog('📊 TEST LOGIN RESPONSE', {
-        success: response.success,
-        hasData: !!response.data,
-        hasToken: !!response.data?.token
-      }, response.success ? 'success' : 'error');
-
-      if (response.success && response.data) {
-        debugLog('✅ TEST LOGIN SUCCESS - Calling context login...', {
-          userData: response.data
-        }, 'success');
-
-        await contextLogin(response.data);
-        
-        toast.success(`Test login successful! Welcome, ${response.data.name}!`);
-        
-        const redirectTo = location.state?.from || '/user/dashboard';
-        debugLog('🎯 TEST LOGIN REDIRECTING', { redirectTo }, 'info');
-        navigate(redirectTo);
-      } else {
-        debugLog('❌ TEST LOGIN FAILED', response, 'error');
-        toast.error(response.message || 'Test login failed');
-      }
-    } catch (error) {
-      debugLog('💥 TEST LOGIN ERROR', {
-        error: error,
-        message: error.message,
-        responseData: error.response?.data
-      }, 'error');
-
-      console.error('Test login error:', error);
-      
-      const errorMessage = error.response?.data?.message || 
-                          error.message || 
-                          'Test login failed';
-      
-      toast.error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Debug auth state function
   const handleAuthDebug = () => {
     debugLog('🔧 MANUAL AUTH DEBUG TRIGGERED', null, 'info');
@@ -283,33 +226,6 @@ const UserLogin = () => {
                   <div>User: {userAuth.user?.name || 'None'}</div>
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* Test Mode Section */}
-          {showTestMode && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
-              <h3 className="text-sm font-medium text-blue-800 mb-2">Quick Test Login</h3>
-              <p className="text-xs text-blue-600 mb-3">
-                Use the following test credentials for quick login:
-              </p>
-              <div className="bg-blue-100 p-3 rounded text-sm text-blue-800 mb-3">
-                <p><strong>Email:</strong> test@example.com</p>
-                <p><strong>Password:</strong> password123</p>
-              </div>
-              <button
-                onClick={handleTestLogin}
-                disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
-              >
-                {loading ? 'Logging in...' : 'Quick Test Login'}
-              </button>
-              <button
-                onClick={() => setShowTestMode(false)}
-                className="mt-2 w-full text-blue-600 hover:text-blue-700 text-xs"
-              >
-                Hide test mode
-              </button>
             </div>
           )}
 
@@ -408,17 +324,6 @@ const UserLogin = () => {
               </button>
             </div>
           </form>
-
-          {!showTestMode && (
-            <div className="mt-4 text-center">
-              <button
-                onClick={() => setShowTestMode(true)}
-                className="text-sm text-gray-600 hover:text-gray-800"
-              >
-                Show test mode
-              </button>
-            </div>
-          )}
 
           <div className="mt-6">
             <div className="relative">

@@ -24,6 +24,7 @@ const Orders = () => {
     { key: 'Processing', label: 'Ready to Ship', icon: '📦', color: 'blue' },
     { key: 'Shipped', label: 'Shipped', icon: '🚚', color: 'purple' },
     { key: 'Delivered', label: 'Delivered', icon: '✅', color: 'green' },
+    { key: 'Returned', label: 'Returned Orders', icon: '↩️', color: 'orange' },
     { key: 'Cancelled', label: 'Cancelled', icon: '❌', color: 'red' }
   ];
 
@@ -161,7 +162,20 @@ const Orders = () => {
           return false;
         }
         
-        // 🎯 PRIORITY 2: Delivered orders always appear in Delivered tab
+        // 🎯 PRIORITY 2: Returned orders always appear in Returned tab
+        if (activeTab === 'Returned') {
+          // Show orders with return status (excluding 'eligible' and null/undefined)
+          // But exclude cancelled orders (cancelled orders stay in Cancelled tab)
+          const returnStatus = order.returnDetails?.returnStatus;
+          return returnStatus && returnStatus !== 'eligible' && order.status !== 'Cancelled';
+        }
+        // If order is returned, it should only appear in Returned tab (unless cancelled)
+        const returnStatus = order.returnDetails?.returnStatus;
+        if (returnStatus && returnStatus !== 'eligible' && order.status !== 'Cancelled') {
+          return false;
+        }
+        
+        // 🎯 PRIORITY 3: Delivered orders always appear in Delivered tab
         if (activeTab === 'Delivered') {
           return order.status === 'Delivered';
         }

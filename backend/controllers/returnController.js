@@ -422,6 +422,83 @@ const getReturnOrders = async (req, res) => {
   }
 };
 
+// 🎯 GET SELLER RETURN ORDERS
+const getSellerReturnOrders = async (req, res) => {
+  try {
+    const { status } = req.query;
+    const sellerId = req.seller._id;
+
+    logReturnOperation('GetSellerReturnOrders', {
+      status,
+      sellerId,
+      timestamp: new Date().toISOString()
+    }, 'return');
+
+    let query = { seller: sellerId };
+    
+    if (status) {
+      query['returnDetails.returnStatus'] = status;
+    } else {
+      // Get all return-related orders for this seller
+      query['returnDetails.returnStatus'] = {
+        $in: [
+          'requested',
+          'approved',
+          'assigned',
+          'accepted',
+          'agent_reached_buyer',
+          'picked_up',
+          'agent_reached_seller',
+          'pickup_failed',
+          'returned_to_seller',
+          'completed',
+          'rejected'
+        ]
+      };
+    }
+
+    const returnOrders = await Order.find(query)
+      .populate('user', 'name email phone')
+      .populate('returnDetails.returnAssignment.deliveryAgent', 'firstName lastName phone')
+      .populate('returnDetails.returnAssignment.assignedBy', 'firstName lastName')
+      .sort({ 'returnDetails.returnRequestedAt': -1 });
+
+    logReturnOperation('GetSellerReturnOrders', {
+      success: true,
+      sellerId,
+      count: returnOrders.length,
+      status: status || 'all'
+    }, 'success');
+
+    res.json({
+      success: true,
+      data: returnOrders.map(order => ({
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        user: order.user,
+        totalPrice: order.totalPrice,
+        deliveredAt: order.deliveredAt,
+        returnDetails: order.returnDetails,
+        orderItems: order.orderItems,
+        shippingAddress: order.shippingAddress
+      }))
+    });
+
+  } catch (error) {
+    logReturnOperation('GetSellerReturnOrders', {
+      error: error.message,
+      sellerId: req.seller?._id,
+      stack: error.stack
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch seller return orders',
+      error: error.message
+    });
+  }
+};
+
 // 🎯 ASSIGN RETURN DELIVERY AGENT
 const assignReturnAgent = async (req, res) => {
   try {
@@ -1617,6 +1694,7 @@ module.exports = {
   getReturnEligibility,
   requestReturn,
   getReturnOrders,
+  getSellerReturnOrders,
   assignReturnAgent,
   handleReturnAssignmentResponse,
   markReturnBuyerArrival,
