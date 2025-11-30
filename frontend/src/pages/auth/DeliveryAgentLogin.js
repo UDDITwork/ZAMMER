@@ -229,6 +229,16 @@ const DeliveryAgentLogin = () => {
           </form>
 
           <div className="mt-6">
+            <div className="text-center mb-4">
+              <Link
+                to="/delivery/forgot-password"
+                className="text-sm text-orange-600 hover:text-orange-500"
+                onClick={() => handleNavigation('/delivery/forgot-password')}
+              >
+                Forgot Password?
+              </Link>
+            </div>
+
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300" />

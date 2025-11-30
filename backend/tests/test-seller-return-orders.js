@@ -22,18 +22,36 @@ async function testSellerReturnOrders() {
   try {
     // Step 1: Login as seller
     console.log('📝 Step 1: Logging in as seller...');
-    const loginResponse = await axios.post(`${BASE_URL}/sellers/login`, {
-      email: testSeller.email,
-      password: testSeller.password
-    });
+    console.log(`   URL: ${BASE_URL}/sellers/login`);
+    console.log(`   Email: ${testSeller.email}`);
+    
+    try {
+      const loginResponse = await axios.post(`${BASE_URL}/sellers/login`, {
+        email: testSeller.email,
+        password: testSeller.password
+      });
 
-    if (loginResponse.data.success && loginResponse.data.data.token) {
-      sellerToken = loginResponse.data.data.token;
-      console.log('✅ Seller login successful');
-    } else {
-      console.log('❌ Seller login failed');
-      console.log('Response:', loginResponse.data);
-      return;
+      if (loginResponse.data.success && loginResponse.data.data.token) {
+        sellerToken = loginResponse.data.data.token;
+        console.log('✅ Seller login successful');
+      } else {
+        console.log('❌ Seller login failed - Invalid credentials');
+        console.log('   Response:', JSON.stringify(loginResponse.data, null, 2));
+        throw new Error('Seller login failed');
+      }
+    } catch (loginError) {
+      console.error('❌ Seller login error:');
+      if (loginError.response) {
+        console.error('   Status:', loginError.response.status);
+        console.error('   Response:', JSON.stringify(loginError.response.data, null, 2));
+        console.error('\n   💡 TIP: Update testSeller credentials in the test script');
+      } else if (loginError.request) {
+        console.error('   Network error - Is the server running?');
+        console.error('   Error:', loginError.message);
+      } else {
+        console.error('   Error:', loginError.message);
+      }
+      throw loginError;
     }
 
     // Step 2: Test without authentication (should fail)
@@ -78,11 +96,15 @@ async function testSellerReturnOrders() {
     console.log('\n✅ Test 2 Complete\n');
 
   } catch (error) {
-    console.error('❌ Test failed:', error.message);
+    console.error('\n❌ Test failed:', error.message);
     if (error.response) {
-      console.error('Status:', error.response.status);
-      console.error('Response:', error.response.data);
+      console.error('   Status:', error.response.status);
+      console.error('   Response:', JSON.stringify(error.response.data, null, 2));
+    } else if (error.request) {
+      console.error('   Network error - Server may not be running');
+      console.error(`   Check if server is running on: ${BASE_URL}`);
     }
+    throw error;
   }
 }
 

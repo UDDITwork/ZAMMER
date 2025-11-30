@@ -55,6 +55,8 @@ import PayoutDashboard from './pages/seller/PayoutDashboard';
 // Delivery Agent Auth Pages
 import DeliveryAgentLogin from './pages/auth/DeliveryAgentLogin';
 import DeliveryAgentRegister from './pages/auth/DeliveryAgentRegister';
+import DeliveryAgentForgotPassword from './pages/auth/DeliveryAgentForgotPassword';
+import DeliveryAgentResetPassword from './pages/auth/DeliveryAgentResetPassword';
 
 // Delivery Agent Dashboard Pages
 import DeliveryDashboard from './pages/delivery/DeliveryDashboard';
@@ -191,6 +193,8 @@ function App() {
             {/* Delivery Agent Auth Routes - Public (no protection needed) */}
             <Route path="/delivery/login" element={<DeliveryAgentLogin />} />
             <Route path="/delivery/register" element={<DeliveryAgentRegister />} />
+            <Route path="/delivery/forgot-password" element={<DeliveryAgentForgotPassword />} />
+            <Route path="/delivery/reset-password/:resetToken" element={<DeliveryAgentResetPassword />} />
             
             {/* 🎯 DELIVERY AGENT PROTECTED ROUTES - Simple approach using DeliveryProvider */}
             

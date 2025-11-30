@@ -22,18 +22,37 @@ async function testDeliveryEarnings() {
   try {
     // Step 1: Login as delivery agent
     console.log('📝 Step 1: Logging in as delivery agent...');
-    const loginResponse = await axios.post(`${BASE_URL}/delivery/login`, {
-      email: testDeliveryAgent.email,
-      password: testDeliveryAgent.password
-    });
+    console.log(`   URL: ${BASE_URL}/delivery/login`);
+    console.log(`   Email: ${testDeliveryAgent.email}`);
+    
+    try {
+      const loginResponse = await axios.post(`${BASE_URL}/delivery/login`, {
+        email: testDeliveryAgent.email,
+        password: testDeliveryAgent.password
+      });
 
-    if (loginResponse.data.success && loginResponse.data.data.token) {
-      deliveryAgentToken = loginResponse.data.data.token;
-      console.log('✅ Delivery agent login successful');
-    } else {
-      console.log('❌ Login failed');
-      console.log('Response:', loginResponse.data);
-      return;
+      if (loginResponse.data.success && loginResponse.data.data.token) {
+        deliveryAgentToken = loginResponse.data.data.token;
+        console.log('✅ Delivery agent login successful');
+      } else {
+        console.log('❌ Login failed - Invalid credentials');
+        console.log('   Response:', JSON.stringify(loginResponse.data, null, 2));
+        throw new Error('Delivery agent login failed');
+      }
+    } catch (loginError) {
+      console.error('❌ Delivery agent login error:');
+      if (loginError.response) {
+        console.error('   Status:', loginError.response.status);
+        console.error('   Response:', JSON.stringify(loginError.response.data, null, 2));
+        console.error('\n   💡 TIP: Update testDeliveryAgent credentials in the test script');
+      } else if (loginError.request) {
+        console.error('   Network error - Is the server running?');
+        console.error('   Error:', loginError.message);
+        console.error(`   Check if server is running on: ${BASE_URL}`);
+      } else {
+        console.error('   Error:', loginError.message);
+      }
+      throw loginError;
     }
 
     // Step 2: Test without authentication
@@ -155,11 +174,15 @@ async function testDeliveryEarnings() {
     console.log('\n✅ Test 4 Complete\n');
 
   } catch (error) {
-    console.error('❌ Test failed:', error.message);
+    console.error('\n❌ Test failed:', error.message);
     if (error.response) {
-      console.error('Status:', error.response.status);
-      console.error('Response:', error.response.data);
+      console.error('   Status:', error.response.status);
+      console.error('   Response:', JSON.stringify(error.response.data, null, 2));
+    } else if (error.request) {
+      console.error('   Network error - Server may not be running');
+      console.error(`   Check if server is running on: ${BASE_URL}`);
     }
+    throw error;
   }
 }
 
