@@ -5893,6 +5893,541 @@ const cancelOrder = async (req, res) => {
   }
 };
 
+// 🎯 GET DELIVERY AGENT EARNINGS (Detailed Breakdown)
+// @desc    Get detailed earnings breakdown with day and order-wise data
+// @route   GET /api/delivery/earnings
+// @access  Private (Delivery Agent)
+const getDeliveryEarnings = async (req, res) => {
+  try {
+    const agentId = req.deliveryAgent._id || req.deliveryAgent.id;
+    const { period = 'all', startDate, endDate } = req.query;
+
+    logDelivery('GET_DELIVERY_EARNINGS_START', {
+      agentId,
+      period,
+      startDate,
+      endDate
+    }, 'info');
+
+    // Build date filter based on period or custom date range
+    let dateFilter = {};
+    
+    if (startDate && endDate) {
+      // Custom date range
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      dateFilter['delivery.completedAt'] = { $gte: start, $lte: end };
+    } else {
+      // Period-based filter
+      const now = new Date();
+      switch (period) {
+        case 'day':
+          const dayStart = new Date(now.setHours(0, 0, 0, 0));
+          const dayEnd = new Date(now.setHours(23, 59, 59, 999));
+          dateFilter['delivery.completedAt'] = { $gte: dayStart, $lte: dayEnd };
+          break;
+        case 'week':
+          const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          weekStart.setHours(0, 0, 0, 0);
+          dateFilter['delivery.completedAt'] = { $gte: weekStart };
+          break;
+        case 'month':
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          monthStart.setHours(0, 0, 0, 0);
+          dateFilter['delivery.completedAt'] = { $gte: monthStart };
+          break;
+        case 'all':
+        default:
+          // No date filter - get all time
+          break;
+      }
+    }
+
+    // Base match filter
+    const baseMatch = {
+      'deliveryAgent.agent': new mongoose.Types.ObjectId(agentId),
+      'deliveryAgent.status': 'delivery_completed',
+      ...dateFilter
+    };
+
+    // Get total earnings summary
+    const totalSummary = await Order.aggregate([
+      { $match: baseMatch },
+      {
+        $group: {
+          _id: null,
+          totalEarnings: { $sum: '$deliveryFees.agentEarning' },
+          totalDeliveries: { $sum: 1 },
+          totalOrderValue: { $sum: '$totalPrice' }
+        }
+      }
+    ]);
+
+    const summary = totalSummary[0] || {
+      totalEarnings: 0,
+      totalDeliveries: 0,
+      totalOrderValue: 0
+    };
+
+    // Get earnings by day (grouped by date)
+    const earningsByDay = await Order.aggregate([
+      { $match: baseMatch },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$delivery.completedAt' }
+          },
+          date: { $first: { $dateToString: { format: '%Y-%m-%d', date: '$delivery.completedAt' } } },
+          totalEarnings: { $sum: '$deliveryFees.agentEarning' },
+          deliveryCount: { $sum: 1 },
+          orders: {
+            $push: {
+              orderId: '$_id',
+              orderNumber: '$orderNumber',
+              earnings: '$deliveryFees.agentEarning',
+              orderValue: '$totalPrice',
+              completedAt: '$delivery.completedAt'
+            }
+          }
+        }
+      },
+      { $sort: { date: -1 } }
+    ]);
+
+    // Get all orders with full details (order-wise breakdown)
+    const orders = await Order.find(baseMatch)
+      .select('orderNumber totalPrice delivery.completedAt deliveryFees.agentEarning user seller shippingAddress')
+      .populate('user', 'name email phone')
+      .populate('seller', 'firstName shop')
+      .sort({ 'delivery.completedAt': -1 });
+
+    const orderWiseBreakdown = orders.map(order => ({
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      earnings: order.deliveryFees?.agentEarning || 0,
+      orderValue: order.totalPrice,
+      completedAt: order.delivery?.completedAt,
+      customer: order.user ? {
+        name: order.user.name,
+        phone: order.user.phone || order.user.mobileNumber
+      } : null,
+      seller: order.seller ? {
+        name: order.seller.firstName,
+        shop: order.seller.shop?.name
+      } : null,
+      shippingAddress: order.shippingAddress
+    }));
+
+    // Calculate average earnings per delivery
+    const avgEarningsPerDelivery = summary.totalDeliveries > 0
+      ? Math.round((summary.totalEarnings / summary.totalDeliveries) * 100) / 100
+      : 0;
+
+    // Format response
+    const earningsData = {
+      summary: {
+        totalEarnings: Math.round(summary.totalEarnings * 100) / 100,
+        totalDeliveries: summary.totalDeliveries,
+        totalOrderValue: Math.round(summary.totalOrderValue * 100) / 100,
+        avgEarningsPerDelivery: avgEarningsPerDelivery,
+        period: period,
+        dateRange: startDate && endDate ? { startDate, endDate } : null
+      },
+      earningsByDay: earningsByDay.map(day => ({
+        date: day.date,
+        totalEarnings: Math.round(day.totalEarnings * 100) / 100,
+        deliveryCount: day.deliveryCount,
+        orders: day.orders.map(order => ({
+          orderId: order.orderId,
+          orderNumber: order.orderNumber,
+          earnings: Math.round(order.earnings * 100) / 100,
+          orderValue: Math.round(order.orderValue * 100) / 100,
+          completedAt: order.completedAt
+        }))
+      })),
+      orderWiseBreakdown: orderWiseBreakdown
+    };
+
+    logDelivery('GET_DELIVERY_EARNINGS_SUCCESS', {
+      agentId,
+      totalEarnings: summary.totalEarnings,
+      totalDeliveries: summary.totalDeliveries,
+      daysCount: earningsByDay.length,
+      ordersCount: orders.length
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Earnings retrieved successfully',
+      data: earningsData
+    });
+
+  } catch (error) {
+    logDeliveryError('GET_DELIVERY_EARNINGS_ERROR', error, {
+      agentId: req.deliveryAgent?._id || req.deliveryAgent?.id
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve earnings',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// 🎯 FORGOT PASSWORD - Delivery Agent
+// @desc    Request password reset for delivery agent
+// @route   POST /api/delivery/forgot-password
+// @access  Public
+const forgotPassword = async (req, res) => {
+  try {
+    const { email, phoneNumber } = req.body;
+
+    // Accept either email or phone number
+    if (!email && !phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email or phone number is required'
+      });
+    }
+
+    logDelivery('FORGOT_PASSWORD_START', { 
+      email: email || null,
+      phoneNumber: phoneNumber || null,
+      requestTime: new Date().toISOString()
+    }, 'reset');
+
+    // Find delivery agent by email or phone number
+    let deliveryAgent;
+    if (email) {
+      deliveryAgent = await DeliveryAgent.findOne({ email: email.toLowerCase().trim() });
+    } else {
+      // Normalize phone number for search - try multiple formats
+      const cleanedPhone = phoneNumber.trim().replace(/\D/g, '');
+      const searchVariants = [
+        cleanedPhone, // Original format
+        cleanedPhone.length === 10 ? `91${cleanedPhone}` : null, // Add country code if 10 digits
+        cleanedPhone.startsWith('91') ? cleanedPhone : `91${cleanedPhone}`, // Ensure country code
+        cleanedPhone.replace(/^91/, '') // Without country code
+      ].filter(Boolean);
+      
+      deliveryAgent = await DeliveryAgent.findOne({ 
+        $or: [
+          { mobileNumber: { $in: searchVariants } },
+          { phone: { $in: searchVariants } },
+          { phoneNumber: { $in: searchVariants } }
+        ]
+      });
+    }
+
+    if (!deliveryAgent) {
+      logDelivery('FORGOT_PASSWORD_AGENT_NOT_FOUND', { 
+        email: email || null,
+        phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 6)}****` : null,
+        reason: 'Delivery agent does not exist'
+      }, 'warning');
+      // Don't reveal if agent exists or not for security
+      return res.status(200).json({
+        success: true,
+        message: 'If a delivery agent with that email/phone exists, an OTP has been sent.'
+      });
+    }
+
+    // Check if agent has a mobile number
+    const agentPhone = deliveryAgent.mobileNumber || deliveryAgent.phone || deliveryAgent.phoneNumber;
+    if (!agentPhone) {
+      logDelivery('FORGOT_PASSWORD_NO_PHONE', {
+        agentId: deliveryAgent._id,
+        email: deliveryAgent.email
+      }, 'warning');
+      return res.status(400).json({
+        success: false,
+        message: 'Delivery agent account does not have a registered phone number. Please contact support.'
+      });
+    }
+
+    logDelivery('FORGOT_PASSWORD_AGENT_FOUND', {
+      agentId: deliveryAgent._id,
+      email: deliveryAgent.email,
+      mobileNumber: agentPhone ? `${agentPhone.substring(0, 6)}****` : 'NOT_SET',
+      isActive: deliveryAgent.isActive,
+      isBlocked: deliveryAgent.isBlocked
+    }, 'reset');
+
+    // Send OTP via MSG91
+    try {
+      logDelivery('FORGOT_PASSWORD_PHONE_BEFORE_SEND', {
+        mobileNumber: agentPhone,
+        phoneType: typeof agentPhone,
+        phoneLength: agentPhone?.toString().length,
+        agentId: deliveryAgent._id
+      }, 'reset');
+      
+      const otpResult = await msg91Service.sendOTPForForgotPassword(agentPhone, {
+        userName: deliveryAgent.name,
+        purpose: 'forgot_password'
+      });
+
+      if (!otpResult.success) {
+        logDelivery('FORGOT_PASSWORD_OTP_FAILED', {
+          agentId: deliveryAgent._id,
+          error: otpResult.error
+        }, 'error');
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to send OTP. Please try again later.'
+        });
+      }
+
+      logDelivery('FORGOT_PASSWORD_OTP_SENT', {
+        agentId: deliveryAgent._id,
+        phoneNumber: `${agentPhone.substring(0, 6)}****`,
+        requestId: otpResult.response?.request_id || 'N/A'
+      }, 'success');
+
+      // Return success without revealing OTP
+      res.status(200).json({
+        success: true,
+        message: 'OTP has been sent to your registered phone number',
+        data: {
+          phoneNumber: `${agentPhone.substring(0, 6)}****${agentPhone.slice(-2)}` // Masked phone
+        }
+      });
+
+    } catch (otpError) {
+      logDelivery('FORGOT_PASSWORD_OTP_ERROR', {
+        agentId: deliveryAgent._id,
+        error: otpError.message
+      }, 'error');
+
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP. Please try again later.',
+        error: process.env.NODE_ENV === 'development' ? otpError.message : undefined
+      });
+    }
+
+  } catch (error) {
+    logDelivery('FORGOT_PASSWORD_ERROR', { error: error.message, stack: error.stack }, 'error');
+    
+    res.status(500).json({
+      success: false,
+      message: 'Password reset request failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// 🎯 VERIFY FORGOT PASSWORD OTP - Delivery Agent
+// @desc    Verify OTP for password reset
+// @route   POST /api/delivery/verify-forgot-password-otp
+// @access  Public
+const verifyForgotPasswordOTP = async (req, res) => {
+  try {
+    const { email, phoneNumber, otp } = req.body;
+
+    if (!otp || otp.length !== 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid 6-digit OTP is required'
+      });
+    }
+
+    if (!email && !phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email or phone number is required'
+      });
+    }
+
+    logDelivery('VERIFY_FORGOT_PASSWORD_OTP_START', {
+      email: email || null,
+      phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 6)}****` : null,
+      otpLength: otp.length,
+      requestTime: new Date().toISOString()
+    }, 'reset');
+
+    // Find delivery agent - normalize phone number for consistent searching
+    let deliveryAgent;
+    if (email) {
+      deliveryAgent = await DeliveryAgent.findOne({ email: email.toLowerCase().trim() });
+    } else {
+      // Normalize phone number for search - try multiple formats
+      const cleanedPhone = phoneNumber.trim().replace(/\D/g, '');
+      const searchVariants = [
+        cleanedPhone, // Original format
+        cleanedPhone.length === 10 ? `91${cleanedPhone}` : null, // Add country code if 10 digits
+        cleanedPhone.startsWith('91') ? cleanedPhone : `91${cleanedPhone}`, // Ensure country code
+        cleanedPhone.replace(/^91/, '') // Without country code
+      ].filter(Boolean);
+      
+      deliveryAgent = await DeliveryAgent.findOne({ 
+        $or: [
+          { mobileNumber: { $in: searchVariants } },
+          { phone: { $in: searchVariants } },
+          { phoneNumber: { $in: searchVariants } }
+        ]
+      });
+    }
+
+    if (!deliveryAgent) {
+      logDelivery('VERIFY_FORGOT_PASSWORD_OTP_AGENT_NOT_FOUND', { 
+        email: email || null,
+        phoneNumber: phoneNumber ? `${phoneNumber.substring(0, 6)}****` : null
+      }, 'warning');
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email/phone number or OTP'
+      });
+    }
+
+    const agentPhone = deliveryAgent.mobileNumber || deliveryAgent.phone || deliveryAgent.phoneNumber;
+    if (!agentPhone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Delivery agent account does not have a registered phone number'
+      });
+    }
+
+    // Verify OTP using msg91Service
+    const verificationResult = await msg91Service.verifyOTPSession(
+      agentPhone,
+      'forgot_password',
+      otp
+    );
+
+    if (!verificationResult.success) {
+      logDelivery('VERIFY_FORGOT_PASSWORD_OTP_FAILED', {
+        agentId: deliveryAgent._id,
+        message: verificationResult.message
+      }, 'warning');
+
+      return res.status(400).json({
+        success: false,
+        message: verificationResult.message || 'Invalid or expired OTP'
+      });
+    }
+
+    // OTP verified successfully - generate reset token
+    const resetToken = deliveryAgent.getResetPasswordToken();
+    await deliveryAgent.save({ validateBeforeSave: false });
+
+    logDelivery('VERIFY_FORGOT_PASSWORD_OTP_SUCCESS', {
+      agentId: deliveryAgent._id,
+      email: deliveryAgent.email,
+      tokenLength: resetToken.length,
+      expiresAt: new Date(deliveryAgent.resetPasswordExpires).toISOString()
+    }, 'success');
+
+    // Return reset token (frontend will use this for password reset)
+    res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully',
+      data: {
+        resetToken,
+        expiresAt: deliveryAgent.resetPasswordExpires
+      }
+    });
+
+  } catch (error) {
+    logDelivery('VERIFY_FORGOT_PASSWORD_OTP_ERROR', {
+      error: error.message,
+      stack: error.stack
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'OTP verification failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// 🎯 RESET PASSWORD - Delivery Agent
+// @desc    Reset password using token
+// @route   PUT /api/delivery/reset-password/:resetToken
+// @access  Public
+const resetPassword = async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    const { resetToken } = req.params;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters'
+      });
+    }
+
+    logDelivery('RESET_PASSWORD_START', { 
+      resetToken: resetToken.substring(0, 10) + '...',
+      newPasswordLength: newPassword.length,
+      requestTime: new Date().toISOString()
+    }, 'reset');
+
+    // Find delivery agent by reset token
+    const deliveryAgent = await DeliveryAgent.findByResetToken(resetToken);
+
+    if (!deliveryAgent) {
+      logDelivery('RESET_PASSWORD_FAILED', { 
+        reason: 'Invalid or expired token',
+        tokenLength: resetToken.length,
+        tokenPreview: resetToken.substring(0, 10) + '...'
+      }, 'warning');
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired password reset token'
+      });
+    }
+
+    logDelivery('RESET_PASSWORD_AGENT_FOUND', {
+      agentId: deliveryAgent._id,
+      email: deliveryAgent.email,
+      tokenExpires: deliveryAgent.resetPasswordExpires,
+      isActive: deliveryAgent.isActive,
+      isBlocked: deliveryAgent.isBlocked
+    }, 'reset');
+
+    // Set new password (will be hashed by pre-save middleware)
+    const oldPasswordHash = deliveryAgent.password;
+    deliveryAgent.password = newPassword;
+    deliveryAgent.resetPasswordToken = undefined;
+    deliveryAgent.resetPasswordExpires = undefined;
+
+    await deliveryAgent.save();
+
+    logDelivery('RESET_PASSWORD_SUCCESS', { 
+      agentId: deliveryAgent._id,
+      email: deliveryAgent.email,
+      oldPasswordLength: oldPasswordHash.length,
+      newPasswordLength: deliveryAgent.password.length,
+      passwordChanged: oldPasswordHash !== deliveryAgent.password
+    }, 'success');
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successful',
+      data: {
+        _id: deliveryAgent._id,
+        name: deliveryAgent.name,
+        email: deliveryAgent.email,
+        token: deliveryAgent.getSignedJwtToken()
+      }
+    });
+
+  } catch (error) {
+    logDelivery('RESET_PASSWORD_ERROR', { error: error.message }, 'error');
+    res.status(500).json({
+      success: false,
+      message: 'Password reset failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   getOrderById,
   registerDeliveryAgent,
@@ -5922,5 +6457,9 @@ module.exports = {
   verifyDeliveryOTP,
   resendDeliveryOTP,
   markCashPaymentCollected,
-  cancelOrder
+  cancelOrder,
+  forgotPassword,
+  verifyForgotPasswordOTP,
+  resetPassword,
+  getDeliveryEarnings
 };

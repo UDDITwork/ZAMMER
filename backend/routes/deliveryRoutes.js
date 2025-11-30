@@ -34,7 +34,11 @@ const {
   verifyDeliveryOTP,
   resendDeliveryOTP,
   markCashPaymentCollected,
-  cancelOrder
+  cancelOrder,
+  forgotPassword,
+  verifyForgotPasswordOTP,
+  resetPassword,
+  getDeliveryEarnings
 } = require('../controllers/deliveryAgentController');
 
 // Import middleware
@@ -196,6 +200,61 @@ router.post('/login', loginValidation, loginDeliveryAgent);
 // @access  Private (Delivery Agent)
 router.post('/logout', protectDeliveryAgent, logoutDeliveryAgent);
 
+// @desc    Forgot password - send OTP
+// @route   POST /api/delivery/forgot-password
+// @access  Public
+router.post('/forgot-password', [
+  body('email')
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please enter a valid email'),
+  body('phoneNumber')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number is required if email is not provided'),
+  body().custom((value) => {
+    if (!value.email && !value.phoneNumber) {
+      throw new Error('Either email or phone number is required');
+    }
+    return true;
+  })
+], forgotPassword);
+
+// @desc    Verify forgot password OTP
+// @route   POST /api/delivery/verify-forgot-password-otp
+// @access  Public
+router.post('/verify-forgot-password-otp', [
+  body('otp')
+    .isLength({ min: 6, max: 6 })
+    .matches(/^\d+$/)
+    .withMessage('OTP must be exactly 6 digits'),
+  body('email')
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please enter a valid email'),
+  body('phoneNumber')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number is required if email is not provided'),
+  body().custom((value) => {
+    if (!value.email && !value.phoneNumber) {
+      throw new Error('Either email or phone number is required');
+    }
+    return true;
+  })
+], verifyForgotPasswordOTP);
+
+// @desc    Reset password with token
+// @route   PUT /api/delivery/reset-password/:resetToken
+// @access  Public
+router.put('/reset-password/:resetToken', [
+  body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+], resetPassword);
+
 // 🎯 PROFILE ROUTES
 
 // @desc    Get delivery agent profile
@@ -355,6 +414,11 @@ router.put('/availability', protectDeliveryAgent, toggleAvailability);
 // @route   GET /api/delivery/stats
 // @access  Private (Delivery Agent)
 router.get('/stats', protectDeliveryAgent, getDeliveryStats);
+
+// @desc    Get delivery agent earnings (detailed breakdown)
+// @route   GET /api/delivery/earnings
+// @access  Private (Delivery Agent)
+router.get('/earnings', protectDeliveryAgent, getDeliveryEarnings);
 
 // @desc    Get delivery history
 // @route   GET /api/delivery/history

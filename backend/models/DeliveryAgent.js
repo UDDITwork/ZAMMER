@@ -5,6 +5,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 const DeliveryAgentSchema = new mongoose.Schema({
   // Basic Information
@@ -419,6 +420,16 @@ const DeliveryAgentSchema = new mongoose.Schema({
     default: 0,
     min: [0, 'Profile completion cannot be negative'],
     max: [100, 'Profile completion cannot exceed 100']
+  },
+
+  // Password reset token fields
+  resetPasswordToken: {
+    type: String,
+    select: false
+  },
+  resetPasswordExpires: {
+    type: Date,
+    select: false
   }
 }, {
   timestamps: true,
@@ -485,6 +496,36 @@ DeliveryAgentSchema.methods.getSignedJwtToken = function() {
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRE || '30d' }
   );
+};
+
+// 🎯 NEW: Password reset token methods
+DeliveryAgentSchema.methods.getResetPasswordToken = function() {
+  // Generate token
+  const resetToken = crypto.randomBytes(20).toString('hex');
+  
+  // Hash token and set to resetPasswordToken field
+  this.resetPasswordToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+  
+  // Set expire time (10 minutes)
+  this.resetPasswordExpires = Date.now() + 10 * 60 * 1000;
+  
+  return resetToken;
+};
+
+DeliveryAgentSchema.statics.findByResetToken = function(token) {
+  // Hash the token to compare with stored hash
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(token)
+    .digest('hex');
+  
+  return this.findOne({
+    resetPasswordToken: hashedToken,
+    resetPasswordExpires: { $gt: Date.now() }
+  }).select('+resetPasswordToken +resetPasswordExpires');
 };
 
 // Update location

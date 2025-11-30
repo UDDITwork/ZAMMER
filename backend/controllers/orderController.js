@@ -1330,6 +1330,18 @@ exports.getSellerOrderStats = async (req, res) => {
       mappedStatusCounts[mappedStatus] = (mappedStatusCounts[mappedStatus] || 0) + count;
     });
 
+    // 🎯 GET RETURNED ORDERS COUNT: Count orders with return status (excluding 'eligible' and cancelled orders)
+    const returnedOrdersCount = await Order.countDocuments({
+      seller: sellerId,
+      status: { $ne: 'Cancelled' }, // Exclude cancelled orders
+      'returnDetails.returnStatus': {
+        $exists: true,
+        $ne: null,
+        $nin: ['eligible', null]
+      }
+    });
+    mappedStatusCounts['Returned'] = returnedOrdersCount;
+
     // Get total revenue
     const revenueResult = await Order.aggregate([
       { $match: { seller: sellerId, isPaid: true } },

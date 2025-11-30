@@ -8,6 +8,7 @@ const {
   getReturnEligibility,
   requestReturn,
   getReturnOrders,
+  getSellerReturnOrders,
   assignReturnAgent,
   handleReturnAssignmentResponse,
   markReturnBuyerArrival,
@@ -21,7 +22,7 @@ const {
 } = require('../controllers/returnController');
 
 // Import middleware
-const { protectUser, optionalUserAuth, protectDeliveryAgent, protectAdmin } = require('../middleware/authMiddleware');
+const { protectUser, optionalUserAuth, protectDeliveryAgent, protectAdmin, protectSeller } = require('../middleware/authMiddleware');
 const { protectAdmin: adminMiddleware } = require('../middleware/adminMiddleware');
 
 // 🎯 BUYER ROUTES (Authenticated Users)
@@ -34,7 +35,7 @@ router.get('/eligibility/:orderId',
 
 // Request return for an order
 router.post('/request/:orderId', 
-  optionalUserAuth, 
+  protectUser, 
   requestReturn
 );
 
@@ -42,6 +43,14 @@ router.post('/request/:orderId',
 router.get('/status/:orderId', 
   optionalUserAuth, 
   getReturnStatus
+);
+
+// 🎯 SELLER ROUTES
+
+// Get seller's return orders
+router.get('/seller/dashboard', 
+  protectSeller, 
+  getSellerReturnOrders
 );
 
 // 🎯 ADMIN ROUTES
