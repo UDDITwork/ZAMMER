@@ -30,6 +30,7 @@ import ViewAllUsers from './pages/admin/ViewAllUsers';
 import ViewUserProfile from './pages/admin/ViewUserProfile';
 import DeliveryAgents from './pages/admin/DeliveryAgents';
 import AdminPayoutDashboard from './pages/admin/PayoutDashboard';
+import CODCollections from './pages/admin/CODCollections';
 import LiveLogs from './pages/admin/LiveLogs';
 
 // Admin Layout
@@ -159,6 +160,7 @@ function App() {
             <Route path="/admin/sellers/:id" element={<AdminLayout><ViewSellerProfile /></AdminLayout>} />
             <Route path="/admin/users/:id" element={<AdminLayout><ViewUserProfile /></AdminLayout>} />
             <Route path="/admin/payouts" element={<AdminLayout><AdminPayoutDashboard /></AdminLayout>} />
+            <Route path="/admin/cod-collections" element={<AdminLayout><CODCollections /></AdminLayout>} />
             <Route path="/admin/logs" element={<AdminLayout><LiveLogs /></AdminLayout>} />
             <Route path="/admin/live-logs" element={<AdminLayout><LiveLogs /></AdminLayout>} />
             
