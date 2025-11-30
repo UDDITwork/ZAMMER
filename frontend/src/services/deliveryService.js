@@ -1039,6 +1039,48 @@ class DeliveryService {
     }
   }
 
+  // 🚚 GET DELIVERY EARNINGS (Detailed Breakdown)
+  async getDeliveryEarnings(filters = {}) {
+    const startTime = Date.now();
+    
+    logDeliveryService('GET_DELIVERY_EARNINGS_START', {
+      period: filters.period || 'all',
+      startDate: filters.startDate || 'N/A',
+      endDate: filters.endDate || 'N/A'
+    });
+    
+    try {
+      // Build query string from filters
+      const queryParams = new URLSearchParams();
+      if (filters.period) queryParams.append('period', filters.period);
+      if (filters.startDate) queryParams.append('startDate', filters.startDate);
+      if (filters.endDate) queryParams.append('endDate', filters.endDate);
+      
+      const queryString = queryParams.toString();
+      const url = `/delivery/earnings${queryString ? `?${queryString}` : ''}`;
+      
+      const responseData = await makeApiCall(url, {
+        method: 'GET'
+      });
+      
+      logDeliveryService('GET_DELIVERY_EARNINGS_SUCCESS', {
+        processingTime: `${Date.now() - startTime}ms`,
+        totalEarnings: responseData.data?.summary?.totalEarnings || 0,
+        totalDeliveries: responseData.data?.summary?.totalDeliveries || 0,
+        daysCount: responseData.data?.earningsByDay?.length || 0,
+        ordersCount: responseData.data?.orderWiseBreakdown?.length || 0
+      }, 'success');
+      
+      return responseData;
+    } catch (error) {
+      logDeliveryServiceError('GET_DELIVERY_EARNINGS_ERROR', error, {
+        processingTime: `${Date.now() - startTime}ms`,
+        filters
+      });
+      throw error;
+    }
+  }
+
   // 🚚 GET ORDER NOTIFICATIONS
   async getOrderNotifications() {
     try {
