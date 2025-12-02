@@ -32,6 +32,8 @@ import DeliveryAgents from './pages/admin/DeliveryAgents';
 import AdminPayoutDashboard from './pages/admin/PayoutDashboard';
 import CODCollections from './pages/admin/CODCollections';
 import LiveLogs from './pages/admin/LiveLogs';
+import SupportTickets from './pages/admin/SupportTickets';
+import SupportTicketDetail from './pages/admin/SupportTicketDetail';
 
 // Admin Layout
 import AdminLayout from './components/layouts/AdminLayout';
@@ -100,6 +102,11 @@ import UserProfile from './pages/user/UserProfile';
 import ChangePassword from './pages/user/ChangePassword';
 import MyOrdersPage from './pages/user/MyOrdersPage';
 
+// Support Pages
+import CreateTicket from './pages/support/CreateTicket';
+import MyTickets from './pages/support/MyTickets';
+import TicketDetail from './pages/support/TicketDetail';
+
 // Static Pages
 import AboutPage from './pages/user/AboutPage';
 import ContactPage from './pages/user/ContactPage';
@@ -163,6 +170,8 @@ function App() {
             <Route path="/admin/cod-collections" element={<AdminLayout><CODCollections /></AdminLayout>} />
             <Route path="/admin/logs" element={<AdminLayout><LiveLogs /></AdminLayout>} />
             <Route path="/admin/live-logs" element={<AdminLayout><LiveLogs /></AdminLayout>} />
+            <Route path="/admin/support/tickets" element={<AdminLayout><SupportTickets /></AdminLayout>} />
+            <Route path="/admin/support/tickets/:ticketId" element={<AdminLayout><SupportTicketDetail /></AdminLayout>} />
             
             {/* 🆕 ADMIN ROUTE ALIASES - Point to main dashboard sections */}
             <Route path="/admin/orders" element={<AdminLayout><AdminDashboard /></AdminLayout>} />
@@ -295,6 +304,11 @@ function App() {
             {/* User Order Routes */}
             <Route path="/user/orders" element={<MyOrdersPage />} />
             <Route path="/user/my-orders" element={<MyOrdersPage />} />
+            
+            {/* Support Routes */}
+            <Route path="/support/create" element={<CreateTicket />} />
+            <Route path="/support/tickets" element={<MyTickets />} />
+            <Route path="/support/tickets/:ticketId" element={<TicketDetail />} />
             
             {/* Testing Routes */}
             <Route path="/test-socket" element={<SocketTestComponent />} />
