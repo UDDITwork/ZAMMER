@@ -335,9 +335,19 @@ const getEmailContent = (orderData, eventType) => {
       // Dynamic frontend URL based on environment
     const getFrontendUrl = () => {
       if (process.env.NODE_ENV === 'production') {
-        return process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com';
+        const prodUrl = process.env.FRONTEND_URL_PROD || 
+                       process.env.FRONTEND_URL || 
+                       process.env.PUBLIC_URL;
+        if (!prodUrl) {
+          console.warn('⚠️ No FRONTEND_URL_PROD configured in production');
+          return null;
+        }
+        return prodUrl.startsWith('https://') ? prodUrl : `https://${prodUrl.replace(/^https?:\/\//, '')}`;
       }
-      return process.env.FRONTEND_URL_LOCAL || 'http://localhost:3000';
+      return process.env.FRONTEND_URL_LOCAL || 
+             process.env.FRONTEND_URL || 
+             process.env.PUBLIC_URL ||
+             'http://localhost:3000';
     };
     
     const baseUrl = getFrontendUrl();

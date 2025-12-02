@@ -55,8 +55,12 @@ const getFrontendUrl = () => {
     // Production: Always return HTTPS URLs
     const prodUrl = process.env.FRONTEND_URL_PROD || 
                    process.env.FRONTEND_URL || 
-                   process.env.PUBLIC_URL ||
-                   'https://zammer2.uc.r.appspot.com';
+                   process.env.PUBLIC_URL;
+    
+    if (!prodUrl) {
+      console.warn('⚠️ No FRONTEND_URL_PROD configured in production');
+      return null;
+    }
     
     // Ensure HTTPS in production
     return prodUrl.startsWith('https://') ? prodUrl : `https://${prodUrl.replace(/^https?:\/\//, '')}`;
@@ -71,46 +75,102 @@ const getFrontendUrl = () => {
 
 const FRONTEND_URL = getFrontendUrl();
 
-// 🎯 ROBUST: Smart CORS Origins - Auto-detects environment
+// 🎯 FLEXIBLE: Smart CORS Origins - Works on all devices
 const getAllowedOrigins = () => {
+  // Base origins for all environments (CDN services)
+  const baseOrigins = [
+    'https://res.cloudinary.com',
+    'https://cloudinary.com'
+  ];
+  
   // Smart detection: Check if running locally
   const isLocal = process.env.PORT === '5001' || 
                   process.env.NODE_ENV === 'development' ||
                   process.env.FRONTEND_URL_LOCAL ||
                   !process.env.FRONTEND_URL_PROD;
   
-  // Base origins for all environments
-  const baseOrigins = [
-    'https://res.cloudinary.com',
-    'https://cloudinary.com'
-  ];
+  const allowedOrigins = [...baseOrigins];
   
   if (isLocal) {
-    // Local Development: Allow localhost + production URLs for testing
-    const localOrigins = [
+    // Local Development: Allow localhost variations
+    allowedOrigins.push(
       'http://localhost:3000',
       'http://127.0.0.1:3000',
       'https://localhost:3000',
-      // Also allow production URL in dev for testing
-      'https://zammer2.uc.r.appspot.com'
-    ];
+      'http://localhost',
+      'http://127.0.0.1'
+    );
+  }
+  
+  // Add frontend URL from environment variables (if configured)
+  if (FRONTEND_URL) {
+    // Add both with and without trailing slash
+    const cleanUrl = FRONTEND_URL.replace(/\/$/, '');
+    allowedOrigins.push(cleanUrl);
+    allowedOrigins.push(`${cleanUrl}/`);
     
-    return [...localOrigins, ...baseOrigins];
-  } else {
-    // Production: HTTPS URLs only
-    const prodOrigins = [
-      'https://zammer2.uc.r.appspot.com',
-      process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com'
-    ];
+    // Also add HTTP version if HTTPS is configured (for flexibility)
+    if (cleanUrl.startsWith('https://')) {
+      const httpVersion = cleanUrl.replace('https://', 'http://');
+      allowedOrigins.push(httpVersion);
+      allowedOrigins.push(`${httpVersion}/`);
+    }
+  }
+  
+  // Add environment-specific domains from CDN_DOMAINS
+  if (process.env.CDN_DOMAINS) {
+    const cdnDomains = process.env.CDN_DOMAINS.split(',').map(d => d.trim()).filter(Boolean);
+    cdnDomains.forEach(domain => {
+      const cleanDomain = domain.replace(/\/$/, '');
+      allowedOrigins.push(cleanDomain);
+      allowedOrigins.push(`${cleanDomain}/`);
+    });
+  }
+  
+  // Add ADDITIONAL_ALLOWED_ORIGINS if configured
+  if (process.env.ADDITIONAL_ALLOWED_ORIGINS) {
+    const additionalOrigins = process.env.ADDITIONAL_ALLOWED_ORIGINS.split(',').map(d => d.trim()).filter(Boolean);
+    additionalOrigins.forEach(origin => {
+      const cleanOrigin = origin.replace(/\/$/, '');
+      allowedOrigins.push(cleanOrigin);
+      allowedOrigins.push(`${cleanOrigin}/`);
+    });
+  }
+  
+  return allowedOrigins;
+};
+
+// 🎯 FLEXIBLE: Check if origin matches allowed patterns
+const isOriginAllowed = (origin) => {
+  if (!origin) return true; // Allow requests with no origin (mobile apps, Postman, etc.)
+  
+  const allowedOrigins = getAllowedOrigins();
+  
+  // Normalize origin (remove trailing slash for comparison)
+  const normalizedOrigin = origin.replace(/\/$/, '');
+  
+  // Check exact match
+  if (allowedOrigins.includes(origin) || allowedOrigins.includes(normalizedOrigin)) {
+    return true;
+  }
+  
+  // Check if origin matches any allowed origin pattern (flexible matching)
+  for (const allowed of allowedOrigins) {
+    const normalizedAllowed = allowed.replace(/\/$/, '');
     
-    // Add environment-specific domains
-    if (process.env.CDN_DOMAINS) {
-      const cdnDomains = process.env.CDN_DOMAINS.split(',').map(d => d.trim());
-      prodOrigins.push(...cdnDomains);
+    // Exact match (case-insensitive)
+    if (normalizedOrigin.toLowerCase() === normalizedAllowed.toLowerCase()) {
+      return true;
     }
     
-    return [...prodOrigins, ...baseOrigins];
+    // Pattern match: if allowed origin is a domain pattern, check if origin matches
+    // Example: if allowed is "https://example.com", allow "https://example.com" and "https://example.com/"
+    if (normalizedOrigin.toLowerCase().startsWith(normalizedAllowed.toLowerCase())) {
+      return true;
+    }
   }
+  
+  return false;
 };
 
 console.log(`
@@ -449,26 +509,23 @@ app.use('/api/admin', (req, res, next) => {
   next();
 });
 
-// ENHANCED: CORS configuration
+// ENHANCED: CORS configuration - Flexible for all devices
 const corsOptions = {
   origin: (origin, callback) => {
-    const allowedOrigins = getAllowedOrigins();
-    
-    // Allow requests with no origin (Postman, etc.)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // Use flexible origin matching
+    if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
       console.warn(`🚫 CORS blocked origin: ${origin}`);
-      callback(null, false);  // ✅ CHANGE: Return false instead of error
+      console.log(`📋 Allowed origins: ${getAllowedOrigins().join(', ')}`);
+      callback(null, false);
     }
   },
-  credentials: true,  // ✅ CHANGE FROM false TO true
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  preflightContinue: false,  // ✅ CHANGE FROM true TO false
+  preflightContinue: false,
   optionsSuccessStatus: 204
 };
 
