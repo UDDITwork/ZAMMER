@@ -645,7 +645,8 @@ const handleReturnAssignmentResponse = async (req, res) => {
   try {
     const { returnId } = req.params;
     const { response, reason } = req.body;
-    const agentId = req.user?.id;
+    // 🎯 FIX: Use req.deliveryAgent instead of req.user for delivery agent routes
+    const agentId = req.deliveryAgent?._id || req.deliveryAgent?.id;
 
     logReturnOperation('ReturnAssignmentResponse', {
       returnId,
@@ -795,7 +796,8 @@ const markReturnBuyerArrival = async (req, res) => {
   try {
     const { returnId } = req.params;
     const { location, notes } = req.body;
-    const agentId = req.user?.id;
+    // 🎯 FIX: Use req.deliveryAgent instead of req.user for delivery agent routes
+    const agentId = req.deliveryAgent?._id || req.deliveryAgent?.id;
 
     logReturnOperation('ReturnBuyerArrival', {
       returnId,
@@ -832,6 +834,51 @@ const markReturnBuyerArrival = async (req, res) => {
       });
     }
 
+    // 🎯 ISSUE 6 FIX: Generate and send OTP to buyer for return pickup verification
+    const buyerPhone = order.user?.mobileNumber || order.user?.phone;
+    let otpResult = null;
+    
+    if (buyerPhone) {
+      try {
+        otpResult = await msg91Service.sendOTPForForgotPassword(buyerPhone, {
+          purpose: 'return_pickup',
+          orderNumber: order.orderNumber,
+          userName: order.user?.name || 'Customer'
+        });
+
+        if (otpResult.success) {
+          // Store OTP metadata in return pickup details
+          order.returnDetails.returnPickup = order.returnDetails.returnPickup || {};
+          order.returnDetails.returnPickup.buyerOtpMeta = {
+            lastSentAt: new Date(),
+            requestId: otpResult.response?.request_id || otpResult.response?.requestId || '',
+            phoneNumber: buyerPhone,
+            verificationAttempts: 0
+          };
+          
+          logReturnOperation('ReturnBuyerArrival', {
+            otpSent: true,
+            buyerPhone,
+            requestId: otpResult.response?.request_id || otpResult.response?.requestId
+          }, 'success');
+        } else {
+          logReturnOperation('ReturnBuyerArrival', {
+            otpSent: false,
+            error: otpResult.error || 'Failed to send OTP'
+          }, 'warning');
+        }
+      } catch (otpError) {
+        logReturnOperation('ReturnBuyerArrival', {
+          otpError: otpError.message
+        }, 'warning');
+        // Continue even if OTP fails - frontend can handle fallback
+      }
+    } else {
+      logReturnOperation('ReturnBuyerArrival', {
+        warning: 'Buyer phone number not available for OTP'
+      }, 'warning');
+    }
+
     const arrivalTime = new Date();
     order.returnDetails.returnAssignment.buyerLocationReachedAt = arrivalTime;
     order.returnDetails.returnAssignment.status = 'agent_reached_buyer';
@@ -852,7 +899,8 @@ const markReturnBuyerArrival = async (req, res) => {
       location: location || {
         type: 'Point',
         coordinates: [0, 0]
-      }
+      },
+      otpSent: otpResult?.success || false
     });
 
     await order.save();
@@ -863,7 +911,15 @@ const markReturnBuyerArrival = async (req, res) => {
         orderId: order._id,
         orderNumber: order.orderNumber,
         status: order.returnDetails.returnStatus,
-        arrivedAt: arrivalTime
+        arrivedAt: arrivalTime,
+        otpSent: otpResult?.success || false,
+        // Include OTP info if sent successfully
+        ...(otpResult?.success && {
+          otpInfo: {
+            phoneNumber: buyerPhone,
+            sentAt: order.returnDetails?.returnPickup?.buyerOtpMeta?.lastSentAt
+          }
+        })
       });
     }
 
@@ -879,12 +935,14 @@ const markReturnBuyerArrival = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Buyer location marked as reached',
+      message: 'Buyer location marked as reached' + (otpResult?.success ? ' and OTP sent' : ''),
       data: {
         orderId: order._id,
         orderNumber: order.orderNumber,
         returnStatus: order.returnDetails.returnStatus,
-        buyerLocationReachedAt: arrivalTime
+        buyerLocationReachedAt: arrivalTime,
+        otpSent: otpResult?.success || false,
+        buyerOtpMeta: order.returnDetails?.returnPickup?.buyerOtpMeta || null
       }
     });
 
@@ -908,7 +966,8 @@ const completeReturnPickup = async (req, res) => {
   try {
     const { returnId } = req.params;
     const { otp, location, notes } = req.body;
-    const agentId = req.user?.id;
+    // 🎯 FIX: Use req.deliveryAgent instead of req.user for delivery agent routes
+    const agentId = req.deliveryAgent?._id || req.deliveryAgent?.id;
 
     logReturnOperation('CompleteReturnPickup', {
       returnId,
@@ -920,7 +979,7 @@ const completeReturnPickup = async (req, res) => {
 
     // Find the order
     const order = await Order.findById(returnId)
-      .populate('user', 'name email phone')
+      .populate('user', 'name email phone mobileNumber')
       .populate('seller', 'firstName shop')
       .populate('returnDetails.returnAssignment.deliveryAgent', 'firstName lastName phone');
 
@@ -932,7 +991,7 @@ const completeReturnPickup = async (req, res) => {
     }
 
     // Check if agent is assigned to this return
-    if (order.returnDetails?.returnAssignment?.deliveryAgent?.toString() !== agentId) {
+    if (order.returnDetails?.returnAssignment?.deliveryAgent?.toString() !== agentId?.toString() !== agentId?.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized to complete pickup for this return'
@@ -948,10 +1007,43 @@ const completeReturnPickup = async (req, res) => {
       });
     }
 
+    // 🎯 ISSUE 6 FIX: Verify OTP if provided (buyer should provide OTP sent when agent arrived)
+    const buyerPhone = order.user?.mobileNumber || order.user?.phone;
+    if (otp && buyerPhone) {
+      try {
+        const otpVerification = await msg91Service.verifyOTP({
+          phoneNumber: buyerPhone,
+          otp
+        });
+
+        if (!otpVerification.success) {
+          return res.status(400).json({
+            success: false,
+            message: otpVerification.message || 'Invalid OTP. Please check and try again.'
+          });
+        }
+
+        // Update OTP verification attempts
+        if (order.returnDetails?.returnPickup?.buyerOtpMeta) {
+          order.returnDetails.returnPickup.buyerOtpMeta.verificationAttempts = 
+            (order.returnDetails.returnPickup.buyerOtpMeta.verificationAttempts || 0) + 1;
+          order.returnDetails.returnPickup.buyerOtpMeta.verifiedAt = new Date();
+        }
+      } catch (otpError) {
+        logReturnOperation('CompleteReturnPickup', {
+          otpError: otpError.message
+        }, 'warning');
+        return res.status(400).json({
+          success: false,
+          message: 'Failed to verify OTP. Please try again.'
+        });
+      }
+    }
+
     try {
       // Complete return pickup using the model method
       await order.completeReturnPickup({
-        pickupOTP: null,
+        pickupOTP: otp || null,
         location: location || {
           type: 'Point',
           coordinates: [0, 0]
@@ -1044,7 +1136,8 @@ const markReturnSellerArrival = async (req, res) => {
   try {
     const { returnId } = req.params;
     const { location, notes } = req.body;
-    const agentId = req.user?.id;
+    // 🎯 FIX: Use req.deliveryAgent instead of req.user for delivery agent routes
+    const agentId = req.deliveryAgent?._id || req.deliveryAgent?.id;
 
     logReturnOperation('ReturnSellerArrival', {
       returnId,
@@ -1185,7 +1278,8 @@ const completeReturnDelivery = async (req, res) => {
   try {
     const { returnId } = req.params;
     const { otp, location, notes } = req.body;
-    const agentId = req.user?.id;
+    // 🎯 FIX: Use req.deliveryAgent instead of req.user for delivery agent routes
+    const agentId = req.deliveryAgent?._id || req.deliveryAgent?.id;
 
     logReturnOperation('CompleteReturnDelivery', {
       returnId,
@@ -1458,7 +1552,8 @@ const completeReturn = async (req, res) => {
 // 🎯 GET DELIVERY AGENT RETURN ASSIGNMENTS
 const getDeliveryAgentReturns = async (req, res) => {
   try {
-    const agentId = req.user?.id;
+    // 🎯 FIX: Use req.deliveryAgent instead of req.user for delivery agent routes
+    const agentId = req.deliveryAgent?._id || req.deliveryAgent?.id;
 
     logReturnOperation('GetDeliveryAgentReturns', {
       agentId,
@@ -1491,7 +1586,7 @@ const getDeliveryAgentReturns = async (req, res) => {
   } catch (error) {
     logReturnOperation('GetDeliveryAgentReturns', {
       error: error.message,
-      agentId: req.user?.id,
+      agentId: req.deliveryAgent?._id || req.deliveryAgent?.id,
       stack: error.stack
     }, 'error');
 
@@ -1570,7 +1665,8 @@ const markReturnPickupFailed = async (req, res) => {
   try {
     const { returnId } = req.params;
     const { reason } = req.body;
-    const agentId = req.user?.id;
+    // 🎯 FIX: Use req.deliveryAgent instead of req.user for delivery agent routes
+    const agentId = req.deliveryAgent?._id || req.deliveryAgent?.id;
 
     logReturnOperation('MarkReturnPickupFailed', {
       returnId,
@@ -1678,7 +1774,7 @@ const markReturnPickupFailed = async (req, res) => {
     logReturnOperation('MarkReturnPickupFailed', {
       error: error.message,
       returnId: req.params.returnId,
-      agentId: req.user?.id,
+      agentId: req.deliveryAgent?._id || req.deliveryAgent?.id,
       stack: error.stack
     }, 'error');
 

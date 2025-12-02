@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { FiX, FiClock, FiAlertCircle, FiCheckCircle, FiPackage, FiUser, FiMapPin } from 'react-icons/fi';
+import returnService from '../../services/returnService';
 
 const ReturnRequestModal = ({ 
   isOpen, 
@@ -35,21 +36,16 @@ const ReturnRequestModal = ({
 
   const checkReturnEligibility = async () => {
     try {
-      const response = await fetch(`/api/returns/eligibility/${order._id}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      const data = await response.json();
+      const data = await returnService.checkReturnEligibility(order._id);
       
       if (data.success) {
         setEligibility(data.data);
       } else {
-        setError(data.message);
+        setError(data.message || 'Failed to check return eligibility');
       }
     } catch (err) {
-      setError('Failed to check return eligibility');
+      console.error('Error checking return eligibility:', err);
+      setError(err.message || 'Failed to check return eligibility');
     }
   };
 
@@ -67,34 +63,19 @@ const ReturnRequestModal = ({
     setError('');
 
     try {
-      // Use socket for real-time request
-      if (socket) {
-        socket.emit('request-return', {
-          orderId: order._id,
-          reason
-        });
+      // Use returnService.requestReturn for consistent error handling and token management
+      // This ensures proper API base URL and authentication
+      const data = await returnService.requestReturn(order._id, reason);
+      
+      if (data.success) {
+        onReturnRequested(data.data);
+        onClose();
       } else {
-        // Fallback to REST API
-        const response = await fetch(`/api/returns/request/${order._id}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify({ reason })
-        });
-
-        const data = await response.json();
-        
-        if (data.success) {
-          onReturnRequested(data.data);
-          onClose();
-        } else {
-          setError(data.message);
-        }
+        setError(data.message || 'Failed to submit return request');
       }
     } catch (err) {
-      setError('Failed to submit return request');
+      console.error('Error submitting return request:', err);
+      setError(err.message || 'Failed to submit return request. Please try again.');
     } finally {
       setLoading(false);
     }

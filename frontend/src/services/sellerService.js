@@ -669,6 +669,10 @@ const sellerService = {
   deleteImage,
   getPaymentTracking,
   getEarningsSummary,
+  createBeneficiary,
+  getBeneficiary,
+  updateBeneficiary,
+  getPayoutHistory,
   getPayoutStats
 };
 

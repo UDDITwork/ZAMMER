@@ -42,10 +42,39 @@ exports.createBeneficiary = async (req, res) => {
       correlationId
     }, 'info', correlationId);
 
-    // Check if seller has complete bank details
+    // Get seller and update bank details from request body if provided
     logDatabaseOperation('FIND', 'Seller', { sellerId: req.seller._id }, correlationId);
     const seller = await Seller.findById(req.seller._id);
     
+    // Update bank details from request body if provided
+    const { accountNumber, ifscCode, accountHolderName, bankName } = req.body;
+    
+    if (accountNumber || ifscCode || accountHolderName || bankName) {
+      seller.bankDetails = {
+        ...seller.bankDetails,
+        ...(accountNumber && { accountNumber }),
+        ...(ifscCode && { ifscCode }),
+        ...(bankName && { bankName }),
+        ...(accountHolderName && { accountHolderName }),
+      };
+      
+      // If accountHolderName is provided, also update firstName (as per Cashfree service usage)
+      if (accountHolderName) {
+        seller.firstName = accountHolderName;
+      }
+      
+      logDatabaseOperation('UPDATE', 'Seller', { sellerId: req.seller._id, bankDetails: 'updated' }, correlationId);
+      await seller.save();
+      
+      logger.payment('CREATE_BENEFICIARY_BANK_DETAILS_UPDATED', {
+        sellerId: req.seller._id,
+        hasAccountNumber: !!seller.bankDetails.accountNumber,
+        hasIfscCode: !!seller.bankDetails.ifscCode,
+        correlationId
+      }, 'info', correlationId);
+    }
+    
+    // Check if seller has complete bank details after update
     if (!seller.bankDetails.accountNumber || !seller.bankDetails.ifscCode) {
       logger.payment('CREATE_BENEFICIARY_INCOMPLETE_BANK_DETAILS', {
         sellerId: req.seller._id,

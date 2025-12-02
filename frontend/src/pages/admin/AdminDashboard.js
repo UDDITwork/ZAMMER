@@ -1633,7 +1633,10 @@ const AdminDashboard = ({ defaultActiveTab = 'dashboard' }) => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex gap-2">
-                              {returnOrder.returnDetails.returnStatus === 'requested' && (
+                              {/* 🎯 ISSUE 3 FIX: Allow assignment for both 'requested' and 'approved' status (returns are auto-approved) */}
+                              {(returnOrder.returnDetails.returnStatus === 'requested' || 
+                                returnOrder.returnDetails.returnStatus === 'approved') && 
+                               !returnOrder.returnDetails.returnAssignment?.deliveryAgent && (
                                 <select
                                   onChange={(e) => {
                                     if (e.target.value) {
@@ -1645,7 +1648,7 @@ const AdminDashboard = ({ defaultActiveTab = 'dashboard' }) => {
                                 >
                                   <option value="">Assign Agent</option>
                                   {deliveryAgents
-                                    .filter(agent => agent.capacity?.isAvailable)
+                                    .filter(agent => agent.isActive && agent.capacity?.isAvailable)
                                     .map(agent => (
                                       <option key={agent._id} value={agent._id}>
                                         {agent.name}
