@@ -21,9 +21,19 @@ const PORT = Number(process.env.PORT) || 5001;
 // 🎯 ROBUST: Smart Frontend URL Detection
 const getFrontendUrl = () => {
   if (NODE_ENV === 'production') {
-    return process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com';
+    const prodUrl = process.env.FRONTEND_URL_PROD || 
+                   process.env.FRONTEND_URL || 
+                   process.env.PUBLIC_URL;
+    if (!prodUrl) {
+      console.warn('⚠️ No FRONTEND_URL_PROD configured in production');
+      return null;
+    }
+    return prodUrl.startsWith('https://') ? prodUrl : `https://${prodUrl.replace(/^https?:\/\//, '')}`;
   }
-  return process.env.FRONTEND_URL_LOCAL || 'http://localhost:3000';
+  return process.env.FRONTEND_URL_LOCAL || 
+         process.env.FRONTEND_URL || 
+         process.env.PUBLIC_URL ||
+         'http://localhost:3000';
 };
 
 const FRONTEND_URL = getFrontendUrl();
@@ -59,29 +69,68 @@ async function initializeServer() {
   // Create HTTP server
   httpServer = http.createServer(app);
 
-  // 🎯 ROBUST: Smart Socket.IO Origins - Auto-detects environment
+  // 🎯 FLEXIBLE: Smart Socket.IO Origins - Works on all devices
   const getAllowedOrigins = () => {
     const isProduction = process.env.NODE_ENV === 'production';
+    const origins = [];
     
     if (isProduction) {
-      // Production: HTTPS URLs + patterns
-      return [
-        'https://zammer2.uc.r.appspot.com',
-        process.env.FRONTEND_URL_PROD || 'https://zammer2.uc.r.appspot.com',
-        /https:\/\/.*\.appspot\.com$/,
-        /https:\/\/.*\.googleusercontent\.com$/,
-        'https://onyx-osprey-462815-i9.appspot.com'
-      ];
+      // Production: Use environment variables + flexible patterns
+      if (FRONTEND_URL) {
+        const cleanUrl = FRONTEND_URL.replace(/\/$/, '');
+        origins.push(cleanUrl);
+        origins.push(`${cleanUrl}/`);
+        
+        // Add HTTP version for flexibility
+        if (cleanUrl.startsWith('https://')) {
+          const httpVersion = cleanUrl.replace('https://', 'http://');
+          origins.push(httpVersion);
+          origins.push(`${httpVersion}/`);
+        }
+      }
+      
+      // Add pattern matching for Google Cloud domains
+      origins.push(/https:\/\/.*\.appspot\.com$/);
+      origins.push(/https:\/\/.*\.googleusercontent\.com$/);
+      
+      // Add CDN domains if configured
+      if (process.env.CDN_DOMAINS) {
+        const cdnDomains = process.env.CDN_DOMAINS.split(',').map(d => d.trim()).filter(Boolean);
+        cdnDomains.forEach(domain => {
+          const cleanDomain = domain.replace(/\/$/, '');
+          origins.push(cleanDomain);
+          origins.push(`${cleanDomain}/`);
+        });
+      }
+      
+      // Add additional origins if configured
+      if (process.env.ADDITIONAL_ALLOWED_ORIGINS) {
+        const additionalOrigins = process.env.ADDITIONAL_ALLOWED_ORIGINS.split(',').map(d => d.trim()).filter(Boolean);
+        additionalOrigins.forEach(origin => {
+          const cleanOrigin = origin.replace(/\/$/, '');
+          origins.push(cleanOrigin);
+          origins.push(`${cleanOrigin}/`);
+        });
+      }
     } else {
-      // Development: Localhost + production URLs for testing
-      return [
+      // Development: Localhost variations
+      origins.push(
         'http://localhost:3000',
         'http://127.0.0.1:3000',
         'https://localhost:3000',
-        // Also allow production URL in dev for testing
-        'https://zammer2.uc.r.appspot.com'
-      ];
+        'http://localhost',
+        'http://127.0.0.1'
+      );
+      
+      // Add production URL if configured (for testing)
+      if (FRONTEND_URL && FRONTEND_URL !== 'http://localhost:3000') {
+        const cleanUrl = FRONTEND_URL.replace(/\/$/, '');
+        origins.push(cleanUrl);
+        origins.push(`${cleanUrl}/`);
+      }
     }
+    
+    return origins;
   };
 
   // Setup Socket.IO with enhanced CORS configuration
