@@ -1606,11 +1606,18 @@ OrderSchema.methods.handleReturnAgentResponse = function(response, reason = '') 
     throw error;
   }
   
-  // Validate current state
-  if (this.returnDetails?.returnAssignment?.status !== 'assigned') {
-    const error = new Error(`Cannot handle response. Assignment status must be 'assigned', but is: ${this.returnDetails?.returnAssignment?.status}`);
+  // 🎯 ISSUE 4 FIX: Enhanced status validation with better error messages
+  const currentAssignmentStatus = this.returnDetails?.returnAssignment?.status;
+  if (currentAssignmentStatus !== 'assigned') {
+    const error = new Error(
+      `Cannot handle response. Assignment status must be 'assigned', but is: ${currentAssignmentStatus}. ` +
+      `Return status: ${this.returnDetails?.returnStatus}. ` +
+      `If you've already responded, please refresh the page.`
+    );
     console.error('❌ [RETURN-AGENT-RESPONSE] Invalid assignment status:', JSON.stringify({
       ...logContext,
+      currentAssignmentStatus,
+      returnStatus: this.returnDetails?.returnStatus,
       error: error.message
     }, null, 2));
     throw error;

@@ -11,11 +11,12 @@ class ReturnService {
 
   // Get authorization headers - fetch token fresh each time
   getHeaders() {
-    const token = localStorage.getItem('token');
+    // 🎯 FIX: Use 'userToken' for buyers/users (matches app's token storage pattern)
+    const token = localStorage.getItem('userToken') || localStorage.getItem('token');
     
     // 🎯 LOGGING: Log token status (without exposing full token)
     if (!token) {
-      console.error('❌ [RETURN-SERVICE] No token found in localStorage');
+      console.error('❌ [RETURN-SERVICE] No token found in localStorage (checked userToken and token)');
     } else if (token.length < 10) {
       console.error('❌ [RETURN-SERVICE] Token appears invalid (too short):', {
         tokenLength: token.length,
@@ -99,8 +100,8 @@ class ReturnService {
         orderId,
         apiBaseUrl: API_BASE_URL,
         endpoint: `${API_BASE_URL}/api/returns/eligibility/${orderId}`,
-        hasToken: !!localStorage.getItem('token'),
-        tokenLength: localStorage.getItem('token')?.length || 0
+        hasToken: !!(localStorage.getItem('userToken') || localStorage.getItem('token')),
+        tokenLength: (localStorage.getItem('userToken') || localStorage.getItem('token'))?.length || 0
       });
       
       const headers = this.getHeaders();
@@ -134,8 +135,8 @@ class ReturnService {
           requestId,
           status: 401,
           message: 'Unauthorized - token may be invalid or expired',
-          tokenExists: !!localStorage.getItem('token'),
-          tokenLength: localStorage.getItem('token')?.length || 0
+          tokenExists: !!(localStorage.getItem('userToken') || localStorage.getItem('token')),
+          tokenLength: (localStorage.getItem('userToken') || localStorage.getItem('token'))?.length || 0
         });
       }
 

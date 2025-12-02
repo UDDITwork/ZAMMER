@@ -114,6 +114,10 @@ const sellerSchema = new mongoose.Schema({
       type: String,
       default: ''
     },
+    accountHolderName: {
+      type: String,
+      default: ''
+    },
     accountType: {
       type: String,
       default: ''
