@@ -83,6 +83,17 @@ const getAllowedOrigins = () => {
     'https://cloudinary.com'
   ];
   
+  // 🎯 PRODUCTION FALLBACK: Explicitly allow zammernow.com domains
+  // This ensures CORS works even if environment variables aren't set correctly
+  if (process.env.NODE_ENV === 'production') {
+    baseOrigins.push(
+      'https://zammernow.com',
+      'https://www.zammernow.com',
+      'https://zammernow.com/',
+      'https://www.zammernow.com/'
+    );
+  }
+  
   // Smart detection: Check if running locally
   const isLocal = process.env.PORT === '5001' || 
                   process.env.NODE_ENV === 'development' ||
@@ -109,11 +120,45 @@ const getAllowedOrigins = () => {
     allowedOrigins.push(cleanUrl);
     allowedOrigins.push(`${cleanUrl}/`);
     
+    // 🎯 CRITICAL FIX: Automatically add www and non-www versions
+    // Extract domain from URL
+    const urlMatch = cleanUrl.match(/^https?:\/\/([^\/]+)/);
+    if (urlMatch) {
+      const domain = urlMatch[1];
+      
+      // If domain doesn't start with www, add www version
+      if (!domain.startsWith('www.')) {
+        const wwwVersion = cleanUrl.replace(domain, `www.${domain}`);
+        allowedOrigins.push(wwwVersion);
+        allowedOrigins.push(`${wwwVersion}/`);
+      } else {
+        // If domain starts with www, add non-www version
+        const nonWwwVersion = cleanUrl.replace('www.', '');
+        allowedOrigins.push(nonWwwVersion);
+        allowedOrigins.push(`${nonWwwVersion}/`);
+      }
+    }
+    
     // Also add HTTP version if HTTPS is configured (for flexibility)
     if (cleanUrl.startsWith('https://')) {
       const httpVersion = cleanUrl.replace('https://', 'http://');
       allowedOrigins.push(httpVersion);
       allowedOrigins.push(`${httpVersion}/`);
+      
+      // Add www/non-www versions for HTTP too
+      const httpUrlMatch = httpVersion.match(/^http:\/\/([^\/]+)/);
+      if (httpUrlMatch) {
+        const httpDomain = httpUrlMatch[1];
+        if (!httpDomain.startsWith('www.')) {
+          const httpWwwVersion = httpVersion.replace(httpDomain, `www.${httpDomain}`);
+          allowedOrigins.push(httpWwwVersion);
+          allowedOrigins.push(`${httpWwwVersion}/`);
+        } else {
+          const httpNonWwwVersion = httpVersion.replace('www.', '');
+          allowedOrigins.push(httpNonWwwVersion);
+          allowedOrigins.push(`${httpNonWwwVersion}/`);
+        }
+      }
     }
   }
   
@@ -152,6 +197,35 @@ const isOriginAllowed = (origin) => {
   // Check exact match
   if (allowedOrigins.includes(origin) || allowedOrigins.includes(normalizedOrigin)) {
     return true;
+  }
+  
+  // 🎯 CRITICAL FIX: Check www/non-www variants
+  const originMatch = normalizedOrigin.match(/^https?:\/\/(www\.)?([^\/]+)/);
+  if (originMatch) {
+    const hasWww = !!originMatch[1];
+    const domain = originMatch[2];
+    
+    // Check if non-www version is allowed when origin has www
+    if (hasWww) {
+      const nonWwwOrigin = normalizedOrigin.replace('www.', '');
+      if (allowedOrigins.some(allowed => {
+        const normalizedAllowed = allowed.replace(/\/$/, '');
+        return normalizedAllowed.toLowerCase() === nonWwwOrigin.toLowerCase() ||
+               normalizedAllowed.toLowerCase().startsWith(nonWwwOrigin.toLowerCase());
+      })) {
+        return true;
+      }
+    } else {
+      // Check if www version is allowed when origin doesn't have www
+      const wwwOrigin = normalizedOrigin.replace(/^https?:\/\//, 'https://www.');
+      if (allowedOrigins.some(allowed => {
+        const normalizedAllowed = allowed.replace(/\/$/, '');
+        return normalizedAllowed.toLowerCase() === wwwOrigin.toLowerCase() ||
+               normalizedAllowed.toLowerCase().startsWith(wwwOrigin.toLowerCase());
+      })) {
+        return true;
+      }
+    }
   }
   
   // Check if origin matches any allowed origin pattern (flexible matching)
@@ -514,16 +588,17 @@ const corsOptions = {
   origin: (origin, callback) => {
     // Use flexible origin matching
     if (isOriginAllowed(origin)) {
+      console.log(`✅ [CORS] Allowing origin: ${origin}`);
       callback(null, true);
     } else {
-      console.warn(`🚫 CORS blocked origin: ${origin}`);
-      console.log(`📋 Allowed origins: ${getAllowedOrigins().join(', ')}`);
+      console.warn(`🚫 [CORS] Blocked origin: ${origin}`);
+      console.log(`📋 [CORS] Allowed origins (${getAllowedOrigins().length} total):`, getAllowedOrigins().slice(0, 10).join(', '), getAllowedOrigins().length > 10 ? '...' : '');
       callback(null, false);
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
   preflightContinue: false,
   optionsSuccessStatus: 204
@@ -531,13 +606,30 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Log CORS preflight requests
-app.options('*', (req, res, next) => {
+// 🎯 ENHANCED: Explicit OPTIONS handler for all routes to ensure preflight requests are handled
+app.options('*', (req, res) => {
   const logColor = '\x1b[35m'; // Magenta
   const resetColor = '\x1b[0m';
-  console.log(`${logColor}🛫 [CORS-PREFLIGHT] ${req.method} ${req.originalUrl} | Origin: ${req.headers.origin || 'N/A'} | Headers: ${req.headers['access-control-request-headers']}${resetColor}`);
-  next();
-}, cors(corsOptions));
+  const origin = req.headers.origin;
+  
+  console.log(`${logColor}🛫 [CORS-PREFLIGHT] ${req.method} ${req.originalUrl}${resetColor}`);
+  console.log(`${logColor}   Origin: ${origin || 'N/A'}${resetColor}`);
+  console.log(`${logColor}   Request Headers: ${req.headers['access-control-request-headers'] || 'N/A'}${resetColor}`);
+  
+  // Apply CORS headers manually to ensure they're set
+  if (isOriginAllowed(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Max-Age', '86400'); // 24 hours
+    console.log(`${logColor}   ✅ Preflight allowed${resetColor}`);
+  } else {
+    console.log(`${logColor}   ❌ Preflight blocked${resetColor}`);
+  }
+  
+  res.status(204).end();
+});
 
 // Parse JSON body requests
 app.use(express.json({ limit: '10mb' }));
