@@ -562,7 +562,28 @@ export const createBeneficiary = async (bankDetails) => {
     return response.data;
   } catch (error) {
     console.error('❌ Beneficiary creation error:', error.response?.data || error);
-    throw error.response?.data || error;
+    
+    // Preserve all error details from backend response
+    if (error.response?.data) {
+      const errorData = error.response.data;
+      const enhancedError = new Error(errorData.message || errorData.error || 'Failed to create beneficiary');
+      
+      // Attach all error details to the error object
+      enhancedError.response = {
+        success: errorData.success,
+        message: errorData.message,
+        errorCode: errorData.errorCode,
+        cashfreeCode: errorData.cashfreeCode,
+        cashfreeType: errorData.cashfreeType,
+        statusCode: errorData.statusCode,
+        details: errorData.details,
+        actionableMessage: errorData.actionableMessage
+      };
+      
+      throw enhancedError;
+    }
+    
+    throw error;
   }
 };
 

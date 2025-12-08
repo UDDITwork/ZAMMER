@@ -19,6 +19,7 @@ const BeneficiaryManagement = () => {
     bankName: ''
   });
   const [errors, setErrors] = useState({});
+  const [apiError, setApiError] = useState(null);
 
   useEffect(() => {
     fetchBeneficiaryDetails();
@@ -104,17 +105,38 @@ const BeneficiaryManagement = () => {
 
     try {
       setSubmitting(true);
+      setApiError(null); // Clear previous errors
       const response = await sellerService.createBeneficiary(bankDetails);
       
       if (response.success) {
         toast.success('Beneficiary created successfully! Please wait for verification.');
         setBeneficiary(response.data);
+        setApiError(null);
       } else {
         throw new Error(response.message || 'Failed to create beneficiary');
       }
     } catch (error) {
       console.error('Error creating beneficiary:', error);
-      toast.error(error.message || 'Failed to create beneficiary');
+      
+      // Extract detailed error information with null checks
+      const errorDetails = error.response || {};
+      const errorMessage = error.message || errorDetails.message || 'Failed to create beneficiary';
+      const actionableMessage = errorDetails.actionableMessage;
+      const errorCode = errorDetails.errorCode;
+      const cashfreeCode = errorDetails.cashfreeCode;
+      const statusCode = errorDetails.statusCode;
+      
+      // Set API error state for detailed display
+      setApiError({
+        message: errorMessage,
+        actionableMessage: actionableMessage || null,
+        errorCode: errorCode || null,
+        cashfreeCode: cashfreeCode || null,
+        statusCode: statusCode || null
+      });
+      
+      // Show toast with actionable message if available, otherwise show main message
+      toast.error(actionableMessage || errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -130,17 +152,38 @@ const BeneficiaryManagement = () => {
 
     try {
       setSubmitting(true);
+      setApiError(null); // Clear previous errors
       const response = await sellerService.updateBeneficiary(bankDetails);
       
       if (response.success) {
         toast.success('Beneficiary updated successfully! Please wait for verification.');
         setBeneficiary(response.data);
+        setApiError(null);
       } else {
         throw new Error(response.message || 'Failed to update beneficiary');
       }
     } catch (error) {
       console.error('Error updating beneficiary:', error);
-      toast.error(error.message || 'Failed to update beneficiary');
+      
+      // Extract detailed error information with null checks
+      const errorDetails = error.response || {};
+      const errorMessage = error.message || errorDetails.message || 'Failed to update beneficiary';
+      const actionableMessage = errorDetails.actionableMessage;
+      const errorCode = errorDetails.errorCode;
+      const cashfreeCode = errorDetails.cashfreeCode;
+      const statusCode = errorDetails.statusCode;
+      
+      // Set API error state for detailed display
+      setApiError({
+        message: errorMessage,
+        actionableMessage: actionableMessage || null,
+        errorCode: errorCode || null,
+        cashfreeCode: cashfreeCode || null,
+        statusCode: statusCode || null
+      });
+      
+      // Show toast with actionable message if available, otherwise show main message
+      toast.error(actionableMessage || errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -296,6 +339,50 @@ const BeneficiaryManagement = () => {
               }
             </p>
           </div>
+
+          {/* API Error Display */}
+          {apiError && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3 flex-1">
+                  <h3 className="text-sm font-medium text-red-800">Error Creating Beneficiary</h3>
+                  <div className="mt-2 text-sm text-red-700">
+                    <p className="font-medium">{apiError.message}</p>
+                    {apiError.actionableMessage && apiError.actionableMessage !== apiError.message && (
+                      <p className="mt-2">{apiError.actionableMessage}</p>
+                    )}
+                    {(apiError.errorCode || apiError.cashfreeCode) && (
+                      <div className="mt-3 pt-3 border-t border-red-200">
+                        <p className="text-xs text-red-600">
+                          {apiError.errorCode && <span className="font-mono">Error Code: {apiError.errorCode}</span>}
+                          {apiError.errorCode && apiError.cashfreeCode && <span className="mx-2">•</span>}
+                          {apiError.cashfreeCode && <span className="font-mono">Cashfree Code: {apiError.cashfreeCode}</span>}
+                          {apiError.statusCode && (
+                            <>
+                              <span className="mx-2">•</span>
+                              <span>Status: {apiError.statusCode}</span>
+                            </>
+                          )}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setApiError(null)}
+                    className="mt-3 text-sm text-red-800 hover:text-red-900 underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={beneficiary ? handleUpdateBeneficiary : handleCreateBeneficiary}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

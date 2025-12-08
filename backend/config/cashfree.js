@@ -43,9 +43,9 @@ const getConfig = () => {
 // API Endpoints
 const endpoints = {
   // Beneficiary Management V2
-  createBeneficiary: '/v2/beneficiary',
-  getBeneficiary: '/v2/beneficiary',
-  removeBeneficiary: '/v2/beneficiary',
+  createBeneficiary: '/beneficiary',
+  getBeneficiary: '/beneficiary',
+  removeBeneficiary: '/beneficiary',
   
   // Transfer Management V2
   standardTransfer: '/v2/transfers',
@@ -115,11 +115,30 @@ const commissionConfig = {
 
 // Error Code Mapping
 const errorCodeMap = {
+  // Beneficiary Errors
   'beneficiary_not_found': 'BENEFICIARY_NOT_FOUND',
-  'beneficiary_id_already_exists': 'BENEFICIARY_EXISTS',
-  'insufficient_balance': 'INSUFFICIENT_BALANCE',
+  'beneficiary_id_already_exists': 'BENEFICIARY_ID_EXISTS',
+  'beneficiary_already_exists': 'BENEFICIARY_EXISTS',
+  'beneficiary_id_length_exceeded': 'BENEFICIARY_ID_TOO_LONG',
+  'beneficiary_id_invalid': 'BENEFICIARY_ID_INVALID',
+  'beneficiary_purpose_invalid': 'BENEFICIARY_PURPOSE_INVALID',
+  
+  // Bank Account Errors
+  'bank_ifsc_missing': 'IFSC_MISSING',
+  'bank_account_number_missing': 'ACCOUNT_NUMBER_MISSING',
+  'bank_account_number_length_exceeded': 'ACCOUNT_NUMBER_TOO_LONG',
+  'bank_account_number_length_short': 'ACCOUNT_NUMBER_TOO_SHORT',
+  'bank_account_number_invalid': 'ACCOUNT_NUMBER_INVALID',
+  'bank_ifsc_invalid': 'IFSC_INVALID',
+  'bank_account_number_same_as_source': 'ACCOUNT_SAME_AS_SOURCE',
+  'vba_beneficiary_not_allowed': 'VBA_NOT_ALLOWED',
   'invalid_bene_account_or_ifsc': 'INVALID_BANK_DETAILS',
+  
+  // Transfer Errors
+  'insufficient_balance': 'INSUFFICIENT_BALANCE',
   'transfer_limit_breach': 'TRANSFER_LIMIT_EXCEEDED',
+  
+  // API Errors
   'apis_not_enabled': 'API_NOT_ENABLED',
   'internal_server_error': 'SERVER_ERROR'
 };

@@ -127,6 +127,11 @@ exports.createBeneficiary = async (req, res) => {
       console.error(`❌ [CREATE_BENEFICIARY] Failed to send notification:`, notificationError.message);
     }
 
+    endOperation(operationId, 'SUCCESS', { 
+      beneficiaryId: beneficiary.beneficiaryId,
+      status: beneficiary.beneficiaryStatus
+    });
+
     res.status(201).json({
       success: true,
       message: 'Beneficiary created successfully',
@@ -143,6 +148,43 @@ exports.createBeneficiary = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ [CREATE_BENEFICIARY] Error:', error);
+    
+    // Check if this is a Cashfree API error
+    if (error.cashfreeError) {
+      const cashfreeError = error.cashfreeError;
+      const statusCode = cashfreeError.statusCode || 400;
+      
+      logger.payment('CREATE_BENEFICIARY_CASHFREE_ERROR', {
+        sellerId: req.seller._id,
+        errorCode: cashfreeError.errorCode,
+        cashfreeCode: cashfreeError.cashfreeCode,
+        cashfreeType: cashfreeError.cashfreeType,
+        statusCode: statusCode,
+        message: error.message,
+        correlationId
+      }, 'error', correlationId);
+
+      endOperation(operationId, 'FAILED', { 
+        reason: 'Cashfree API error',
+        errorCode: cashfreeError.errorCode,
+        cashfreeCode: cashfreeError.cashfreeCode
+      });
+
+      return res.status(statusCode).json({
+        success: false,
+        message: error.message || 'Failed to create beneficiary',
+        errorCode: cashfreeError.errorCode,
+        cashfreeCode: cashfreeError.cashfreeCode,
+        cashfreeType: cashfreeError.cashfreeType,
+        statusCode: statusCode,
+        details: cashfreeError.details,
+        actionableMessage: cashfreeError.actionableMessage
+      });
+    }
+
+    // Handle other errors (validation, database, etc.)
+    endOperation(operationId, 'FAILED', { reason: error.message });
+    
     res.status(500).json({
       success: false,
       message: 'Failed to create beneficiary',

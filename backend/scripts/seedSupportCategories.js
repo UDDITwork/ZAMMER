@@ -29,14 +29,14 @@ const categories = [
   {
     userType: 'buyer',
     categoryCode: 'WRONG_PRODUCT',
-    categoryName: 'Wrong product received',
+    categoryName: 'Wrong product Received',
     description: 'Received a different product than ordered',
     defaultPriority: 'high'
   },
   {
     userType: 'buyer',
     categoryCode: 'DAMAGED_PRODUCT',
-    categoryName: 'Damaged/defective product',
+    categoryName: 'Damaged / defective product',
     description: 'Product received is damaged or defective',
     defaultPriority: 'high'
   },
@@ -57,7 +57,7 @@ const categories = [
   {
     userType: 'buyer',
     categoryCode: 'RETURN_NOT_PICKED',
-    categoryName: 'Return not picked up',
+    categoryName: 'Return not Picked up',
     description: 'Return order has not been picked up by delivery partner',
     defaultPriority: 'medium'
   },
@@ -80,7 +80,7 @@ const categories = [
   {
     userType: 'seller',
     categoryCode: 'PAYMENT_SETTLEMENT',
-    categoryName: 'Payment/settlement issue',
+    categoryName: 'Payment | settlement issue',
     description: 'Issues with payment processing or settlement',
     defaultPriority: 'high'
   },
@@ -115,7 +115,7 @@ const categories = [
   {
     userType: 'seller',
     categoryCode: 'LABEL_INVOICE',
-    categoryName: 'Label/invoice not generating',
+    categoryName: 'Label | invoice not generating',
     description: 'Shipping labels or invoices are not being generated',
     defaultPriority: 'high'
   },
@@ -131,14 +131,14 @@ const categories = [
   {
     userType: 'delivery',
     categoryCode: 'PICKUP_ISSUE',
-    categoryName: 'Issue picking up product from seller',
+    categoryName: 'Issue Picking up Product from seller',
     description: 'Problems encountered while picking up product from seller',
     defaultPriority: 'high'
   },
   {
     userType: 'delivery',
     categoryCode: 'BUYER_UNAVAILABLE',
-    categoryName: 'Buyer not available/wrong address',
+    categoryName: 'Buyer not Available / wrong Address',
     description: 'Buyer is unavailable or provided incorrect address',
     defaultPriority: 'medium'
   },
@@ -159,7 +159,7 @@ const categories = [
   {
     userType: 'delivery',
     categoryCode: 'PAYOUT_INCENTIVE',
-    categoryName: 'Rider payout & incentive not received',
+    categoryName: 'Rider Payout & incentive not Received',
     description: 'Issues with receiving payouts or incentives',
     defaultPriority: 'high'
   },
@@ -187,33 +187,54 @@ const seedCategories = async () => {
     // await SupportCategory.deleteMany({});
     // console.log('🗑️ Cleared existing categories');
 
-    // Insert categories
+    // Insert/Update categories
     let inserted = 0;
+    let updated = 0;
     let skipped = 0;
 
     for (const category of categories) {
       try {
-        // Use upsert to avoid duplicates
-        const result = await SupportCategory.findOneAndUpdate(
-          { userType: category.userType, categoryCode: category.categoryCode },
-          category,
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
+        // Check if category exists
+        const existing = await SupportCategory.findOne({
+          userType: category.userType,
+          categoryCode: category.categoryCode
+        });
         
-        if (result.isNew) {
+        if (!existing) {
+          // Create new category
+          await SupportCategory.create(category);
           inserted++;
           console.log(`✅ Inserted: ${category.userType} - ${category.categoryName}`);
         } else {
-          skipped++;
-          console.log(`⏭️ Skipped (already exists): ${category.userType} - ${category.categoryName}`);
+          // Check if update is needed
+          const needsUpdate = 
+            existing.categoryName !== category.categoryName ||
+            existing.description !== category.description ||
+            existing.defaultPriority !== category.defaultPriority ||
+            existing.isActive !== category.isActive;
+          
+          if (needsUpdate) {
+            // Update existing category
+            await SupportCategory.findOneAndUpdate(
+              { userType: category.userType, categoryCode: category.categoryCode },
+              category,
+              { new: true }
+            );
+            updated++;
+            console.log(`🔄 Updated: ${category.userType} - ${category.categoryName}`);
+          } else {
+            skipped++;
+            console.log(`⏭️ Skipped (no changes): ${category.userType} - ${category.categoryName}`);
+          }
         }
       } catch (error) {
-        console.error(`❌ Error inserting ${category.categoryName}:`, error.message);
+        console.error(`❌ Error processing ${category.categoryName}:`, error.message);
       }
     }
 
     console.log(`\n📊 Summary:`);
     console.log(`   Inserted: ${inserted}`);
+    console.log(`   Updated: ${updated}`);
     console.log(`   Skipped: ${skipped}`);
     console.log(`   Total: ${categories.length}`);
 
