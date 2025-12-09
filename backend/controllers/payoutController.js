@@ -148,6 +148,12 @@ exports.createBeneficiary = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ [CREATE_BENEFICIARY] Error:', error);
+    console.error('❌ [CREATE_BENEFICIARY] Error details:', {
+      message: error.message,
+      hasCashfreeError: !!error.cashfreeError,
+      cashfreeError: error.cashfreeError,
+      stack: error.stack
+    });
     
     // Check if this is a Cashfree API error
     if (error.cashfreeError) {
@@ -182,13 +188,51 @@ exports.createBeneficiary = async (req, res) => {
       });
     }
 
-    // Handle other errors (validation, database, etc.)
+    // Handle validation errors (from our validation logic)
+    // These should return 400 status with proper error structure
+    const isValidationError = error.message && (
+      error.message.includes('must be') ||
+      error.message.includes('Invalid') ||
+      error.message.includes('required') ||
+      error.message.includes('format') ||
+      error.message.includes('between') ||
+      error.message.includes('exactly') ||
+      error.message.includes('contain')
+    );
+
+    if (isValidationError) {
+      logger.payment('CREATE_BENEFICIARY_VALIDATION_ERROR', {
+        sellerId: req.seller._id,
+        message: error.message,
+        correlationId
+      }, 'error', correlationId);
+
+      endOperation(operationId, 'FAILED', { reason: 'Validation error', message: error.message });
+      
+      return res.status(400).json({
+        success: false,
+        message: error.message || 'Validation failed',
+        errorCode: 'VALIDATION_ERROR',
+        statusCode: 400,
+        actionableMessage: error.message || 'Please check your input and try again.'
+      });
+    }
+
+    // Handle other errors (database, etc.)
+    logger.payment('CREATE_BENEFICIARY_GENERAL_ERROR', {
+      sellerId: req.seller._id,
+      message: error.message,
+      correlationId
+    }, 'error', correlationId);
+
     endOperation(operationId, 'FAILED', { reason: error.message });
     
     res.status(500).json({
       success: false,
-      message: 'Failed to create beneficiary',
-      error: error.message
+      message: error.message || 'Failed to create beneficiary',
+      errorCode: 'INTERNAL_ERROR',
+      statusCode: 500,
+      actionableMessage: 'An unexpected error occurred. Please try again later or contact support.'
     });
   }
 };

@@ -87,7 +87,8 @@ class CashfreePayoutService {
       'beneficiary_purpose_invalid': 'Invalid beneficiary purpose. Please provide a valid purpose.',
       'apis_not_enabled': 'Payout APIs are not enabled for your account. Please contact Cashfree support to enable payout APIs.',
       'insufficient_balance': 'Insufficient balance in your Cashfree account. Please add funds before creating transfers.',
-      'transfer_limit_breach': 'Transfer amount exceeds the allowed limit. Please check your transfer limits.'
+      'transfer_limit_breach': 'Transfer amount exceeds the allowed limit. Please check your transfer limits.',
+      'authentication_failed': 'Cashfree API authentication failed. Please verify that CASHFREE_PAYOUT_CLIENT_ID_PROD and CASHFREE_PAYOUT_SECRET_KEY_PROD are correctly set in your .env file and match your Cashfree merchant dashboard credentials.'
     };
 
     return actionableMessages[cashfreeCode] || cashfreeMessage || 'Please check your input and try again.';

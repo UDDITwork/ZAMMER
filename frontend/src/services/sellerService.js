@@ -552,7 +552,7 @@ export const createBeneficiary = async (bankDetails) => {
       hasBankName: !!bankDetails.bankName
     });
     
-    const response = await api.post('/api/payouts/beneficiary', bankDetails);
+    const response = await api.post('/payouts/beneficiary', bankDetails);
     
     console.log('✅ Beneficiary created successfully:', {
       beneficiaryId: response.data.data?.beneficiaryId,
@@ -561,29 +561,42 @@ export const createBeneficiary = async (bankDetails) => {
     
     return response.data;
   } catch (error) {
-    console.error('❌ Beneficiary creation error:', error.response?.data || error);
+    console.error('❌ Beneficiary creation error:', error);
+    console.error('❌ Error response:', error.response);
+    console.error('❌ Error response data:', error.response?.data);
     
     // Preserve all error details from backend response
     if (error.response?.data) {
       const errorData = error.response.data;
-      const enhancedError = new Error(errorData.message || errorData.error || 'Failed to create beneficiary');
+      const enhancedError = new Error(errorData.message || errorData.error || errorData.actionableMessage || 'Failed to create beneficiary');
       
       // Attach all error details to the error object
       enhancedError.response = {
-        success: errorData.success,
-        message: errorData.message,
-        errorCode: errorData.errorCode,
-        cashfreeCode: errorData.cashfreeCode,
-        cashfreeType: errorData.cashfreeType,
-        statusCode: errorData.statusCode,
-        details: errorData.details,
-        actionableMessage: errorData.actionableMessage
+        success: errorData.success !== undefined ? errorData.success : false,
+        message: errorData.message || errorData.error || enhancedError.message,
+        errorCode: errorData.errorCode || null,
+        cashfreeCode: errorData.cashfreeCode || null,
+        cashfreeType: errorData.cashfreeType || null,
+        statusCode: errorData.statusCode || error.response?.status || 500,
+        details: errorData.details || null,
+        actionableMessage: errorData.actionableMessage || errorData.message || enhancedError.message
       };
       
+      console.error('❌ Enhanced error created:', enhancedError.response);
       throw enhancedError;
     }
     
-    throw error;
+    // If no response data, create a structured error anyway
+    const fallbackError = new Error(error.message || 'Failed to create beneficiary');
+    fallbackError.response = {
+      success: false,
+      message: error.message || 'Failed to create beneficiary',
+      errorCode: 'NETWORK_ERROR',
+      statusCode: 0,
+      actionableMessage: 'Please check your internet connection and try again.'
+    };
+    
+    throw fallbackError;
   }
 };
 
@@ -592,7 +605,7 @@ export const getBeneficiary = async () => {
   try {
     console.log('🔍 Fetching beneficiary details...');
     
-    const response = await api.get('/api/payouts/beneficiary');
+    const response = await api.get('/payouts/beneficiary');
     
     console.log('✅ Beneficiary details fetched:', {
       beneficiaryId: response.data.data?.beneficiaryId,
@@ -617,7 +630,7 @@ export const updateBeneficiary = async (bankDetails) => {
       hasBankName: !!bankDetails.bankName
     });
     
-    const response = await api.put('/api/payouts/beneficiary', bankDetails);
+    const response = await api.put('/payouts/beneficiary', bankDetails);
     
     console.log('✅ Beneficiary updated successfully:', {
       beneficiaryId: response.data.data?.beneficiaryId,
@@ -636,7 +649,7 @@ export const getPayoutHistory = async (queryParams = {}) => {
   try {
     console.log('📊 Fetching payout history with params:', queryParams);
     
-    const response = await api.get('/api/payouts/history', { params: queryParams });
+    const response = await api.get('/payouts/history', { params: queryParams });
     
     console.log('✅ Payout history fetched:', {
       payoutsCount: response.data.data?.payouts?.length || 0,
@@ -656,7 +669,7 @@ export const getPayoutStats = async () => {
   try {
     console.log('📈 Fetching payout statistics...');
     
-    const response = await api.get('/api/payouts/stats');
+    const response = await api.get('/payouts/stats');
     
     console.log('✅ Payout statistics fetched:', {
       hasSummary: !!response.data.data?.summary,

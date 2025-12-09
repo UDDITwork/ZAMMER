@@ -117,19 +117,32 @@ const BeneficiaryManagement = () => {
       }
     } catch (error) {
       console.error('Error creating beneficiary:', error);
+      console.error('Error object keys:', Object.keys(error));
+      console.error('Error.response:', error.response);
+      console.error('Error.message:', error.message);
       
       // Extract detailed error information with null checks
       const errorDetails = error.response || {};
+      console.error('Error details extracted:', errorDetails);
+      
       const errorMessage = error.message || errorDetails.message || 'Failed to create beneficiary';
-      const actionableMessage = errorDetails.actionableMessage;
+      const actionableMessage = errorDetails.actionableMessage || errorDetails.message || errorMessage;
       const errorCode = errorDetails.errorCode;
       const cashfreeCode = errorDetails.cashfreeCode;
       const statusCode = errorDetails.statusCode;
       
+      console.error('Final error values:', {
+        errorMessage,
+        actionableMessage,
+        errorCode,
+        cashfreeCode,
+        statusCode
+      });
+      
       // Set API error state for detailed display
       setApiError({
         message: errorMessage,
-        actionableMessage: actionableMessage || null,
+        actionableMessage: actionableMessage,
         errorCode: errorCode || null,
         cashfreeCode: cashfreeCode || null,
         statusCode: statusCode || null
