@@ -1,5 +1,8 @@
 // backend/config/cashfree.js - Cashfree Payouts V2 Configuration
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 
 const config = {
   development: {
@@ -9,6 +12,7 @@ const config = {
     apiVersion: '2024-01-01',
     webhookSecret: process.env.CASHFREE_PAYOUT_WEBHOOK_SECRET_PROD || '',
     publicKey: process.env.CASHFREE_PAYOUT_PUBLIC_KEY_PROD || '',
+    publicKeyPath: process.env.CASHFREE_PAYOUT_PUBLIC_KEY_PATH || '',
     environment: 'development'
   },
   
@@ -19,8 +23,73 @@ const config = {
     apiVersion: '2024-01-01',
     webhookSecret: process.env.CASHFREE_PAYOUT_WEBHOOK_SECRET_PROD || '',
     publicKey: process.env.CASHFREE_PAYOUT_PUBLIC_KEY_PROD || '',
+    publicKeyPath: process.env.CASHFREE_PAYOUT_PUBLIC_KEY_PATH || '',
     environment: 'production'
   }
+};
+
+/**
+ * Load public key from environment variable or file path
+ */
+const loadPublicKey = () => {
+  const productionConfig = config.production;
+  
+  // Try to load from environment variable first (PEM format string)
+  if (productionConfig.publicKey && productionConfig.publicKey.trim()) {
+    try {
+      let publicKeyContent = productionConfig.publicKey.trim();
+      
+      // Handle multiline PEM format (common in .env files with \n)
+      publicKeyContent = publicKeyContent.replace(/\\n/g, '\n');
+      
+      // If it's already a PEM-formatted string, use it directly
+      if (publicKeyContent.includes('BEGIN PUBLIC KEY')) {
+        return publicKeyContent;
+      }
+      
+      // If it's base64 encoded without PEM headers, try to decode and format
+      try {
+        const decoded = Buffer.from(publicKeyContent, 'base64').toString('utf8');
+        if (decoded.includes('BEGIN PUBLIC KEY')) {
+          return decoded;
+        }
+      } catch (e) {
+        // Not base64, continue
+      }
+      
+      // If it's just the key content without headers, add PEM headers
+      const cleanKey = publicKeyContent.replace(/\s+/g, '');
+      if (cleanKey.length > 100) { // Likely a public key
+        const formattedKey = cleanKey.match(/.{1,64}/g)?.join('\n') || cleanKey;
+        return `-----BEGIN PUBLIC KEY-----\n${formattedKey}\n-----END PUBLIC KEY-----`;
+      }
+      
+      // Return as-is if we can't determine format
+      return publicKeyContent;
+    } catch (error) {
+      console.warn('⚠️ [CASHFREE] Failed to load public key from env variable:', error.message);
+    }
+  }
+  
+  // Try to load from file path
+  if (productionConfig.publicKeyPath && productionConfig.publicKeyPath.trim()) {
+    try {
+      const keyPath = path.isAbsolute(productionConfig.publicKeyPath) 
+        ? productionConfig.publicKeyPath 
+        : path.join(process.cwd(), productionConfig.publicKeyPath);
+      
+      if (fs.existsSync(keyPath)) {
+        const publicKeyContent = fs.readFileSync(keyPath, 'utf8');
+        return publicKeyContent.trim();
+      } else {
+        console.warn(`⚠️ [CASHFREE] Public key file not found at: ${keyPath}`);
+      }
+    } catch (error) {
+      console.warn('⚠️ [CASHFREE] Failed to load public key from file:', error.message);
+    }
+  }
+  
+  return null;
 };
 
 // Get current environment configuration - ROBUST VERSION
@@ -33,9 +102,13 @@ const getConfig = () => {
     throw new Error(`Cashfree Payouts configuration missing - check environment variables`);
   }
   
+  // Load public key if available
+  const publicKey = loadPublicKey();
+  
   // Return production config for both environments (Cashfree API is the same)
   return {
     ...productionConfig,
+    publicKey: publicKey,
     environment: process.env.NODE_ENV || 'production'
   };
 };
@@ -59,6 +132,101 @@ const endpoints = {
   credentialsVerify: '/credentials/verify'
 };
 
+// Signature cache (expires after 10 minutes)
+let signatureCache = {
+  signature: null,
+  timestamp: null,
+  expiresAt: null
+};
+
+/**
+ * Generate Cashfree 2FA signature using Public Key
+ * Signature format: RSA-OAEP encrypted (clientId + "." + unixTimestamp)
+ */
+const generateCashfreeSignature = () => {
+  const cfg = getConfig();
+  
+  // Check if public key is available
+  if (!cfg.publicKey) {
+    return null; // No signature if public key not configured (fallback to IP whitelist)
+  }
+  
+  // Check if cached signature is still valid (expires after 10 minutes)
+  const now = Date.now();
+  if (signatureCache.signature && signatureCache.expiresAt && now < signatureCache.expiresAt) {
+    return signatureCache.signature;
+  }
+  
+  try {
+    // Get current Unix timestamp
+    const timestamp = Math.floor(Date.now() / 1000);
+    
+    // Create data to encrypt: clientId + "." + timestamp
+    const dataToEncrypt = `${cfg.clientId}.${timestamp}`;
+    
+    // Load public key
+    let publicKeyContent = cfg.publicKey;
+    
+    // Ensure public key is in proper PEM format
+    if (!publicKeyContent.includes('BEGIN PUBLIC KEY')) {
+      // If it's base64 encoded, decode it
+      try {
+        publicKeyContent = Buffer.from(publicKeyContent, 'base64').toString('utf8');
+      } catch (e) {
+        // If not base64, use as-is
+      }
+      
+      // Add PEM headers if missing
+      if (!publicKeyContent.includes('BEGIN PUBLIC KEY')) {
+        publicKeyContent = publicKeyContent
+          .replace(/\s+/g, '') // Remove whitespace
+          .replace(/(.{64})/g, '$1\n'); // Add line breaks every 64 chars
+        
+        publicKeyContent = `-----BEGIN PUBLIC KEY-----\n${publicKeyContent}\n-----END PUBLIC KEY-----`;
+      }
+    }
+    
+    // Encrypt using RSA with OAEP padding
+    const encrypted = crypto.publicEncrypt(
+      {
+        key: publicKeyContent,
+        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+        oaepHash: 'sha1' // OAEP uses SHA-1 by default
+      },
+      Buffer.from(dataToEncrypt, 'utf8')
+    );
+    
+    // Base64 encode the encrypted result
+    const signature = encrypted.toString('base64');
+    
+    // Cache the signature (valid for 10 minutes)
+    signatureCache = {
+      signature: signature,
+      timestamp: timestamp,
+      expiresAt: now + (10 * 60 * 1000) // 10 minutes in milliseconds
+    };
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ [CASHFREE] Signature generated successfully:', {
+        timestamp: timestamp,
+        expiresAt: new Date(signatureCache.expiresAt).toISOString(),
+        signatureLength: signature.length
+      });
+    }
+    
+    return signature;
+  } catch (error) {
+    console.error('❌ [CASHFREE] Failed to generate signature:', error.message);
+    console.error('❌ [CASHFREE] Signature generation error details:', {
+      hasPublicKey: !!cfg.publicKey,
+      publicKeyLength: cfg.publicKey?.length || 0,
+      error: error.message,
+      stack: error.stack
+    });
+    return null; // Return null on error (fallback to IP whitelist)
+  }
+};
+
 // Request Headers Template
 const getHeaders = (requestId = null) => {
   const cfg = getConfig();
@@ -71,6 +239,12 @@ const getHeaders = (requestId = null) => {
   
   if (requestId) {
     headers['x-request-id'] = requestId;
+  }
+  
+  // Add signature if public key is configured
+  const signature = generateCashfreeSignature();
+  if (signature) {
+    headers['x-cf-signature'] = signature;
   }
   
   return headers;
@@ -140,7 +314,11 @@ const errorCodeMap = {
   
   // API Errors
   'apis_not_enabled': 'API_NOT_ENABLED',
-  'internal_server_error': 'SERVER_ERROR'
+  'internal_server_error': 'SERVER_ERROR',
+  'authentication_failed': 'AUTHENTICATION_FAILED',
+  'signature_missing': 'SIGNATURE_MISSING',
+  'invalid_signature': 'INVALID_SIGNATURE',
+  'ip_not_whitelisted': 'IP_NOT_WHITELISTED'
 };
 
 // Validation Rules
@@ -252,6 +430,7 @@ module.exports = {
   getConfig,
   endpoints,
   getHeaders,
+  generateCashfreeSignature,
   transferStatusMap,
   commissionConfig,
   errorCodeMap,

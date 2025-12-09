@@ -88,7 +88,10 @@ class CashfreePayoutService {
       'apis_not_enabled': 'Payout APIs are not enabled for your account. Please contact Cashfree support to enable payout APIs.',
       'insufficient_balance': 'Insufficient balance in your Cashfree account. Please add funds before creating transfers.',
       'transfer_limit_breach': 'Transfer amount exceeds the allowed limit. Please check your transfer limits.',
-      'authentication_failed': 'Cashfree API authentication failed. Please verify that CASHFREE_PAYOUT_CLIENT_ID_PROD and CASHFREE_PAYOUT_SECRET_KEY_PROD are correctly set in your .env file and match your Cashfree merchant dashboard credentials.'
+      'authentication_failed': 'Cashfree API authentication failed. Please verify that CASHFREE_PAYOUT_CLIENT_ID_PROD and CASHFREE_PAYOUT_SECRET_KEY_PROD are correctly set in your .env file and match your Cashfree merchant dashboard credentials.',
+      'signature_missing': 'Signature missing in the request. Please configure CASHFREE_PAYOUT_PUBLIC_KEY_PROD or CASHFREE_PAYOUT_PUBLIC_KEY_PATH in your .env file and ensure Public Key 2FA is enabled in your Cashfree dashboard.',
+      'invalid_signature': 'Invalid signature provided. Please verify your public key configuration and ensure it matches the one generated in your Cashfree dashboard.',
+      'ip_not_whitelisted': 'IP address not whitelisted. Please either whitelist your IP address in Cashfree dashboard or configure Public Key 2FA by setting CASHFREE_PAYOUT_PUBLIC_KEY_PROD in your .env file.'
     };
 
     return actionableMessages[cashfreeCode] || cashfreeMessage || 'Please check your input and try again.';
