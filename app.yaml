@@ -13,7 +13,7 @@ env_variables:
   CLOUDINARY_API_KEY: 826141828894487
   CLOUDINARY_API_SECRET: RYIjPUnsL6ooJ89KUWyqzSWe5bQ
   CLOUDINARY_URL: cloudinary://826141828894487:RYIjPUnsL6ooJ89KUWyqzSWe5bQ@dr17ap4sb
-  FRONTEND_URL: https://zammer2.uc.r.appspot.com
+  FRONTEND_URL: https://zammernow.com
 
 automatic_scaling:
   min_instances: 0

@@ -322,6 +322,59 @@ export const sendSignupOTP = async (name, email, mobileNumber) => {
   }
 };
 
+export const resendSignupOTP = async (mobileNumber) => {
+  const logPrefix = '🔄 [SIGNUP-OTP-RESEND]';
+  const startTime = Date.now();
+  
+  console.log(`${logPrefix} ========================================`);
+  console.log(`${logPrefix} START: Resending signup OTP`);
+  console.log(`${logPrefix} Input Data:`, {
+    mobileNumber: `${mobileNumber?.substring(0, 6)}****${mobileNumber?.slice(-2)}`,
+    timestamp: new Date().toISOString()
+  });
+  console.log(`${logPrefix} ========================================`);
+  
+  try {
+    const requestPayload = {
+      mobileNumber
+    };
+    
+    console.log(`${logPrefix} 📤 API Request:`, {
+      endpoint: '/users/resend-signup-otp',
+      method: 'POST',
+      payload: { ...requestPayload, mobileNumber: `${mobileNumber?.substring(0, 6)}****` }
+    });
+    
+    const response = await api.post('/users/resend-signup-otp', requestPayload);
+    const duration = Date.now() - startTime;
+    
+    console.log(`${logPrefix} ✅ SUCCESS: OTP resent`, {
+      success: response.data?.success,
+      message: response.data?.message,
+      maskedPhone: response.data?.data?.phoneNumber,
+      duration: `${duration}ms`,
+      responseStatus: response.status
+    });
+    console.log(`${logPrefix} ========================================`);
+    
+    return response.data;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    const errorData = error.response?.data || { message: error.message };
+    
+    console.error(`${logPrefix} ❌ ERROR: Failed to resend OTP`, {
+      error: errorData.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      duration: `${duration}ms`,
+      fullError: error.response?.data || error.message
+    });
+    console.error(`${logPrefix} ========================================`);
+    
+    throw error.response?.data || error;
+  }
+};
+
 export const verifySignupOTPAndRegister = async (name, email, password, mobileNumber, otp, location = null) => {
   const logPrefix = '🟢 [SIGNUP-OTP-VERIFY]';
   const startTime = Date.now();

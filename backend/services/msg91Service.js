@@ -107,7 +107,9 @@ class MSG91Service {
 
   // 🎯 NEW: Verify OTP from session
   verifyOTPSession(phoneNumber, purpose, enteredCode) {
-    const session = this.getOTPSession(phoneNumber, purpose);
+    // 🎯 CRITICAL: Normalize phone number to match session key format
+    const normalizedPhone = msg91Config.normalizePhoneNumber(phoneNumber);
+    const session = this.getOTPSession(normalizedPhone, purpose);
 
     if (!session) {
       return {
@@ -118,7 +120,7 @@ class MSG91Service {
 
     // Check attempts
     if (session.attempts >= session.maxAttempts) {
-      const key = this.getSessionKey(phoneNumber, purpose);
+      const key = this.getSessionKey(normalizedPhone, purpose);
       this.otpSessionStore.delete(key);
       return {
         success: false,
@@ -129,8 +131,12 @@ class MSG91Service {
     // Increment attempts
     session.attempts += 1;
 
+    // 🎯 CRITICAL: Trim and normalize OTP for comparison
+    const cleanedEnteredCode = enteredCode ? enteredCode.toString().trim() : '';
+    const cleanedSessionCode = session.code ? session.code.toString().trim() : '';
+
     // Verify code
-    if (session.code !== enteredCode) {
+    if (cleanedSessionCode !== cleanedEnteredCode) {
       return {
         success: false,
         message: `Invalid OTP. ${session.maxAttempts - session.attempts} attempts remaining.`
@@ -138,7 +144,7 @@ class MSG91Service {
     }
 
     // Success - delete session after successful verification
-    const key = this.getSessionKey(phoneNumber, purpose);
+    const key = this.getSessionKey(normalizedPhone, purpose);
     const userData = session.userData;
     this.otpSessionStore.delete(key);
 

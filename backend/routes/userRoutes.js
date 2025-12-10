@@ -6,6 +6,7 @@ const router = express.Router();
 const {
   registerUser,
   sendSignupOTP,
+  resendSignupOTP,
   verifySignupOTPAndRegister,
   loginUser,
   getUserProfile,
@@ -48,6 +49,20 @@ router.post(
       .withMessage('Please enter a valid mobile number')
   ],
   sendSignupOTP
+);
+
+// 🔧 NEW: Resend signup OTP
+router.post(
+  '/resend-signup-otp',
+  [
+    body('mobileNumber')
+      .trim()
+      .notEmpty()
+      .withMessage('Mobile number is required')
+      .isMobilePhone()
+      .withMessage('Please enter a valid mobile number')
+  ],
+  resendSignupOTP
 );
 
 router.post(

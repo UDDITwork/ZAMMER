@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-import { sendSignupOTP, verifySignupOTPAndRegister } from '../../services/userService';
+import { sendSignupOTP, resendSignupOTP, verifySignupOTPAndRegister } from '../../services/userService';
 import { AuthContext } from '../../contexts/AuthContext';
 
 const RegisterSchema = Yup.object().shape({
@@ -260,27 +260,63 @@ const UserRegister = () => {
     }
   };
 
-  const handleResendOTP = () => {
+  const handleResendOTP = async () => {
     const logPrefix = '🔄 [USER-REGISTER-RESEND]';
     console.log(`${logPrefix} ========================================`);
     console.log(`${logPrefix} Resending OTP`);
     console.log(`${logPrefix} Form Data:`, {
       hasFormData: !!formData,
-      email: formData?.email
+      email: formData?.email,
+      mobileNumber: formData?.mobileNumber ? `${formData.mobileNumber.substring(0, 6)}****` : 'N/A'
     });
     console.log(`${logPrefix} ========================================`);
     
-    if (!formData) {
-      console.error(`${logPrefix} ❌ ERROR: Form data missing`);
+    if (!formData || !formData.mobileNumber) {
+      console.error(`${logPrefix} ❌ ERROR: Form data or mobile number missing`);
       console.log(`${logPrefix} ========================================`);
       toast.error('Please fill the form first');
       setStep(1);
       return;
     }
     
-    console.log(`${logPrefix} ✅ Resetting OTP input and resending...`);
-    setOtp('');
-    handleSendOTP(formData);
+    setIsLoading(true);
+    setOtp(''); // Clear OTP input
+    
+    try {
+      console.log(`${logPrefix} 📤 Calling resendSignupOTP service...`);
+      
+      const response = await resendSignupOTP(formData.mobileNumber);
+      
+      console.log(`${logPrefix} 📥 Service Response:`, {
+        success: response.success,
+        message: response.message,
+        hasData: !!response.data,
+        maskedPhone: response.data?.phoneNumber
+      });
+      
+      if (response.success) {
+        console.log(`${logPrefix} ✅ SUCCESS: OTP resent successfully`);
+        console.log(`${logPrefix} ========================================`);
+        toast.success(response.message || 'OTP has been resent to your phone number');
+      } else {
+        console.error(`${logPrefix} ❌ FAILED: OTP resend failed`, {
+          message: response.message
+        });
+        console.log(`${logPrefix} ========================================`);
+        toast.error(response.message || 'Failed to resend OTP');
+      }
+    } catch (error) {
+      console.error(`${logPrefix} ❌ EXCEPTION: Error during OTP resend`, {
+        error: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      console.error(`${logPrefix} ========================================`);
+      toast.error(error.response?.data?.message || error.message || 'Failed to resend OTP. Please try again.');
+    } finally {
+      setIsLoading(false);
+      console.log(`${logPrefix} 🔄 Loading state set to false`);
+    }
   };
 
   return (

@@ -85,12 +85,17 @@ const getAllowedOrigins = () => {
   
   // 🎯 PRODUCTION FALLBACK: Explicitly allow zammernow.com domains
   // This ensures CORS works even if environment variables aren't set correctly
+  // Always check both www and non-www variants for maximum compatibility
   if (process.env.NODE_ENV === 'production') {
     baseOrigins.push(
       'https://zammernow.com',
       'https://www.zammernow.com',
       'https://zammernow.com/',
-      'https://www.zammernow.com/'
+      'https://www.zammernow.com/',
+      'http://zammernow.com', // Fallback for HTTP
+      'http://www.zammernow.com',
+      'http://zammernow.com/',
+      'http://www.zammernow.com/'
     );
   }
   
@@ -125,6 +130,18 @@ const getAllowedOrigins = () => {
     const urlMatch = cleanUrl.match(/^https?:\/\/([^\/]+)/);
     if (urlMatch) {
       const domain = urlMatch[1];
+      
+      // 🎯 SPECIAL HANDLING: Ensure zammernow.com always has both www and non-www variants
+      if (domain.toLowerCase().includes('zammernow.com')) {
+        // Always add both variants explicitly for zammernow.com
+        const zammerBaseUrl = cleanUrl.replace(/^https?:\/\/[^\/]+/, '');
+        const protocol = cleanUrl.startsWith('https://') ? 'https://' : 'http://';
+        
+        allowedOrigins.push(`${protocol}zammernow.com${zammerBaseUrl}`);
+        allowedOrigins.push(`${protocol}zammernow.com${zammerBaseUrl}/`);
+        allowedOrigins.push(`${protocol}www.zammernow.com${zammerBaseUrl}`);
+        allowedOrigins.push(`${protocol}www.zammernow.com${zammerBaseUrl}/`);
+      }
       
       // If domain doesn't start with www, add www version
       if (!domain.startsWith('www.')) {
@@ -193,6 +210,22 @@ const isOriginAllowed = (origin) => {
   
   // Normalize origin (remove trailing slash for comparison)
   const normalizedOrigin = origin.replace(/\/$/, '');
+  
+  // 🎯 SPECIAL CHECK: Explicitly handle zammernow.com domains
+  // This ensures both www and non-www variants are always accepted
+  if (normalizedOrigin.toLowerCase().includes('zammernow.com')) {
+    const zammerMatch = normalizedOrigin.match(/^https?:\/\/(www\.)?zammernow\.com/);
+    if (zammerMatch) {
+      // Check if any zammernow.com variant is in allowed origins
+      const hasZammer = allowedOrigins.some(allowed => {
+        const normalizedAllowed = allowed.replace(/\/$/, '').toLowerCase();
+        return normalizedAllowed.includes('zammernow.com');
+      });
+      if (hasZammer) {
+        return true; // Allow any zammernow.com variant if zammernow.com is configured
+      }
+    }
+  }
   
   // Check exact match
   if (allowedOrigins.includes(origin) || allowedOrigins.includes(normalizedOrigin)) {

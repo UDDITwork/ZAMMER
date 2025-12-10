@@ -171,6 +171,99 @@ const sendSignupOTP = async (req, res) => {
   }
 };
 
+// 🔧 NEW: Resend signup OTP
+// @desc    Resend OTP to phone number for signup verification
+// @route   POST /api/users/resend-signup-otp
+// @access  Public
+const resendSignupOTP = async (req, res) => {
+  try {
+    // Check validation errors from express-validator
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { mobileNumber } = req.body;
+
+    logUser('RESEND_SIGNUP_OTP_START', {
+      mobileNumber
+    }, 'auth');
+
+    // Normalize phone number
+    const msg91Config = require('../config/msg91');
+    const normalizedMobileNumber = msg91Config.normalizePhoneNumber(mobileNumber);
+
+    // Check if OTP session exists (user must have requested OTP first)
+    const existingSession = msg91Service.getOTPSession(normalizedMobileNumber, 'signup');
+    if (!existingSession) {
+      logUser('RESEND_SIGNUP_OTP_NO_SESSION', {
+        mobileNumber: `${mobileNumber.substring(0, 6)}****`
+      }, 'warning');
+      
+      return res.status(400).json({
+        success: false,
+        message: 'No active OTP session found. Please request a new OTP first.'
+      });
+    }
+
+    // Resend OTP via MSG91 retry API
+    try {
+      const retryResult = await msg91Service.retryOTP(normalizedMobileNumber, 'text');
+
+      if (!retryResult.success) {
+        logUser('RESEND_SIGNUP_OTP_FAILED', {
+          mobileNumber: `${mobileNumber.substring(0, 6)}****`,
+          error: retryResult.error || retryResult.message
+        }, 'error');
+        
+        return res.status(500).json({
+          success: false,
+          message: retryResult.message || 'Failed to resend OTP. Please try again later.'
+        });
+      }
+
+      logUser('RESEND_SIGNUP_OTP_SUCCESS', {
+        phoneNumber: `${mobileNumber.substring(0, 6)}****`,
+        requestId: retryResult.response?.request_id || 'N/A'
+      }, 'success');
+
+      res.status(200).json({
+        success: true,
+        message: 'OTP has been resent to your phone number',
+        data: {
+          phoneNumber: `${mobileNumber.substring(0, 6)}****${mobileNumber.slice(-2)}` // Masked phone
+        }
+      });
+
+    } catch (retryError) {
+      logUser('RESEND_SIGNUP_OTP_ERROR', {
+        mobileNumber: `${mobileNumber.substring(0, 6)}****`,
+        error: retryError.message,
+        stack: retryError.stack
+      }, 'error');
+
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to resend OTP. Please try again later.',
+        error: process.env.NODE_ENV === 'development' ? retryError.message : undefined
+      });
+    }
+
+  } catch (error) {
+    logUser('RESEND_SIGNUP_OTP_ERROR', { error: error.message, stack: error.stack }, 'error');
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to resend signup OTP',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 // 🔧 NEW: Verify signup OTP and register user
 // @desc    Verify OTP and create user account
 // @route   POST /api/users/verify-signup-otp
@@ -202,11 +295,22 @@ const verifySignupOTPAndRegister = async (req, res) => {
       otpLength: otp.length
     }, 'auth');
 
-    // Verify OTP using msg91Service
+    // 🎯 CRITICAL FIX: Normalize phone number before verification to match session key format
+    // The session was stored with normalized phone number, so we must normalize here too
+    const msg91Config = require('../config/msg91');
+    const normalizedMobileNumber = msg91Config.normalizePhoneNumber(mobileNumber);
+    
+    logUser('VERIFY_SIGNUP_OTP_PHONE_NORMALIZATION', {
+      original: mobileNumber,
+      normalized: normalizedMobileNumber,
+      otpLength: otp.length
+    }, 'auth');
+
+    // Verify OTP using msg91Service with normalized phone number
     const verificationResult = await msg91Service.verifyOTPSession(
-      mobileNumber,
+      normalizedMobileNumber,
       'signup',
-      otp
+      otp.trim() // 🎯 CRITICAL: Trim OTP to remove any whitespace
     );
 
     if (!verificationResult.success) {
@@ -1575,6 +1679,7 @@ const debugSellers = async (req, res) => {
 module.exports = {
   registerUser,
   sendSignupOTP,
+  resendSignupOTP,
   verifySignupOTPAndRegister,
   loginUser,
   getUserProfile,
