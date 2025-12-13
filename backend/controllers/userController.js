@@ -295,8 +295,7 @@ const verifySignupOTPAndRegister = async (req, res) => {
       otpLength: otp.length
     }, 'auth');
 
-    // 🎯 CRITICAL FIX: Normalize phone number before verification to match session key format
-    // The session was stored with normalized phone number, so we must normalize here too
+    // 🎯 CRITICAL FIX: Normalize phone number before verification to match MSG91 format
     const msg91Config = require('../config/msg91');
     const normalizedMobileNumber = msg91Config.normalizePhoneNumber(mobileNumber);
     
@@ -306,12 +305,12 @@ const verifySignupOTPAndRegister = async (req, res) => {
       otpLength: otp.length
     }, 'auth');
 
-    // Verify OTP using msg91Service with normalized phone number
-    const verificationResult = await msg91Service.verifyOTPSession(
-      normalizedMobileNumber,
-      'signup',
-      otp.trim() // 🎯 CRITICAL: Trim OTP to remove any whitespace
-    );
+    // 🎯 FIX: Verify OTP directly with MSG91 API (authoritative verification)
+    // MSG91 API is the source of truth - it verifies against the OTP it sent
+    const verificationResult = await msg91Service.verifyOTP({
+      phoneNumber: normalizedMobileNumber,
+      otp: otp.trim() // 🎯 CRITICAL: Trim OTP to remove any whitespace
+    });
 
     if (!verificationResult.success) {
       logUser('VERIFY_SIGNUP_OTP_FAILED', {
@@ -325,13 +324,10 @@ const verifySignupOTPAndRegister = async (req, res) => {
       });
     }
 
-    // OTP verified - get user data from session (stored during OTP send)
-    const userDataFromSession = verificationResult.userData || {};
-    
-    // Use session data or request body data (session data takes precedence)
-    const finalName = userDataFromSession.name || name;
-    const finalEmail = (userDataFromSession.email || email).toLowerCase().trim();
-    const finalMobileNumber = userDataFromSession.mobileNumber || mobileNumber.trim().replace(/\D/g, '');
+    // OTP verified via MSG91 API - use request body data directly
+    const finalName = name;
+    const finalEmail = email.toLowerCase().trim();
+    const finalMobileNumber = mobileNumber.trim().replace(/\D/g, '');
 
     // Double-check user doesn't exist (race condition protection)
     const userExists = await User.findOne({ email: finalEmail });

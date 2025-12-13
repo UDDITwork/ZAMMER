@@ -278,9 +278,10 @@ class MSG91Service {
 
       terminalLog('MSG91_SEND_OTP_SUCCESS', 'SUCCESS', result.response);
       
-      // 🔧 CRITICAL FIX: Store OTP in session for authentication purposes (signup/login/forgot_password)
-      // Only store for authentication-related purposes, not for delivery OTPs (which use database)
-      const authPurposes = ['signup', 'login', 'forgot_password'];
+      // 🔧 CRITICAL FIX: Store OTP in session for authentication purposes (login/forgot_password only)
+      // Signup OTPs are NOT stored - verification is done directly with MSG91 API
+      // Only store for authentication-related purposes that use session verification, not for delivery OTPs (which use database)
+      const authPurposes = ['login', 'forgot_password'];
       if (options.purpose && authPurposes.includes(options.purpose)) {
         this.storeOTPSession(
           normalizedPhone, 
