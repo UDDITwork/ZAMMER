@@ -27,6 +27,8 @@ const connectDB = async () => {
     
     // 🎯 FIXED: Updated connection options compatible with MongoDB Driver v6+
     const connectionOptions = {
+      tls: true,
+      tlsCAFile: './rds-combined-ca-bundle.pem',
       // Connection Pool Settings - Optimized for high concurrency
       maxPoolSize: 20, // Increased from 10 to handle more concurrent requests
       minPoolSize: 5,  // Increased from 2 to maintain more connections
@@ -36,7 +38,7 @@ const connectDB = async () => {
       connectTimeoutMS: 15000, // Reduced from 30000 for faster connection
       
       // Retry Configuration
-      retryWrites: true,
+      retryWrites: false,
       retryReads: true,
       
       // Heartbeat Settings
@@ -47,6 +49,8 @@ const connectDB = async () => {
       
       // 🎯 CRITICAL FIX: Modern MongoDB connection options
       // Removed deprecated options that cause connection issues
+      replicaSet: 'rs0',
+      readPreference: 'secondaryPreferred',
     };
 
     // 🎯 IMPROVED: Enhanced error handling and logging
