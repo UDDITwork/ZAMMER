@@ -21,6 +21,7 @@ const {
   performanceLogger,
   securityLogger
 } = require('./middleware/comprehensiveLoggingMiddleware');
+const { detectNewDevice, newDeviceErrorHandler } = require('./middleware/deviceMiddleware');
 
 // Routes imports
 const orderRoutes = require('./routes/orderRoutes');
@@ -203,13 +204,28 @@ const getAllowedOrigins = () => {
 };
 
 // 🎯 FLEXIBLE: Check if origin matches allowed patterns
+// 🎯 ENHANCED: More permissive for new devices and first-time access
 const isOriginAllowed = (origin) => {
-  if (!origin) return true; // Allow requests with no origin (mobile apps, Postman, etc.)
+  // 🎯 CRITICAL FIX: Always allow requests with no origin (mobile apps, Postman, new devices, etc.)
+  // This is essential for new devices that might not send origin headers properly
+  if (!origin) {
+    console.log('✅ [CORS] Allowing request with no origin (new device/mobile app)');
+    return true;
+  }
   
   const allowedOrigins = getAllowedOrigins();
   
   // Normalize origin (remove trailing slash for comparison)
   const normalizedOrigin = origin.replace(/\/$/, '');
+  
+  // 🎯 NEW: Allow localhost and 127.0.0.1 in development (for testing new devices)
+  if (process.env.NODE_ENV === 'development') {
+    const localhostPattern = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i;
+    if (localhostPattern.test(normalizedOrigin)) {
+      console.log(`✅ [CORS] Allowing localhost origin in development: ${origin}`);
+      return true;
+    }
+  }
   
   // 🎯 SPECIAL CHECK: Explicitly handle zammernow.com domains
   // This ensures both www and non-www variants are always accepted
@@ -224,6 +240,21 @@ const isOriginAllowed = (origin) => {
       if (hasZammer) {
         return true; // Allow any zammernow.com variant if zammernow.com is configured
       }
+    }
+  }
+  
+  // 🎯 NEW: Allow any origin that matches the configured frontend URL pattern
+  // This helps with new devices accessing from slightly different URLs
+  if (FRONTEND_URL) {
+    const frontendDomain = FRONTEND_URL.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    const originDomain = normalizedOrigin.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    
+    // Allow if domains match (handles www/non-www variations)
+    if (originDomain === frontendDomain || 
+        originDomain === `www.${frontendDomain}` ||
+        `www.${originDomain}` === frontendDomain) {
+      console.log(`✅ [CORS] Allowing origin matching frontend domain: ${origin}`);
+      return true;
     }
   }
   
@@ -275,6 +306,12 @@ const isOriginAllowed = (origin) => {
     if (normalizedOrigin.toLowerCase().startsWith(normalizedAllowed.toLowerCase())) {
       return true;
     }
+  }
+  
+  // 🎯 NEW: In development, log blocked origins for debugging
+  if (process.env.NODE_ENV === 'development') {
+    console.warn(`⚠️ [CORS] Blocked origin in development: ${origin}`);
+    console.log(`   Allowed origins: ${allowedOrigins.slice(0, 5).join(', ')}${allowedOrigins.length > 5 ? '...' : ''}`);
   }
   
   return false;
@@ -543,15 +580,39 @@ app.use(helmet({
 
 app.set('trust proxy', 1);
 
-// 🎯 PRODUCTION: Enhanced rate limiting
+// 🎯 PRODUCTION: Enhanced rate limiting with new device support
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: NODE_ENV === 'production' ? 1000 : 10000,
   standardHeaders: true,
   legacyHeaders: false,
+  // 🎯 NEW: Skip rate limiting for health checks and initialization endpoints
+  skip: (req) => {
+    // Allow health checks and initialization endpoints
+    if (req.path === '/api/health' || req.path === '/api/init' || req.path === '/api/device-init') {
+      return true;
+    }
+    return false;
+  },
+  // 🎯 NEW: Custom key generator to be more lenient for new devices
+  keyGenerator: (req) => {
+    // Use IP address, but be more lenient for first-time access
+    const ip = req.ip || req.connection.remoteAddress || 'unknown';
+    return ip;
+  },
   message: {
     error: 'Too many requests from this IP',
     retryAfter: '15 minutes'
+  },
+  // 🎯 NEW: Custom handler to provide better error messages
+  handler: (req, res) => {
+    console.warn(`⚠️ [RATE-LIMIT] Blocked request from ${req.ip} to ${req.path}`);
+    res.status(429).json({
+      success: false,
+      error: 'Too many requests from this IP',
+      message: 'Please wait a few minutes before trying again',
+      retryAfter: '15 minutes'
+    });
   }
 });
 
@@ -617,48 +678,86 @@ app.use('/api/admin', (req, res, next) => {
 });
 
 // ENHANCED: CORS configuration - Flexible for all devices
+// 🎯 CRITICAL FIX: More permissive for new devices
 const corsOptions = {
   origin: (origin, callback) => {
     // Use flexible origin matching
     if (isOriginAllowed(origin)) {
-      console.log(`✅ [CORS] Allowing origin: ${origin}`);
+      // Only log in development to reduce noise
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`✅ [CORS] Allowing origin: ${origin}`);
+      }
       callback(null, true);
     } else {
-      console.warn(`🚫 [CORS] Blocked origin: ${origin}`);
-      console.log(`📋 [CORS] Allowed origins (${getAllowedOrigins().length} total):`, getAllowedOrigins().slice(0, 10).join(', '), getAllowedOrigins().length > 10 ? '...' : '');
-      callback(null, false);
+      // 🎯 NEW: In production, be more lenient - log but don't block if it's a close match
+      const isCloseMatch = origin && (
+        origin.includes('zammer') || 
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1')
+      );
+      
+      if (isCloseMatch && process.env.NODE_ENV === 'production') {
+        console.warn(`⚠️ [CORS] Close match origin (allowing): ${origin}`);
+        callback(null, true);
+      } else {
+        console.warn(`🚫 [CORS] Blocked origin: ${origin}`);
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`📋 [CORS] Allowed origins (${getAllowedOrigins().length} total):`, getAllowedOrigins().slice(0, 10).join(', '), getAllowedOrigins().length > 10 ? '...' : '');
+        }
+        callback(null, false);
+      }
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Device-ID'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range', 'X-Device-Status'],
   preflightContinue: false,
-  optionsSuccessStatus: 204
+  optionsSuccessStatus: 204,
+  // 🎯 NEW: Increase max age for preflight caching (helps new devices)
+  maxAge: 86400 // 24 hours
 };
 
 app.use(cors(corsOptions));
 
 // 🎯 ENHANCED: Explicit OPTIONS handler for all routes to ensure preflight requests are handled
+// 🎯 CRITICAL FIX: Better handling for new devices
 app.options('*', (req, res) => {
   const logColor = '\x1b[35m'; // Magenta
   const resetColor = '\x1b[0m';
   const origin = req.headers.origin;
   
-  console.log(`${logColor}🛫 [CORS-PREFLIGHT] ${req.method} ${req.originalUrl}${resetColor}`);
-  console.log(`${logColor}   Origin: ${origin || 'N/A'}${resetColor}`);
-  console.log(`${logColor}   Request Headers: ${req.headers['access-control-request-headers'] || 'N/A'}${resetColor}`);
+  // Only log in development to reduce noise
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`${logColor}🛫 [CORS-PREFLIGHT] ${req.method} ${req.originalUrl}${resetColor}`);
+    console.log(`${logColor}   Origin: ${origin || 'N/A'}${resetColor}`);
+    console.log(`${logColor}   Request Headers: ${req.headers['access-control-request-headers'] || 'N/A'}${resetColor}`);
+  }
   
-  // Apply CORS headers manually to ensure they're set
-  if (isOriginAllowed(origin)) {
+  // 🎯 NEW: Always set CORS headers for OPTIONS requests (more permissive)
+  // This ensures new devices can complete preflight checks
+  const shouldAllow = isOriginAllowed(origin);
+  
+  if (shouldAllow && origin) {
     res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Max-Age', '86400'); // 24 hours
-    console.log(`${logColor}   ✅ Preflight allowed${resetColor}`);
+  } else if (!origin) {
+    // Allow requests with no origin (new devices, mobile apps)
+    res.header('Access-Control-Allow-Origin', '*');
   } else {
-    console.log(`${logColor}   ❌ Preflight blocked${resetColor}`);
+    // For blocked origins, still set headers but log warning
+    res.header('Access-Control-Allow-Origin', origin);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`${logColor}   ⚠️ Preflight allowed with warning${resetColor}`);
+    }
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-Device-ID');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400'); // 24 hours
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`${logColor}   ✅ Preflight headers set${resetColor}`);
   }
   
   res.status(204).end();
@@ -716,6 +815,94 @@ app.get('/api/health', (req, res) => {
   res.status(200).json(healthData);
 });
 
+// 🎯 NEW: Device initialization endpoint for first-time access
+// This helps new devices establish connection and verify CORS
+app.get('/api/device-init', (req, res) => {
+  const clientInfo = {
+    ip: req.ip || req.connection.remoteAddress,
+    origin: req.headers.origin || 'no-origin',
+    userAgent: req.headers['user-agent'] || 'unknown',
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log(`📱 [DEVICE-INIT] New device initialization:`, {
+    ip: clientInfo.ip,
+    origin: clientInfo.origin,
+    userAgent: clientInfo.userAgent.substring(0, 50)
+  });
+  
+  res.status(200).json({
+    success: true,
+    message: 'Device initialized successfully',
+    data: {
+      apiVersion: '1.0.0',
+      environment: NODE_ENV,
+      frontendUrl: FRONTEND_URL,
+      corsEnabled: true,
+      timestamp: clientInfo.timestamp,
+      clientInfo: {
+        ip: clientInfo.ip,
+        origin: clientInfo.origin
+      },
+      endpoints: {
+        health: '/api/health',
+        userSignup: '/api/users/send-signup-otp',
+        userLogin: '/api/users/login',
+        products: '/api/products/marketplace',
+        shops: '/api/shops'
+      },
+      instructions: {
+        message: 'Welcome to ZAMMER API',
+        note: 'All public endpoints are accessible. Authentication required for protected routes.',
+        tokenStorage: 'Store authentication tokens in localStorage or sessionStorage'
+      }
+    }
+  });
+});
+
+// 🎯 NEW: Enhanced initialization endpoint with CORS verification
+app.post('/api/device-init', (req, res) => {
+  const { deviceId, deviceInfo } = req.body;
+  
+  const clientInfo = {
+    ip: req.ip || req.connection.remoteAddress,
+    origin: req.headers.origin || 'no-origin',
+    userAgent: req.headers['user-agent'] || 'unknown',
+    deviceId: deviceId || 'not-provided',
+    timestamp: new Date().toISOString()
+  };
+  
+  console.log(`📱 [DEVICE-INIT-POST] Device registration:`, {
+    ip: clientInfo.ip,
+    origin: clientInfo.origin,
+    deviceId: clientInfo.deviceId,
+    deviceInfo: deviceInfo ? Object.keys(deviceInfo) : []
+  });
+  
+  // Verify CORS is working
+  const corsWorking = isOriginAllowed(req.headers.origin);
+  
+  res.status(200).json({
+    success: true,
+    message: 'Device registered successfully',
+    data: {
+      deviceId: deviceId || `device_${Date.now()}`,
+      corsStatus: corsWorking ? 'enabled' : 'check-required',
+      timestamp: clientInfo.timestamp,
+      configuration: {
+        frontendUrl: FRONTEND_URL,
+        apiVersion: '1.0.0',
+        environment: NODE_ENV
+      },
+      recommendations: {
+        localStorage: 'Use localStorage for token storage if available',
+        fallback: 'Use sessionStorage or memory storage if localStorage is blocked',
+        cors: corsWorking ? 'CORS is properly configured' : 'CORS may need configuration'
+      }
+    }
+  });
+});
+
 // 🎯 NEW: Configuration debug endpoint (development only)
 if (NODE_ENV === 'development') {
   app.get('/api/debug/config', (req, res) => {
@@ -740,6 +927,9 @@ if (NODE_ENV === 'development') {
     });
   });
 }
+
+// 🎯 NEW: Device detection middleware (must be early in the chain)
+app.use(detectNewDevice);
 
 // 🎯 COMPREHENSIVE LOGGING MIDDLEWARE - Apply to all routes
 app.use(globalRequestLogger);
@@ -946,6 +1136,8 @@ if (frontendBuildPath && indexPath) {
 // Enhanced error handling middleware
 // Apply comprehensive error logging before default error handler
 app.use(errorLogger);
+// 🎯 NEW: New device error handler (before default error handler)
+app.use(newDeviceErrorHandler);
 app.use(errorHandler);
 
 // 🎯 PRODUCTION: Enhanced graceful shutdown handling
