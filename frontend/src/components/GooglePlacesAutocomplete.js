@@ -1,6 +1,7 @@
 // File: /frontend/src/components/GooglePlacesAutocomplete.js
 
 import React, { useState, useEffect, useRef } from 'react';
+import { GOOGLE_MAPS_API_KEY } from '../config/googleMaps';
 // frontend/src/components/GooglePlacesAutocomplete.js 
 const GooglePlacesAutocomplete = ({
   value = '',
@@ -17,8 +18,8 @@ const GooglePlacesAutocomplete = ({
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Get API key from environment (must be set at build time for production)
-    const API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+    // Use API key from config (has fallback built-in)
+    const API_KEY = GOOGLE_MAPS_API_KEY;
     
     console.log('🚀 Starting Google Places initialization (React)...');
     console.log('🔑 API Key:', API_KEY ? `${API_KEY.substring(0, 10)}...` : 'NOT FOUND');
