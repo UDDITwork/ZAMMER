@@ -132,7 +132,39 @@ const Dashboard = () => {
     setLoadingShops(true);
     try {
       console.log('🏪 [Dashboard] Fetching nearby shops...');
-      const response = await getNearbyShops();
+      
+      // Get user location from auth context or current location
+      let locationParams = {};
+      
+      if (userAuth.user?.location?.coordinates && userAuth.user.location.coordinates.length === 2) {
+        // Use saved user location
+        locationParams = {
+          lat: userAuth.user.location.coordinates[1], // latitude
+          lng: userAuth.user.location.coordinates[0], // longitude
+          maxDistance: 5000000 // 5000 km in meters
+        };
+        console.log('📍 [Dashboard] Using saved user location:', locationParams);
+      } else {
+        // Try to get current location
+        try {
+          const currentLocation = await getCurrentLocation();
+          if (currentLocation && currentLocation.coordinates) {
+            locationParams = {
+              lat: currentLocation.latitude,
+              lng: currentLocation.longitude,
+              maxDistance: 5000000 // 5000 km in meters
+            };
+            console.log('📍 [Dashboard] Using current location:', locationParams);
+          } else {
+            console.warn('⚠️ [Dashboard] No location available, fetching all shops');
+          }
+        } catch (locationError) {
+          console.warn('⚠️ [Dashboard] Could not get current location:', locationError.message);
+          // Continue without location - will fetch all shops
+        }
+      }
+      
+      const response = await getNearbyShops(locationParams);
       
       if (!response) {
         console.error('❌ [Dashboard] No response received from getNearbyShops');
@@ -150,19 +182,33 @@ const Dashboard = () => {
 
       const shopsData = Array.isArray(response.data) ? response.data : [];
       
+      // Sort shops by distance (already sorted by backend, but ensure it's correct)
+      const sortedShops = shopsData.sort((a, b) => {
+        if (a.distance && b.distance) {
+          return a.distance - b.distance;
+        }
+        return 0;
+      });
+      
       if (isMountedRef.current) {
-        setShops(shopsData);
-        console.log('🏪 [Dashboard] Set shops state with', shopsData.length, 'shops');
+        setShops(sortedShops);
+        console.log('🏪 [Dashboard] Set shops state with', sortedShops.length, 'shops');
+        if (sortedShops.length > 0) {
+          console.log('📍 [Dashboard] Shop distances:', sortedShops.slice(0, 5).map(s => ({
+            name: s.shop?.name,
+            distance: s.distanceText || s.distance
+          })));
+        }
       }
 
-      if (shopsData.length === 0) {
+      if (sortedShops.length === 0) {
         console.log('ℹ️ [Dashboard] No shops found - showing empty state');
         if (response.success) {
-          toast.info('No shops available in the database');
+          toast.info('No shops found in your area. Try expanding your search radius.');
         }
       } else {
-        console.log('✅ [Dashboard] Successfully loaded', shopsData.length, 'shops');
-        toast.success(`Found ${shopsData.length} shops!`);
+        console.log('✅ [Dashboard] Successfully loaded', sortedShops.length, 'shops');
+        // Don't show toast on every load to avoid spam
       }
 
     } catch (error) {
@@ -175,7 +221,7 @@ const Dashboard = () => {
         setLoadingShops(false);
       }
     }
-  }, [userAuth.isAuthenticated, userAuth.user?._id]);
+  }, [userAuth.isAuthenticated, userAuth.user?._id, userAuth.user?.location]);
 
   const fetchOrders = useCallback(async () => {
     if (!userAuth.isAuthenticated || !userAuth.user?._id) {

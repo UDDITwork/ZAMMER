@@ -1267,88 +1267,154 @@ const getNearbyShops = async (req, res) => {
       });
     }
 
-    // Create MongoDB geospatial query
-    const nearbyQuery = {
-      "shop.location": {
-        $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: [userLocation.longitude, userLocation.latitude]
-          },
-          $maxDistance: parseInt(maxDistance)
-        }
-      },
+    // Create base query for verified shops
+    const baseQuery = {
       isVerified: true,
-      "shop.name": { $exists: true, $ne: null, $ne: '' }
+      "shop.name": { $exists: true, $ne: null, $ne: '' },
+      "shop.location": { $exists: true, $ne: null },
+      "shop.location.coordinates": { $exists: true, $type: "array", $size: 2 }
     };
 
-    const sellers = await Seller.find(nearbyQuery)
-      .select(`
-        _id firstName email shop.name shop.description shop.category 
-        shop.location shop.images shop.mainImage shop.openTime shop.closeTime 
-        shop.phoneNumber shop.address shop.gstNumber shop.workingDays
-        averageRating numReviews createdAt updatedAt
-      `)
-      .limit(parseInt(limit))
-      .lean();
+    let sellers;
+    
+    // Try geospatial query first, fallback to regular query if it fails
+    try {
+      const nearbyQuery = {
+        ...baseQuery,
+        "shop.location": {
+          $near: {
+            $geometry: {
+              type: "Point",
+              coordinates: [userLocation.longitude, userLocation.latitude]
+            },
+            $maxDistance: parseInt(maxDistance)
+          }
+        }
+      };
 
-    // Calculate distances
-    const shopsWithDistances = sellers.map(shop => {
-      if (!shop.shop?.location?.coordinates) {
+      sellers = await Seller.find(nearbyQuery)
+        .select(`
+          _id firstName email shop.name shop.description shop.category 
+          shop.location shop.images shop.mainImage shop.openTime shop.closeTime 
+          shop.phoneNumber shop.address shop.gstNumber shop.workingDays
+          averageRating numReviews createdAt updatedAt
+        `)
+        .limit(parseInt(limit) * 2) // Get more to filter by distance ranges
+        .lean();
+        
+      logUser('GEOSPATIAL_QUERY_SUCCESS', { found: sellers.length });
+    } catch (geoError) {
+      // Fallback: Get all shops and calculate distance manually
+      logUser('GEOSPATIAL_QUERY_FAILED', { error: geoError.message }, 'warning');
+      
+      sellers = await Seller.find(baseQuery)
+        .select(`
+          _id firstName email shop.name shop.description shop.category 
+          shop.location shop.images shop.mainImage shop.openTime shop.closeTime 
+          shop.phoneNumber shop.address shop.gstNumber shop.workingDays
+          averageRating numReviews createdAt updatedAt
+        `)
+        .limit(parseInt(limit) * 3) // Get more for manual filtering
+        .lean();
+    }
+
+    // Calculate distances and group by distance ranges
+    const shopsWithDistances = sellers
+      .map(shop => {
+        if (!shop.shop?.location?.coordinates || shop.shop.location.coordinates.length !== 2) {
+          return null; // Skip shops without valid coordinates
+        }
+
+        const distance = calculateHaversineDistance(
+          userLocation.latitude,
+          userLocation.longitude,
+          shop.shop.location.coordinates[1], // latitude
+          shop.shop.location.coordinates[0]  // longitude
+        );
+
+        // Filter by maxDistance
+        if (distance > (parseInt(maxDistance) / 1000)) {
+          return null; // Skip shops beyond max distance
+        }
+
+        let distanceText;
+        if (distance < 1) {
+          distanceText = `${Math.round(distance * 1000)}m`;
+        } else if (distance < 10) {
+          distanceText = `${distance.toFixed(1)}km`;
+        } else {
+          distanceText = `${Math.round(distance)}km`;
+        }
+
+        // Determine distance range for progressive sorting
+        let distanceRange = 999; // Default to last range
+        if (distance <= 5) {
+          distanceRange = 1; // 0-5km (first priority)
+        } else if (distance <= 7) {
+          distanceRange = 2; // 5-7km (second priority)
+        } else if (distance <= 10) {
+          distanceRange = 3; // 7-10km (third priority)
+        } else if (distance <= 15) {
+          distanceRange = 4; // 10-15km
+        } else if (distance <= 20) {
+          distanceRange = 5; // 15-20km
+        } else {
+          distanceRange = 6; // 20km+
+        }
+
         return {
           ...shop,
-          distance: 999999,
-          distanceText: 'Location unavailable',
-          isAccurate: false
+          distance: distance,
+          distanceText: distanceText,
+          distanceRange: distanceRange,
+          isAccurate: distance < 10000
         };
+      })
+      .filter(shop => shop !== null); // Remove null entries
+
+    // Sort by distance range first, then by actual distance within each range
+    shopsWithDistances.sort((a, b) => {
+      if (a.distanceRange !== b.distanceRange) {
+        return a.distanceRange - b.distanceRange; // Sort by range (1, 2, 3, etc.)
       }
-
-      const distance = calculateHaversineDistance(
-        userLocation.latitude,
-        userLocation.longitude,
-        shop.shop.location.coordinates[1],
-        shop.shop.location.coordinates[0]
-      );
-
-      let distanceText;
-      if (distance < 1) {
-        distanceText = `${Math.round(distance * 1000)}m`;
-      } else if (distance < 10) {
-        distanceText = `${distance.toFixed(1)}km`;
-      } else {
-        distanceText = `${Math.round(distance)}km`;
-      }
-
-      return {
-        ...shop,
-        distance: distance,
-        distanceText: distanceText,
-        isAccurate: distance < 10000
-      };
+      return a.distance - b.distance; // Within same range, sort by actual distance
     });
 
-    shopsWithDistances.sort((a, b) => a.distance - b.distance);
+    // Limit to requested number after sorting
+    const limitedShops = shopsWithDistances.slice(0, parseInt(limit));
     
     res.status(200).json({
       success: true,
-      data: shopsWithDistances,
-      count: shopsWithDistances.length,
+      data: limitedShops,
+      count: limitedShops.length,
       userLocation: userLocation,
       searchRadius: `${maxDistance/1000}km`,
-      processingTime: `${Date.now() - startTime}ms`
+      processingTime: `${Date.now() - startTime}ms`,
+      distanceRanges: {
+        '0-5km': limitedShops.filter(s => s.distanceRange === 1).length,
+        '5-7km': limitedShops.filter(s => s.distanceRange === 2).length,
+        '7-10km': limitedShops.filter(s => s.distanceRange === 3).length,
+        '10-15km': limitedShops.filter(s => s.distanceRange === 4).length,
+        '15-20km': limitedShops.filter(s => s.distanceRange === 5).length,
+        '20km+': limitedShops.filter(s => s.distanceRange === 6).length
+      }
     });
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
     logUser('GET_NEARBY_SHOPS_ERROR', {
       error: error.message,
+      stack: error.stack,
       processingTime: `${processingTime}ms`
     }, 'error');
+
+    console.error('❌ [GET_NEARBY_SHOPS] Full error:', error);
 
     res.status(500).json({
       success: false,
       message: 'Error fetching nearby shops',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
       processingTime: `${processingTime}ms`
     });
   }

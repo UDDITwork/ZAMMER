@@ -61,11 +61,11 @@ const NearbyShopsPage = () => {
               });
               setLocationStatus('success');
 
-              // Fetch shops with GPS coordinates
+              // Fetch shops with GPS coordinates (5000km radius)
               const response = await getNearbyShops({
                 lat: latitude,
                 lng: longitude,
-                maxDistance: 50000000, // 50,000 km
+                maxDistance: 5000000, // 5000 km in meters
                 limit: 50
               });
 
@@ -137,7 +137,7 @@ const NearbyShopsPage = () => {
         const response = await getNearbyShops({
           lat: lat,
           lng: lng,
-          maxDistance: 50000000,
+          maxDistance: 5000000, // 5000 km in meters
           limit: 50
         });
 
@@ -166,8 +166,8 @@ const NearbyShopsPage = () => {
       logPageFlow('FALLBACK_TO_ALL_SHOPS', null, 'warning');
       setLocationStatus('fallback');
 
+      // Call without location - backend will return all shops
       const response = await getNearbyShops({
-        maxDistance: 50000000,
         limit: 50
       });
 
