@@ -1199,13 +1199,19 @@ const getNearbyShops = async (req, res) => {
   const startTime = Date.now();
   
   try {
+    // Validate Seller model is available
+    if (!Seller) {
+      throw new Error('Seller model is not available');
+    }
+
     const { lat, lng, maxDistance = 50000000, limit = 50 } = req.query;
     let userLocation = null;
 
     logUser('GET_NEARBY_SHOPS_START', {
       queryParams: { lat, lng, maxDistance: `${maxDistance} meters (${maxDistance/1000} km)`, limit },
       hasAuthUser: !!req.user,
-      userId: req.user?._id
+      userId: req.user?._id,
+      sellerModelAvailable: !!Seller
     });
 
     if (req.user) {
@@ -1233,29 +1239,43 @@ const getNearbyShops = async (req, res) => {
     if (!userLocation) {
       logUser('NO_USER_LOCATION_AVAILABLE', null, 'warning');
       
-      const shops = await Seller.find({ 
-        isVerified: true,
-        "shop.name": { $exists: true, $ne: null, $ne: '' }
-      })
-      .select(`
-        _id firstName email shop.name shop.description shop.category 
-        shop.location shop.images shop.mainImage shop.openTime shop.closeTime 
-        shop.phoneNumber shop.address shop.gstNumber shop.workingDays
-        averageRating numReviews createdAt updatedAt
-      `)
-      .limit(parseInt(limit))
-      .lean();
+      try {
+        const shops = await Seller.find({ 
+          isVerified: true,
+          "shop.name": { $exists: true, $ne: null, $ne: '' }
+        })
+        .select(`
+          _id firstName email shop.name shop.description shop.category 
+          shop.location shop.images shop.mainImage shop.openTime shop.closeTime 
+          shop.phoneNumber shop.address shop.gstNumber shop.workingDays
+          averageRating numReviews createdAt updatedAt
+        `)
+        .limit(parseInt(limit) || 50)
+        .lean();
 
-      logUser('RETURNING_ALL_SHOPS_NO_LOCATION', { count: shops.length });
+        logUser('RETURNING_ALL_SHOPS_NO_LOCATION', { count: shops.length });
+          
+        return res.status(200).json({
+          success: true,
+          data: shops || [],
+          count: shops?.length || 0,
+          userLocation: null,
+          message: `All available shops (location not provided) - ${shops?.length || 0} shops found`,
+          processingTime: `${Date.now() - startTime}ms`
+        });
+      } catch (dbError) {
+        logUser('DATABASE_QUERY_ERROR_NO_LOCATION', { 
+          error: dbError.message,
+          stack: dbError.stack 
+        }, 'error');
         
-      return res.status(200).json({
-        success: true,
-        data: shops,
-        count: shops.length,
-        userLocation: null,
-        message: `All available shops (location not provided) - ${shops.length} shops found`,
-        processingTime: `${Date.now() - startTime}ms`
-      });
+        return res.status(500).json({
+          success: false,
+          message: 'Error fetching shops from database',
+          error: process.env.NODE_ENV === 'development' ? dbError.message : undefined,
+          processingTime: `${Date.now() - startTime}ms`
+        });
+      }
     }
 
     // Validate coordinates
@@ -1316,6 +1336,12 @@ const getNearbyShops = async (req, res) => {
         `)
         .limit(parseInt(limit) * 3) // Get more for manual filtering
         .lean();
+    }
+
+    // Safety check: ensure sellers array exists
+    if (!sellers || !Array.isArray(sellers)) {
+      logUser('NO_SELLERS_FOUND', { sellers: sellers }, 'warning');
+      sellers = [];
     }
 
     // Calculate distances and group by distance ranges

@@ -32,7 +32,8 @@ const SimplePlacesTest = () => {
 
         const script = document.createElement('script');
         const key = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places`;
+        // According to Google Maps documentation: https://developers.google.com/maps/documentation/javascript/legacy/place-autocomplete
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&loading=async&libraries=places`;
         script.async = true;
         script.defer = true;
 

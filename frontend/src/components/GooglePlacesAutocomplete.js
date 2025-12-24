@@ -17,14 +17,18 @@ const GooglePlacesAutocomplete = ({
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    // Get API key from environment (must be set at build time for production)
     const API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
     
     console.log('🚀 Starting Google Places initialization (React)...');
-    console.log('🔑 API Key:', API_KEY ? API_KEY.substring(0, 10) + '...' : 'NOT FOUND');
+    console.log('🔑 API Key:', API_KEY ? `${API_KEY.substring(0, 10)}...` : 'NOT FOUND');
+    console.log('🌐 Environment:', process.env.NODE_ENV);
+    console.log('📋 All REACT_APP_ vars:', Object.keys(process.env).filter(key => key.startsWith('REACT_APP_')));
 
-    if (!API_KEY) {
+    if (!API_KEY || API_KEY.trim() === '') {
       setStatus('❌ API Key not found');
       console.error('❌ REACT_APP_GOOGLE_MAPS_API_KEY not found in environment');
+      console.error('💡 For production builds, ensure REACT_APP_GOOGLE_MAPS_API_KEY is set in your build environment');
       return;
     }
 
@@ -91,12 +95,39 @@ const GooglePlacesAutocomplete = ({
       }
     };
 
-    // Load Google Maps API (EXACT same as working HTML)
+    // Load Google Maps API according to official documentation:
+    // https://developers.google.com/maps/documentation/javascript/legacy/place-autocomplete
     const loadGoogleMaps = () => {
       // Check if already loaded
       if (window.google && window.google.maps && window.google.maps.places) {
         console.log('✅ Google Maps already loaded, initializing...');
         initializePlaces();
+        return;
+      }
+
+      // Check if script is already being loaded
+      const existingScript = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
+      if (existingScript) {
+        console.log('📡 Google Maps script already in DOM, waiting for load...');
+        setStatus('📡 Waiting for Google Maps API to load...');
+        
+        // Wait for the existing script to load
+        const checkInterval = setInterval(() => {
+          if (window.google && window.google.maps && window.google.maps.places) {
+            clearInterval(checkInterval);
+            initializePlaces();
+          }
+        }, 100);
+        
+        // Timeout after 10 seconds
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          if (!window.google || !window.google.maps || !window.google.maps.places) {
+            setStatus('❌ Google Maps API failed to load');
+            console.error('❌ Google Maps API did not load within timeout');
+          }
+        }, 10000);
+        
         return;
       }
 
@@ -114,14 +145,21 @@ const GooglePlacesAutocomplete = ({
       };
       
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&libraries=places&callback=${callbackName}`;
+      // According to Google Maps documentation: https://developers.google.com/maps/documentation/javascript/legacy/place-autocomplete
+      // Format: https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&loading=async&libraries=places&callback=initMap
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&loading=async&libraries=places&callback=${callbackName}`;
       script.async = true;
       script.defer = true;
       
       script.onerror = (error) => {
         setStatus('❌ Failed to load Google Maps API');
         console.error('❌ Script loading failed:', error);
+        console.error('💡 Check that your API key is valid and Places API is enabled in Google Cloud Console');
         delete window[callbackName];
+      };
+      
+      script.onload = () => {
+        console.log('✅ Google Maps script element loaded');
       };
       
       document.head.appendChild(script);
