@@ -41,20 +41,9 @@ const handleDeliveryError = (error, operation) => {
 };
 
 // 🚚 API BASE CONFIGURATION
-// Dynamic API URL based on environment
+// Dynamic API URL based on environment - matches api.js pattern
 const getApiUrl = () => {
-  // Production environment
-  if (process.env.NODE_ENV === 'production') {
-    // Check if we're on Google App Engine
-    if (window.location.hostname.includes('appspot.com')) {
-      return process.env.REACT_APP_API_URL_PROD || 'https://onyx-osprey-462815-i9.uc.r.appspot.com/api';
-    }
-    
-    // Use production API URL
-    return process.env.REACT_APP_API_URL_PROD || 'https://onyx-osprey-462815-i9.uc.r.appspot.com/api';
-  }
-  
-  // Development environment
+  // Use REACT_APP_API_URL for all environments
   return process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 };
 

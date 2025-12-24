@@ -4,20 +4,15 @@ import axios from 'axios';
 
 // UNIVERSAL API URL - Based purely on environment variables
 const getApiUrl = () => {
-  // Production environment
-  if (process.env.NODE_ENV === 'production') {
-    return process.env.REACT_APP_API_URL_PROD || 
-           process.env.REACT_APP_API_URL || 
-           'http://localhost:5001/api';
-  }
-  
-  // Development environment
+  // Use REACT_APP_API_URL for all environments
   return process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 };
 
 const API_URL = getApiUrl();
 
 console.log('🌐 Universal API URL:', API_URL);
+console.log('🌐 Environment:', process.env.NODE_ENV);
+console.log('🌐 REACT_APP_API_URL:', process.env.REACT_APP_API_URL || 'not set');
 
 // Create axios instance with dynamic base URL
 const api = axios.create({
@@ -148,12 +143,32 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('🚨 [API-ERROR]:', {
+    // Enhanced error logging
+    const errorInfo = {
       url: error.config?.url,
       method: error.config?.method,
+      baseURL: error.config?.baseURL,
+      fullURL: error.config?.baseURL ? `${error.config.baseURL}${error.config.url}` : error.config?.url,
       status: error.response?.status,
-      message: error.response?.data?.message
-    });
+      statusText: error.response?.statusText,
+      message: error.response?.data?.message,
+      hasResponse: !!error.response,
+      hasRequest: !!error.request,
+      isNetworkError: !error.response && !!error.request,
+      isCorsError: error.code === 'ERR_NETWORK' || (error.message && error.message.includes('CORS'))
+    };
+    
+    console.error('🚨 [API-ERROR]:', errorInfo);
+    
+    // Log network/CORS errors more prominently
+    if (errorInfo.isNetworkError || errorInfo.isCorsError) {
+      console.error('🚨 [NETWORK/CORS ERROR]:', {
+        message: error.message,
+        code: error.code,
+        fullURL: errorInfo.fullURL,
+        suggestion: 'Check if the backend server is running and CORS is configured correctly'
+      });
+    }
     
     // Handle 401 errors
     if (error.response?.status === 401) {

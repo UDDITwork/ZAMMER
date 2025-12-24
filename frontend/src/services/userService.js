@@ -50,7 +50,10 @@ export const registerUser = async (userData) => {
 // Login user
 export const loginUser = async (credentials) => {
   try {
-    logUserService('LOGIN_USER_START', { email: credentials.email });
+    logUserService('LOGIN_USER_START', { 
+      email: credentials.email,
+      apiUrl: process.env.REACT_APP_API_URL || 'not set'
+    });
 
     const response = await api.post('/users/login', credentials);
     
@@ -62,10 +65,48 @@ export const loginUser = async (credentials) => {
 
     return response.data;
   } catch (error) {
-    logUserService('LOGIN_USER_ERROR', {
-      error: error.response?.data || error.message
-    }, 'error');
-    throw error.response?.data || error;
+    // Enhanced error handling for network/CORS errors
+    let errorMessage = 'Login failed. Please try again.';
+    let errorData = null;
+
+    if (error.response) {
+      // Server responded with error status
+      errorData = error.response.data;
+      errorMessage = errorData?.message || `Server error: ${error.response.status}`;
+      
+      logUserService('LOGIN_USER_ERROR', {
+        status: error.response.status,
+        error: errorData,
+        message: errorMessage
+      }, 'error');
+    } else if (error.request) {
+      // Request was made but no response received (network error, CORS, etc.)
+      errorMessage = 'Network error: Unable to connect to server. Please check your internet connection and try again.';
+      
+      logUserService('LOGIN_USER_NETWORK_ERROR', {
+        error: error.message,
+        code: error.code,
+        requestUrl: error.config?.url,
+        baseURL: error.config?.baseURL,
+        message: 'No response from server - possible CORS or network issue'
+      }, 'error');
+    } else {
+      // Error setting up the request
+      errorMessage = error.message || 'An unexpected error occurred during login';
+      
+      logUserService('LOGIN_USER_SETUP_ERROR', {
+        error: error.message,
+        stack: error.stack
+      }, 'error');
+    }
+
+    // Create a proper error object with message
+    const loginError = errorData || { 
+      success: false, 
+      message: errorMessage 
+    };
+    
+    throw loginError;
   }
 };
 

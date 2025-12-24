@@ -114,9 +114,9 @@ const debugLog = (message, data = null, type = 'info') => {
   export const debugAPIConfig = () => {
     debugLog('🔧 API CONFIG DEBUG', null, 'debug');
     
-    // Get current API base URL
+    // Get current API base URL - matches api.js pattern
     const baseURL = process.env.REACT_APP_API_URL || 
-                   (process.env.NODE_ENV === 'development' ? '/api' : (process.env.REACT_APP_API_URL_PROD || 'https://onyx-osprey-462815-i9.uc.r.appspot.com/api'));
+                   (process.env.NODE_ENV === 'development' ? '/api' : 'http://localhost:5001/api');
     
     const apiDebugData = {
       baseURL,

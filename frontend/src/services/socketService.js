@@ -34,23 +34,11 @@ class SocketService {
 
   // UNIVERSAL Server URL - Environment Variable Based
   getServerUrl() {
-    // Production environment
-    if (process.env.NODE_ENV === 'production') {
-      // Try production-specific variables first
-      const prodSocketUrl = process.env.REACT_APP_SOCKET_URL_PROD;
-      const prodApiUrl = process.env.REACT_APP_API_URL_PROD?.replace('/api', '');
-      const generalSocketUrl = process.env.REACT_APP_SOCKET_URL;
-      const generalApiUrl = process.env.REACT_APP_API_URL?.replace('/api', '');
-      
-      // Return first available URL
-      return prodSocketUrl || prodApiUrl || generalSocketUrl || generalApiUrl || 'http://localhost:5001';
-    }
+    // Use REACT_APP_SOCKET_URL or derive from REACT_APP_API_URL
+    const socketUrl = process.env.REACT_APP_SOCKET_URL;
+    const apiUrl = process.env.REACT_APP_API_URL?.replace('/api', '');
     
-    // Development environment
-    const devSocketUrl = process.env.REACT_APP_SOCKET_URL;
-    const devApiUrl = process.env.REACT_APP_API_URL?.replace('/api', '');
-    
-    return devSocketUrl || devApiUrl || 'http://localhost:5001';
+    return socketUrl || apiUrl || 'http://localhost:5001';
   }
 
   // 🎯 FIXED: Initialize Socket.io connection - NOW RETURNS A PROMISE
@@ -720,7 +708,6 @@ class SocketService {
       serverUrl: this.getServerUrl(),
       availableEnvVars: {
         hasApiUrl: !!process.env.REACT_APP_API_URL,
-        hasApiUrlProd: !!process.env.REACT_APP_API_URL_PROD,
         hasSocketUrl: !!process.env.REACT_APP_SOCKET_URL,
         hasSocketUrlProd: !!process.env.REACT_APP_SOCKET_URL_PROD
       }

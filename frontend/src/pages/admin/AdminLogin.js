@@ -359,7 +359,7 @@ const AdminLogin = () => {
                 {/* Debug info for development */}
                 <div className="mt-2 p-2 bg-gray-100 rounded text-xs text-gray-600">
                   <div><strong>Environment:</strong> {process.env.NODE_ENV}</div>
-                  <div><strong>API URL:</strong> {process.env.REACT_APP_API_URL_PROD || process.env.REACT_APP_API_URL || 'default'}</div>
+                  <div><strong>API URL:</strong> {process.env.REACT_APP_API_URL || 'default'}</div>
                 </div>
               </div>
             )}

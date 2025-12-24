@@ -131,15 +131,31 @@ const UserLogin = () => {
       debugLog('💥 LOGIN ERROR CAUGHT', {
         error: error,
         message: error.message,
+        errorData: error,
+        hasResponse: !!error.response,
         responseData: error.response?.data
       }, 'error');
 
       console.error('Login error:', error);
       
-      const errorMessage = error.response?.data?.message || 
-                          error.message || 
-                          'Something went wrong during login';
+      // Handle different error formats
+      let errorMessage = 'Something went wrong during login';
       
+      if (error.message) {
+        // Error object with message property
+        errorMessage = error.message;
+      } else if (error.response?.data?.message) {
+        // Axios error with response data
+        errorMessage = error.response.data.message;
+      } else if (typeof error === 'string') {
+        // String error
+        errorMessage = error;
+      } else if (error?.message) {
+        // Error object
+        errorMessage = error.message;
+      }
+      
+      // Show user-friendly error message
       toast.error(errorMessage);
     } finally {
       setLoading(false);
