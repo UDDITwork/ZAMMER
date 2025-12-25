@@ -98,18 +98,25 @@ const ProductSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please add a sub-category'],
     enum: [
-      'T-shirts', 'Shirts', 'Kurties', 'Suits', 'Ethnic Wear', 
-      'Jackets', 'Jeans', 'Tops', 'Tees', 'Dresses', 'Nightwear', 
-      'Sleepwear', 'Boys Sets', 'Top Wear', 'Lehengass', 'Rayon', 
-      'Shrugs'
+      // Men subcategories
+      'T-shirts', 'Shirts', 'Suits', 'Ethnic Wear', 'Jackets', 'Tops', 'Tees', 'Sleepwear', 'Top Wear',
+      // Women subcategories (22 items)
+      'Kurtis', 'Dresses', 'Jeans', 'Sarees', 'Blouses', 'Petticoats', 'Leggings', 'Palazzos',
+      'Nightwear', 'Lehengas', 'Ethnic Sets', 'Co-ord Sets', 'Gowns', 'Shrugs', 'Tunics',
+      'Skirts', 'Jumpsuits', 'Sharara', 'Dupatta',
+      // Kids subcategories
+      'Boys Sets'
     ]
   },
   // Special Category
   productCategory: {
     type: String,
     enum: [
-      'Traditional Indian', 'Winter Fashion', 'Party Wear', 
-      'Sports Destination', 'Office Wear', ''
+      '', 'Traditional Indian', 'Ethnic Wear', 'Western Wear', 'Fusion Wear', 'Party Wear',
+      'Casual Wear', 'Daily Wear', 'Office Wear', 'Festive Wear', 'Wedding Wear',
+      'Winter Fashion', 'Summer Wear', 'Nightwear & Loungewear', 'Activewear',
+      'Travel Wear', 'College Wear', 'Maternity Wear', 'Plus Size Wear',
+      'Saree Essentials', 'Kids-Friendly Wear'
     ],
     default: ''
   },

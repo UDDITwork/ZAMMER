@@ -10,14 +10,15 @@ import { getProductById, updateProduct, deleteImage } from '../../services/produ
 const productCategories = {
   Men: {
     subCategories: [
-      'T-shirts', 'Shirts', 'Jeans', 'Ethnic Wear', 'Jackets', 
+      'T-shirts', 'Shirts', 'Jeans', 'Ethnic Wear', 'Jackets',
       'Tops', 'Tees', 'Sleepwear', 'Top Wear'
     ]
   },
   Women: {
     subCategories: [
-      'Kurties', 'Tops', 'Tees', 'Dresses', 'Jeans', 'Nightwear', 
-      'Sleepwear', 'Lehengass', 'Rayon', 'Shrugs'
+      'Kurtis', 'Tops', 'T-shirts', 'Dresses', 'Jeans', 'Sarees', 'Blouses', 'Petticoats',
+      'Leggings', 'Palazzos', 'Nightwear', 'Sleepwear', 'Lehengas', 'Ethnic Sets',
+      'Co-ord Sets', 'Gowns', 'Shrugs', 'Tunics', 'Skirts', 'Jumpsuits', 'Sharara', 'Dupatta'
     ]
   },
   Kids: {
@@ -27,14 +28,29 @@ const productCategories = {
   }
 };
 
-// 🎯 FIXED: Product categories exactly matching backend enum
+// 🎯 FIXED: Product categories exactly matching backend enum (20 items)
 const productCategoryOptions = [
   { value: '', label: 'Select Product Category' },
   { value: 'Traditional Indian', label: 'Traditional Indian' },
-  { value: 'Winter Fashion', label: 'Winter Fashion' },
+  { value: 'Ethnic Wear', label: 'Ethnic Wear' },
+  { value: 'Western Wear', label: 'Western Wear' },
+  { value: 'Fusion Wear', label: 'Fusion Wear' },
   { value: 'Party Wear', label: 'Party Wear' },
-  { value: 'Sports Destination', label: 'Sports Destination' },
-  { value: 'Office Wear', label: 'Office Wear' }
+  { value: 'Casual Wear', label: 'Casual Wear' },
+  { value: 'Daily Wear', label: 'Daily Wear' },
+  { value: 'Office Wear', label: 'Office Wear' },
+  { value: 'Festive Wear', label: 'Festive Wear' },
+  { value: 'Wedding Wear', label: 'Wedding Wear' },
+  { value: 'Winter Fashion', label: 'Winter Fashion' },
+  { value: 'Summer Wear', label: 'Summer Wear' },
+  { value: 'Nightwear & Loungewear', label: 'Nightwear & Loungewear' },
+  { value: 'Activewear', label: 'Activewear' },
+  { value: 'Travel Wear', label: 'Travel Wear' },
+  { value: 'College Wear', label: 'College Wear' },
+  { value: 'Maternity Wear', label: 'Maternity Wear' },
+  { value: 'Plus Size Wear', label: 'Plus Size Wear' },
+  { value: 'Saree Essentials', label: 'Saree Essentials' },
+  { value: 'Kids-Friendly Wear', label: 'Kids-Friendly Wear' }
 ];
 
 // Size options aligned with backend enum
