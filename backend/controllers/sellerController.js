@@ -9,6 +9,7 @@ const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinar
 const Order = require('../models/Order'); // Added Order model import
 const labelGenerationService = require('../services/labelGenerationService');
 const msg91Service = require('../services/msg91Service');
+const msg91Config = require('../config/msg91');
 
 // @desc    Register a new seller
 // @route   POST /api/sellers/register
@@ -223,12 +224,21 @@ exports.verifySignupOTPAndRegister = async (req, res) => {
       otpLength: otp.length
     });
 
-    // Verify OTP using msg91Service
-    const verificationResult = await msg91Service.verifyOTPSession(
-      mobileNumber,
-      'signup',
-      otp
-    );
+    // 🎯 CRITICAL FIX: Normalize phone number before verification to match MSG91 format (same as buyer side)
+    const normalizedMobileNumber = msg91Config.normalizePhoneNumber(mobileNumber);
+
+    console.log('🟢 [SELLER-SIGNUP-OTP-VERIFY] PHONE_NORMALIZATION:', {
+      original: mobileNumber,
+      normalized: normalizedMobileNumber,
+      otpLength: otp.length
+    });
+
+    // �� FIX: Verify OTP directly with MSG91 API (authoritative verification) - same as buyer side
+    // MSG91 API is the source of truth - it verifies against the OTP it sent
+    const verificationResult = await msg91Service.verifyOTP({
+      phoneNumber: normalizedMobileNumber,
+      otp: otp.trim() // 🎯 CRITICAL: Trim OTP to remove any whitespace
+    });
 
     if (!verificationResult.success) {
       console.warn('🟢 [SELLER-SIGNUP-OTP-VERIFY] FAILED:', {
@@ -242,13 +252,10 @@ exports.verifySignupOTPAndRegister = async (req, res) => {
       });
     }
 
-    // OTP verified - get seller data from session (stored during OTP send)
-    const sellerDataFromSession = verificationResult.userData || {};
-    
-    // Use session data or request body data (session data takes precedence)
-    const finalFirstName = sellerDataFromSession.firstName || firstName;
-    const finalEmail = (sellerDataFromSession.email || email).toLowerCase().trim();
-    const finalMobileNumber = sellerDataFromSession.mobileNumber || mobileNumber.trim().replace(/\D/g, '');
+    // OTP verified via MSG91 API - use request body data directly (same as buyer side)
+    const finalFirstName = firstName;
+    const finalEmail = email.toLowerCase().trim();
+    const finalMobileNumber = mobileNumber.trim().replace(/\D/g, '');
 
     // Double-check seller doesn't exist (race condition protection)
     const sellerExists = await Seller.findOne({ email: finalEmail });
