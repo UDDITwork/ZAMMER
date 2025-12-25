@@ -1,6 +1,6 @@
 const Ticket = require('../models/Ticket');
 const TicketMessage = require('../models/TicketMessage');
-const SupportCategory = require('../models/SupportCategory');
+// SupportCategory model no longer needed - using hardcoded categories
 const { generateTicketNumber } = require('../utils/ticketNumberGenerator');
 const { calculateSLADeadline } = require('../utils/slaCalculator');
 

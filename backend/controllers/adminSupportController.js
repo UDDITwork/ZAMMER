@@ -1,6 +1,6 @@
 const Ticket = require('../models/Ticket');
 const TicketMessage = require('../models/TicketMessage');
-const SupportCategory = require('../models/SupportCategory');
+// SupportCategory model no longer needed - using hardcoded categories
 const User = require('../models/User');
 const Seller = require('../models/Seller');
 const DeliveryAgent = require('../models/DeliveryAgent');
