@@ -91,12 +91,9 @@ exports.createTicket = async (req, res) => {
       });
     }
 
-    // Validate category exists and is active
-    const categoryDoc = await SupportCategory.findOne({
-      userType,
-      categoryCode: category,
-      isActive: true
-    });
+    // 🎯 Validate category against hardcoded categories (no database dependency)
+    const userCategories = SUPPORT_CATEGORIES[userType] || [];
+    const categoryDoc = userCategories.find(cat => cat.categoryCode === category);
 
     if (!categoryDoc) {
       return res.status(400).json({
