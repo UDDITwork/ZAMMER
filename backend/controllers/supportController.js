@@ -4,6 +4,38 @@ const SupportCategory = require('../models/SupportCategory');
 const { generateTicketNumber } = require('../utils/ticketNumberGenerator');
 const { calculateSLADeadline } = require('../utils/slaCalculator');
 
+// 🎯 Hardcoded Support Categories - No database dependency
+const SUPPORT_CATEGORIES = {
+  buyer: [
+    { categoryCode: 'ORDER_NOT_DELIVERED', categoryName: 'Order not delivered', description: 'Order has not been delivered within expected timeframe', defaultPriority: 'high' },
+    { categoryCode: 'DELIVERY_AGENT_BEHAVIOR', categoryName: 'Delivery Agent Behavior', description: 'Issues with delivery agent conduct or service', defaultPriority: 'medium' },
+    { categoryCode: 'WRONG_PRODUCT', categoryName: 'Wrong product Received', description: 'Received a different product than ordered', defaultPriority: 'high' },
+    { categoryCode: 'DAMAGED_PRODUCT', categoryName: 'Damaged / defective product', description: 'Product received is damaged or defective', defaultPriority: 'high' },
+    { categoryCode: 'SIZE_FIT_ISSUE', categoryName: 'Size or fit issue', description: 'Product size or fit does not match expectations', defaultPriority: 'medium' },
+    { categoryCode: 'REFUND_EXCHANGE', categoryName: 'Need refund or exchange', description: 'Request for refund or product exchange', defaultPriority: 'medium' },
+    { categoryCode: 'RETURN_NOT_PICKED', categoryName: 'Return not Picked up', description: 'Return order has not been picked up by delivery partner', defaultPriority: 'medium' },
+    { categoryCode: 'OTHER', categoryName: 'Other', description: 'Other issues not listed above', defaultPriority: 'low' }
+  ],
+  seller: [
+    { categoryCode: 'RETURN_ISSUES', categoryName: 'Return issues (wrong return, damage return)', description: 'Issues related to product returns', defaultPriority: 'medium' },
+    { categoryCode: 'PAYMENT_SETTLEMENT', categoryName: 'Payment | settlement issue', description: 'Issues with payment processing or settlement', defaultPriority: 'high' },
+    { categoryCode: 'LISTING_NOT_VISIBLE', categoryName: 'Listing not visible', description: 'Product listing is not appearing in search results', defaultPriority: 'medium' },
+    { categoryCode: 'ORDER_STUCK_SHIPPING', categoryName: 'Order stuck in shipping', description: 'Order status is not updating or stuck in shipping phase', defaultPriority: 'high' },
+    { categoryCode: 'DELIVERY_NOT_PICKING', categoryName: 'Delivery Partner not picking order', description: 'Delivery partner has not picked up the order', defaultPriority: 'high' },
+    { categoryCode: 'ACCOUNT_KYC', categoryName: 'Account or KYC issues', description: 'Issues with account verification or KYC process', defaultPriority: 'high' },
+    { categoryCode: 'LABEL_INVOICE', categoryName: 'Label | invoice not generating', description: 'Shipping labels or invoices are not being generated', defaultPriority: 'high' },
+    { categoryCode: 'OTHER', categoryName: 'Other', description: 'Other issues not listed above', defaultPriority: 'low' }
+  ],
+  delivery: [
+    { categoryCode: 'PICKUP_ISSUE', categoryName: 'Issue Picking up Product from seller', description: 'Problems encountered while picking up product from seller', defaultPriority: 'high' },
+    { categoryCode: 'BUYER_UNAVAILABLE', categoryName: 'Buyer not Available / wrong Address', description: 'Buyer is unavailable or provided incorrect address', defaultPriority: 'medium' },
+    { categoryCode: 'PAYMENT_DISPUTE', categoryName: 'Payment dispute (for COD orders)', description: 'Disputes regarding Cash on Delivery payments', defaultPriority: 'high' },
+    { categoryCode: 'PARCEL_DAMAGED', categoryName: 'Parcel damaged before picked', description: 'Parcel was already damaged when attempting pickup', defaultPriority: 'medium' },
+    { categoryCode: 'PAYOUT_INCENTIVE', categoryName: 'Rider Payout & incentive not Received', description: 'Issues with receiving payouts or incentives', defaultPriority: 'high' },
+    { categoryCode: 'OTHER', categoryName: 'Other', description: 'Other issues not listed above', defaultPriority: 'low' }
+  ]
+};
+
 /**
  * @desc    Create a new support ticket
  * @route   POST /api/support/tickets
@@ -381,10 +413,8 @@ exports.getCategories = async (req, res) => {
       });
     }
 
-    const categories = await SupportCategory.find({
-      userType,
-      isActive: true
-    }).select('categoryCode categoryName description defaultPriority');
+    // 🎯 Return hardcoded categories instead of database query
+    const categories = SUPPORT_CATEGORIES[userType] || [];
 
     res.json({
       success: true,

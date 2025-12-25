@@ -5,14 +5,46 @@ import { toast } from 'react-toastify';
 import supportService from '../../services/supportService';
 import ImageUpload from '../../components/support/ImageUpload';
 
+// 🎯 Hardcoded Support Categories - No API dependency
+const SUPPORT_CATEGORIES = {
+  buyer: [
+    { categoryCode: 'ORDER_NOT_DELIVERED', categoryName: 'Order not delivered', description: 'Order has not been delivered within expected timeframe', defaultPriority: 'high' },
+    { categoryCode: 'DELIVERY_AGENT_BEHAVIOR', categoryName: 'Delivery Agent Behavior', description: 'Issues with delivery agent conduct or service', defaultPriority: 'medium' },
+    { categoryCode: 'WRONG_PRODUCT', categoryName: 'Wrong product Received', description: 'Received a different product than ordered', defaultPriority: 'high' },
+    { categoryCode: 'DAMAGED_PRODUCT', categoryName: 'Damaged / defective product', description: 'Product received is damaged or defective', defaultPriority: 'high' },
+    { categoryCode: 'SIZE_FIT_ISSUE', categoryName: 'Size or fit issue', description: 'Product size or fit does not match expectations', defaultPriority: 'medium' },
+    { categoryCode: 'REFUND_EXCHANGE', categoryName: 'Need refund or exchange', description: 'Request for refund or product exchange', defaultPriority: 'medium' },
+    { categoryCode: 'RETURN_NOT_PICKED', categoryName: 'Return not Picked up', description: 'Return order has not been picked up by delivery partner', defaultPriority: 'medium' },
+    { categoryCode: 'OTHER', categoryName: 'Other', description: 'Other issues not listed above', defaultPriority: 'low' }
+  ],
+  seller: [
+    { categoryCode: 'RETURN_ISSUES', categoryName: 'Return issues (wrong return, damage return)', description: 'Issues related to product returns', defaultPriority: 'medium' },
+    { categoryCode: 'PAYMENT_SETTLEMENT', categoryName: 'Payment | settlement issue', description: 'Issues with payment processing or settlement', defaultPriority: 'high' },
+    { categoryCode: 'LISTING_NOT_VISIBLE', categoryName: 'Listing not visible', description: 'Product listing is not appearing in search results', defaultPriority: 'medium' },
+    { categoryCode: 'ORDER_STUCK_SHIPPING', categoryName: 'Order stuck in shipping', description: 'Order status is not updating or stuck in shipping phase', defaultPriority: 'high' },
+    { categoryCode: 'DELIVERY_NOT_PICKING', categoryName: 'Delivery Partner not picking order', description: 'Delivery partner has not picked up the order', defaultPriority: 'high' },
+    { categoryCode: 'ACCOUNT_KYC', categoryName: 'Account or KYC issues', description: 'Issues with account verification or KYC process', defaultPriority: 'high' },
+    { categoryCode: 'LABEL_INVOICE', categoryName: 'Label | invoice not generating', description: 'Shipping labels or invoices are not being generated', defaultPriority: 'high' },
+    { categoryCode: 'OTHER', categoryName: 'Other', description: 'Other issues not listed above', defaultPriority: 'low' }
+  ],
+  delivery: [
+    { categoryCode: 'PICKUP_ISSUE', categoryName: 'Issue Picking up Product from seller', description: 'Problems encountered while picking up product from seller', defaultPriority: 'high' },
+    { categoryCode: 'BUYER_UNAVAILABLE', categoryName: 'Buyer not Available / wrong Address', description: 'Buyer is unavailable or provided incorrect address', defaultPriority: 'medium' },
+    { categoryCode: 'PAYMENT_DISPUTE', categoryName: 'Payment dispute (for COD orders)', description: 'Disputes regarding Cash on Delivery payments', defaultPriority: 'high' },
+    { categoryCode: 'PARCEL_DAMAGED', categoryName: 'Parcel damaged before picked', description: 'Parcel was already damaged when attempting pickup', defaultPriority: 'medium' },
+    { categoryCode: 'PAYOUT_INCENTIVE', categoryName: 'Rider Payout & incentive not Received', description: 'Issues with receiving payouts or incentives', defaultPriority: 'high' },
+    { categoryCode: 'OTHER', categoryName: 'Other', description: 'Other issues not listed above', defaultPriority: 'low' }
+  ]
+};
+
 const CreateTicket = () => {
   const navigate = useNavigate();
   const { sellerAuth, userAuth, deliveryAgentAuth } = useContext(AuthContext);
   const [userType, setUserType] = useState('');
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     category: '',
     customReason: '',
@@ -24,12 +56,13 @@ const CreateTicket = () => {
 
   useEffect(() => {
     // Determine user type from auth context
+    let currentUserType = '';
     if (userAuth.isAuthenticated) {
-      setUserType('buyer');
+      currentUserType = 'buyer';
     } else if (sellerAuth.isAuthenticated) {
-      setUserType('seller');
+      currentUserType = 'seller';
     } else if (deliveryAgentAuth.isAuthenticated) {
-      setUserType('delivery');
+      currentUserType = 'delivery';
     } else {
       // Not authenticated, redirect to login
       toast.error('Please login to create a support ticket');
@@ -37,24 +70,10 @@ const CreateTicket = () => {
       return;
     }
 
-    // Load categories
-    loadCategories();
+    setUserType(currentUserType);
+    // 🎯 Load hardcoded categories directly - no API call needed
+    setCategories(SUPPORT_CATEGORIES[currentUserType] || []);
   }, [userAuth, sellerAuth, deliveryAgentAuth, navigate]);
-
-  const loadCategories = async () => {
-    try {
-      setLoading(true);
-      const currentUserType = userAuth.isAuthenticated ? 'buyer' : 
-                             sellerAuth.isAuthenticated ? 'seller' : 'delivery';
-      const response = await supportService.getCategories(currentUserType);
-      setCategories(response.data || []);
-    } catch (error) {
-      console.error('Error loading categories:', error);
-      toast.error('Failed to load categories');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
