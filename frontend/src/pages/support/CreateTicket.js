@@ -42,7 +42,6 @@ const CreateTicket = () => {
   const { sellerAuth, userAuth, deliveryAgentAuth } = useContext(AuthContext);
   const [userType, setUserType] = useState('');
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -160,17 +159,6 @@ const CreateTicket = () => {
       setSubmitting(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading categories...</p>
-        </div>
-      </div>
-    );
-  }
 
   const selectedCategory = categories.find(cat => cat.categoryCode === formData.category);
 
