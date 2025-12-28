@@ -1,4 +1,5 @@
 // frontend/src/App.js - Simplified Final Version (No Extra Components Needed)
+// Last updated: 2025-12-28 - Support ticket categories fix
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
