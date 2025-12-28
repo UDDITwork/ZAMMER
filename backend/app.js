@@ -959,8 +959,9 @@ app.use('/api/payouts', payoutRoutes);
 app.use('/api/virtual-tryon', virtualTryOnRoutes);
 app.use('/api/admin/logs', logRoutes);
 app.use('/api/returns', returnRoutes);
-app.use('/api/support', supportRoutes);
-app.use('/api/support/upload', supportUploadRoutes);
+// 🎯 IMPORTANT: Mount more specific routes FIRST to avoid path conflicts
+app.use('/api/support/upload', supportUploadRoutes);  // More specific - must come first
+app.use('/api/support', supportRoutes);               // General support routes
 app.use('/api/admin/support', adminSupportRoutes);
 
 // ─────────────────────────────────────────────
