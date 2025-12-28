@@ -530,6 +530,91 @@ class ReturnService {
       throw error;
     }
   }
+
+  // 🎯 RESEND BUYER PICKUP OTP (Delivery Agent)
+  async resendBuyerPickupOTP(returnId) {
+    const requestId = `RESEND-BUYER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    try {
+      console.log(`🔄 [${requestId}] [RETURN-SERVICE] resendBuyerPickupOTP - START:`, {
+        requestId,
+        returnId
+      });
+
+      const response = await fetch(`${API_BASE_URL}/api/returns/${returnId}/resend-buyer-otp`, {
+        method: 'PUT',
+        headers: this.getDeliveryAgentHeaders()
+      });
+
+      const result = await this.handleResponse(response);
+
+      console.log(`✅ [${requestId}] [RETURN-SERVICE] resendBuyerPickupOTP - SUCCESS:`, {
+        requestId,
+        resendCount: result.data?.resendCount,
+        maxResends: result.data?.maxResends
+      });
+
+      return result;
+    } catch (error) {
+      console.error(`❌ [${requestId}] [RETURN-SERVICE] resendBuyerPickupOTP - ERROR:`, {
+        requestId,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  // 🎯 RESEND SELLER DELIVERY OTP (Delivery Agent)
+  async resendSellerDeliveryOTP(returnId) {
+    const requestId = `RESEND-SELLER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    try {
+      console.log(`🔄 [${requestId}] [RETURN-SERVICE] resendSellerDeliveryOTP - START:`, {
+        requestId,
+        returnId
+      });
+
+      const response = await fetch(`${API_BASE_URL}/api/returns/${returnId}/resend-seller-otp`, {
+        method: 'PUT',
+        headers: this.getDeliveryAgentHeaders()
+      });
+
+      const result = await this.handleResponse(response);
+
+      console.log(`✅ [${requestId}] [RETURN-SERVICE] resendSellerDeliveryOTP - SUCCESS:`, {
+        requestId,
+        resendCount: result.data?.resendCount,
+        maxResends: result.data?.maxResends
+      });
+
+      return result;
+    } catch (error) {
+      console.error(`❌ [${requestId}] [RETURN-SERVICE] resendSellerDeliveryOTP - ERROR:`, {
+        requestId,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  // Get delivery agent headers (separate from user headers)
+  getDeliveryAgentHeaders() {
+    const token = localStorage.getItem('deliveryAgentToken');
+
+    if (!token) {
+      console.error('❌ [RETURN-SERVICE] No delivery agent token found in localStorage');
+    } else {
+      console.log('✅ [RETURN-SERVICE] Delivery agent token found:', {
+        tokenLength: token.length,
+        tokenPreview: token.substring(0, 20) + '...'
+      });
+    }
+
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+  }
 }
 
 // Create and export singleton instance

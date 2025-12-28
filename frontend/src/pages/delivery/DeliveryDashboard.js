@@ -146,11 +146,11 @@ const DeliveryDashboard = () => {
         // 🎯 CRITICAL: Listen for payment completion events (exactly like AssignedOrders.js)
         socketConnection.on('payment-completed', (data) => {
           console.log('💳 [DELIVERY-DASHBOARD] Payment completed event received:', data);
-          
+
           // Update payment status if this order is currently active in flow
           if (activeOrderFlow && data.data && data.data._id === activeOrderFlow._id) {
             console.log('✅ [DELIVERY-DASHBOARD] Updating payment status in real-time');
-            
+
             // Update order flow state
             setActiveOrderFlow(prevOrder => ({
               ...prevOrder,
@@ -158,7 +158,7 @@ const DeliveryDashboard = () => {
               paymentStatus: 'completed',
               status: data.data.status || prevOrder.status
             }));
-            
+
             // 🎯 CRITICAL: Clear QR code and mark payment as completed
             setFlowPaymentData(prev => ({
               ...(prev || {}),
@@ -166,11 +166,43 @@ const DeliveryDashboard = () => {
             }));
             setFlowPaymentCompleted(true);
             setFlowPaymentStatus('completed');
-            
+
             // Stop polling
             stopFlowPaymentPolling();
-            
+
             toast.success('Payment completed! Please enter OTP from buyer to complete delivery.');
+          }
+        });
+
+        // 🎯 NEW: Listen for return assignment events
+        socketConnection.on('return-assigned', (data) => {
+          console.log('↩️ [DELIVERY-DASHBOARD] Return assignment received:', data);
+          toast.info('New return order assigned to you!');
+          // Trigger refresh of return assignments
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('return-assigned-refresh'));
+          }
+        });
+
+        // 🎯 NEW: Listen for return status update events
+        socketConnection.on('return-agent-accepted', (data) => {
+          console.log('↩️ [DELIVERY-DASHBOARD] Return agent accepted:', data);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('return-status-update'));
+          }
+        });
+
+        socketConnection.on('return-picked-up', (data) => {
+          console.log('↩️ [DELIVERY-DASHBOARD] Return picked up:', data);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('return-status-update'));
+          }
+        });
+
+        socketConnection.on('return-delivered', (data) => {
+          console.log('↩️ [DELIVERY-DASHBOARD] Return delivered:', data);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('return-status-update'));
           }
         });
 
@@ -719,10 +751,31 @@ const DeliveryDashboard = () => {
     }
   }, [activeTab, deliveryAgentAuth.isAuthenticated, fetchCancelledOrders]);
 
-  // Fetch return assignments when returns tab is active
+  // Fetch return assignments when returns tab is active + real-time refresh
   useEffect(() => {
     if (activeTab === 'returns' && deliveryAgentAuth.isAuthenticated) {
       fetchReturnAssignments();
+
+      // 🎯 NEW: Set up periodic refresh every 30 seconds when returns tab is active
+      const refreshInterval = setInterval(() => {
+        console.log('↩️ [DELIVERY-DASHBOARD] Periodic return assignments refresh...');
+        fetchReturnAssignments();
+      }, 30000);
+
+      // 🎯 NEW: Listen for custom events triggered by socket
+      const handleReturnRefresh = () => {
+        console.log('↩️ [DELIVERY-DASHBOARD] Return refresh event received');
+        fetchReturnAssignments();
+      };
+
+      window.addEventListener('return-assigned-refresh', handleReturnRefresh);
+      window.addEventListener('return-status-update', handleReturnRefresh);
+
+      return () => {
+        clearInterval(refreshInterval);
+        window.removeEventListener('return-assigned-refresh', handleReturnRefresh);
+        window.removeEventListener('return-status-update', handleReturnRefresh);
+      };
     }
   }, [activeTab, deliveryAgentAuth.isAuthenticated, fetchReturnAssignments]);
 

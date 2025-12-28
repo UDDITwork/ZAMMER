@@ -18,7 +18,9 @@ const {
   completeReturn,
   getDeliveryAgentReturns,
   getReturnStatus,
-  markReturnPickupFailed
+  markReturnPickupFailed,
+  resendBuyerPickupOTP,
+  resendSellerDeliveryOTP
 } = require('../controllers/returnController');
 
 // Import middleware
@@ -115,9 +117,21 @@ router.put('/:returnId/pickup-failed',
 );
 
 // Complete return delivery to seller
-router.put('/:returnId/deliver', 
-  protectDeliveryAgent, 
+router.put('/:returnId/deliver',
+  protectDeliveryAgent,
   completeReturnDelivery
+);
+
+// Resend buyer pickup OTP (when agent is at buyer location)
+router.put('/:returnId/resend-buyer-otp',
+  protectDeliveryAgent,
+  resendBuyerPickupOTP
+);
+
+// Resend seller delivery OTP (when agent is at seller location)
+router.put('/:returnId/resend-seller-otp',
+  protectDeliveryAgent,
+  resendSellerDeliveryOTP
 );
 
 // 🎯 ROUTE DOCUMENTATION

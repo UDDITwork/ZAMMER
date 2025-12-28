@@ -1007,37 +1007,58 @@ const completeReturnPickup = async (req, res) => {
       });
     }
 
-    // 🎯 ISSUE 6 FIX: Verify OTP if provided (buyer should provide OTP sent when agent arrived)
+    // 🎯 MANDATORY OTP VERIFICATION: Buyer OTP is required to complete pickup
     const buyerPhone = order.user?.mobileNumber || order.user?.phone;
-    if (otp && buyerPhone) {
-      try {
-        const otpVerification = await msg91Service.verifyOTP({
-          phoneNumber: buyerPhone,
-          otp
-        });
 
-        if (!otpVerification.success) {
-          return res.status(400).json({
-            success: false,
-            message: otpVerification.message || 'Invalid OTP. Please check and try again.'
-          });
-        }
+    // Validate OTP is provided
+    if (!otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Buyer OTP is required to complete pickup. Please enter the OTP shared by the buyer.'
+      });
+    }
 
-        // Update OTP verification attempts
-        if (order.returnDetails?.returnPickup?.buyerOtpMeta) {
-          order.returnDetails.returnPickup.buyerOtpMeta.verificationAttempts = 
-            (order.returnDetails.returnPickup.buyerOtpMeta.verificationAttempts || 0) + 1;
-          order.returnDetails.returnPickup.buyerOtpMeta.verifiedAt = new Date();
-        }
-      } catch (otpError) {
-        logReturnOperation('CompleteReturnPickup', {
-          otpError: otpError.message
-        }, 'warning');
+    // Validate buyer phone exists
+    if (!buyerPhone) {
+      logReturnOperation('CompleteReturnPickup', {
+        error: 'Buyer phone number not found',
+        userId: order.user?._id,
+        returnId
+      }, 'error');
+      return res.status(400).json({
+        success: false,
+        message: 'Buyer phone number not found. Cannot verify OTP. Please contact support.'
+      });
+    }
+
+    // Verify OTP with MSG91
+    try {
+      const otpVerification = await msg91Service.verifyOTP({
+        phoneNumber: buyerPhone,
+        otp
+      });
+
+      if (!otpVerification.success) {
         return res.status(400).json({
           success: false,
-          message: 'Failed to verify OTP. Please try again.'
+          message: otpVerification.message || 'Invalid OTP. Please check and try again.'
         });
       }
+
+      // Update OTP verification attempts
+      if (order.returnDetails?.returnPickup?.buyerOtpMeta) {
+        order.returnDetails.returnPickup.buyerOtpMeta.verificationAttempts =
+          (order.returnDetails.returnPickup.buyerOtpMeta.verificationAttempts || 0) + 1;
+        order.returnDetails.returnPickup.buyerOtpMeta.verifiedAt = new Date();
+      }
+    } catch (otpError) {
+      logReturnOperation('CompleteReturnPickup', {
+        otpError: otpError.message
+      }, 'warning');
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to verify OTP. Please try again.'
+      });
     }
 
     try {
@@ -1147,8 +1168,8 @@ const markReturnSellerArrival = async (req, res) => {
     }, 'return');
 
     const order = await Order.findById(returnId)
-      .populate('user', 'name email')
-      .populate('seller', 'firstName shop mobileNumber')
+      .populate('user', 'name email phone mobileNumber')
+      .populate('seller', 'firstName lastName shop mobileNumber phone email')
       .populate('returnDetails.returnAssignment.deliveryAgent', 'firstName lastName phone');
 
     if (!order) {
@@ -1179,15 +1200,29 @@ const markReturnSellerArrival = async (req, res) => {
       });
     }
 
+    // 🎯 Enhanced seller phone retrieval with extended fallbacks and logging
     const sellerPhone =
       order.seller?.mobileNumber ||
+      order.seller?.phone ||
       order.seller?.shop?.phoneNumber?.main ||
-      order.seller?.shop?.phoneNumber?.alternate;
+      order.seller?.shop?.phoneNumber?.alternate ||
+      order.seller?.shop?.phone ||
+      order.seller?.shop?.mobile ||
+      order.seller?.shop?.mobileNumber;
 
     if (!sellerPhone) {
+      logReturnOperation('ReturnSellerArrival', {
+        error: 'Seller phone number not found',
+        sellerId: order.seller?._id,
+        sellerName: order.seller?.firstName,
+        shopName: order.seller?.shop?.name,
+        returnId,
+        orderNumber: order.orderNumber
+      }, 'error');
+
       return res.status(400).json({
         success: false,
-        message: 'Seller mobile number is not available'
+        message: 'Seller mobile number is not available. Please contact admin to update seller details.'
       });
     }
 
@@ -1786,6 +1821,286 @@ const markReturnPickupFailed = async (req, res) => {
   }
 };
 
+// 🎯 RESEND BUYER PICKUP OTP (Delivery Agent)
+const resendBuyerPickupOTP = async (req, res) => {
+  try {
+    const { returnId } = req.params;
+    const agentId = req.deliveryAgent?._id || req.deliveryAgent?.id;
+
+    logReturnOperation('ResendBuyerPickupOTP', {
+      returnId,
+      agentId,
+      timestamp: new Date().toISOString()
+    }, 'return');
+
+    const order = await Order.findById(returnId)
+      .populate('user', 'name email phone mobileNumber')
+      .populate('seller', 'firstName lastName shop email phone mobileNumber')
+      .populate('returnDetails.returnAssignment.deliveryAgent', 'firstName lastName phone');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Return order not found'
+      });
+    }
+
+    // Check if agent is assigned to this return
+    if (order.returnDetails?.returnAssignment?.deliveryAgent?._id?.toString() !== agentId?.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized to resend OTP for this return'
+      });
+    }
+
+    // Check if return is in correct status
+    const returnStatus = order.returnDetails?.returnStatus;
+    if (returnStatus !== 'agent_reached_buyer') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot resend buyer OTP. Return status must be 'agent_reached_buyer', current status is: ${returnStatus}`
+      });
+    }
+
+    // Rate limiting check - max 3 resends, 60 second cooldown
+    const buyerOtpMeta = order.returnDetails?.returnPickup?.buyerOtpMeta;
+    const resendCount = buyerOtpMeta?.resendCount || 0;
+    const lastSentAt = buyerOtpMeta?.lastSentAt;
+
+    if (resendCount >= 3) {
+      return res.status(429).json({
+        success: false,
+        message: 'Maximum OTP resend limit reached (3). Please contact support.'
+      });
+    }
+
+    if (lastSentAt) {
+      const secondsSinceLastSend = (Date.now() - new Date(lastSentAt).getTime()) / 1000;
+      if (secondsSinceLastSend < 60) {
+        return res.status(429).json({
+          success: false,
+          message: `Please wait ${Math.ceil(60 - secondsSinceLastSend)} seconds before requesting a new OTP`
+        });
+      }
+    }
+
+    // Get buyer phone number
+    const buyerPhone = order.user?.mobileNumber || order.user?.phone;
+    if (!buyerPhone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Buyer phone number not found. Cannot send OTP.'
+      });
+    }
+
+    // Send OTP via MSG91
+    const otpResult = await msg91Service.sendOTPForForgotPassword(buyerPhone, {
+      purpose: 'return_pickup',
+      orderNumber: order.orderNumber,
+      userName: order.user?.name || 'Customer'
+    });
+
+    if (!otpResult.success) {
+      logReturnOperation('ResendBuyerPickupOTP', {
+        error: 'Failed to send OTP via MSG91',
+        returnId,
+        buyerPhone
+      }, 'error');
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP. Please try again.'
+      });
+    }
+
+    // Update OTP metadata
+    order.returnDetails.returnPickup.buyerOtpMeta = {
+      ...buyerOtpMeta,
+      lastSentAt: new Date(),
+      requestId: otpResult.response?.request_id || otpResult.response?.requestId || '',
+      phoneNumber: buyerPhone,
+      resendCount: resendCount + 1
+    };
+
+    await order.save();
+
+    logReturnOperation('ResendBuyerPickupOTP', {
+      success: true,
+      returnId,
+      orderNumber: order.orderNumber,
+      resendCount: resendCount + 1
+    }, 'success');
+
+    res.json({
+      success: true,
+      message: 'OTP resent successfully to buyer',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        resendCount: resendCount + 1,
+        maxResends: 3
+      }
+    });
+
+  } catch (error) {
+    logReturnOperation('ResendBuyerPickupOTP', {
+      error: error.message,
+      returnId: req.params.returnId,
+      stack: error.stack
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to resend buyer OTP',
+      error: error.message
+    });
+  }
+};
+
+// 🎯 RESEND SELLER DELIVERY OTP (Delivery Agent)
+const resendSellerDeliveryOTP = async (req, res) => {
+  try {
+    const { returnId } = req.params;
+    const agentId = req.deliveryAgent?._id || req.deliveryAgent?.id;
+
+    logReturnOperation('ResendSellerDeliveryOTP', {
+      returnId,
+      agentId,
+      timestamp: new Date().toISOString()
+    }, 'return');
+
+    const order = await Order.findById(returnId)
+      .populate('user', 'name email phone mobileNumber')
+      .populate('seller', 'firstName lastName shop email phone mobileNumber')
+      .populate('returnDetails.returnAssignment.deliveryAgent', 'firstName lastName phone');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Return order not found'
+      });
+    }
+
+    // Check if agent is assigned to this return
+    if (order.returnDetails?.returnAssignment?.deliveryAgent?._id?.toString() !== agentId?.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized to resend OTP for this return'
+      });
+    }
+
+    // Check if return is in correct status
+    const returnStatus = order.returnDetails?.returnStatus;
+    if (returnStatus !== 'agent_reached_seller') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot resend seller OTP. Return status must be 'agent_reached_seller', current status is: ${returnStatus}`
+      });
+    }
+
+    // Rate limiting check - max 3 resends, 60 second cooldown
+    const sellerOtpMeta = order.returnDetails?.returnDelivery?.sellerOtpMeta;
+    const resendCount = sellerOtpMeta?.resendCount || 0;
+    const lastSentAt = sellerOtpMeta?.lastSentAt;
+
+    if (resendCount >= 3) {
+      return res.status(429).json({
+        success: false,
+        message: 'Maximum OTP resend limit reached (3). Please contact support.'
+      });
+    }
+
+    if (lastSentAt) {
+      const secondsSinceLastSend = (Date.now() - new Date(lastSentAt).getTime()) / 1000;
+      if (secondsSinceLastSend < 60) {
+        return res.status(429).json({
+          success: false,
+          message: `Please wait ${Math.ceil(60 - secondsSinceLastSend)} seconds before requesting a new OTP`
+        });
+      }
+    }
+
+    // Get seller phone number with extended fallbacks
+    const sellerPhone = order.seller?.mobileNumber ||
+                        order.seller?.phone ||
+                        order.seller?.shop?.phone ||
+                        order.seller?.shop?.mobile ||
+                        order.seller?.shop?.mobileNumber;
+
+    if (!sellerPhone) {
+      logReturnOperation('ResendSellerDeliveryOTP', {
+        error: 'Seller phone number not found',
+        sellerId: order.seller?._id,
+        returnId
+      }, 'error');
+      return res.status(400).json({
+        success: false,
+        message: 'Seller phone number not found. Please contact admin.'
+      });
+    }
+
+    // Send OTP via MSG91
+    const otpResult = await msg91Service.sendOTPForForgotPassword(sellerPhone, {
+      purpose: 'return_delivery',
+      orderNumber: order.orderNumber,
+      userName: order.seller?.firstName || order.seller?.shop?.name || 'Seller'
+    });
+
+    if (!otpResult.success) {
+      logReturnOperation('ResendSellerDeliveryOTP', {
+        error: 'Failed to send OTP via MSG91',
+        returnId,
+        sellerPhone
+      }, 'error');
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP. Please try again.'
+      });
+    }
+
+    // Update OTP metadata
+    order.returnDetails.returnDelivery.sellerOtpMeta = {
+      ...sellerOtpMeta,
+      lastSentAt: new Date(),
+      requestId: otpResult.response?.request_id || otpResult.response?.requestId || '',
+      phoneNumber: sellerPhone,
+      resendCount: resendCount + 1
+    };
+
+    await order.save();
+
+    logReturnOperation('ResendSellerDeliveryOTP', {
+      success: true,
+      returnId,
+      orderNumber: order.orderNumber,
+      resendCount: resendCount + 1
+    }, 'success');
+
+    res.json({
+      success: true,
+      message: 'OTP resent successfully to seller',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        resendCount: resendCount + 1,
+        maxResends: 3
+      }
+    });
+
+  } catch (error) {
+    logReturnOperation('ResendSellerDeliveryOTP', {
+      error: error.message,
+      returnId: req.params.returnId,
+      stack: error.stack
+    }, 'error');
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to resend seller OTP',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getReturnEligibility,
   requestReturn,
@@ -1800,5 +2115,7 @@ module.exports = {
   completeReturn,
   getDeliveryAgentReturns,
   getReturnStatus,
-  markReturnPickupFailed
+  markReturnPickupFailed,
+  resendBuyerPickupOTP,
+  resendSellerDeliveryOTP
 };
