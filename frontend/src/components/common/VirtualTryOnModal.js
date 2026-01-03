@@ -26,6 +26,14 @@ const VirtualTryOnModal = ({ isOpen, onClose, product, onTryOnComplete }) => {
     }
   }, [isOpen]);
 
+  // Connect camera stream to video element when camera UI is shown
+  useEffect(() => {
+    if (showCamera && streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      console.log('✅ Camera stream connected to video element');
+    }
+  }, [showCamera]);
+
   const resetModal = () => {
     setStep('upload');
     setUserPhoto(null);
@@ -145,13 +153,8 @@ const VirtualTryOnModal = ({ isOpen, onClose, product, onTryOnComplete }) => {
       });
       
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        console.log(`✅ [${cameraId}] Video element updated with stream`);
-      } else {
-        console.warn(`⚠️ [${cameraId}] Video ref not available`);
-      }
-      
+      // Stream will be connected to video element via useEffect when showCamera becomes true
+
       setShowCamera(true);
       setCameraError('');
       console.log(`✅ [${cameraId}] Camera started successfully, showCamera=true`);
