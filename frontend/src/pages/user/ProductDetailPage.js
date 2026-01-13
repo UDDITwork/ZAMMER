@@ -774,19 +774,54 @@ const ProductDetailPage = () => {
           </div>
         )}
         
-        {/* Enhanced Composition */}
-        <div className="mb-8 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200">
-          <div className="flex items-center">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center mr-3">
-              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
+        {/* Product Details - Fabric Type & Category */}
+        <div className="mb-8 space-y-3">
+          {/* Fabric Type */}
+          {(product.fabricType || product.composition) && (
+            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200">
+              <div className="flex items-center">
+                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center mr-3">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-blue-800">Fabric Type</p>
+                  <p className="text-blue-700">{product.fabricType || product.composition || 'Not specified'}</p>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-bold text-blue-800">Composition</p>
-              <p className="text-blue-700">{product.composition || 'Cotton 100%'}</p>
+          )}
+
+          {/* Category Path - 4 Level Hierarchy */}
+          {product.categoryPath && (
+            <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl border border-purple-200">
+              <div className="flex items-start">
+                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-purple-800 mb-1">Category</p>
+                  <div className="flex flex-wrap items-center gap-1">
+                    {product.categoryPath.split(' > ').map((level, index, arr) => (
+                      <span key={index} className="flex items-center">
+                        <span className={`text-sm ${index === arr.length - 1 ? 'text-purple-700 font-semibold' : 'text-purple-600'}`}>
+                          {level}
+                        </span>
+                        {index < arr.length - 1 && (
+                          <svg className="w-4 h-4 text-purple-400 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
         
         {/* Enhanced Action Buttons */}

@@ -495,8 +495,15 @@ const ProductListPage = () => {
                         
                         {/* Category Badge */}
                         <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm text-gray-700 text-xs px-3 py-1 rounded-full font-medium border border-white/50">
-                          {product.subCategory || product.category}
+                          {product.categoryLevel3 || product.subCategory || product.category}
                         </div>
+
+                        {/* Fabric Type Badge */}
+                        {product.fabricType && (
+                          <div className="absolute bottom-3 right-3 bg-blue-500/90 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full font-medium">
+                            {product.fabricType}
+                          </div>
+                        )}
                         
                         {/* Wishlist Button */}
                         <div className="absolute top-3 right-3 z-20">
