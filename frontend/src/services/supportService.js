@@ -19,7 +19,7 @@ export const createTicket = async (ticketData) => {
       attachmentsCount: ticketData.attachments?.length || 0
     });
 
-    const response = await api.post('/api/support/tickets', ticketData);
+    const response = await api.post('/support/tickets', ticketData);
 
     console.log('✅ Ticket created successfully:', {
       ticketNumber: response.data.data?.ticketNumber,
@@ -51,7 +51,7 @@ export const getUserTickets = async (filters = {}) => {
     if (filters.page) queryParams.append('page', filters.page);
     if (filters.limit) queryParams.append('limit', filters.limit);
 
-    const response = await api.get(`/api/support/tickets?${queryParams.toString()}`);
+    const response = await api.get(`/support/tickets?${queryParams.toString()}`);
 
     console.log('✅ Tickets fetched:', {
       count: response.data.data?.tickets?.length || 0,
@@ -74,7 +74,7 @@ export const getTicket = async (ticketId) => {
   try {
     console.log('🔍 Fetching ticket:', ticketId);
 
-    const response = await api.get(`/api/support/tickets/${ticketId}`);
+    const response = await api.get(`/support/tickets/${ticketId}`);
 
     console.log('✅ Ticket fetched:', {
       ticketNumber: response.data.data?.ticket?.ticketNumber,
@@ -98,7 +98,7 @@ export const addMessage = async (ticketId, messageData) => {
   try {
     console.log('💬 Adding message to ticket:', ticketId);
 
-    const response = await api.post(`/api/support/tickets/${ticketId}/messages`, messageData);
+    const response = await api.post(`/support/tickets/${ticketId}/messages`, messageData);
 
     console.log('✅ Message added successfully');
 
@@ -118,7 +118,7 @@ export const getCategories = async (userType) => {
   try {
     console.log('📂 Fetching categories for:', userType);
 
-    const response = await api.get(`/api/support/categories/${userType}`);
+    const response = await api.get(`/support/categories/${userType}`);
 
     console.log('✅ Categories fetched:', {
       count: response.data.data?.length || 0
