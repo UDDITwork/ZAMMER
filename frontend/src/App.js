@@ -55,6 +55,7 @@ import Orders from './pages/seller/Orders';
 import PaymentTracking from './pages/seller/PaymentTracking';
 import BeneficiaryManagement from './pages/seller/BeneficiaryManagement';
 import PayoutDashboard from './pages/seller/PayoutDashboard';
+import UploadCatalogue from './pages/seller/UploadCatalogue';
 
 // Delivery Agent Auth Pages
 import DeliveryAgentLogin from './pages/auth/DeliveryAgentLogin';
@@ -187,6 +188,7 @@ function App() {
             {/* Seller Dashboard Routes */}
             <Route path="/seller/dashboard" element={<SellerDashboard />} />
             <Route path="/seller/add-product" element={<AddProduct />} />
+            <Route path="/seller/upload-catalogue" element={<UploadCatalogue />} />
             <Route path="/seller/edit-product/:id" element={<EditProduct />} />
             <Route path="/seller/view-products" element={<ViewProducts />} />
             <Route path="/seller/edit-profile" element={<EditProfile />} />

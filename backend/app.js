@@ -42,6 +42,7 @@ const returnRoutes = require('./routes/returnRoutes');
 const supportRoutes = require('./routes/supportRoutes');
 const adminSupportRoutes = require('./routes/adminSupportRoutes');
 const supportUploadRoutes = require('./routes/supportUploadRoutes');
+const catalogueRoutes = require('./routes/catalogueRoutes');
 
 // Initialize app
 const app = express();
@@ -963,6 +964,7 @@ app.use('/api/returns', returnRoutes);
 app.use('/api/support/upload', supportUploadRoutes);  // More specific - must come first
 app.use('/api/support', supportRoutes);               // General support routes
 app.use('/api/admin/support', adminSupportRoutes);
+app.use('/api/catalogues', catalogueRoutes);          // Catalogue bulk upload routes
 
 // ─────────────────────────────────────────────
 // UNIVERSAL: Serve React static assets from multiple possible paths

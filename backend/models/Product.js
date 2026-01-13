@@ -120,6 +120,27 @@ const ProductSchema = new mongoose.Schema({
     ],
     default: ''
   },
+  // 4-Level Category Hierarchy (Meesho-style)
+  categoryLevel1: {
+    type: String,
+    default: ''
+  },
+  categoryLevel2: {
+    type: String,
+    default: ''
+  },
+  categoryLevel3: {
+    type: String,
+    default: ''
+  },
+  categoryLevel4: {
+    type: String,
+    default: ''
+  },
+  categoryPath: {
+    type: String,  // Full path like "Women Fashion > Ethnic Wear > Sarees, Blouses & Petticoats > Sarees"
+    default: ''
+  },
   zammerPrice: {
     type: Number,
     required: [true, 'Please add a Zammer price']
@@ -173,6 +194,14 @@ const ProductSchema = new mongoose.Schema({
   },
   material: {
     type: String,
+    default: ''
+  },
+  fabricType: {
+    type: String,
+    enum: ['', 'Cotton', 'Silk', 'Polyester', 'Linen', 'Wool', 'Rayon',
+           'Chiffon', 'Georgette', 'Velvet', 'Denim', 'Satin', 'Crepe',
+           'Net', 'Lycra', 'Nylon', 'Jacquard', 'Khadi', 'Organza',
+           'Cotton Blend', 'Silk Blend', 'Poly Cotton'],
     default: ''
   },
   shipping: {

@@ -76,6 +76,36 @@ const colorOptions = [
   { name: 'Magenta', code: '#FF00FF' }
 ];
 
+// Image upload constraints
+const ALLOWED_IMAGE_FORMATS = ['image/png', 'image/jpeg', 'image/jpg'];
+const MAX_IMAGES = 4;
+
+// Fabric type options
+const fabricTypeOptions = [
+  { value: '', label: 'Select Fabric Type' },
+  { value: 'Cotton', label: 'Cotton' },
+  { value: 'Silk', label: 'Silk' },
+  { value: 'Polyester', label: 'Polyester' },
+  { value: 'Linen', label: 'Linen' },
+  { value: 'Wool', label: 'Wool' },
+  { value: 'Rayon', label: 'Rayon' },
+  { value: 'Chiffon', label: 'Chiffon' },
+  { value: 'Georgette', label: 'Georgette' },
+  { value: 'Velvet', label: 'Velvet' },
+  { value: 'Denim', label: 'Denim' },
+  { value: 'Satin', label: 'Satin' },
+  { value: 'Crepe', label: 'Crepe' },
+  { value: 'Net', label: 'Net' },
+  { value: 'Lycra', label: 'Lycra' },
+  { value: 'Nylon', label: 'Nylon' },
+  { value: 'Jacquard', label: 'Jacquard' },
+  { value: 'Khadi', label: 'Khadi' },
+  { value: 'Organza', label: 'Organza' },
+  { value: 'Cotton Blend', label: 'Cotton Blend' },
+  { value: 'Silk Blend', label: 'Silk Blend' },
+  { value: 'Poly Cotton', label: 'Poly Cotton' }
+];
+
 // Validation schema aligned with backend
 const productSchema = Yup.object().shape({
   name: Yup.string()
@@ -107,7 +137,10 @@ const productSchema = Yup.object().shape({
         .min(0, 'Quantity must be at least 0')
     })
   ).min(1, 'At least one variant is required'),
-  images: Yup.array().min(1, 'At least one image is required')
+  images: Yup.array()
+    .min(1, 'At least one image is required')
+    .max(MAX_IMAGES, `Maximum ${MAX_IMAGES} images allowed`),
+  fabricType: Yup.string()
 });
 
 // 🎯 IMPROVED: Better mock image upload with base64 fallback
@@ -165,9 +198,10 @@ const EditProduct = () => {
           category: productData.category || '',
           subCategory: productData.subCategory || '',
           productCategory: productData.productCategory || '',
+          fabricType: productData.fabricType || '',
           zammerPrice: productData.zammerPrice || '',
           mrp: productData.mrp || '',
-          variants: productData.variants && productData.variants.length > 0 
+          variants: productData.variants && productData.variants.length > 0
             ? productData.variants.map(variant => ({
                 color: variant.color || '',
                 colorCode: variant.colorCode || '',
@@ -200,30 +234,58 @@ const EditProduct = () => {
     try {
       const files = Array.from(e.target.files);
       const uploadedImages = [...images];
-      
-      for (const file of files) {
+
+      // Check if adding these files would exceed the limit
+      if (images.length >= MAX_IMAGES) {
+        toast.error(`Maximum ${MAX_IMAGES} images allowed per product`);
+        setUploadingImages(false);
+        return;
+      }
+
+      // Calculate how many more images can be added
+      const remainingSlots = MAX_IMAGES - images.length;
+      const filesToUpload = files.slice(0, remainingSlots);
+
+      if (files.length > remainingSlots) {
+        toast.warning(`Only ${remainingSlots} more image(s) can be added. Maximum ${MAX_IMAGES} images allowed.`);
+      }
+
+      for (const file of filesToUpload) {
+        // Validate file format
+        if (!ALLOWED_IMAGE_FORMATS.includes(file.type)) {
+          toast.error(`Invalid format: ${file.name}. Only PNG and JPG images are supported.`);
+          continue;
+        }
+
         const formData = new FormData();
         formData.append('image', file);
-        
-        const response = await fetch('/api/upload', {
+
+        console.log('📤 Uploading to Cloudinary via /api/upload...');
+
+        const response = await fetch(`${process.env.REACT_APP_API_URL.replace('/api', '')}/api/upload`, {
           method: 'POST',
           body: formData,
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
           }
         });
-        
+
         const data = await response.json();
+        console.log('📥 Upload response:', data);
+
         if (data.success) {
           uploadedImages.push(data.data.url);
+          console.log('✅ Cloudinary URL added:', data.data.url);
+        } else {
+          throw new Error(data.message || 'Upload failed');
         }
       }
-      
+
       setFieldValue('images', uploadedImages);
-      toast.success(`${files.length} image(s) uploaded successfully`);
+      toast.success(`${filesToUpload.length} image(s) uploaded to Cloudinary`);
     } catch (error) {
-      toast.error('Failed to upload images');
-      console.error('Image upload error:', error);
+      console.error('❌ Cloudinary upload failed:', error);
+      toast.error('Failed to upload images to Cloudinary');
     } finally {
       setUploadingImages(false);
     }
@@ -256,6 +318,7 @@ const EditProduct = () => {
       // Transform data to match backend schema exactly
       const productData = {
         ...values,
+        fabricType: values.fabricType || '',
         // Ensure variants match backend VariantSchema exactly
         variants: values.variants.map(variant => ({
           color: variant.color,
@@ -471,7 +534,7 @@ const EditProduct = () => {
                   </div>
                   
                   {/* Product Category */}
-                  <div className="md:col-span-2">
+                  <div>
                     <label htmlFor="productCategory" className="block text-sm font-medium text-gray-700 mb-1">
                       Product Category*
                     </label>
@@ -492,6 +555,26 @@ const EditProduct = () => {
                       component="div"
                       className="text-red-500 text-sm mt-1"
                     />
+                  </div>
+
+                  {/* Fabric Type */}
+                  <div>
+                    <label htmlFor="fabricType" className="block text-sm font-medium text-gray-700 mb-1">
+                      Fabric Type
+                    </label>
+                    <Field
+                      as="select"
+                      id="fabricType"
+                      name="fabricType"
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                    >
+                      {fabricTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Field>
+                    <p className="text-xs text-gray-500 mt-1">Select the primary fabric material</p>
                   </div>
                 </div>
                 
@@ -747,58 +830,90 @@ const EditProduct = () => {
                   </div>
                   Product Images
                 </h2>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Upload Images*
                   </label>
-                  
+
                   {values.images.length > 0 && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4">
                       {values.images.map((image, index) => (
-                        <div key={index} className="relative h-24 bg-gray-100 rounded-md overflow-hidden">
-                          <img 
-                            src={image} 
+                        <div key={index} className="relative h-24 bg-gray-100 rounded-md overflow-hidden group">
+                          <img
+                            src={image}
                             alt={`Product ${index + 1}`}
                             className="h-full w-full object-cover"
                           />
                           <button
                             type="button"
                             onClick={() => removeImage(index, setFieldValue, values.images)}
-                            className="absolute top-1 right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                            className="absolute top-1 right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                             ×
                           </button>
+                          {index === 0 && (
+                            <div className="absolute bottom-1 left-1 bg-green-500 text-white text-xs px-1.5 py-0.5 rounded">
+                              Main
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
                   )}
-                  
-                  <div className="mt-2">
-                    <label className="block">
-                      <span className="sr-only">Choose product images</span>
-                      <input 
-                        type="file" 
+
+                  <div className={`mt-2 border-2 border-dashed rounded-lg p-4 ${
+                    values.images.length >= MAX_IMAGES
+                      ? 'border-gray-300 bg-gray-50 cursor-not-allowed'
+                      : 'border-orange-300 hover:border-orange-400 hover:bg-orange-50/50'
+                  }`}>
+                    <label className={`block ${values.images.length >= MAX_IMAGES ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                      <div className="text-center">
+                        <svg className={`mx-auto h-10 w-10 mb-2 ${values.images.length >= MAX_IMAGES ? 'text-gray-300' : 'text-orange-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <div className={`text-sm font-medium mb-1 ${values.images.length >= MAX_IMAGES ? 'text-gray-400' : 'text-gray-700'}`}>
+                          {uploadingImages ? 'Uploading...' : values.images.length >= MAX_IMAGES ? 'Maximum Images Reached' : 'Click to upload images'}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {uploadingImages ? (
+                            <div className="flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500 mr-2"></div>
+                              Processing your images...
+                            </div>
+                          ) : values.images.length >= MAX_IMAGES ? (
+                            `You have uploaded the maximum of ${MAX_IMAGES} images`
+                          ) : (
+                            'PNG, JPG formats supported'
+                          )}
+                        </div>
+                      </div>
+                      <input
+                        type="file"
                         multiple
-                        accept="image/*"
-                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-orange-50 file:text-orange-600 hover:file:bg-orange-100"
+                        accept="image/png,image/jpeg,image/jpg"
+                        className="hidden"
                         onChange={(e) => handleImageUpload(e, setFieldValue, values.images)}
-                        disabled={uploadingImages}
+                        disabled={uploadingImages || values.images.length >= MAX_IMAGES}
                       />
                     </label>
-                    {uploadingImages && (
-                      <div className="mt-2 text-sm text-gray-500 flex items-center">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500 mr-2"></div>
-                        Uploading images...
-                      </div>
-                    )}
-                    <ErrorMessage
-                      name="images"
-                      component="div"
-                      className="text-red-500 text-sm mt-1"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Supported formats: JPG, PNG, GIF. Max size: 5MB per image.
+                  </div>
+                  <ErrorMessage
+                    name="images"
+                    component="div"
+                    className="text-red-500 text-sm mt-2"
+                  />
+                  <div className="mt-2 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-500">
+                        📷 <strong>Supported formats:</strong> PNG, JPG (Max 2MB each)
+                      </p>
+                      <p className={`text-xs font-medium ${values.images.length >= MAX_IMAGES ? 'text-red-500' : 'text-orange-500'}`}>
+                        {values.images.length}/{MAX_IMAGES} images uploaded
+                      </p>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      💡 First image will be the main product image.
                     </p>
                   </div>
                 </div>
