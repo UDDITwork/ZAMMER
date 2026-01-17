@@ -24,7 +24,7 @@ const logProductQuery = (action, data, level = 'info') => {
 // @access  Public
 const getMarketplaceProducts = async (req, res) => {
   try {
-    // 🎯 EXTRACT ALL QUERY PARAMETERS
+    // 🎯 EXTRACT ALL QUERY PARAMETERS - Supporting both legacy and 4-level hierarchy
     const {
       page = 1,
       limit = 12,
@@ -37,7 +37,12 @@ const getMarketplaceProducts = async (req, res) => {
       sortBy = 'createdAt',
       sortOrder = 'desc',
       status = 'active',
-      seller
+      seller,
+      // NEW: 4-level hierarchy parameters
+      categoryLevel1,
+      categoryLevel2,
+      categoryLevel3,
+      categoryLevel4
     } = req.query;
 
     logProductQuery('MARKETPLACE_PRODUCTS_REQUEST', {
@@ -52,6 +57,11 @@ const getMarketplaceProducts = async (req, res) => {
       sortBy,
       sortOrder,
       status,
+      // Log 4-level hierarchy params
+      categoryLevel1,
+      categoryLevel2,
+      categoryLevel3,
+      categoryLevel4,
       queryParams: Object.keys(req.query),
       fullQuery: req.query
     });
@@ -74,12 +84,38 @@ const getMarketplaceProducts = async (req, res) => {
       const subCategoryDecoded = decodeURIComponent(subCategoryRaw);
       // Apply case-insensitive regex
       filter.subCategory = { $regex: new RegExp(`^${subCategoryDecoded}$`, 'i') };
-      logProductQuery('FILTER_APPLIED', { 
-        type: 'subCategory', 
+      logProductQuery('FILTER_APPLIED', {
+        type: 'subCategory',
         raw: subCategoryRaw,
         decoded: subCategoryDecoded,
         filter: filter.subCategory
       });
+    }
+
+    // 🆕 NEW: 4-Level Category Hierarchy Filtering
+    // These fields are set by catalogue uploads and provide more granular filtering
+    if (categoryLevel1 && categoryLevel1.trim() !== '') {
+      const level1Decoded = decodeURIComponent(categoryLevel1.trim());
+      filter.categoryLevel1 = { $regex: new RegExp(`^${level1Decoded}$`, 'i') };
+      logProductQuery('FILTER_APPLIED', { type: 'categoryLevel1', value: level1Decoded });
+    }
+
+    if (categoryLevel2 && categoryLevel2.trim() !== '') {
+      const level2Decoded = decodeURIComponent(categoryLevel2.trim());
+      filter.categoryLevel2 = { $regex: new RegExp(`^${level2Decoded}$`, 'i') };
+      logProductQuery('FILTER_APPLIED', { type: 'categoryLevel2', value: level2Decoded });
+    }
+
+    if (categoryLevel3 && categoryLevel3.trim() !== '') {
+      const level3Decoded = decodeURIComponent(categoryLevel3.trim());
+      filter.categoryLevel3 = { $regex: new RegExp(`^${level3Decoded}$`, 'i') };
+      logProductQuery('FILTER_APPLIED', { type: 'categoryLevel3', value: level3Decoded });
+    }
+
+    if (categoryLevel4 && categoryLevel4.trim() !== '') {
+      const level4Decoded = decodeURIComponent(categoryLevel4.trim());
+      filter.categoryLevel4 = { $regex: new RegExp(`^${level4Decoded}$`, 'i') };
+      logProductQuery('FILTER_APPLIED', { type: 'categoryLevel4', value: level4Decoded });
     }
 
     // Product category filtering (Traditional Indian, Party Wear, etc.)

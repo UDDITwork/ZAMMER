@@ -86,6 +86,7 @@ import HomePage from './pages/user/HomePage';
 import UserDashboard from './pages/user/Dashboard';
 import ShopOffersPage from './pages/user/ShopOffersPage';
 import CategoryPage from './pages/user/CategoryPage';
+import HierarchicalCategoryPage from './pages/user/HierarchicalCategoryPage';
 import ProductListPage from './pages/user/ProductListPage';
 import ProductDetailPage from './pages/user/ProductDetailPage';
 import ShopDetailPage from './pages/user/ShopDetailPage';
@@ -286,7 +287,16 @@ function App() {
             <Route path="/user/dashboard" element={<UserDashboard />} />
             <Route path="/user/home" element={<HomePage />} />
             <Route path="/user/offers" element={<ShopOffersPage />} />
+
+            {/* Legacy Category Route (Men/Women/Kids flat structure) */}
             <Route path="/user/categories/:category" element={<CategoryPage />} />
+
+            {/* NEW: Hierarchical Category Browsing (4-Level Nested) */}
+            <Route path="/user/browse" element={<HierarchicalCategoryPage />} />
+            <Route path="/user/browse/:level1" element={<HierarchicalCategoryPage />} />
+            <Route path="/user/browse/:level1/:level2" element={<HierarchicalCategoryPage />} />
+            <Route path="/user/browse/:level1/:level2/:level3" element={<HierarchicalCategoryPage />} />
+
             <Route path="/user/products" element={<ProductListPage />} />
             <Route path="/user/product/:productId" element={<ProductDetailPage />} />
             <Route path="/user/shop/:shopId" element={<ShopDetailPage />} />

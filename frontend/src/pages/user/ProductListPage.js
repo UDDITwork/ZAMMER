@@ -21,12 +21,18 @@ const ProductListPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
-  
-  // Get filter parameters from URL
+
+  // Get filter parameters from URL - support both legacy and new 4-level hierarchy
   const category = searchParams.get('category');
   const subcategory = searchParams.get('subCategory');
   const productCategory = searchParams.get('productCategory');
   const search = searchParams.get('search');
+
+  // NEW: 4-level hierarchy parameters
+  const categoryLevel1 = searchParams.get('categoryLevel1') || searchParams.get('level1');
+  const categoryLevel2 = searchParams.get('categoryLevel2') || searchParams.get('level2');
+  const categoryLevel3 = searchParams.get('categoryLevel3') || searchParams.get('level3');
+  const categoryLevel4 = searchParams.get('categoryLevel4') || searchParams.get('level4');
   
   // Component state
   const [products, setProducts] = useState([]);
@@ -59,6 +65,10 @@ const ProductListPage = () => {
         subcategory,
         productCategory,
         search,
+        categoryLevel1,
+        categoryLevel2,
+        categoryLevel3,
+        categoryLevel4,
         page,
         sortBy,
         priceRange
@@ -72,14 +82,18 @@ const ProductListPage = () => {
 📁 Subcategory: ${subcategory || 'All'}
 🏷️ Product Category: ${productCategory || 'All'}
 🔍 Search: ${search || 'None'}
+📊 Level 1: ${categoryLevel1 || 'All'}
+📊 Level 2: ${categoryLevel2 || 'All'}
+📊 Level 3: ${categoryLevel3 || 'All'}
+📊 Level 4: ${categoryLevel4 || 'All'}
 📄 Page: ${page}
 🔢 Sort: ${sortBy}
 💰 Price Range: ${priceRange.min || 0} - ${priceRange.max || '∞'}
 👤 User: ${userAuth.user?.name || 'Guest'}
 🕐 Time: ${new Date().toLocaleString()}
 ===============================`);
-      
-      // Build filter parameters
+
+      // Build filter parameters - supporting both legacy and new 4-level hierarchy
       const params = {
         page,
         limit: 12,
@@ -88,7 +102,12 @@ const ProductListPage = () => {
         ...(productCategory && { productCategory }),
         ...(search && { search }),
         ...(priceRange.min && { minPrice: priceRange.min }),
-        ...(priceRange.max && { maxPrice: priceRange.max })
+        ...(priceRange.max && { maxPrice: priceRange.max }),
+        // NEW: 4-level hierarchy parameters
+        ...(categoryLevel1 && { categoryLevel1 }),
+        ...(categoryLevel2 && { categoryLevel2 }),
+        ...(categoryLevel3 && { categoryLevel3 }),
+        ...(categoryLevel4 && { categoryLevel4 })
       };
       
       // Add sorting
@@ -181,7 +200,7 @@ const ProductListPage = () => {
       }
       fetchingRef.current = false;
     }
-  }, [category, subcategory, productCategory, search, sortBy, priceRange, userAuth.user?.name]);
+  }, [category, subcategory, productCategory, search, categoryLevel1, categoryLevel2, categoryLevel3, categoryLevel4, sortBy, priceRange, userAuth.user?.name]);
 
   // Enhanced useEffect with proper cleanup
   useEffect(() => {
@@ -353,20 +372,34 @@ const ProductListPage = () => {
     navigate('/user/products');
   };
 
-  // Get page title
+  // Get page title - support both legacy and 4-level hierarchy
   const getPageTitle = () => {
     if (search) return `Search Results: "${search}"`;
+    // 4-level hierarchy title
+    if (categoryLevel4) return categoryLevel4;
+    if (categoryLevel3) return categoryLevel3;
+    if (categoryLevel2) return categoryLevel2;
+    if (categoryLevel1) return categoryLevel1;
+    // Legacy title
     if (category && subcategory) return `${category} - ${subcategory}`;
     if (category) return `${category} Collection`;
     if (productCategory) return productCategory;
     return 'All Products';
   };
 
-  // Get filter summary
+  // Get filter summary - support both legacy and 4-level hierarchy
   const getFilterSummary = () => {
     const filters = [];
-    if (category) filters.push(`Category: ${category}`);
-    if (subcategory) filters.push(`Type: ${subcategory}`);
+    // 4-level hierarchy breadcrumb
+    if (categoryLevel1) filters.push(categoryLevel1);
+    if (categoryLevel2) filters.push(categoryLevel2);
+    if (categoryLevel3) filters.push(categoryLevel3);
+    if (categoryLevel4) filters.push(categoryLevel4);
+    // Legacy filters (only if no hierarchy)
+    if (!categoryLevel1) {
+      if (category) filters.push(`Category: ${category}`);
+      if (subcategory) filters.push(`Type: ${subcategory}`);
+    }
     if (productCategory) filters.push(`Collection: ${productCategory}`);
     if (search) filters.push(`Search: "${search}"`);
     if (priceRange.min || priceRange.max) {
@@ -436,8 +469,8 @@ const ProductListPage = () => {
                   <option value="price-high">Price: High to Low</option>
                   <option value="popular">Most Popular</option>
                 </select>
-                {(category || subcategory || productCategory || search || priceRange.min || priceRange.max) && (
-                  <button 
+                {(category || subcategory || productCategory || search || priceRange.min || priceRange.max || categoryLevel1 || categoryLevel2 || categoryLevel3 || categoryLevel4) && (
+                  <button
                     onClick={clearFilters}
                     className="text-blue-600 hover:text-blue-700 text-sm font-medium"
                   >
@@ -651,7 +684,7 @@ const ProductListPage = () => {
                 }
               </p>
               <div className="space-y-4">
-                {(category || subcategory || productCategory || search || priceRange.min || priceRange.max) && (
+                {(category || subcategory || productCategory || search || priceRange.min || priceRange.max || categoryLevel1 || categoryLevel2 || categoryLevel3 || categoryLevel4) && (
                   <button
                     onClick={clearFilters}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-semibold transition-colors duration-200"
