@@ -36,6 +36,7 @@ const {
 } = require('../controllers/adminController');
 
 // Import all required models
+const mongoose = require('mongoose');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const Seller = require('../models/Seller');
@@ -546,20 +547,44 @@ router.get('/sellers/:sellerId', [
       });
     }
 
-    // Get seller statistics
-    const [totalProducts, activeProducts, totalOrders, totalRevenue] = await Promise.all([
+    // Get seller statistics (ENHANCED with detailed product stats and products list)
+    const sellerObjectId = new mongoose.Types.ObjectId(sellerId);
+
+    const [
+      totalProducts,
+      activeProducts,
+      limitedEditionProducts,
+      trendingProducts,
+      pausedProducts,
+      outOfStockProducts,
+      totalOrders,
+      totalRevenue,
+      products
+    ] = await Promise.all([
       Product.countDocuments({ seller: sellerId }),
-      Product.countDocuments({ seller: sellerId, isActive: true }),
-      Order.countDocuments({ seller: sellerId }),
+      Product.countDocuments({ seller: sellerId, status: 'active' }),
+      Product.countDocuments({ seller: sellerId, isLimitedEdition: true }),
+      Product.countDocuments({ seller: sellerId, isTrending: true }),
+      Product.countDocuments({ seller: sellerId, status: 'paused' }),
+      Product.countDocuments({ seller: sellerId, status: 'outOfStock' }),
+      Order.countDocuments({ seller: sellerObjectId }),
       Order.aggregate([
-        { $match: { seller: sellerId, isPaid: true } },
+        { $match: { seller: sellerObjectId, isPaid: true } },
         { $group: { _id: null, total: { $sum: '$totalPrice' } } }
-      ])
+      ]),
+      Product.find({ seller: sellerId })
+        .select('name description category subCategory zammerPrice mrp images variants status isLimitedEdition isTrending createdAt')
+        .sort({ createdAt: -1 })
+        .limit(50)
     ]);
 
     const stats = {
       totalProducts,
       activeProducts,
+      limitedEditionProducts,
+      trendingProducts,
+      pausedProducts,
+      outOfStockProducts,
       totalOrders,
       totalRevenue: totalRevenue[0]?.total || 0
     };
@@ -569,6 +594,7 @@ router.get('/sellers/:sellerId', [
       message: 'Seller profile retrieved successfully',
       data: {
         seller,
+        products,
         stats
       }
     });

@@ -198,8 +198,10 @@ const ViewSellerProfile = () => {
           </div>
           
           <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm text-green-600">Active Account</span>
+            <div className={`w-2 h-2 rounded-full animate-pulse ${seller.isVerified ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+            <span className={`text-sm ${seller.isVerified ? 'text-green-600' : 'text-yellow-600'}`}>
+              {seller.isVerified ? 'Verified Account' : 'Pending Verification'}
+            </span>
           </div>
         </div>
 
@@ -268,6 +270,16 @@ const ViewSellerProfile = () => {
                   <label className="text-sm font-medium text-gray-700">Last Updated</label>
                   <p className="mt-1 text-sm text-gray-900">{formatDate(seller.updatedAt)}</p>
                 </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Verification Status</label>
+                  <div className="mt-1">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      seller.isVerified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {seller.isVerified ? 'Verified' : 'Not Verified'}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -317,6 +329,93 @@ const ViewSellerProfile = () => {
                 </div>
               </div>
             </div>
+
+            {/* Bank Details */}
+            <div className="bg-white shadow-sm rounded-lg border border-gray-200">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Bank Details</h3>
+              </div>
+              <div className="p-6 space-y-4">
+                {seller.bankDetails && (seller.bankDetails.bankName || seller.bankDetails.accountNumber) ? (
+                  <>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Bank Name</label>
+                      <p className="mt-1 text-sm text-gray-900">{seller.bankDetails.bankName || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Account Holder Name</label>
+                      <p className="mt-1 text-sm text-gray-900">{seller.bankDetails.accountHolderName || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Account Number</label>
+                      <p className="mt-1 text-sm text-gray-900 font-mono">
+                        {seller.bankDetails.accountNumber ?
+                          `****${seller.bankDetails.accountNumber.slice(-4)}` :
+                          'Not provided'
+                        }
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">IFSC Code</label>
+                      <p className="mt-1 text-sm text-gray-900 font-mono">{seller.bankDetails.ifscCode || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Account Type</label>
+                      <p className="mt-1 text-sm text-gray-900">{seller.bankDetails.accountType || 'Not provided'}</p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-4">
+                    <svg className="mx-auto h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                    <p className="mt-2 text-sm text-gray-500">No bank details provided</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Shop Location Details */}
+            <div className="bg-white shadow-sm rounded-lg border border-gray-200">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Shop Location</h3>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">City</label>
+                  <p className="mt-1 text-sm text-gray-900">{seller.shop?.city || 'Not set'}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">State</label>
+                  <p className="mt-1 text-sm text-gray-900">{seller.shop?.state || 'Not set'}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Postal Code</label>
+                  <p className="mt-1 text-sm text-gray-900">{seller.shop?.postalCode || 'Not set'}</p>
+                </div>
+                {seller.shop?.location?.coordinates && seller.shop.location.coordinates[0] !== 0 && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Coordinates</label>
+                    <p className="mt-1 text-sm text-gray-900">
+                      Lat: {seller.shop.location.coordinates[1]?.toFixed(6)},
+                      Lng: {seller.shop.location.coordinates[0]?.toFixed(6)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Shop Description */}
+            {seller.shop?.description && (
+              <div className="bg-white shadow-sm rounded-lg border border-gray-200 lg:col-span-2">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-lg font-medium text-gray-900">Shop Description</h3>
+                </div>
+                <div className="p-6">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{seller.shop.description}</p>
+                </div>
+              </div>
+            )}
 
             {/* Shop Images */}
             {seller.shop?.images && seller.shop.images.length > 0 && (
@@ -463,6 +562,38 @@ const ViewSellerProfile = () => {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Out of Stock</p>
                   <p className="text-2xl font-bold text-gray-900">{stats.outOfStockProducts}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Total Orders</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.totalOrders}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Total Revenue</p>
+                  <p className="text-2xl font-bold text-gray-900">₹{stats.totalRevenue?.toLocaleString() || 0}</p>
                 </div>
               </div>
             </div>
