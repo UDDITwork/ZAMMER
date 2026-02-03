@@ -207,6 +207,15 @@ const AdminLayout = ({ children }) => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
         </svg>
       )
+    },
+    {
+      name: 'Banner Management',
+      href: '/admin/banner-management',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      )
     }
   ];
 
@@ -373,7 +382,8 @@ const getPageTitle = (pathname) => {
     '/admin/sellers': 'Seller Management',
     '/admin/cod-collections': 'COD Collections',
     '/admin/live-logs': 'Live Backend Logs',
-    '/admin/logs': 'Live Backend Logs'
+    '/admin/logs': 'Live Backend Logs',
+    '/admin/banner-management': 'Banner Management'
   };
 
   return titles[pathname] || 'Admin Panel';

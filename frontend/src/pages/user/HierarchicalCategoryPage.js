@@ -1,9 +1,17 @@
 // frontend/src/pages/user/HierarchicalCategoryPage.js
-// Hierarchical Category Browser for 4-Level Category System
+// Hierarchical Category Browser — Premium Editorial Design
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import categoryService from '../../services/categoryService';
+import { getBanners } from '../../services/bannerService';
+import { motion } from 'framer-motion';
+import {
+  ChevronLeft, ChevronRight, ArrowRight, Check,
+  Home, ShoppingBag, ShoppingCart, User, LayoutGrid,
+  Crown, Shirt, Snowflake, Dumbbell, Moon, Heart,
+  Baby, GraduationCap, Layers, Sparkles, Gem, Stars
+} from 'lucide-react';
 
 const HierarchicalCategoryPage = () => {
   const { level1, level2, level3 } = useParams();
@@ -14,46 +22,63 @@ const HierarchicalCategoryPage = () => {
   const [breadcrumbs, setBreadcrumbs] = useState([]);
   const [pageTitle, setPageTitle] = useState('');
   const [pageDescription, setPageDescription] = useState('');
+  const [bannerImages, setBannerImages] = useState([]);
 
-  // Decode URL parameters
   const decodedLevel1 = level1 ? decodeURIComponent(level1) : null;
   const decodedLevel2 = level2 ? decodeURIComponent(level2) : null;
   const decodedLevel3 = level3 ? decodeURIComponent(level3) : null;
 
-  // Determine current hierarchy level and fetch appropriate categories
+  const getCurrentLevel = () => {
+    if (!decodedLevel1) return 1;
+    if (!decodedLevel2) return 2;
+    if (!decodedLevel3) return 3;
+    return 4;
+  };
+
+  const fetchBannerImages = useCallback(async () => {
+    try {
+      const currentLevel = getCurrentLevel();
+      let params = {};
+      if (currentLevel === 2 && decodedLevel1) {
+        params = { level: 2, categoryLevel1: decodedLevel1 };
+      } else if (currentLevel === 3 && decodedLevel1 && decodedLevel2) {
+        params = { level: 3, categoryLevel1: decodedLevel1, categoryLevel2: decodedLevel2 };
+      } else {
+        params = { level: 1 };
+      }
+      const response = await getBanners(params);
+      if (response.success) setBannerImages(response.data);
+    } catch (error) {
+      console.error('Error fetching banner images:', error);
+    }
+  }, [decodedLevel1, decodedLevel2]);
+
   useEffect(() => {
     setLoading(true);
-
     try {
       let categoryData = [];
       let title = '';
       let description = '';
 
       if (!decodedLevel1) {
-        // Show Level 1 categories (Men Fashion, Women Fashion, Kids Fashion)
         categoryData = categoryService.getLevel1Categories();
-        title = 'Shop by Category';
-        description = 'Browse our complete collection by category';
+        title = 'Collections';
+        description = 'Explore our curated categories';
       } else if (!decodedLevel2) {
-        // Show Level 2 categories for selected Level 1
         categoryData = categoryService.getLevel2Categories(decodedLevel1);
         title = decodedLevel1;
-        description = `Explore ${decodedLevel1} categories`;
+        description = `Explore ${decodedLevel1}`;
       } else if (!decodedLevel3) {
-        // Show Level 3 categories for selected Level 1 and Level 2
         categoryData = categoryService.getLevel3Categories(decodedLevel1, decodedLevel2);
         title = decodedLevel2;
         description = `${decodedLevel2} in ${decodedLevel1}`;
       } else {
-        // Show Level 4 categories (or redirect to products if at deepest level)
         const level4Data = categoryService.getLevel4Categories(decodedLevel1, decodedLevel2, decodedLevel3);
-
         if (level4Data.length > 0) {
           categoryData = level4Data;
           title = decodedLevel3;
-          description = `${decodedLevel3} types in ${decodedLevel2}`;
+          description = `${decodedLevel3} in ${decodedLevel2}`;
         } else {
-          // No Level 4, redirect to products
           const filterParams = categoryService.buildFilterParams(decodedLevel1, decodedLevel2, decodedLevel3);
           const queryString = new URLSearchParams(filterParams).toString();
           navigate(`/user/products?${queryString}`);
@@ -64,119 +89,111 @@ const HierarchicalCategoryPage = () => {
       setCategories(categoryData);
       setPageTitle(title);
       setPageDescription(description);
-
-      // Build breadcrumbs
       const crumbs = categoryService.getBreadcrumbs(decodedLevel1, decodedLevel2, decodedLevel3);
       setBreadcrumbs(crumbs);
-
     } catch (error) {
       console.error('Error loading categories:', error);
     } finally {
       setLoading(false);
     }
-  }, [decodedLevel1, decodedLevel2, decodedLevel3, navigate]);
+    fetchBannerImages();
+  }, [decodedLevel1, decodedLevel2, decodedLevel3, navigate, fetchBannerImages]);
 
-  // Determine the navigation URL for each category item
   const getCategoryLink = (category) => {
     if (!decodedLevel1) {
-      // Clicking Level 1 - go to Level 2 selection
       return `/user/browse/${encodeURIComponent(category.id)}`;
     } else if (!decodedLevel2) {
-      // Clicking Level 2 - go to Level 3 selection
       return `/user/browse/${encodeURIComponent(decodedLevel1)}/${encodeURIComponent(category.id)}`;
     } else if (!decodedLevel3) {
-      // Clicking Level 3 - check if Level 4 exists, otherwise go to products
       const level4Data = categoryService.getLevel4Categories(decodedLevel1, decodedLevel2, category.id);
       if (level4Data.length > 0) {
         return `/user/browse/${encodeURIComponent(decodedLevel1)}/${encodeURIComponent(decodedLevel2)}/${encodeURIComponent(category.id)}`;
       } else {
-        // No Level 4, go directly to products
         const filterParams = categoryService.buildFilterParams(decodedLevel1, decodedLevel2, category.id);
         return `/user/products?${new URLSearchParams(filterParams).toString()}`;
       }
     } else {
-      // Clicking Level 4 - go to products with full filter
       const filterParams = categoryService.buildFilterParams(decodedLevel1, decodedLevel2, decodedLevel3, category.id);
       return `/user/products?${new URLSearchParams(filterParams).toString()}`;
     }
   };
 
-  // Get "View All Products" link for current selection
   const getViewAllLink = () => {
     const filterParams = categoryService.buildFilterParams(decodedLevel1, decodedLevel2, decodedLevel3);
     return `/user/products?${new URLSearchParams(filterParams).toString()}`;
   };
 
-  // Get appropriate icon for category type
-  const getCategoryIcon = (categoryName) => {
-    const iconMap = {
-      'Ethnic Wear': '🪷',
-      'Western Wear': '👕',
-      'Winter Wear': '🧥',
-      'Sportswear': '🏃',
-      'Sleepwear & Loungewear': '😴',
-      'Boys Wear': '👦',
-      'Girls Wear': '👧',
-      'Infant Wear': '👶',
-      'School Uniforms': '🎒',
-      'Bottom Wear': '👖',
-      'Lingerie & Innerwear': '🩱',
-      'Men Fashion': '👔',
-      'Women Fashion': '👗',
-      'Kids Fashion': '🧒'
-    };
-    return iconMap[categoryName] || '📦';
+  const getBannerForCategory = (categoryName) => {
+    const currentLevel = getCurrentLevel();
+    if (currentLevel === 2) return bannerImages.find(b => b.categoryLevel2 === categoryName);
+    if (currentLevel === 3) return bannerImages.find(b => b.categoryLevel3 === categoryName);
+    if (currentLevel === 1) return bannerImages.find(b => b.categoryLevel1 === categoryName);
+    return null;
   };
 
-  // Current level indicator
-  const getCurrentLevel = () => {
-    if (!decodedLevel1) return 1;
-    if (!decodedLevel2) return 2;
-    if (!decodedLevel3) return 3;
-    return 4;
+  const getCategoryIcon = (categoryName) => {
+    const iconMap = {
+      'Ethnic Wear': <Crown className="w-5 h-5" strokeWidth={1.5} />,
+      'Western Wear': <Shirt className="w-5 h-5" strokeWidth={1.5} />,
+      'Winter Wear': <Snowflake className="w-5 h-5" strokeWidth={1.5} />,
+      'Sportswear': <Dumbbell className="w-5 h-5" strokeWidth={1.5} />,
+      'Sleepwear & Loungewear': <Moon className="w-5 h-5" strokeWidth={1.5} />,
+      'Boys Wear': <User className="w-5 h-5" strokeWidth={1.5} />,
+      'Girls Wear': <Heart className="w-5 h-5" strokeWidth={1.5} />,
+      'Infant Wear': <Baby className="w-5 h-5" strokeWidth={1.5} />,
+      'School Uniforms': <GraduationCap className="w-5 h-5" strokeWidth={1.5} />,
+      'Bottom Wear': <Layers className="w-5 h-5" strokeWidth={1.5} />,
+      'Lingerie & Innerwear': <Sparkles className="w-5 h-5" strokeWidth={1.5} />,
+      'Men Fashion': <User className="w-5 h-5" strokeWidth={1.5} />,
+      'Women Fashion': <Gem className="w-5 h-5" strokeWidth={1.5} />,
+      'Kids Fashion': <Stars className="w-5 h-5" strokeWidth={1.5} />,
+    };
+    return iconMap[categoryName] || <Layers className="w-5 h-5" strokeWidth={1.5} />;
+  };
+
+  const staggerContainer = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.08 } }
+  };
+  const staggerItem = {
+    hidden: { opacity: 0, y: 16 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-25 to-indigo-25 pb-20">
-      {/* Header with Gradient */}
-      <div className="bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-xl">
-        <div className="container mx-auto px-4 py-6">
-          {/* Back Button and Title */}
-          <div className="flex items-center mb-4">
+    <div className="min-h-screen bg-white pb-20">
+
+      {/* HEADER */}
+      <header className="bg-black text-white">
+        <div className="max-w-7xl mx-auto px-5 py-5">
+          <div className="flex items-center gap-3 mb-3">
             <button
               onClick={() => navigate(-1)}
-              className="mr-4 p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors"
+              className="p-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] transition-colors"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
+              <ChevronLeft className="h-5 w-5" strokeWidth={1.5} />
             </button>
             <div>
-              <h1 className="text-2xl font-bold">{pageTitle}</h1>
-              <p className="text-purple-100 text-sm">{pageDescription}</p>
+              <h1 className="text-xl font-light tracking-[-0.02em]">{pageTitle}</h1>
+              <p className="text-white/40 text-[12px] mt-0.5">{pageDescription}</p>
             </div>
           </div>
 
-          {/* Breadcrumb Navigation */}
+          {/* Breadcrumbs */}
           {breadcrumbs.length > 0 && (
-            <div className="flex items-center space-x-2 text-sm overflow-x-auto pb-2">
-              <Link
-                to="/user/browse"
-                className="text-purple-200 hover:text-white transition-colors whitespace-nowrap"
-              >
-                All Categories
+            <div className="flex items-center gap-1.5 text-[12px] overflow-x-auto pb-2 scrollbar-hide">
+              <Link to="/user/browse" className="text-white/40 hover:text-white transition-colors whitespace-nowrap">
+                All
               </Link>
               {breadcrumbs.map((crumb, index) => (
                 <React.Fragment key={index}>
-                  <svg className="w-4 h-4 text-purple-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  <ChevronRight className="w-3 h-3 text-white/20 flex-shrink-0" strokeWidth={1.5} />
                   <Link
                     to={crumb.path}
                     className={`whitespace-nowrap ${
                       index === breadcrumbs.length - 1
-                        ? 'text-white font-medium'
-                        : 'text-purple-200 hover:text-white transition-colors'
+                        ? 'text-orange-400 font-medium'
+                        : 'text-white/40 hover:text-white transition-colors'
                     }`}
                   >
                     {crumb.name}
@@ -186,152 +203,230 @@ const HierarchicalCategoryPage = () => {
             </div>
           )}
 
-          {/* Level Indicator */}
-          <div className="flex items-center space-x-2 mt-4">
+          {/* Level progress — minimal line style */}
+          <div className="flex items-center gap-0 mt-4">
             {[1, 2, 3, 4].map((level) => (
-              <div
-                key={level}
-                className={`flex items-center ${level <= getCurrentLevel() ? 'text-white' : 'text-purple-300'}`}
-              >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+              <React.Fragment key={level}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium transition-colors ${
                   level < getCurrentLevel()
-                    ? 'bg-green-500'
+                    ? 'bg-orange-500 text-white'
                     : level === getCurrentLevel()
-                      ? 'bg-white text-purple-600'
-                      : 'bg-purple-400/50'
+                      ? 'bg-white text-black'
+                      : 'bg-white/[0.08] text-white/30'
                 }`}>
-                  {level < getCurrentLevel() ? '✓' : level}
+                  {level < getCurrentLevel() ? <Check className="w-3 h-3" strokeWidth={2} /> : level}
                 </div>
                 {level < 4 && (
-                  <div className={`w-8 h-0.5 ${level < getCurrentLevel() ? 'bg-green-500' : 'bg-purple-400/50'}`} />
+                  <div className={`flex-1 h-px mx-1 ${level < getCurrentLevel() ? 'bg-orange-500' : 'bg-white/[0.08]'}`} />
                 )}
-              </div>
+              </React.Fragment>
             ))}
-            <span className="text-purple-200 text-xs ml-2">
-              {getCurrentLevel() === 1 && 'Select Category'}
-              {getCurrentLevel() === 2 && 'Select Type'}
-              {getCurrentLevel() === 3 && 'Select Product Group'}
-              {getCurrentLevel() === 4 && 'Select Specific Type'}
-            </span>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* View All Products Button (shown when at least one level is selected) */}
+      {/* View All Products */}
       {decodedLevel1 && (
-        <div className="container mx-auto px-4 py-4">
+        <div className="max-w-7xl mx-auto px-5 pt-5">
           <Link
             to={getViewAllLink()}
-            className="block w-full bg-gradient-to-r from-purple-500 to-indigo-500 text-white text-center py-4 rounded-xl font-semibold shadow-lg hover:from-purple-600 hover:to-indigo-600 transition-all"
+            className="flex items-center justify-center gap-2 w-full bg-black text-white text-[13px] font-medium uppercase tracking-[0.1em] py-3.5 rounded-xl hover:bg-neutral-900 transition-colors"
           >
-            View All Products in {decodedLevel3 || decodedLevel2 || decodedLevel1}
-            <svg className="inline-block ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-            </svg>
+            View all in {decodedLevel3 || decodedLevel2 || decodedLevel1}
+            <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
           </Link>
         </div>
       )}
 
-      {/* Categories Grid */}
-      <div className="container mx-auto px-4 py-6">
+      {/* CATEGORIES */}
+      <div className="max-w-7xl mx-auto px-5 py-6">
         {loading ? (
-          <div className="flex justify-center py-16 bg-white rounded-2xl shadow-lg">
+          <div className="flex justify-center py-20">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-200 border-t-purple-600 mx-auto mb-4"></div>
-              <span className="text-gray-600 font-medium">Loading categories...</span>
+              <div className="w-8 h-8 border border-neutral-200 border-t-black rounded-full animate-spin mx-auto mb-4" />
+              <span className="text-neutral-400 text-[12px] uppercase tracking-[0.1em]">Loading...</span>
             </div>
           </div>
         ) : categories.length > 0 ? (
-          <div className={`grid gap-4 ${
-            getCurrentLevel() === 1
-              ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
-              : getCurrentLevel() === 4
-                ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5'
-                : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'
-          }`}>
-            {categories.map((category, index) => (
-              <Link
-                key={category.id || index}
-                to={getCategoryLink(category)}
-                className={`relative bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 group transform hover:scale-102 border border-gray-100 ${
-                  getCurrentLevel() === 1 ? 'p-6' : 'p-4'
-                }`}
+          <>
+            {/* LEVEL 1: Large editorial cards */}
+            {getCurrentLevel() === 1 && (
+              <motion.div
+                variants={staggerContainer}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
               >
-                {/* Category Content */}
-                <div className="flex items-center space-x-4">
-                  {/* Icon/Emoji */}
-                  <div className={`flex-shrink-0 ${
-                    getCurrentLevel() === 1
-                      ? 'w-16 h-16 text-3xl'
-                      : 'w-12 h-12 text-2xl'
-                  } bg-gradient-to-br from-purple-100 to-indigo-100 rounded-xl flex items-center justify-center group-hover:from-purple-200 group-hover:to-indigo-200 transition-colors`}>
-                    {getCategoryIcon(category.name || category.id)}
-                  </div>
+                {categories.map((category, index) => {
+                  const banner = getBannerForCategory(category.name || category.id);
+                  return (
+                    <motion.div key={category.id || index} variants={staggerItem}>
+                      <Link to={getCategoryLink(category)} className="group block">
+                        <div
+                          className="relative rounded-2xl overflow-hidden bg-neutral-100"
+                          style={{ aspectRatio: '4/5' }}
+                        >
+                          {banner?.imageUrl ? (
+                            <img src={banner.imageUrl} alt={category.name || category.id} className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700" />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-b from-neutral-800 to-black flex items-center justify-center">
+                              <div className="text-center text-white/60">
+                                <div className="w-14 h-14 bg-white/[0.06] rounded-full flex items-center justify-center mx-auto mb-3">
+                                  {getCategoryIcon(category.name || category.id)}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                          <div className="absolute bottom-0 left-0 right-0 p-6">
+                            <span className="text-[9px] font-medium uppercase tracking-[0.25em] text-orange-400 mb-2 block">Collection</span>
+                            <h3 className="text-white text-xl font-light tracking-[-0.01em] mb-1.5">{category.name || category.id}</h3>
+                            <span className="inline-flex items-center gap-2 text-white/60 text-[12px] font-medium uppercase tracking-[0.1em] group-hover:text-white group-hover:gap-3 transition-all duration-500">
+                              Explore <ArrowRight className="w-3.5 h-3.5" strokeWidth={1.5} />
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
+            )}
 
-                  {/* Text Content */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className={`font-bold text-gray-900 group-hover:text-purple-600 transition-colors truncate ${
-                      getCurrentLevel() === 1 ? 'text-lg' : 'text-base'
-                    }`}>
-                      {category.name || category.id}
-                    </h3>
-                    {getCurrentLevel() === 1 && category.legacyName && (
-                      <p className="text-gray-500 text-sm">Browse {category.legacyName}'s Collection</p>
-                    )}
-                    {getCurrentLevel() > 1 && (
-                      <p className="text-gray-400 text-xs truncate">
-                        {getCurrentLevel() === 4 ? 'Click to view products' : 'Click to explore'}
-                      </p>
-                    )}
-                  </div>
+            {/* LEVEL 2: Two-column poster grid */}
+            {getCurrentLevel() === 2 && (
+              <motion.div
+                variants={staggerContainer}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-2 gap-3"
+              >
+                {categories.map((category, index) => {
+                  const banner = getBannerForCategory(category.name || category.id);
+                  return (
+                    <motion.div key={category.id || index} variants={staggerItem}>
+                      <Link to={getCategoryLink(category)} className="group block">
+                        <div
+                          className="relative rounded-2xl overflow-hidden bg-neutral-100"
+                          style={{ aspectRatio: '3/4' }}
+                        >
+                          {banner?.imageUrl ? (
+                            <img src={banner.imageUrl} alt={category.name || category.id} className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700" />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-b from-neutral-50 to-neutral-100 flex flex-col items-center justify-center p-4">
+                              <div className="w-11 h-11 bg-white rounded-full flex items-center justify-center mb-2.5 shadow-sm text-orange-500">
+                                {getCategoryIcon(category.name || category.id)}
+                              </div>
+                              <span className="text-neutral-700 text-[13px] font-medium text-center">{category.name || category.id}</span>
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                          <div className="absolute bottom-0 left-0 right-0 p-4">
+                            <h3 className="text-white font-medium text-[14px] tracking-[-0.01em]">{category.name || category.id}</h3>
+                            <span className="text-white/50 text-[11px] flex items-center gap-1 mt-0.5">
+                              Explore <ChevronRight className="w-3 h-3" strokeWidth={1.5} />
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
+            )}
 
-                  {/* Arrow Icon */}
-                  <svg
-                    className="w-5 h-5 text-gray-400 group-hover:text-purple-500 transition-colors flex-shrink-0"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
+            {/* LEVEL 3: Horizontal poster cards */}
+            {getCurrentLevel() === 3 && (
+              <motion.div
+                variants={staggerContainer}
+                initial="hidden"
+                animate="show"
+                className="space-y-3"
+              >
+                {categories.map((category, index) => {
+                  const banner = getBannerForCategory(category.name || category.id);
+                  return (
+                    <motion.div key={category.id || index} variants={staggerItem}>
+                      <Link to={getCategoryLink(category)} className="block group">
+                        <div className="relative rounded-2xl overflow-hidden h-40 bg-neutral-100">
+                          {banner?.imageUrl ? (
+                            <img src={banner.imageUrl} alt={category.name || category.id} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-700" />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-r from-neutral-900 via-neutral-800 to-neutral-700 flex items-center px-8">
+                              <div className="flex items-center gap-4">
+                                <div className="w-11 h-11 bg-white/[0.08] rounded-full flex items-center justify-center text-white/60">
+                                  {getCategoryIcon(category.name || category.id)}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-transparent" />
+                          <div className="absolute inset-0 flex items-end p-5">
+                            <div>
+                              <h3 className="text-white font-medium text-[16px] tracking-[-0.01em]">{category.name || category.id}</h3>
+                              <span className="text-white/50 text-[12px] flex items-center gap-1.5 mt-1 group-hover:text-white/70 group-hover:gap-2.5 transition-all duration-500">
+                                Explore collection <ArrowRight className="w-3.5 h-3.5" strokeWidth={1.5} />
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
+            )}
 
-                {/* Hover Gradient Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-r from-purple-500/0 to-indigo-500/0 group-hover:from-purple-500/5 group-hover:to-indigo-500/5 transition-all duration-300 pointer-events-none rounded-2xl" />
-              </Link>
-            ))}
-          </div>
+            {/* LEVEL 4: Clean compact grid */}
+            {getCurrentLevel() === 4 && (
+              <motion.div
+                variants={staggerContainer}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"
+              >
+                {categories.map((category, index) => (
+                  <motion.div key={category.id || index} variants={staggerItem}>
+                    <Link to={getCategoryLink(category)} className="group block">
+                      <div className="bg-white rounded-xl border border-black/[0.04] hover:border-orange-300 p-4 text-center transition-all duration-200 group-hover:shadow-[0_4px_20px_-6px_rgba(0,0,0,0.1)]">
+                        <div className="w-10 h-10 mx-auto mb-2.5 bg-neutral-50 group-hover:bg-orange-50 rounded-full flex items-center justify-center transition-colors text-neutral-400 group-hover:text-orange-500">
+                          {getCategoryIcon(category.name || category.id)}
+                        </div>
+                        <h3 className="font-medium text-[13px] text-black group-hover:text-orange-600 transition-colors tracking-[-0.01em]">
+                          {category.name || category.id}
+                        </h3>
+                        <p className="text-neutral-400 text-[10px] mt-1 uppercase tracking-[0.05em]">View products</p>
+                      </div>
+                    </Link>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </>
         ) : (
-          <div className="text-center py-16 bg-white rounded-2xl border-2 border-dashed border-gray-300 shadow-lg">
-            <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="h-10 w-10 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-            </div>
-            <p className="text-gray-600 font-medium">No categories found.</p>
-            <Link
-              to="/user/browse"
-              className="inline-block mt-4 text-purple-600 hover:text-purple-700 font-medium"
-            >
-              Go back to all categories
+          <div className="text-center py-20 rounded-2xl border border-dashed border-neutral-200">
+            <LayoutGrid className="h-10 w-10 text-neutral-200 mx-auto mb-3" strokeWidth={1} />
+            <p className="text-[15px] font-medium text-black mb-1">No categories found</p>
+            <Link to="/user/browse" className="inline-block mt-2 text-orange-500 hover:text-orange-600 text-[12px] font-medium uppercase tracking-[0.1em]">
+              Back to all categories
             </Link>
           </div>
         )}
       </div>
 
-      {/* Quick Category Chips (shown at Level 2+) */}
+      {/* Quick Navigation Chips */}
       {getCurrentLevel() >= 2 && decodedLevel1 && (
-        <div className="container mx-auto px-4 py-4">
-          <h3 className="text-sm font-semibold text-gray-500 mb-3">Quick Navigation</h3>
+        <div className="max-w-7xl mx-auto px-5 pb-6">
+          <p className="text-[10px] font-medium text-neutral-400 uppercase tracking-[0.15em] mb-3">Quick Navigation</p>
           <div className="flex flex-wrap gap-2">
             {categoryService.getLevel2Categories(decodedLevel1).map((cat) => (
               <Link
                 key={cat.id}
                 to={`/user/browse/${encodeURIComponent(decodedLevel1)}/${encodeURIComponent(cat.id)}`}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                className={`px-4 py-2 rounded-full text-[12px] font-medium transition-all ${
                   cat.id === decodedLevel2
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-purple-100 border border-gray-200'
+                    ? 'bg-black text-white'
+                    : 'bg-neutral-50 text-neutral-600 hover:bg-neutral-100 border border-black/[0.04]'
                 }`}
               >
                 {cat.name}
@@ -341,45 +436,33 @@ const HierarchicalCategoryPage = () => {
         </div>
       )}
 
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-10">
-        <div className="flex justify-between items-center">
-          <Link to="/user/dashboard" className="flex flex-col items-center justify-center py-2 flex-1 text-gray-500">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-            <span className="text-xs">Home</span>
-          </Link>
-
-          <Link to="/user/browse" className="flex flex-col items-center justify-center py-2 flex-1 text-purple-600">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-            </svg>
-            <span className="text-xs">Categories</span>
-          </Link>
-
-          <Link to="/user/cart" className="flex flex-col items-center justify-center py-2 flex-1 text-gray-500">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            <span className="text-xs">Cart</span>
-          </Link>
-
-          <Link to="/user/products" className="flex flex-col items-center justify-center py-2 flex-1 text-gray-500">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-            </svg>
-            <span className="text-xs">Shop</span>
-          </Link>
-
-          <Link to="/user/profile" className="flex flex-col items-center justify-center py-2 flex-1 text-gray-500">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            <span className="text-xs">Profile</span>
-          </Link>
+      {/* BOTTOM NAV */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-black/[0.06] z-10">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex justify-around items-center h-14">
+            <Link to="/user/dashboard" className="flex flex-col items-center gap-0.5 text-neutral-400 hover:text-black transition-colors">
+              <Home className="h-[20px] w-[20px]" strokeWidth={1.5} />
+              <span className="text-[10px] font-medium tracking-wide">Home</span>
+            </Link>
+            <Link to="/user/browse" className="flex flex-col items-center gap-0.5 text-orange-600">
+              <LayoutGrid className="h-[20px] w-[20px]" strokeWidth={1.5} />
+              <span className="text-[10px] font-semibold tracking-wide">Categories</span>
+            </Link>
+            <Link to="/user/cart" className="flex flex-col items-center gap-0.5 text-neutral-400 hover:text-black transition-colors">
+              <ShoppingCart className="h-[20px] w-[20px]" strokeWidth={1.5} />
+              <span className="text-[10px] font-medium tracking-wide">Cart</span>
+            </Link>
+            <Link to="/user/products" className="flex flex-col items-center gap-0.5 text-neutral-400 hover:text-black transition-colors">
+              <ShoppingBag className="h-[20px] w-[20px]" strokeWidth={1.5} />
+              <span className="text-[10px] font-medium tracking-wide">Shop</span>
+            </Link>
+            <Link to="/user/profile" className="flex flex-col items-center gap-0.5 text-neutral-400 hover:text-black transition-colors">
+              <User className="h-[20px] w-[20px]" strokeWidth={1.5} />
+              <span className="text-[10px] font-medium tracking-wide">Profile</span>
+            </Link>
+          </div>
         </div>
-      </div>
+      </nav>
     </div>
   );
 };
