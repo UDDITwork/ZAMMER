@@ -414,21 +414,21 @@ const CheckoutPage = () => {
                 <p className="text-sm font-medium text-gray-700 mb-3">Choose address option:</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   {/* Current Location Option */}
-                  <label className="flex items-center p-3 border-2 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors">
+                  <label className="flex items-center p-3 border-2 rounded-lg cursor-pointer hover:bg-orange-50 transition-colors">
                     <input
                       type="radio"
                       name="addressMode"
                       value="current"
                       checked={addressInputMode === 'current'}
                       onChange={(e) => handleAddressInputModeChange(e.target.value)}
-                      className="mr-3 text-blue-600"
+                      className="mr-3 text-orange-600"
                       disabled={locationLoading}
                     />
                     <div className="flex items-center">
                       {locationLoading ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500 mr-2"></div>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-500 mr-2"></div>
                       ) : (
-                        <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 text-orange-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
@@ -601,7 +601,7 @@ const CheckoutPage = () => {
                     className="mr-3"
                   />
                   <div className="flex items-center">
-                    <svg className="w-6 h-6 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6 text-orange-600 mr-2" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/>
                     </svg>
                     <span>Credit/Debit Card</span>

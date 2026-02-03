@@ -6,12 +6,13 @@ import { getProductById } from '../../services/productService';
 import cartService from '../../services/cartService';
 import { addToWishlist, removeFromWishlist, checkWishlist } from '../../services/wishlistService';
 import { AuthContext } from '../../contexts/AuthContext';
-import { 
-  getProductReviews, 
-  createReview, 
-  checkCanReview 
+import {
+  getProductReviews,
+  createReview,
+  checkCanReview
 } from '../../services/reviewService';
 import VirtualTryOnModal from '../../components/common/VirtualTryOnModal';
+import { ShoppingCart, Zap, Shirt } from 'lucide-react';
 
 const ProductDetailPage = () => {
   const { productId } = useParams();
@@ -497,14 +498,14 @@ const ProductDetailPage = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-gray-50 via-orange-25 to-pink-25">
+      <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-gray-50 via-orange-25 to-orange-50">
         <div className="text-center bg-white p-8 rounded-3xl shadow-2xl border border-orange-100">
           <div className="w-16 h-16 mx-auto mb-6">
             <div className="animate-spin rounded-full h-16 w-16 border-4 border-orange-200 border-t-orange-500"></div>
           </div>
           <p className="text-gray-600 font-medium">Loading product details...</p>
           <div className="mt-4 w-32 h-2 bg-gray-200 rounded-full mx-auto overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-orange-500 to-pink-500 rounded-full animate-pulse"></div>
+            <div className="h-full bg-gradient-to-r from-orange-500 to-orange-600 rounded-full animate-pulse"></div>
           </div>
         </div>
       </div>
@@ -513,7 +514,7 @@ const ProductDetailPage = () => {
 
   if (!product) {
     return (
-      <div className="text-center py-12 px-4 bg-gradient-to-br from-gray-50 via-orange-25 to-pink-25 min-h-screen flex items-center justify-center">
+      <div className="text-center py-12 px-4 bg-gradient-to-br from-gray-50 via-orange-25 to-orange-50 min-h-screen flex items-center justify-center">
         <div className="bg-white rounded-3xl p-8 shadow-2xl border border-gray-100 max-w-md mx-auto">
           <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full p-6 mx-auto mb-6 flex items-center justify-center">
             <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -522,7 +523,7 @@ const ProductDetailPage = () => {
           </div>
           <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mb-3">Product Not Found</h2>
           <p className="text-gray-600 mb-6">The product you're looking for doesn't exist or has been removed.</p>
-          <Link to="/user/dashboard" className="inline-block bg-gradient-to-r from-orange-500 to-pink-500 text-white px-6 py-3 rounded-full font-semibold hover:from-orange-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105 shadow-lg">
+          <Link to="/user/dashboard" className="inline-block bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-3 rounded-full font-semibold hover:from-orange-600 hover:to-orange-700 transition-all duration-300 transform hover:scale-105 shadow-lg">
             Return to Home
           </Link>
         </div>
@@ -531,7 +532,7 @@ const ProductDetailPage = () => {
   }
 
   return (
-    <div className="product-detail-page pb-24 bg-gradient-to-br from-gray-50 via-orange-25 to-pink-25 min-h-screen">
+    <div className="product-detail-page pb-24 bg-gradient-to-br from-gray-50 via-orange-25 to-orange-50 min-h-screen">
       {/* Debug Panel - Development Only */}
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed top-4 right-4 z-50 bg-gradient-to-r from-yellow-100 to-yellow-200 p-3 rounded-xl shadow-lg border border-yellow-300 text-xs max-w-xs">
@@ -547,7 +548,7 @@ const ProductDetailPage = () => {
             <div className="text-yellow-800 font-medium mb-2">Virtual Try-On Debug:</div>
             <button
               onClick={debugVirtualTryOn}
-              className="block w-full bg-gradient-to-r from-blue-200 to-blue-300 px-3 py-2 rounded-lg mb-2 hover:from-blue-300 hover:to-blue-400 transition-all duration-300 font-medium text-xs"
+              className="block w-full bg-gradient-to-r from-orange-200 to-orange-300 px-3 py-2 rounded-lg mb-2 hover:from-orange-300 hover:to-orange-400 transition-all duration-300 font-medium text-xs"
             >
               🔍 Debug Try-On
             </button>
@@ -618,7 +619,7 @@ const ProductDetailPage = () => {
             onClick={() => setShowShareOptions(true)} 
             className="absolute top-6 right-6 bg-white/95 backdrop-blur-sm p-3 rounded-2xl shadow-lg hover:bg-white hover:shadow-xl transition-all duration-300 border border-gray-200 group"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600 group-hover:text-blue-500 transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600 group-hover:text-orange-500 transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
             </svg>
           </button>
@@ -692,7 +693,7 @@ const ProductDetailPage = () => {
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
             <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mb-2">{product.name}</h1>
-            <div className="inline-block bg-gradient-to-r from-orange-100 to-pink-100 text-orange-700 text-xs px-3 py-1 rounded-full font-semibold uppercase tracking-wide">
+            <div className="inline-block bg-gradient-to-r from-orange-100 to-orange-100 text-orange-700 text-xs px-3 py-1 rounded-full font-semibold uppercase tracking-wide">
               {product.category}
             </div>
           </div>
@@ -730,8 +731,8 @@ const ProductDetailPage = () => {
                   onClick={() => setSelectedSize(size)}
                   className={`h-12 w-12 rounded-2xl flex items-center justify-center text-sm font-bold transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105 ${
                     selectedSize === size 
-                      ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-orange-200' 
-                      : 'bg-white text-gray-800 hover:bg-gradient-to-r hover:from-orange-100 hover:to-pink-100 border border-gray-200'
+                      ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-orange-200' 
+                      : 'bg-white text-gray-800 hover:bg-gradient-to-r hover:from-orange-100 hover:to-orange-100 border border-gray-200'
                   }`}
                 >
                   {size}
@@ -778,16 +779,16 @@ const ProductDetailPage = () => {
         <div className="mb-8 space-y-3">
           {/* Fabric Type */}
           {(product.fabricType || product.composition) && (
-            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200">
+            <div className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-2xl border border-orange-200">
               <div className="flex items-center">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center mr-3">
+                <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-orange-1000 rounded-full flex items-center justify-center mr-3">
                   <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-blue-800">Fabric Type</p>
-                  <p className="text-blue-700">{product.fabricType || product.composition || 'Not specified'}</p>
+                  <p className="text-sm font-bold text-orange-800">Fabric Type</p>
+                  <p className="text-orange-700">{product.fabricType || product.composition || 'Not specified'}</p>
                 </div>
               </div>
             </div>
@@ -795,23 +796,23 @@ const ProductDetailPage = () => {
 
           {/* Category Path - 4 Level Hierarchy */}
           {product.categoryPath && (
-            <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl border border-purple-200">
+            <div className="p-4 bg-gradient-to-r from-black to-pink-50 rounded-2xl border border-gray-300">
               <div className="flex items-start">
-                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                <div className="w-8 h-8 bg-gradient-to-r from-black0 to-orange-600 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
                   <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-bold text-purple-800 mb-1">Category</p>
+                  <p className="text-sm font-bold text-black mb-1">Category</p>
                   <div className="flex flex-wrap items-center gap-1">
                     {product.categoryPath.split(' > ').map((level, index, arr) => (
                       <span key={index} className="flex items-center">
-                        <span className={`text-sm ${index === arr.length - 1 ? 'text-purple-700 font-semibold' : 'text-purple-600'}`}>
+                        <span className={`text-sm ${index === arr.length - 1 ? 'text-gray-900 font-semibold' : 'text-gray-800'}`}>
                           {level}
                         </span>
                         {index < arr.length - 1 && (
-                          <svg className="w-4 h-4 text-purple-400 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 text-gray-500 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                         )}
@@ -841,16 +842,19 @@ const ProductDetailPage = () => {
                 Adding...
               </div>
             ) : (
-              '🛒 Add To Cart'
+              <div className="flex items-center justify-center gap-2">
+                <ShoppingCart className="w-5 h-5" />
+                Add To Cart
+              </div>
             )}
           </button>
           <button
             onClick={handleBuyNow}
             disabled={cartLoading}
-            className={`bg-gradient-to-r from-orange-500 to-pink-500 text-white py-4 rounded-2xl text-lg font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 ${
+            className={`bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 rounded-2xl text-lg font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 ${
               cartLoading 
                 ? 'opacity-50 cursor-not-allowed' 
-                : 'hover:from-orange-600 hover:to-pink-600'
+                : 'hover:from-orange-600 hover:to-orange-700'
             }`}
           >
             {cartLoading ? (
@@ -859,14 +863,18 @@ const ProductDetailPage = () => {
                 Processing...
               </div>
             ) : (
-              '⚡ Buy Now'
+              <div className="flex items-center justify-center gap-2">
+                <Zap className="w-5 h-5" />
+                Buy Now
+              </div>
             )}
           </button>
           <button
             onClick={() => setShowVirtualTryOn(true)}
-            className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-4 rounded-2xl text-lg font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 hover:from-blue-600 hover:to-indigo-600"
+            className="bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 rounded-2xl text-lg font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 hover:from-orange-600 hover:to-orange-700 flex items-center justify-center gap-2"
           >
-            👗 Try On
+            <Shirt className="w-5 h-5" />
+            Try On
           </button>
         </div>
 
@@ -880,7 +888,7 @@ const ProductDetailPage = () => {
               canReview ? (
                 <button
                   onClick={() => setShowReviewForm(true)}
-                  className="bg-gradient-to-r from-orange-500 to-pink-500 text-white px-6 py-2 rounded-xl font-semibold hover:from-orange-600 hover:to-pink-600 transition-all duration-300"
+                  className="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-2 rounded-xl font-semibold hover:from-orange-600 hover:to-orange-700 transition-all duration-300"
                 >
                   Write a Review
                 </button>
@@ -890,7 +898,7 @@ const ProductDetailPage = () => {
                 </div>
               )
             ) : (
-              <div className="text-sm text-gray-600 bg-blue-100 px-4 py-2 rounded-lg">
+              <div className="text-sm text-gray-600 bg-orange-100 px-4 py-2 rounded-lg">
                 Login to write a review
               </div>
             )}
@@ -933,7 +941,7 @@ const ProductDetailPage = () => {
                     <button
                       type="submit"
                       disabled={submitingReview}
-                      className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-xl font-semibold hover:from-orange-600 hover:to-pink-600 transition-all duration-200 disabled:opacity-50"
+                      className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-semibold hover:from-orange-600 hover:to-orange-700 transition-all duration-200 disabled:opacity-50"
                     >
                       {submitingReview ? 'Submitting...' : 'Submit Review'}
                     </button>
@@ -986,7 +994,7 @@ const ProductDetailPage = () => {
       {showShareOptions && (
         <div className="fixed inset-0 z-50 flex items-end justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowShareOptions(false)}></div>
-          <div className="relative bg-gradient-to-r from-orange-500 to-pink-500 rounded-t-3xl p-8 w-full max-w-md shadow-2xl">
+          <div className="relative bg-gradient-to-r from-orange-500 to-orange-600 rounded-t-3xl p-8 w-full max-w-md shadow-2xl">
             <div className="absolute top-3 left-1/2 transform -translate-x-1/2 w-12 h-1 bg-white/30 rounded-full"></div>
             <h2 className="text-center text-white font-bold text-xl mb-6">✨ Share Product</h2>
             <div className="grid grid-cols-4 gap-6">
@@ -1001,7 +1009,7 @@ const ProductDetailPage = () => {
               
               <button onClick={() => shareProduct('facebook')} className="flex flex-col items-center group">
                 <div className="bg-white rounded-2xl p-4 mb-3 shadow-lg group-hover:shadow-xl group-hover:scale-110 transition-all duration-300">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-orange-600" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                   </svg>
                 </div>
@@ -1010,7 +1018,7 @@ const ProductDetailPage = () => {
               
               <button onClick={() => shareProduct('twitter')} className="flex flex-col items-center group">
                 <div className="bg-white rounded-2xl p-4 mb-3 shadow-lg group-hover:shadow-xl group-hover:scale-110 transition-all duration-300">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-orange-400" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
                   </svg>
                 </div>
@@ -1045,7 +1053,7 @@ const ProductDetailPage = () => {
       <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-gray-200 z-50 shadow-2xl">
         <div className="flex justify-between items-center px-2 py-3">
           <Link to="/user/dashboard" className="flex flex-col items-center justify-center py-2 flex-1 text-gray-500 hover:text-orange-500 transition-colors duration-300 group">
-            <div className="w-8 h-8 bg-gray-100 group-hover:bg-gradient-to-br group-hover:from-orange-100 group-hover:to-pink-100 rounded-xl flex items-center justify-center mb-1 group-hover:scale-110 transition-all duration-300">
+            <div className="w-8 h-8 bg-gray-100 group-hover:bg-gradient-to-br group-hover:from-orange-100 group-hover:to-orange-100 rounded-xl flex items-center justify-center mb-1 group-hover:scale-110 transition-all duration-300">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
               </svg>
@@ -1054,7 +1062,7 @@ const ProductDetailPage = () => {
           </Link>
           
           <Link to="/user/shop" className="flex flex-col items-center justify-center py-2 flex-1 text-gray-500 hover:text-orange-500 transition-colors duration-300 group">
-            <div className="w-8 h-8 bg-gray-100 group-hover:bg-gradient-to-br group-hover:from-orange-100 group-hover:to-pink-100 rounded-xl flex items-center justify-center mb-1 group-hover:scale-110 transition-all duration-300">
+            <div className="w-8 h-8 bg-gray-100 group-hover:bg-gradient-to-br group-hover:from-orange-100 group-hover:to-orange-100 rounded-xl flex items-center justify-center mb-1 group-hover:scale-110 transition-all duration-300">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
               </svg>
@@ -1063,7 +1071,7 @@ const ProductDetailPage = () => {
           </Link>
           
           <Link to="/user/cart" className="flex flex-col items-center justify-center py-2 flex-1 text-orange-500 group">
-            <div className="w-8 h-8 bg-gradient-to-br from-orange-100 to-pink-100 rounded-xl flex items-center justify-center mb-1 group-hover:scale-110 transition-all duration-300">
+            <div className="w-8 h-8 bg-gradient-to-br from-orange-100 to-orange-100 rounded-xl flex items-center justify-center mb-1 group-hover:scale-110 transition-all duration-300">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h14l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
@@ -1072,7 +1080,7 @@ const ProductDetailPage = () => {
           </Link>
           
           <Link to="/user/trending" className="flex flex-col items-center justify-center py-2 flex-1 text-gray-500 hover:text-orange-500 transition-colors duration-300 group">
-            <div className="w-8 h-8 bg-gray-100 group-hover:bg-gradient-to-br group-hover:from-orange-100 group-hover:to-pink-100 rounded-xl flex items-center justify-center mb-1 group-hover:scale-110 transition-all duration-300">
+            <div className="w-8 h-8 bg-gray-100 group-hover:bg-gradient-to-br group-hover:from-orange-100 group-hover:to-orange-100 rounded-xl flex items-center justify-center mb-1 group-hover:scale-110 transition-all duration-300">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
               </svg>
@@ -1081,7 +1089,7 @@ const ProductDetailPage = () => {
           </Link>
           
           <Link to="/user/limited-edition" className="flex flex-col items-center justify-center py-2 flex-1 text-gray-500 hover:text-orange-500 transition-colors duration-300 group">
-            <div className="w-8 h-8 bg-gray-100 group-hover:bg-gradient-to-br group-hover:from-orange-100 group-hover:to-pink-100 rounded-xl flex items-center justify-center mb-1 group-hover:scale-110 transition-all duration-300">
+            <div className="w-8 h-8 bg-gray-100 group-hover:bg-gradient-to-br group-hover:from-orange-100 group-hover:to-orange-100 rounded-xl flex items-center justify-center mb-1 group-hover:scale-110 transition-all duration-300">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
               </svg>
