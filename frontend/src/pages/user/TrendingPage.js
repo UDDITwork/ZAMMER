@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import UserLayout from '../../components/layouts/UserLayout';
 import { getTrendingProducts } from '../../services/productService';
 import WishlistButton from '../../components/common/WishlistButton';
+import { TrendingUp } from 'lucide-react';
 
 const TrendingPage = () => {
   const [products, setProducts] = useState([]);
@@ -62,10 +63,13 @@ const TrendingPage = () => {
     <UserLayout>
       <div className="limited-edition-page pb-16">
         {/* Header */}
-        <div className="bg-gradient-to-r from-pink-500 to-yellow-500 text-white p-6">
+        <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-6">
           <div className="container mx-auto">
-            <h1 className="text-3xl font-bold mb-2">🔥 Trending</h1>
-            <p className="text-pink-100">Most popular products right now</p>
+            <h1 className="text-[22px] font-light tracking-[-0.02em] mb-2 flex items-center gap-2">
+              <TrendingUp className="w-6 h-6" />
+              Trending
+            </h1>
+            <p className="text-orange-100">Most popular products right now</p>
           </div>
         </div>
 
@@ -76,8 +80,8 @@ const TrendingPage = () => {
               <button
                 onClick={() => handleCategoryChange('')}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                  selectedCategory === '' 
-                    ? 'bg-pink-500 text-white' 
+                  selectedCategory === ''
+                    ? 'bg-orange-500 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -86,8 +90,8 @@ const TrendingPage = () => {
               <button
                 onClick={() => handleCategoryChange('Men')}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                  selectedCategory === 'Men' 
-                    ? 'bg-pink-500 text-white' 
+                  selectedCategory === 'Men'
+                    ? 'bg-orange-500 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -96,8 +100,8 @@ const TrendingPage = () => {
               <button
                 onClick={() => handleCategoryChange('Women')}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                  selectedCategory === 'Women' 
-                    ? 'bg-pink-500 text-white' 
+                  selectedCategory === 'Women'
+                    ? 'bg-orange-500 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -106,8 +110,8 @@ const TrendingPage = () => {
               <button
                 onClick={() => handleCategoryChange('Kids')}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                  selectedCategory === 'Kids' 
-                    ? 'bg-pink-500 text-white' 
+                  selectedCategory === 'Kids'
+                    ? 'bg-orange-500 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -122,17 +126,17 @@ const TrendingPage = () => {
           {loading ? (
             <div className="flex justify-center items-center py-20">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
                 <p className="text-gray-600">Loading trending products...</p>
               </div>
             </div>
           ) : products.length > 0 ? (
             <>
               <div className="mb-6">
-                <h2 className="text-xl font-semibold text-gray-800">
+                <h2 className="text-[22px] font-light tracking-[-0.02em] text-black">
                   {selectedCategory ? `${selectedCategory} - ` : ''}Trending Products ({products.length})
                 </h2>
-                <p className="text-gray-600 text-sm mt-1">Check out what's hot right now!</p>
+                <p className="text-gray-600 text-[13px] mt-1">Check out what's hot right now!</p>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -153,8 +157,9 @@ const TrendingPage = () => {
                         )}
                       </div>
                       {/* Trending Badge */}
-                      <div className="absolute top-2 left-2 bg-pink-500 text-white px-2 py-1 rounded-full text-xs font-bold">
-                        🔥 TRENDING
+                      <div className="absolute top-2 left-2 bg-orange-600 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3" />
+                        TRENDING
                       </div>
                       {/* Wishlist Button */}
                       <div className="absolute top-2 right-2 z-10">
@@ -186,7 +191,7 @@ const TrendingPage = () => {
                       )}
                       <div className="flex items-center justify-between mb-2">
                         <div>
-                          <span className="text-pink-600 font-bold text-sm">₹{product.zammerPrice}</span>
+                          <span className="text-orange-600 font-bold text-sm">₹{product.zammerPrice}</span>
                           {product.mrp > product.zammerPrice && (
                             <>
                               <span className="text-gray-500 text-xs line-through ml-1">₹{product.mrp}</span>
@@ -199,7 +204,7 @@ const TrendingPage = () => {
                       </div>
                       <Link
                         to={`/user/product/${product._id}`}
-                        className="block w-full text-center bg-pink-500 hover:bg-pink-600 text-white py-2 rounded text-xs font-medium transition-colors"
+                        className="block w-full text-center bg-orange-500 hover:bg-orange-600 text-white py-2 rounded text-xs font-medium transition-colors"
                       >
                         View Details
                       </Link>
@@ -253,8 +258,8 @@ const TrendingPage = () => {
                 }
               </p>
               <Link
-                to="/user/dashboard"
-                className="inline-block bg-pink-500 hover:bg-pink-600 text-white px-6 py-2 rounded-md text-sm font-medium transition-colors"
+                to="/user/home"
+                className="inline-block bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-md text-sm font-medium transition-colors"
               >
                 Browse All Products
               </Link>

@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import UserLayout from '../../components/layouts/UserLayout';
 import { getLimitedEditionProducts } from '../../services/productService';
 import WishlistButton from '../../components/common/WishlistButton';
+import { Sparkles } from 'lucide-react';
 
 const LimitedEditionPage = () => {
   const [products, setProducts] = useState([]);
@@ -67,10 +68,13 @@ const LimitedEditionPage = () => {
     <UserLayout>
       <div className="limited-edition-page pb-16">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-6">
+        <div className="bg-gradient-to-r from-black via-gray-800 to-black text-white p-6">
           <div className="container mx-auto">
-            <h1 className="text-3xl font-bold mb-2">⭐ Limited Edition</h1>
-            <p className="text-purple-100">Exclusive products available for a limited time</p>
+            <h1 className="text-[22px] font-light tracking-[-0.02em] mb-2 flex items-center gap-2">
+              <Sparkles className="w-6 h-6 text-orange-500" />
+              Limited Edition
+            </h1>
+            <p className="text-gray-300">Exclusive products available for a limited time</p>
           </div>
         </div>
 
@@ -82,7 +86,7 @@ const LimitedEditionPage = () => {
                 onClick={() => handleCategoryChange('')}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
                   selectedCategory === '' 
-                    ? 'bg-purple-500 text-white' 
+                    ? 'bg-orange-500 text-white' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -92,7 +96,7 @@ const LimitedEditionPage = () => {
                 onClick={() => handleCategoryChange('Men')}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
                   selectedCategory === 'Men' 
-                    ? 'bg-purple-500 text-white' 
+                    ? 'bg-orange-500 text-white' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -102,7 +106,7 @@ const LimitedEditionPage = () => {
                 onClick={() => handleCategoryChange('Women')}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
                   selectedCategory === 'Women' 
-                    ? 'bg-purple-500 text-white' 
+                    ? 'bg-orange-500 text-white' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -112,7 +116,7 @@ const LimitedEditionPage = () => {
                 onClick={() => handleCategoryChange('Kids')}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
                   selectedCategory === 'Kids' 
-                    ? 'bg-purple-500 text-white' 
+                    ? 'bg-orange-500 text-white' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -127,17 +131,17 @@ const LimitedEditionPage = () => {
           {loading ? (
             <div className="flex justify-center items-center py-20">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
                 <p className="text-gray-600">Loading limited edition products...</p>
               </div>
             </div>
           ) : products.length > 0 ? (
             <>
               <div className="mb-6">
-                <h2 className="text-xl font-semibold text-gray-800">
+                <h2 className="text-[22px] font-light tracking-[-0.02em] text-black">
                   {selectedCategory ? `${selectedCategory} - ` : ''}Limited Edition Products ({products.length})
                 </h2>
-                <p className="text-gray-600 text-sm mt-1">Hurry up! These exclusive items won't last long</p>
+                <p className="text-gray-600 text-[13px] mt-1">Hurry up! These exclusive items won't last long</p>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -159,8 +163,9 @@ const LimitedEditionPage = () => {
                       </div>
                       
                       {/* Limited Edition Badge */}
-                      <div className="absolute top-2 left-2 bg-purple-500 text-white px-2 py-1 rounded-full text-xs font-bold">
-                        ⭐ LIMITED
+                      <div className="absolute top-2 left-2 bg-orange-600 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" />
+                        LIMITED
                       </div>
                       
                       {/* Wishlist Button */}
@@ -196,7 +201,7 @@ const LimitedEditionPage = () => {
                       
                       <div className="flex items-center justify-between mb-2">
                         <div>
-                          <span className="text-purple-600 font-bold text-sm">₹{product.zammerPrice}</span>
+                          <span className="text-orange-600 font-bold text-sm">₹{product.zammerPrice}</span>
                           {product.mrp > product.zammerPrice && (
                             <>
                               <span className="text-gray-500 text-xs line-through ml-1">₹{product.mrp}</span>
@@ -210,7 +215,7 @@ const LimitedEditionPage = () => {
                       
                       <Link
                         to={`/user/product/${product._id}`}
-                        className="block w-full text-center bg-purple-500 hover:bg-purple-600 text-white py-2 rounded text-xs font-medium transition-colors"
+                        className="block w-full text-center bg-orange-500 hover:bg-orange-600 text-white py-2 rounded text-xs font-medium transition-colors"
                       >
                         View Details
                       </Link>
@@ -267,8 +272,8 @@ const LimitedEditionPage = () => {
                 }
               </p>
               <Link
-                to="/user/dashboard"
-                className="inline-block bg-purple-500 hover:bg-purple-600 text-white px-6 py-2 rounded-md text-sm font-medium transition-colors"
+                to="/user/home"
+                className="inline-block bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-md text-sm font-medium transition-colors"
               >
                 Browse All Products
               </Link>

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import UserLayout from '../../components/layouts/UserLayout';
 import cartService from '../../services/cartService';
+import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Sparkles } from 'lucide-react';
 
 const CartPage = () => {
   const [cart, setCart] = useState({ items: [], total: 0 });
@@ -33,9 +34,9 @@ const CartPage = () => {
 
   const updateQuantity = async (productId, newQuantity) => {
     if (newQuantity <= 0) return;
-    
+
     setUpdatingItems({ ...updatingItems, [productId]: true });
-    
+
     try {
       const response = await cartService.updateCartItem(productId, newQuantity);
       if (response.success) {
@@ -54,7 +55,7 @@ const CartPage = () => {
 
   const removeItem = async (productId) => {
     setUpdatingItems({ ...updatingItems, [productId]: true });
-    
+
     try {
       const response = await cartService.removeFromCart(productId);
       if (response.success) {
@@ -128,26 +129,23 @@ const CartPage = () => {
     return (
       <UserLayout>
         <div className="container mx-auto p-4">
-          <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-            <div className="mb-6">
-              <svg className="w-24 h-24 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 7m0 0l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17M17 13v4a2 2 0 01-2 2H9a2 2 0 01-2-2v-4m8 0V9a2 2 0 00-2-2H9a2 2 0 00-2 2v4.01" />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Your Cart is Empty</h2>
-            <p className="text-gray-600 mb-6">Looks like you haven't added any items to your cart yet.</p>
+          <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-md mx-auto">
+            <ShoppingCart className="w-24 h-24 mx-auto text-gray-300 mb-4" strokeWidth={1} />
+            <h2 className="text-2xl font-light tracking-[-0.02em] text-gray-800 mb-2">Your Cart is Empty</h2>
+            <p className="text-[13px] text-gray-600 mb-6">Looks like you haven't added any items to your cart yet.</p>
             <div className="space-y-3">
-              <Link 
-                to="/user/dashboard" 
-                className="inline-block bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-lg font-medium transition-colors"
+              <Link
+                to="/user/home"
+                className="inline-block bg-gradient-to-r from-orange-500 to-orange-600 hover:shadow-lg text-white px-8 py-3 rounded-lg font-medium transition-all"
               >
                 Continue Shopping
               </Link>
               <br />
-              <Link 
-                to="/user/trending" 
-                className="inline-block text-orange-600 hover:text-orange-700 font-medium"
+              <Link
+                to="/user/trending"
+                className="inline-flex items-center text-orange-600 hover:text-orange-700 font-medium text-sm"
               >
+                <Sparkles className="w-4 h-4 mr-1.5" />
                 Browse Trending Products
               </Link>
             </div>
@@ -161,203 +159,219 @@ const CartPage = () => {
   const tax = calculateTax(subtotal);
   const shipping = calculateShipping(subtotal);
   const total = calculateTotal();
+  const freeShippingRemaining = Math.max(0, 500 - subtotal);
 
   return (
     <UserLayout>
       <div className="container mx-auto p-4 max-w-6xl">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Shopping Cart</h1>
+          <h1 className="text-[22px] font-light tracking-[-0.02em] text-black">Shopping Cart</h1>
           <button
             onClick={clearCart}
-            className="text-red-600 hover:text-red-700 text-sm font-medium flex items-center"
+            className="flex items-center px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-md text-sm font-medium transition-colors"
           >
-            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
+            <Trash2 className="w-4 h-4 mr-1.5" />
             Clear Cart
           </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Cart Items */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="p-4 border-b">
-                <h2 className="text-lg font-semibold text-gray-800">
-                  Cart Items ({cart.items.length})
-                </h2>
-              </div>
-              
-              <div className="divide-y">
-                {cart.items.map((item) => (
-                  <div key={item._id} className="p-4 hover:bg-gray-50 transition-colors">
-                    <div className="flex items-start space-x-4">
-                      {/* Product Image */}
-                      <div className="flex-shrink-0">
-                        <Link to={`/user/product/${item.product._id}`}>
-                          <div className="w-20 h-20 bg-gray-200 rounded-lg overflow-hidden">
-                            {item.product.images && item.product.images[0] ? (
-                              <img
-                                src={item.product.images[0]}
-                                alt={item.product.name}
-                                className="w-full h-full object-cover hover:scale-105 transition-transform"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                              </div>
-                            )}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="bg-white rounded-lg shadow-md border border-gray-100 p-4">
+              <h2 className="text-base font-semibold text-gray-800 mb-4">
+                Cart Items ({cart.items.length})
+              </h2>
+            </div>
+
+            {cart.items.map((item) => (
+              <div
+                key={item._id}
+                className="bg-white rounded-lg shadow-md hover:shadow-lg border border-gray-100 p-5 transition-all"
+              >
+                <div className="flex items-start space-x-5">
+                  {/* Product Image - LARGER SIZE */}
+                  <div className="flex-shrink-0">
+                    <Link to={`/user/product/${item.product._id}`}>
+                      <div className="w-[120px] h-[120px] bg-gray-100 rounded-lg overflow-hidden">
+                        {item.product.images && item.product.images[0] ? (
+                          <img
+                            src={item.product.images[0]}
+                            alt={item.product.name}
+                            className="w-full h-full object-cover hover:scale-105 transition-transform"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            <ShoppingCart className="w-10 h-10" />
                           </div>
-                        </Link>
+                        )}
+                      </div>
+                    </Link>
+                  </div>
+
+                  {/* Product Details */}
+                  <div className="flex-1 min-w-0">
+                    <Link to={`/user/product/${item.product._id}`} className="block">
+                      <h3 className="font-semibold text-base text-gray-900 hover:text-orange-600 transition-colors line-clamp-2 mb-1">
+                        {item.product.name}
+                      </h3>
+                    </Link>
+
+                    {item.product.seller && (
+                      <Link
+                        to={`/user/shop/${item.product.seller._id}`}
+                        className="text-sm text-gray-500 hover:text-orange-600 inline-block mb-2"
+                      >
+                        by {item.product.seller.shop?.name || 'Shop'}
+                      </Link>
+                    )}
+
+                    {/* Size/Color Badges */}
+                    <div className="flex items-center flex-wrap gap-2 mb-3">
+                      {item.selectedSize && (
+                        <span className="bg-gray-100 px-2 py-1 rounded-full text-xs font-medium text-gray-700">
+                          Size: {item.selectedSize}
+                        </span>
+                      )}
+                      {item.selectedColor && (
+                        <span className="bg-gray-100 px-2 py-1 rounded-full text-xs font-medium text-gray-700">
+                          Color: {item.selectedColor}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Price */}
+                    <div className="flex items-center space-x-2 mb-4">
+                      <span className="text-xl font-bold text-gray-900">₹{item.price}</span>
+                      {item.product.mrp > item.price && (
+                        <span className="text-sm text-gray-500 line-through">₹{item.product.mrp}</span>
+                      )}
+                      {item.product.mrp > item.price && (
+                        <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded">
+                          {Math.round(((item.product.mrp - item.price) / item.product.mrp) * 100)}% OFF
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Quantity Controls & Remove */}
+                    <div className="flex items-center justify-between">
+                      {/* Quantity Controls - REDESIGNED */}
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => updateQuantity(item.product._id, item.quantity - 1)}
+                          disabled={item.quantity <= 1 || updatingItems[item.product._id]}
+                          className="w-10 h-10 rounded-full bg-orange-50 border-2 border-orange-200 hover:bg-orange-100 hover:border-orange-300 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed flex items-center justify-center transition-all"
+                        >
+                          <Minus className="w-5 h-5 text-orange-600" />
+                        </button>
+
+                        <span className="w-12 text-center font-bold text-base">
+                          {updatingItems[item.product._id] ? (
+                            <div className="w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                          ) : (
+                            item.quantity
+                          )}
+                        </span>
+
+                        <button
+                          onClick={() => updateQuantity(item.product._id, item.quantity + 1)}
+                          disabled={updatingItems[item.product._id]}
+                          className="w-10 h-10 rounded-full bg-orange-50 border-2 border-orange-200 hover:bg-orange-100 hover:border-orange-300 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed flex items-center justify-center transition-all"
+                        >
+                          <Plus className="w-5 h-5 text-orange-600" />
+                        </button>
+
+                        {/* Remove Button - REDESIGNED */}
+                        <button
+                          onClick={() => removeItem(item.product._id)}
+                          disabled={updatingItems[item.product._id]}
+                          className="ml-3 w-10 h-10 rounded-full bg-red-50 hover:bg-red-100 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed flex items-center justify-center transition-all"
+                        >
+                          <Trash2 className="w-5 h-5 text-red-600" />
+                        </button>
                       </div>
 
-                      {/* Product Details */}
-                      <div className="flex-1 min-w-0">
-                        <Link to={`/user/product/${item.product._id}`} className="block">
-                          <h3 className="font-medium text-gray-800 hover:text-orange-600 transition-colors line-clamp-2">
-                            {item.product.name}
-                          </h3>
-                        </Link>
-                        
-                        {item.product.seller && (
-                          <p className="text-sm text-gray-500 mt-1">
-                            by {item.product.seller.shop?.name || 'Shop'}
-                          </p>
-                        )}
-
-                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
-                          {item.selectedSize && (
-                            <span>Size: {item.selectedSize}</span>
-                          )}
-                          {item.selectedColor && (
-                            <span>Color: {item.selectedColor}</span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center justify-between mt-3">
-                          {/* Price */}
-                          <div className="flex items-center space-x-2">
-                            <span className="text-lg font-bold text-gray-800">₹{item.price}</span>
-                            {item.product.mrp > item.price && (
-                              <span className="text-sm text-gray-500 line-through">₹{item.product.mrp}</span>
-                            )}
-                          </div>
-
-                          {/* Quantity Controls */}
-                          <div className="flex items-center space-x-3">
-                            <button
-                              onClick={() => updateQuantity(item.product._id, item.quantity - 1)}
-                              disabled={item.quantity <= 1 || updatingItems[item.product._id]}
-                              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                              </svg>
-                            </button>
-                            
-                            <span className="w-8 text-center font-medium">
-                              {updatingItems[item.product._id] ? (
-                                <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                              ) : (
-                                item.quantity
-                              )}
-                            </span>
-                            
-                            <button
-                              onClick={() => updateQuantity(item.product._id, item.quantity + 1)}
-                              disabled={updatingItems[item.product._id]}
-                              className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                              </svg>
-                            </button>
-                            
-                            <button
-                              onClick={() => removeItem(item.product._id)}
-                              disabled={updatingItems[item.product._id]}
-                              className="ml-4 text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Item Total */}
-                        <div className="mt-2 text-right">
-                          <span className="text-sm text-gray-600">Item Total: </span>
-                          <span className="font-bold text-gray-800">₹{item.price * item.quantity}</span>
-                        </div>
+                      {/* Item Total - PROMINENT */}
+                      <div className="text-right">
+                        <div className="text-xs text-gray-500 mb-0.5">Item Total</div>
+                        <div className="text-lg font-bold text-orange-600">₹{item.price * item.quantity}</div>
                       </div>
                     </div>
                   </div>
-                ))}
+                </div>
               </div>
-            </div>
+            ))}
           </div>
 
-          {/* Order Summary */}
+          {/* Order Summary - REDESIGNED */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm border sticky top-4">
-              <div className="p-4 border-b">
-                <h2 className="text-lg font-semibold text-gray-800">Order Summary</h2>
+            <div className="bg-white rounded-lg shadow-lg border-2 border-gray-100 sticky top-4">
+              <div className="p-5 border-b border-gray-100">
+                <h2 className="text-lg font-semibold text-gray-900">Order Summary</h2>
               </div>
-              
-              <div className="p-4 space-y-3">
+
+              <div className="p-5 space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Subtotal ({cart.items.length} items)</span>
-                  <span className="font-medium">₹{subtotal}</span>
+                  <span className="text-gray-600">Subtotal ({cart.items.length} {cart.items.length === 1 ? 'item' : 'items'})</span>
+                  <span className="font-medium text-gray-900">₹{subtotal}</span>
                 </div>
-                
+
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Tax (18% GST)</span>
-                  <span className="font-medium">₹{tax}</span>
+                  <span className="font-medium text-gray-900">₹{tax}</span>
                 </div>
-                
+
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Shipping</span>
                   <span className="font-medium">
                     {shipping === 0 ? (
-                      <span className="text-green-600">FREE</span>
+                      <span className="bg-green-500 text-white px-2 py-0.5 rounded-full text-xs font-bold">FREE</span>
                     ) : (
-                      `₹${shipping}`
+                      <span className="text-gray-900">₹{shipping}</span>
                     )}
                   </span>
                 </div>
-                
-                {subtotal < 500 && (
-                  <p className="text-xs text-gray-500">
-                    Add ₹{500 - subtotal} more for free shipping
-                  </p>
-                )}
-                
-                <div className="border-t pt-3">
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>Total</span>
-                    <span className="text-orange-600">₹{total}</span>
+
+                {/* Free Shipping Progress - REDESIGNED */}
+                {freeShippingRemaining > 0 && (
+                  <div className="bg-orange-50 border-l-4 border-orange-500 px-3 py-2 rounded">
+                    <p className="text-xs text-orange-800 font-medium">
+                      Add ₹{freeShippingRemaining} more for FREE shipping
+                    </p>
+                    <div className="mt-1.5 w-full bg-orange-200 rounded-full h-1.5">
+                      <div
+                        className="bg-orange-500 h-1.5 rounded-full transition-all"
+                        style={{ width: `${Math.min((subtotal / 500) * 100, 100)}%` }}
+                      />
+                    </div>
                   </div>
+                )}
+
+                {/* Total Section - PREMIUM GRADIENT */}
+                <div className="!mt-4 bg-gradient-to-r from-orange-50 to-white p-4 rounded-lg border border-orange-100">
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-bold text-gray-900">Total</span>
+                    <span className="text-3xl font-bold text-orange-600">₹{total}</span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1">Inclusive of all taxes</p>
                 </div>
               </div>
-              
-              <div className="p-4 border-t">
+
+              <div className="p-5 border-t border-gray-100 space-y-3">
+                {/* Checkout Button - PREMIUM GRADIENT */}
                 <button
                   onClick={() => navigate('/user/checkout')}
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-medium transition-colors flex items-center justify-center"
+                  className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-3 rounded-lg font-medium shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center"
                 >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+                  <ShoppingCart className="w-5 h-5 mr-2" />
                   Proceed to Checkout
                 </button>
-                
+
+                {/* Continue Shopping - SECONDARY BUTTON */}
                 <Link
-                  to="/user/dashboard"
-                  className="block w-full text-center text-orange-600 hover:text-orange-700 py-2 mt-3 font-medium"
+                  to="/user/home"
+                  className="block w-full text-center border-2 border-orange-500 text-orange-600 hover:bg-orange-50 py-3 rounded-lg font-medium transition-all"
                 >
                   Continue Shopping
                 </Link>

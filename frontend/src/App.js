@@ -88,6 +88,7 @@ import UserDashboard from './pages/user/Dashboard';
 import ShopOffersPage from './pages/user/ShopOffersPage';
 import CategoryPage from './pages/user/CategoryPage';
 import HierarchicalCategoryPage from './pages/user/HierarchicalCategoryPage';
+import CategoriesHomePage from './pages/user/CategoriesHomePage';
 import ProductListPage from './pages/user/ProductListPage';
 import ProductDetailPage from './pages/user/ProductDetailPage';
 import ShopDetailPage from './pages/user/ShopDetailPage';
@@ -289,6 +290,9 @@ function App() {
             <Route path="/user/dashboard" element={<UserDashboard />} />
             <Route path="/user/home" element={<HomePage />} />
             <Route path="/user/offers" element={<ShopOffersPage />} />
+
+            {/* Categories Overview Page (NEW - fixes 404) */}
+            <Route path="/user/categories" element={<CategoriesHomePage />} />
 
             {/* Legacy Category Route (Men/Women/Kids flat structure) */}
             <Route path="/user/categories/:category" element={<CategoryPage />} />
