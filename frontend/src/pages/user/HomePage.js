@@ -174,9 +174,9 @@ const HomePage = () => {
       </header>
 
       {/* HERO BANNER CAROUSEL */}
-      <section className="relative bg-black">
-        <div className="max-w-7xl mx-auto">
-          <div className="relative overflow-hidden" style={{ height: 'clamp(300px, 52vw, 480px)' }}>
+      <section className="relative bg-white">
+        <div className="w-full">
+          <div className="relative overflow-hidden" style={{ height: 'clamp(320px, 45vw, 520px)' }}>
             <AnimatePresence mode="wait">
               {activeBanners.map((banner, index) => (
                 index === currentBannerIndex && (
