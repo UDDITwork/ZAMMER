@@ -35,11 +35,18 @@ cloudinary.config(
 )
 
 # --- Gemini API keys (rotated for parallel usage) ---
+# Load from environment variables for security
 API_KEYS = [
-    "AIzaSyCQXP8Wqrr-oQLI_4stIdS5ZcbCg612F6A",
-    "AIzaSyDnAuODmS97F7OAA1nmNSw3fpke6ATWB9s",
-    "AIzaSyCKh3Q_45ojFsPvSQPTllngMaqcgI2AzNI",
+    os.getenv("GEMINI_API_KEY_1"),
+    os.getenv("GEMINI_API_KEY_2"),
+    os.getenv("GEMINI_API_KEY_3"),
 ]
+API_KEYS = [k for k in API_KEYS if k]  # Filter out None values
+
+if not API_KEYS:
+    print("ERROR: No Gemini API keys found in environment variables.")
+    print("Please add GEMINI_API_KEY_1, GEMINI_API_KEY_2, GEMINI_API_KEY_3 to your .env file")
+    sys.exit(1)
 
 MODEL = "gemini-2.5-flash-image"
 
@@ -308,7 +315,7 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     # ─── Phase 1: Generate Images ───
-    print("\n📸 PHASE 1: Generating promotional banner images...")
+    print("\n[PHASE 1] Generating promotional banner images...")
     tasks = []
     for theme in PROMO_THEMES:
         filename = f"{theme['id']}.jpg"
@@ -337,7 +344,7 @@ def main():
         print("  All images already generated!")
 
     # ─── Phase 2: Upload to Cloudinary ───
-    print("\n☁️  PHASE 2: Uploading to Cloudinary...")
+    print("\n[PHASE 2] Uploading to Cloudinary...")
     results = []
 
     upload_tasks = []
@@ -380,18 +387,18 @@ def main():
                     print(f"  [ERR] Upload thread error for {theme['id']}: {e}")
 
     # ─── Phase 3: Save JSON ───
-    print(f"\n💾 PHASE 3: Saving results to {RESULTS_FILE.name}...")
+    print(f"\n[PHASE 3] Saving results to {RESULTS_FILE.name}...")
     with open(RESULTS_FILE, "w") as f:
         json.dump(results, f, indent=2)
 
     print(f"\n{'=' * 60}")
-    print(f"✅ COMPLETE: {len(results)}/{len(PROMO_THEMES)} promo banners processed")
+    print(f"[OK] COMPLETE: {len(results)}/{len(PROMO_THEMES)} promo banners processed")
     print(f"   Output: {RESULTS_FILE}")
     print(f"   Images: {OUTPUT_DIR}")
     print(f"{'=' * 60}")
 
     if len(results) < len(PROMO_THEMES):
-        print(f"\n⚠️  {len(PROMO_THEMES) - len(results)} banners failed. Re-run to retry.")
+        print(f"\n[WARN] {len(PROMO_THEMES) - len(results)} banners failed. Re-run to retry.")
 
     return results
 

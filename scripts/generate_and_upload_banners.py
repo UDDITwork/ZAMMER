@@ -36,11 +36,18 @@ cloudinary.config(
 )
 
 # --- Gemini API keys (rotated for parallel usage) ---
+# Load from environment variables for security
 API_KEYS = [
-    "AIzaSyCQXP8Wqrr-oQLI_4stIdS5ZcbCg612F6A",
-    "AIzaSyDnAuODmS97F7OAA1nmNSw3fpke6ATWB9s",
-    "AIzaSyCKh3Q_45ojFsPvSQPTllngMaqcgI2AzNI",
+    os.getenv("GEMINI_API_KEY_1"),
+    os.getenv("GEMINI_API_KEY_2"),
+    os.getenv("GEMINI_API_KEY_3"),
 ]
+API_KEYS = [k for k in API_KEYS if k]  # Filter out None values
+
+if not API_KEYS:
+    print("ERROR: No Gemini API keys found in environment variables.")
+    print("Please add GEMINI_API_KEY_1, GEMINI_API_KEY_2, GEMINI_API_KEY_3 to your .env file")
+    sys.exit(1)
 
 MODEL = "gemini-2.5-flash-image"
 
