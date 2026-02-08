@@ -7,13 +7,14 @@ const BANNER_DATA = {"level1":[{"categoryLevel1":"Men Fashion","imageUrl":"https
 // GET /api/banners - Public: fetch banners by level and category filters
 const getBanners = async (req, res) => {
   try {
-    const { level, categoryLevel1, categoryLevel2, categoryLevel3 } = req.query;
+    const { level, categoryLevel1, categoryLevel2, categoryLevel3, categoryLevel4 } = req.query;
     const filter = { isActive: true };
 
     if (level) filter.level = parseInt(level);
     if (categoryLevel1) filter.categoryLevel1 = categoryLevel1;
     if (categoryLevel2) filter.categoryLevel2 = categoryLevel2;
     if (categoryLevel3) filter.categoryLevel3 = categoryLevel3;
+    if (categoryLevel4) filter.categoryLevel4 = categoryLevel4;
 
     const banners = await Banner.find(filter).sort({ displayOrder: 1, createdAt: -1 });
 
@@ -33,6 +34,7 @@ const getAllBannersAdmin = async (req, res) => {
       level1: banners.filter(b => b.level === 1),
       level2: banners.filter(b => b.level === 2),
       level3: banners.filter(b => b.level === 3),
+      level4: banners.filter(b => b.level === 4),
     };
 
     res.json({ success: true, data: grouped });
@@ -45,7 +47,7 @@ const getAllBannersAdmin = async (req, res) => {
 // POST /api/banners - Admin: create a new banner
 const createBanner = async (req, res) => {
   try {
-    const { level, categoryLevel1, categoryLevel2, categoryLevel3, title, subtitle, image, imageUrl, cloudinaryPublicId, displayOrder } = req.body;
+    const { level, categoryLevel1, categoryLevel2, categoryLevel3, categoryLevel4, title, subtitle, image, imageUrl, cloudinaryPublicId, displayOrder } = req.body;
 
     // Validate level-specific required fields
     if (!level || !categoryLevel1) {
@@ -54,8 +56,11 @@ const createBanner = async (req, res) => {
     if (level >= 2 && !categoryLevel2) {
       return res.status(400).json({ success: false, message: 'categoryLevel2 is required for level 2+ banners' });
     }
-    if (level === 3 && !categoryLevel3) {
-      return res.status(400).json({ success: false, message: 'categoryLevel3 is required for level 3 banners' });
+    if (level >= 3 && !categoryLevel3) {
+      return res.status(400).json({ success: false, message: 'categoryLevel3 is required for level 3+ banners' });
+    }
+    if (level === 4 && !categoryLevel4) {
+      return res.status(400).json({ success: false, message: 'categoryLevel4 is required for level 4 banners' });
     }
 
     let finalImageUrl = imageUrl;
@@ -77,6 +82,7 @@ const createBanner = async (req, res) => {
       categoryLevel1,
       categoryLevel2: categoryLevel2 || null,
       categoryLevel3: categoryLevel3 || null,
+      categoryLevel4: categoryLevel4 || null,
       imageUrl: finalImageUrl,
       cloudinaryPublicId: finalPublicId,
       title: title || '',
@@ -214,6 +220,23 @@ const seedBanners = async (req, res) => {
       });
     });
 
+    // Level 4 banners
+    (bannerData.level4 || []).forEach((banner, idx) => {
+      bannerDocuments.push({
+        level: 4,
+        categoryLevel1: banner.categoryLevel1,
+        categoryLevel2: banner.categoryLevel2,
+        categoryLevel3: banner.categoryLevel3,
+        categoryLevel4: banner.categoryLevel4,
+        imageUrl: banner.imageUrl,
+        cloudinaryPublicId: banner.cloudinaryPublicId,
+        title: banner.title || banner.categoryLevel4,
+        subtitle: banner.subtitle || `Browse ${banner.categoryLevel4}`,
+        isActive: true,
+        displayOrder: idx + 1,
+      });
+    });
+
     // Insert all banners
     let insertedBanners = [];
     if (bannerDocuments.length > 0) {
@@ -225,6 +248,7 @@ const seedBanners = async (req, res) => {
       level1: await Banner.countDocuments({ level: 1, isActive: true }),
       level2: await Banner.countDocuments({ level: 2, isActive: true }),
       level3: await Banner.countDocuments({ level: 3, isActive: true }),
+      level4: await Banner.countDocuments({ level: 4, isActive: true }),
     };
 
     res.json({
@@ -238,6 +262,7 @@ const seedBanners = async (req, res) => {
           level1: (bannerData.level1 || []).length,
           level2: (bannerData.level2 || []).length,
           level3: (bannerData.level3 || []).length,
+          level4: (bannerData.level4 || []).length,
         }
       }
     });

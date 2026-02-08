@@ -326,45 +326,45 @@ const HomePage = () => {
             </Link>
           </div>
           <div className="grid grid-cols-3 gap-3 sm:gap-5">
-            <Link to="/user/browse/Women%20Fashion" className="group">
-              <div className="aspect-[3/4] relative rounded-2xl overflow-hidden bg-neutral-100">
-                <div className="w-full h-full bg-gradient-to-b from-orange-50 via-orange-100/60 to-orange-200/40 group-hover:scale-105 transition-transform duration-700" />
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-3 shadow-sm group-hover:shadow-md transition-shadow">
-                    <Gem className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" strokeWidth={1.5} />
+            {[
+              { categoryLevel1: 'Women Fashion', label: 'Women', tagline: 'New season', route: '/user/browse/Women%20Fashion', fallbackGradient: 'from-orange-50 via-orange-100/60 to-orange-200/40', FallbackIcon: Gem, fallbackIconColor: 'text-orange-600', accent: 'bg-orange-500' },
+              { categoryLevel1: 'Men Fashion', label: 'Men', tagline: 'Essential edits', route: '/user/browse/Men%20Fashion', fallbackGradient: 'from-neutral-100 via-neutral-200/60 to-neutral-300/40', FallbackIcon: User, fallbackIconColor: 'text-neutral-700', accent: 'bg-black' },
+              { categoryLevel1: 'Kids Fashion', label: 'Kids', tagline: 'Playful styles', route: '/user/browse/Kids%20Fashion', fallbackGradient: 'from-orange-50/80 via-amber-50/60 to-orange-100/40', FallbackIcon: Sparkles, fallbackIconColor: 'text-orange-500', accent: 'bg-orange-500' },
+            ].map((cat) => {
+              const banner = level1Banners.find(b => b.categoryLevel1 === cat.categoryLevel1);
+              return (
+                <Link key={cat.categoryLevel1} to={cat.route} className="group">
+                  <div className="aspect-[3/4] relative rounded-2xl overflow-hidden bg-neutral-100">
+                    {banner?.imageUrl ? (
+                      <>
+                        <img
+                          src={banner.imageUrl}
+                          alt={cat.label}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                        <div className="absolute inset-0 flex flex-col items-center justify-end p-4 pb-6">
+                          <p className="text-[13px] sm:text-sm font-semibold text-white text-center tracking-[-0.01em]">{cat.label}</p>
+                          <p className="text-[10px] text-white/60 mt-0.5 hidden sm:block">{cat.tagline}</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className={`w-full h-full bg-gradient-to-b ${cat.fallbackGradient} group-hover:scale-105 transition-transform duration-700`} />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-3 shadow-sm group-hover:shadow-md transition-shadow">
+                            <cat.FallbackIcon className={`h-5 w-5 sm:h-6 sm:w-6 ${cat.fallbackIconColor}`} strokeWidth={1.5} />
+                          </div>
+                          <p className="text-[13px] sm:text-sm font-semibold text-black text-center tracking-[-0.01em]">{cat.label}</p>
+                          <p className="text-[10px] text-neutral-500 mt-0.5 hidden sm:block">{cat.tagline}</p>
+                        </div>
+                      </>
+                    )}
+                    <div className={`absolute bottom-0 left-0 right-0 h-1 ${cat.accent} scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left`} />
                   </div>
-                  <p className="text-[13px] sm:text-sm font-semibold text-black text-center tracking-[-0.01em]">Women</p>
-                  <p className="text-[10px] text-neutral-500 mt-0.5 hidden sm:block">New season</p>
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-orange-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
-              </div>
-            </Link>
-            <Link to="/user/browse/Men%20Fashion" className="group">
-              <div className="aspect-[3/4] relative rounded-2xl overflow-hidden bg-neutral-100">
-                <div className="w-full h-full bg-gradient-to-b from-neutral-100 via-neutral-200/60 to-neutral-300/40 group-hover:scale-105 transition-transform duration-700" />
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-3 shadow-sm group-hover:shadow-md transition-shadow">
-                    <User className="h-5 w-5 sm:h-6 sm:w-6 text-neutral-700" strokeWidth={1.5} />
-                  </div>
-                  <p className="text-[13px] sm:text-sm font-semibold text-black text-center tracking-[-0.01em]">Men</p>
-                  <p className="text-[10px] text-neutral-500 mt-0.5 hidden sm:block">Essential edits</p>
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-black scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
-              </div>
-            </Link>
-            <Link to="/user/browse/Kids%20Fashion" className="group">
-              <div className="aspect-[3/4] relative rounded-2xl overflow-hidden bg-neutral-100">
-                <div className="w-full h-full bg-gradient-to-b from-orange-50/80 via-amber-50/60 to-orange-100/40 group-hover:scale-105 transition-transform duration-700" />
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-3 shadow-sm group-hover:shadow-md transition-shadow">
-                    <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-orange-500" strokeWidth={1.5} />
-                  </div>
-                  <p className="text-[13px] sm:text-sm font-semibold text-black text-center tracking-[-0.01em]">Kids</p>
-                  <p className="text-[10px] text-neutral-500 mt-0.5 hidden sm:block">Playful styles</p>
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-orange-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
-              </div>
-            </Link>
+                </Link>
+              );
+            })}
           </div>
         </section>
 

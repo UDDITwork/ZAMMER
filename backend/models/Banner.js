@@ -4,7 +4,7 @@ const BannerSchema = new mongoose.Schema({
   level: {
     type: Number,
     required: true,
-    enum: [1, 2, 3]
+    enum: [1, 2, 3, 4]
   },
   categoryLevel1: {
     type: String,
@@ -16,6 +16,10 @@ const BannerSchema = new mongoose.Schema({
     default: null
   },
   categoryLevel3: {
+    type: String,
+    default: null
+  },
+  categoryLevel4: {
     type: String,
     default: null
   },
@@ -47,6 +51,6 @@ const BannerSchema = new mongoose.Schema({
   timestamps: true
 });
 
-BannerSchema.index({ level: 1, categoryLevel1: 1, categoryLevel2: 1, isActive: 1 });
+BannerSchema.index({ level: 1, categoryLevel1: 1, categoryLevel2: 1, categoryLevel3: 1, isActive: 1 });
 
 module.exports = mongoose.model('Banner', BannerSchema);

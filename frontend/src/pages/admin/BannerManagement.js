@@ -2,10 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import { FiUpload, FiEdit2, FiTrash2, FiImage, FiCheck, FiX, FiChevronDown, FiEye, FiEyeOff, FiDatabase, FiAlertCircle } from 'react-icons/fi';
 import { getAllBannersAdmin, createBanner, updateBanner, deleteBanner, seedBanners } from '../../services/bannerService';
-import { getLevel1Options, getLevel2Options, getLevel3Options } from '../../data/categoryHierarchy';
+import { getLevel1Options, getLevel2Options, getLevel3Options, getLevel4Options } from '../../data/categoryHierarchy';
 
 const BannerManagement = () => {
-  const [banners, setBanners] = useState({ level1: [], level2: [], level3: [] });
+  const [banners, setBanners] = useState({ level1: [], level2: [], level3: [], level4: [] });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(1);
   const [showForm, setShowForm] = useState(false);
@@ -21,6 +21,7 @@ const BannerManagement = () => {
     categoryLevel1: '',
     categoryLevel2: '',
     categoryLevel3: '',
+    categoryLevel4: '',
     title: '',
     subtitle: '',
     displayOrder: 0,
@@ -53,6 +54,7 @@ const BannerManagement = () => {
       categoryLevel1: '',
       categoryLevel2: '',
       categoryLevel3: '',
+      categoryLevel4: '',
       title: '',
       subtitle: '',
       displayOrder: 0,
@@ -111,7 +113,8 @@ const BannerManagement = () => {
           level: activeTab,
           categoryLevel1: formData.categoryLevel1,
           categoryLevel2: activeTab >= 2 ? formData.categoryLevel2 : undefined,
-          categoryLevel3: activeTab === 3 ? formData.categoryLevel3 : undefined,
+          categoryLevel3: activeTab >= 3 ? formData.categoryLevel3 : undefined,
+          categoryLevel4: activeTab === 4 ? formData.categoryLevel4 : undefined,
           title: formData.title,
           subtitle: formData.subtitle,
           displayOrder: formData.displayOrder,
@@ -134,6 +137,7 @@ const BannerManagement = () => {
       categoryLevel1: banner.categoryLevel1,
       categoryLevel2: banner.categoryLevel2 || '',
       categoryLevel3: banner.categoryLevel3 || '',
+      categoryLevel4: banner.categoryLevel4 || '',
       title: banner.title || '',
       subtitle: banner.subtitle || '',
       displayOrder: banner.displayOrder || 0,
@@ -165,7 +169,8 @@ const BannerManagement = () => {
   };
 
   const handleSeedBanners = async () => {
-    const confirmMessage = banners.level1.length > 0 || banners.level2.length > 0 || banners.level3.length > 0
+    const hasExisting = banners.level1.length > 0 || banners.level2.length > 0 || banners.level3.length > 0 || banners.level4.length > 0;
+    const confirmMessage = hasExisting
       ? 'This will replace all existing banners with AI-generated banners from banner_urls.json. Continue?'
       : 'This will seed the database with AI-generated banners from banner_urls.json. Continue?';
 
@@ -175,7 +180,7 @@ const BannerManagement = () => {
     setSeedingProgress({ status: 'starting', message: 'Connecting to database...' });
 
     try {
-      const clearExisting = banners.level1.length > 0 || banners.level2.length > 0 || banners.level3.length > 0;
+      const clearExisting = hasExisting;
       setSeedingProgress({ status: 'seeding', message: 'Reading banner_urls.json and inserting banners...' });
 
       const response = await seedBanners(clearExisting);
@@ -220,6 +225,11 @@ const BannerManagement = () => {
     return getLevel3Options(formData.categoryLevel1, formData.categoryLevel2);
   };
 
+  const getLevel4OptionsForForm = () => {
+    if (!formData.categoryLevel1 || !formData.categoryLevel2 || !formData.categoryLevel3) return [];
+    return getLevel4Options(formData.categoryLevel1, formData.categoryLevel2, formData.categoryLevel3);
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -227,7 +237,7 @@ const BannerManagement = () => {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Banner Management</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Manage homepage banners and category posters across all 3 levels
+            Manage homepage banners and category posters across all 4 levels
           </p>
         </div>
         <div className="flex items-center space-x-3">
@@ -286,8 +296,8 @@ const BannerManagement = () => {
                 <div className="mt-2 text-xs text-gray-700 space-y-1">
                   <p>✓ Deleted: {seedingProgress.data.deletedCount} existing banners</p>
                   <p>✓ Inserted: {seedingProgress.data.insertedCount} new banners</p>
-                  <p>✓ Database counts - L1: {seedingProgress.data.counts.level1}, L2: {seedingProgress.data.counts.level2}, L3: {seedingProgress.data.counts.level3}</p>
-                  <p>✓ Source file - L1: {seedingProgress.data.source.level1}, L2: {seedingProgress.data.source.level2}, L3: {seedingProgress.data.source.level3}</p>
+                  <p>✓ Database counts - L1: {seedingProgress.data.counts.level1}, L2: {seedingProgress.data.counts.level2}, L3: {seedingProgress.data.counts.level3}, L4: {seedingProgress.data.counts.level4}</p>
+                  <p>✓ Source file - L1: {seedingProgress.data.source.level1}, L2: {seedingProgress.data.source.level2}, L3: {seedingProgress.data.source.level3}, L4: {seedingProgress.data.source.level4}</p>
                 </div>
               )}
             </div>
@@ -297,7 +307,7 @@ const BannerManagement = () => {
 
       {/* Level Tabs */}
       <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
-        {[1, 2, 3].map((level) => (
+        {[1, 2, 3, 4].map((level) => (
           <button
             key={level}
             onClick={() => setActiveTab(level)}
@@ -311,6 +321,7 @@ const BannerManagement = () => {
             {level === 1 && ' - Main Banners'}
             {level === 2 && ' - Category Posters'}
             {level === 3 && ' - Subcategory Posters'}
+            {level === 4 && ' - Product Banners'}
             <span className="ml-2 text-xs opacity-75">
               ({(banners[`level${level}`] || []).length})
             </span>
@@ -333,14 +344,14 @@ const BannerManagement = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Category Dropdowns */}
             {!editingBanner && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className={`grid grid-cols-1 ${activeTab === 4 ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
                 {/* Level 1 Category */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category (Level 1)</label>
                   <div className="relative">
                     <select
                       value={formData.categoryLevel1}
-                      onChange={(e) => setFormData({ ...formData, categoryLevel1: e.target.value, categoryLevel2: '', categoryLevel3: '' })}
+                      onChange={(e) => setFormData({ ...formData, categoryLevel1: e.target.value, categoryLevel2: '', categoryLevel3: '', categoryLevel4: '' })}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 appearance-none"
                       required
                     >
@@ -360,7 +371,7 @@ const BannerManagement = () => {
                     <div className="relative">
                       <select
                         value={formData.categoryLevel2}
-                        onChange={(e) => setFormData({ ...formData, categoryLevel2: e.target.value, categoryLevel3: '' })}
+                        onChange={(e) => setFormData({ ...formData, categoryLevel2: e.target.value, categoryLevel3: '', categoryLevel4: '' })}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 appearance-none"
                         required={activeTab >= 2}
                         disabled={!formData.categoryLevel1}
@@ -375,20 +386,42 @@ const BannerManagement = () => {
                   </div>
                 )}
 
-                {/* Level 3 Category (for level 3 banners) */}
-                {activeTab === 3 && (
+                {/* Level 3 Category (for level 3+ banners) */}
+                {activeTab >= 3 && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Product Group (Level 3)</label>
                     <div className="relative">
                       <select
                         value={formData.categoryLevel3}
-                        onChange={(e) => setFormData({ ...formData, categoryLevel3: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, categoryLevel3: e.target.value, categoryLevel4: '' })}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 appearance-none"
-                        required={activeTab === 3}
+                        required={activeTab >= 3}
                         disabled={!formData.categoryLevel2}
                       >
                         <option value="">Select...</option>
                         {getLevel3OptionsForForm().map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                      <FiChevronDown className="absolute right-3 top-3 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Level 4 Category (for level 4 banners) */}
+                {activeTab === 4 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Specific Product (Level 4)</label>
+                    <div className="relative">
+                      <select
+                        value={formData.categoryLevel4}
+                        onChange={(e) => setFormData({ ...formData, categoryLevel4: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 appearance-none"
+                        required={activeTab === 4}
+                        disabled={!formData.categoryLevel3}
+                      >
+                        <option value="">Select...</option>
+                        {getLevel4OptionsForForm().map(opt => (
                           <option key={opt} value={opt}>{opt}</option>
                         ))}
                       </select>
@@ -533,6 +566,7 @@ const BannerManagement = () => {
                   {banner.categoryLevel1}
                   {banner.categoryLevel2 && ` > ${banner.categoryLevel2}`}
                   {banner.categoryLevel3 && ` > ${banner.categoryLevel3}`}
+                  {banner.categoryLevel4 && ` > ${banner.categoryLevel4}`}
                 </div>
                 {banner.title && (
                   <p className="text-sm text-gray-600">{banner.title}</p>
@@ -578,6 +612,7 @@ const BannerManagement = () => {
             {activeTab === 1 && 'Add homepage sliding banners for Men, Women, and Kids Fashion'}
             {activeTab === 2 && 'Add category poster images for Level 2 subcategories'}
             {activeTab === 3 && 'Add product group poster images for Level 3 subcategories'}
+            {activeTab === 4 && 'Add specific product banner images for Level 4 items'}
           </p>
           <button
             onClick={() => { resetForm(); setShowForm(true); }}

@@ -737,65 +737,6 @@ const handleReturnFromTracker = (order) => {
 
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Quick Actions */}
-          <div className="mb-8">
-            <div className="flex justify-end items-center space-x-4">
-              <Link 
-                to="/user/my-orders" 
-                className="flex items-center space-x-2 bg-white border border-gray-200 hover:border-orange-300 px-4 py-3 rounded-xl transition-all duration-200 group"
-              >
-                <div className="w-8 h-8 bg-orange-50 group-hover:bg-orange-100 rounded-lg flex items-center justify-center transition-colors">
-                  <svg className="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
-                </div>
-                <span className="text-sm font-medium text-gray-700 group-hover:text-orange-600">My Orders</span>
-              </Link>
-               
-              <button 
-                onClick={toggleOrderTracker}
-                className="flex items-center space-x-2 bg-white border border-gray-200 hover:border-green-300 px-4 py-3 rounded-xl transition-all duration-200 group"
-              >
-                <div className="w-8 h-8 bg-green-50 group-hover:bg-green-100 rounded-lg flex items-center justify-center transition-colors">
-                  <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <span className="text-sm font-medium text-gray-700 group-hover:text-green-600">Track Orders</span>
-              </button>
-               
-              <Link 
-                to="/user/profile" 
-                className="flex items-center space-x-2 bg-white border border-gray-200 hover:border-purple-300 px-4 py-3 rounded-xl transition-all duration-200 group"
-              >
-                <div className="w-8 h-8 bg-purple-50 group-hover:bg-purple-100 rounded-lg flex items-center justify-center transition-colors">
-                  <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </div>
-                <span className="text-sm font-medium text-gray-700 group-hover:text-purple-600">Profile</span>
-              </Link>
-            </div>
-          </div>
-          
-          {/* Welcome Section */}
-          <div className="mb-12">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                    Welcome back, {userAuth.user?.name}
-                  </h2>
-                  <p className="text-lg text-gray-600">Discover quality products from trusted sellers</p>
-                </div>
-                <div className="hidden md:block w-20 h-20 bg-orange-50 rounded-2xl flex items-center justify-center">
-                  <svg className="h-10 w-10 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Trending Products Carousel */}
           <div className="mb-12">
