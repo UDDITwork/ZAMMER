@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import UserLayout from '../../components/layouts/UserLayout';
+import UserHeader from '../../components/header/UserHeader';
 import cartService from '../../services/cartService';
 import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Sparkles } from 'lucide-react';
 
@@ -113,6 +114,7 @@ const CartPage = () => {
   if (loading) {
     return (
       <UserLayout>
+        <UserHeader />
         <div className="container mx-auto p-4">
           <div className="flex justify-center items-center py-20">
             <div className="text-center">
@@ -128,6 +130,7 @@ const CartPage = () => {
   if (!cart.items || cart.items.length === 0) {
     return (
       <UserLayout>
+        <UserHeader />
         <div className="container mx-auto p-4">
           <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-md mx-auto">
             <ShoppingCart className="w-24 h-24 mx-auto text-gray-300 mb-4" strokeWidth={1} />
@@ -163,6 +166,7 @@ const CartPage = () => {
 
   return (
     <UserLayout>
+      <UserHeader />
       <div className="container mx-auto p-4 max-w-6xl">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">

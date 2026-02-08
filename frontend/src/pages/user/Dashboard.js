@@ -16,6 +16,9 @@ import productService from '../../services/productService';
 import cartService from '../../services/cartService';
 import api from '../../services/api';
 import WishlistButton from '../../components/common/WishlistButton';
+import UserHeader from '../../components/header/UserHeader';
+import { getPromoBanners } from '../../services/promoBannerService';
+import PromoBannerCarousel from '../../components/common/PromoBannerCarousel';
 
 // Safe JSON parsing helper
 const safeJsonParse = (data, defaultValue = null) => {
@@ -59,6 +62,7 @@ const Dashboard = () => {
   const [locationError, setLocationError] = useState(null);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnModalOrder, setReturnModalOrder] = useState(null);
+  const [promoBanners, setPromoBanners] = useState([]);
   
   const isMountedRef = useRef(true);
   const fetchingRef = useRef(false);
@@ -123,6 +127,18 @@ const Dashboard = () => {
     } catch (error) {
       console.error('❌ Error fetching trending products:', error);
       setTrendingProducts([]);
+    }
+  }, []);
+
+  const fetchPromoBannersData = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    try {
+      const response = await getPromoBanners({ page: 'dashboard' });
+      if (response.success && response.data.length > 0 && isMountedRef.current) {
+        setPromoBanners(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching promo banners:', error);
     }
   }, []);
 
@@ -424,7 +440,8 @@ const Dashboard = () => {
         await Promise.all([
           fetchProducts(),
           fetchTrendingProducts(),
-          fetchOrders()
+          fetchOrders(),
+          fetchPromoBannersData()
         ]);
         
         await fetchNearbyShops();
@@ -619,124 +636,23 @@ const handleReturnFromTracker = (order) => {
   return (
     <UserLayout>
       <div className="min-h-screen bg-gray-50">
-        {/* Professional Header */}
-        <div className="bg-white border-b border-gray-200 shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center py-6">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-orange-600 rounded-xl flex items-center justify-center">
-                  <span className="text-white font-bold text-xl">Z</span>
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-                  <p className="text-sm text-gray-600">Welcome back, {userAuth.user?.name}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center space-x-4">
-                <Link 
-                  to="/user/profile" 
-                  className="flex items-center space-x-3 text-gray-700 hover:text-orange-600 transition-colors"
-                >
-                  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                  <span className="text-sm font-medium">Profile</span>
-                </Link>
-                
-                <button 
-                  onClick={handleLogout}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                >
-                  Sign Out
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Location Bar */}
-        {userAuth.user?.location?.address ? (
-          <div className="bg-orange-50 border-b border-orange-100">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div 
-                className="flex items-center justify-between py-3 cursor-pointer group"
-                onClick={requestLocationUpdate}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-orange-900">Current Location</p>
-                    <p className="text-sm text-orange-700">{userAuth.user.location.address}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center text-orange-600 group-hover:text-orange-700">
-                  {locationLoading ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-600 mr-2"></div>
-                  ) : (
-                    <svg className="w-5 h-5 mr-2 group-hover:rotate-180 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  )}
-                  <span className="text-sm font-medium">Update</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-amber-50 border-b border-amber-100">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div 
-                className="flex items-center justify-between py-3 cursor-pointer group"
-                onClick={requestLocationUpdate}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    {locationLoading ? (
-                      <p className="text-sm font-medium text-amber-900">Detecting your location...</p>
-                    ) : locationError ? (
-                      <div>
-                        <p className="text-sm font-medium text-red-900">Location Error</p>
-                        <p className="text-sm text-red-700">{locationError}</p>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="text-sm font-medium text-amber-900">Location not set</p>
-                        <p className="text-sm text-amber-700">Enable location for personalized recommendations</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {!locationLoading && (
-                  <button className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                    <svg className="w-4 h-4 inline mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Enable Location
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        <UserHeader />
 
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+          {/* Promotional Banners */}
+          {promoBanners.length > 0 && (
+            <div className="mb-12">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Hot Deals</h2>
+                  <p className="text-gray-600">Exclusive offers for you</p>
+                </div>
+              </div>
+              <PromoBannerCarousel banners={promoBanners} />
+            </div>
+          )}
 
           {/* Trending Products Carousel */}
           <div className="mb-12">

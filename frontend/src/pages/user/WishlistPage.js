@@ -8,6 +8,7 @@
 import React, { useEffect, useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import UserLayout from '../../components/layouts/UserLayout';
+import UserHeader from '../../components/header/UserHeader';
 import { getWishlist, removeFromWishlist } from '../../services/wishlistService';
 import { AuthContext } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
@@ -95,6 +96,7 @@ const WishlistPage = () => {
   /* --------------------------------------------------------------------- */
   return (
     <UserLayout>
+      <UserHeader />
       <div className="container mx-auto p-4 min-h-screen">
         <h1 className="text-2xl font-bold mb-4">Your Wishlist</h1>
 

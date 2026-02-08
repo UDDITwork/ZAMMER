@@ -44,6 +44,7 @@ const adminSupportRoutes = require('./routes/adminSupportRoutes');
 const supportUploadRoutes = require('./routes/supportUploadRoutes');
 const catalogueRoutes = require('./routes/catalogueRoutes');
 const bannerRoutes = require('./routes/bannerRoutes');
+const promoBannerRoutes = require('./routes/promoBannerRoutes');
 
 // Initialize app
 const app = express();
@@ -967,6 +968,7 @@ app.use('/api/support', supportRoutes);               // General support routes
 app.use('/api/admin/support', adminSupportRoutes);
 app.use('/api/catalogues', catalogueRoutes);          // Catalogue bulk upload routes
 app.use('/api/banners', bannerRoutes);               // Banner management routes
+app.use('/api/promo-banners', promoBannerRoutes);   // Promo banner management routes
 
 // ─────────────────────────────────────────────
 // UNIVERSAL: Serve React static assets from multiple possible paths

@@ -36,6 +36,7 @@ import LiveLogs from './pages/admin/LiveLogs';
 import SupportTickets from './pages/admin/SupportTickets';
 import SupportTicketDetail from './pages/admin/SupportTicketDetail';
 import BannerManagement from './pages/admin/BannerManagement';
+import PromoBannerManagement from './pages/admin/PromoBannerManagement';
 
 // Admin Layout
 import AdminLayout from './components/layouts/AdminLayout';
@@ -178,7 +179,8 @@ function App() {
             <Route path="/admin/support/tickets" element={<AdminLayout><SupportTickets /></AdminLayout>} />
             <Route path="/admin/support/tickets/:ticketId" element={<AdminLayout><SupportTicketDetail /></AdminLayout>} />
             <Route path="/admin/banner-management" element={<AdminLayout><BannerManagement /></AdminLayout>} />
-            
+            <Route path="/admin/promo-banners" element={<AdminLayout><PromoBannerManagement /></AdminLayout>} />
+
             {/* 🆕 ADMIN ROUTE ALIASES - Point to main dashboard sections */}
             <Route path="/admin/orders" element={<AdminLayout><AdminDashboard /></AdminLayout>} />
             <Route path="/admin/analytics" element={<AdminLayout><AdminDashboard /></AdminLayout>} />

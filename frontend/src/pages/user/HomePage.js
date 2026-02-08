@@ -3,18 +3,20 @@
 
 import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { toast } from 'react-toastify';
 import { AuthContext } from '../../contexts/AuthContext';
 import { getMarketplaceProducts } from '../../services/productService';
 import { getNearbyShops } from '../../services/userService';
 import { getBanners } from '../../services/bannerService';
+import { getPromoBanners } from '../../services/promoBannerService';
 import StarRating from '../../components/common/StarRating';
 import WishlistButton from '../../components/common/WishlistButton';
+import PromoBannerCarousel from '../../components/common/PromoBannerCarousel';
+import UserHeader from '../../components/header/UserHeader';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search, MapPin, Bell, ChevronRight, ArrowRight, ArrowUpRight,
+  ChevronRight, ArrowRight, ArrowUpRight,
   Home, ShoppingBag, ShoppingCart, TrendingUp, Star,
-  User, Heart, Gem, Sparkles
+  User, MapPin, Heart, Gem, Sparkles
 } from 'lucide-react';
 
 const HomePage = () => {
@@ -25,9 +27,8 @@ const HomePage = () => {
   const [recommendedShops, setRecommendedShops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingShops, setLoadingShops] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-
   const [level1Banners, setLevel1Banners] = useState([]);
+  const [promoBanners, setPromoBanners] = useState([]);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
   const isMountedRef = useRef(true);
@@ -97,11 +98,20 @@ const HomePage = () => {
     }
   }, []);
 
+  const fetchPromoBannersData = useCallback(async () => {
+    try {
+      const response = await getPromoBanners({ page: 'homepage' });
+      if (response.success && response.data.length > 0 && isMountedRef.current) setPromoBanners(response.data);
+    } catch (error) {
+      console.error('Error fetching promo banners:', error);
+    }
+  }, []);
+
   useEffect(() => {
     isMountedRef.current = true;
-    Promise.all([fetchProducts(), fetchOfferProducts(), fetchNearbyShops(), fetchBanners()]).catch(console.error);
+    Promise.all([fetchProducts(), fetchOfferProducts(), fetchNearbyShops(), fetchBanners(), fetchPromoBannersData()]).catch(console.error);
     return () => { isMountedRef.current = false; fetchingRef.current = false; };
-  }, [fetchProducts, fetchOfferProducts, fetchNearbyShops, fetchBanners]);
+  }, [fetchProducts, fetchOfferProducts, fetchNearbyShops, fetchBanners, fetchPromoBannersData]);
 
   useEffect(() => {
     if (activeBanners.length <= 1) return;
@@ -111,67 +121,9 @@ const HomePage = () => {
     return () => clearInterval(interval);
   }, [activeBanners.length]);
 
-  const handleSearchChange = (e) => setSearchQuery(e.target.value);
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) toast.info(`Searching for: ${searchQuery}`);
-  };
-
   return (
     <div className="min-h-screen bg-white">
-
-      {/* HEADER */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-black/[0.04]">
-        <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-full overflow-hidden border border-black/[0.06] flex-shrink-0">
-                {userAuth.user?.profilePicture ? (
-                  <img src={userAuth.user.profilePicture} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-neutral-50 flex items-center justify-center">
-                    <User className="h-[18px] w-[18px] text-neutral-400" strokeWidth={1.5} />
-                  </div>
-                )}
-              </div>
-              <div className="leading-tight">
-                <p className="text-[13px] font-semibold text-black tracking-[-0.01em]">
-                  {userAuth.user?.name || 'Welcome'}
-                </p>
-                {userAuth.user?.location?.address && (
-                  <p className="text-[11px] text-neutral-400 flex items-center gap-1 mt-0.5">
-                    <MapPin className="h-3 w-3" strokeWidth={1.5} />
-                    <span className="truncate max-w-[160px]">{userAuth.user.location.address}</span>
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link to="/user/wishlist" className="p-2.5 rounded-full hover:bg-neutral-50 transition-colors">
-                <Heart className="h-[20px] w-[20px] text-black" strokeWidth={1.5} />
-              </Link>
-              <button className="p-2.5 rounded-full hover:bg-neutral-50 transition-colors relative">
-                <Bell className="h-[20px] w-[20px] text-black" strokeWidth={1.5} />
-                <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-orange-500 rounded-full" />
-              </button>
-            </div>
-          </div>
-          <div className="pb-3.5">
-            <form onSubmit={handleSearchSubmit}>
-              <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-[16px] w-[16px] text-neutral-300" strokeWidth={1.5} />
-                <input
-                  type="text"
-                  placeholder="Search brands, categories, products..."
-                  className="w-full bg-neutral-50 border-0 rounded-xl pl-10 pr-4 py-2.5 text-[13px] text-black placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-black/10 transition-shadow"
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                />
-              </div>
-            </form>
-          </div>
-        </div>
-      </header>
+      <UserHeader />
 
       {/* HERO BANNER CAROUSEL */}
       <section className="relative bg-white">
@@ -247,6 +199,15 @@ const HomePage = () => {
           </div>
         </div>
       </section>
+
+      {/* PROMOTIONAL BANNERS */}
+      {promoBanners.length > 0 && (
+        <section className="bg-neutral-50 py-4">
+          <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
+            <PromoBannerCarousel banners={promoBanners} />
+          </div>
+        </section>
+      )}
 
       {/* MAIN CONTENT */}
       <main className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">

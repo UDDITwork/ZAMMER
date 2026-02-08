@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import UserLayout from '../../components/layouts/UserLayout';
+import UserHeader from '../../components/header/UserHeader';
 import { getNearbyShops, getNearbyShopsWithLocation } from '../../services/userService';
 import { AuthContext } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
@@ -217,6 +218,7 @@ const NearbyShopsPage = () => {
   if (loading) {
     return (
       <UserLayout>
+        <UserHeader />
         <div className="container mx-auto p-4">
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
@@ -237,6 +239,7 @@ const NearbyShopsPage = () => {
 
   return (
     <UserLayout>
+      <UserHeader />
       <div className="container mx-auto p-4">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Nearby Shops</h1>
