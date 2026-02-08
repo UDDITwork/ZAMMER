@@ -1,7 +1,7 @@
 // File: /frontend/src/pages/user/ShopPage.js
 
 import React, { useEffect, useState, useContext, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getNearbyShops } from '../../services/userService';
 import { AuthContext } from '../../contexts/AuthContext';
@@ -11,6 +11,24 @@ import UserHeader from '../../components/header/UserHeader';
 import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
 import { MapPin, Search, X, Store } from 'lucide-react';
 
+// Helper functions for distance calculation
+const deg2rad = (deg) => {
+  return deg * (Math.PI/180);
+};
+
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Radius of the earth in km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const distance = R * c; // Distance in km
+  return parseFloat(distance.toFixed(1));
+};
+
 const ShopPage = () => {
   const { userAuth } = useContext(AuthContext);
   const [shops, setShops] = useState([]);
@@ -18,7 +36,6 @@ const ShopPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [mapCenter, setMapCenter] = useState(null);
   const [selectedShop, setSelectedShop] = useState(null);
-  const navigate = useNavigate();
 
   const googleMapsApiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
@@ -78,24 +95,6 @@ const ShopPage = () => {
   useEffect(() => {
     fetchNearbyShops();
   }, [fetchNearbyShops]);
-
-  // Calculate distance between two points using Haversine formula
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Radius of the earth in km
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2); 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-    const distance = R * c; // Distance in km
-    return parseFloat(distance.toFixed(1));
-  };
-
-  const deg2rad = (deg) => {
-    return deg * (Math.PI/180);
-  };
 
   // Filter shops based on search query
   const filteredShops = shops.filter(shop => 

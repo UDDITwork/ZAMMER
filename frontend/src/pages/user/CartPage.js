@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import UserLayout from '../../components/layouts/UserLayout';
 import UserHeader from '../../components/header/UserHeader';
 import cartService from '../../services/cartService';
-import { ShoppingCart, Trash2, Plus, Minus, ArrowRight, Sparkles } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, Sparkles } from 'lucide-react';
 
 const CartPage = () => {
   const [cart, setCart] = useState({ items: [], total: 0 });
