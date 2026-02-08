@@ -279,7 +279,7 @@ const verifySignupOTPAndRegister = async (req, res) => {
       });
     }
 
-    const { name, email, password, mobileNumber, otp, location } = req.body;
+    const { name, email, password, mobileNumber, otp, location, gender } = req.body;
 
     if (!otp || otp.length !== 6) {
       return res.status(400).json({
@@ -361,7 +361,8 @@ const verifySignupOTPAndRegister = async (req, res) => {
       name: finalName,
       email: finalEmail,
       password, // Will be hashed by pre-save middleware
-      mobileNumber: cleanedPhone.length === 10 ? `91${cleanedPhone}` : cleanedPhone // Normalize to include country code
+      mobileNumber: cleanedPhone.length === 10 ? `91${cleanedPhone}` : cleanedPhone, // Normalize to include country code
+      gender: gender || '' // Add gender field (optional)
     };
 
     // Add location if provided

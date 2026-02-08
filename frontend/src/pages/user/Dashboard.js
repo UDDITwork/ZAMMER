@@ -19,6 +19,11 @@ import WishlistButton from '../../components/common/WishlistButton';
 import UserHeader from '../../components/header/UserHeader';
 import { getPromoBanners } from '../../services/promoBannerService';
 import PromoBannerCarousel from '../../components/common/PromoBannerCarousel';
+import categoryService from '../../services/categoryService';
+import { getLevel2Options } from '../../data/categoryHierarchy';
+import CircularCategorySelector from '../../components/user/CircularCategorySelector';
+import Level2BannerGrid from '../../components/user/Level2BannerGrid';
+import { getBanners } from '../../services/bannerService';
 
 // Safe JSON parsing helper
 const safeJsonParse = (data, defaultValue = null) => {
@@ -63,7 +68,15 @@ const Dashboard = () => {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnModalOrder, setReturnModalOrder] = useState(null);
   const [promoBanners, setPromoBanners] = useState([]);
-  
+  const [selectedLevel1, setSelectedLevel1] = useState(() => {
+    // Default category based on user gender
+    const gender = userAuth?.user?.gender;
+    if (gender === 'Female') return 'Women Fashion';
+    if (gender === 'Male') return 'Men Fashion';
+    return 'Men Fashion'; // Default fallback
+  });
+  const [level2Banners, setLevel2Banners] = useState([]);
+
   const isMountedRef = useRef(true);
   const fetchingRef = useRef(false);
   const locationUpdateRef = useRef(false); // Prevent multiple simultaneous updates
@@ -141,6 +154,27 @@ const Dashboard = () => {
       console.error('Error fetching promo banners:', error);
     }
   }, []);
+
+  const fetchLevel2Banners = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    try {
+      console.log('🎯 [Dashboard] Fetching Level 2 banners for:', selectedLevel1);
+      const response = await getBanners({
+        level: 2,
+        categoryLevel1: selectedLevel1
+      });
+      if (response.success && response.data && response.data.length > 0 && isMountedRef.current) {
+        setLevel2Banners(response.data);
+        console.log('✅ Level 2 banners fetched:', response.data.length);
+      } else {
+        setLevel2Banners([]);
+        console.log('ℹ️ No Level 2 banners found for:', selectedLevel1);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching Level 2 banners:', error);
+      setLevel2Banners([]);
+    }
+  }, [selectedLevel1]);
 
   const fetchNearbyShops = useCallback(async () => {
     if (!isMountedRef.current) return;
@@ -525,6 +559,11 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, [trendingProducts.length]);
 
+  // 🎯 Fetch Level 2 banners when selectedLevel1 changes
+  useEffect(() => {
+    fetchLevel2Banners();
+  }, [fetchLevel2Banners]);
+
   useEffect(() => {
     if (!userAuth.isAuthenticated || !userAuth.user?._id) return;
 
@@ -653,6 +692,37 @@ const handleReturnFromTracker = (order) => {
               <PromoBannerCarousel banners={promoBanners} />
             </div>
           )}
+
+          {/* Circular Category Selector + Level 2 Banners */}
+          <section className="mb-12 bg-white rounded-lg shadow-sm border border-gray-100 p-6 sm:p-8">
+            <CircularCategorySelector
+              selectedCategory={selectedLevel1}
+              onSelectCategory={setSelectedLevel1}
+            />
+
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Shop by Category
+                  </h2>
+                  <p className="text-gray-600">
+                    Explore {selectedLevel1.replace(' Fashion', '')} collections
+                  </p>
+                </div>
+                <Link
+                  to={`/user/browse/${encodeURIComponent(selectedLevel1)}`}
+                  className="text-orange-600 hover:text-orange-700 font-medium text-sm flex items-center group"
+                >
+                  View All
+                  <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              </div>
+              <Level2BannerGrid banners={level2Banners} level1Category={selectedLevel1} />
+            </div>
+          </section>
 
           {/* Trending Products Carousel */}
           <div className="mb-12">

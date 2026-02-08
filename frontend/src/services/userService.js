@@ -416,10 +416,10 @@ export const resendSignupOTP = async (mobileNumber) => {
   }
 };
 
-export const verifySignupOTPAndRegister = async (name, email, password, mobileNumber, otp, location = null) => {
+export const verifySignupOTPAndRegister = async (name, email, password, mobileNumber, otp, location = null, gender = '') => {
   const logPrefix = '🟢 [SIGNUP-OTP-VERIFY]';
   const startTime = Date.now();
-  
+
   console.log(`${logPrefix} ========================================`);
   console.log(`${logPrefix} START: Verifying OTP and registering user`);
   console.log(`${logPrefix} Input Data:`, {
@@ -428,6 +428,7 @@ export const verifySignupOTPAndRegister = async (name, email, password, mobileNu
     mobileNumber: `${mobileNumber?.substring(0, 6)}****${mobileNumber?.slice(-2)}`,
     otp: otp?.substring(0, 2) + '****',
     hasLocation: !!location,
+    gender: gender || 'Not specified',
     timestamp: new Date().toISOString()
   });
   console.log(`${logPrefix} ========================================`);
@@ -454,7 +455,8 @@ export const verifySignupOTPAndRegister = async (name, email, password, mobileNu
       password,
       mobileNumber,
       otp,
-      location
+      location,
+      gender
     });
     const duration = Date.now() - startTime;
     

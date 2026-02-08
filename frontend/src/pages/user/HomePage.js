@@ -12,6 +12,8 @@ import StarRating from '../../components/common/StarRating';
 import WishlistButton from '../../components/common/WishlistButton';
 import PromoBannerCarousel from '../../components/common/PromoBannerCarousel';
 import UserHeader from '../../components/header/UserHeader';
+import CircularCategorySelector from '../../components/user/CircularCategorySelector';
+import Level2BannerGrid from '../../components/user/Level2BannerGrid';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, ArrowRight, ArrowUpRight,
@@ -30,6 +32,13 @@ const HomePage = () => {
   const [level1Banners, setLevel1Banners] = useState([]);
   const [promoBanners, setPromoBanners] = useState([]);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const [selectedLevel1, setSelectedLevel1] = useState(() => {
+    const gender = userAuth?.user?.gender;
+    if (gender === 'Female') return 'Women Fashion';
+    if (gender === 'Male') return 'Men Fashion';
+    return 'Men Fashion'; // default
+  });
+  const [level2Banners, setLevel2Banners] = useState([]);
 
   const isMountedRef = useRef(true);
   const fetchingRef = useRef(false);
@@ -107,6 +116,23 @@ const HomePage = () => {
     }
   }, []);
 
+  const fetchLevel2Banners = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    try {
+      console.log('🎯 [HomePage] Fetching Level 2 banners for:', selectedLevel1);
+      const response = await getBanners({ level: 2, categoryLevel1: selectedLevel1 });
+      if (response.success && response.data && response.data.length > 0 && isMountedRef.current) {
+        setLevel2Banners(response.data);
+        console.log('✅ Level 2 banners fetched:', response.data.length);
+      } else {
+        setLevel2Banners([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching Level 2 banners:', error);
+      setLevel2Banners([]);
+    }
+  }, [selectedLevel1]);
+
   useEffect(() => {
     isMountedRef.current = true;
     Promise.all([fetchProducts(), fetchOfferProducts(), fetchNearbyShops(), fetchBanners(), fetchPromoBannersData()]).catch(console.error);
@@ -120,6 +146,10 @@ const HomePage = () => {
     }, 5000);
     return () => clearInterval(interval);
   }, [activeBanners.length]);
+
+  useEffect(() => {
+    fetchLevel2Banners();
+  }, [fetchLevel2Banners]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -208,6 +238,34 @@ const HomePage = () => {
           </div>
         </section>
       )}
+
+      {/* CIRCULAR CATEGORY SELECTOR + LEVEL 2 BANNERS */}
+      <section className="border-t border-black/[0.04] py-10">
+        <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
+          <CircularCategorySelector
+            selectedCategory={selectedLevel1}
+            onSelectCategory={setSelectedLevel1}
+          />
+
+          <div className="mt-8">
+            <div className="flex items-end justify-between mb-6">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Explore</p>
+                <h2 className="text-[22px] font-light text-black tracking-[-0.02em]">
+                  {selectedLevel1.replace(' Fashion', '')} Collections
+                </h2>
+              </div>
+              <Link
+                to={`/user/browse/${encodeURIComponent(selectedLevel1)}`}
+                className="text-black text-[12px] font-medium uppercase tracking-[0.1em] flex items-center gap-1 hover:text-orange-600 transition-colors"
+              >
+                View All <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.5} />
+              </Link>
+            </div>
+            <Level2BannerGrid banners={level2Banners} level1Category={selectedLevel1} />
+          </div>
+        </div>
+      </section>
 
       {/* MAIN CONTENT */}
       <main className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">

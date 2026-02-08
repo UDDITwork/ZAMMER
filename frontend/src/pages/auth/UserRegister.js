@@ -21,7 +21,9 @@ const RegisterSchema = Yup.object().shape({
     .required('Confirm password is required'),
   mobileNumber: Yup.string()
     .required('Mobile number is required')
-    .matches(/^[0-9]{10,12}$/, 'Mobile number must be 10-12 digits')
+    .matches(/^[0-9]{10,12}$/, 'Mobile number must be 10-12 digits'),
+  gender: Yup.string()
+    .oneOf(['Male', 'Female', 'Other', ''], 'Invalid gender selection')
 });
 
 const UserRegister = () => {
@@ -187,7 +189,8 @@ const UserRegister = () => {
         formData.password,
         formData.mobileNumber,
         otp,
-        formData.location || null
+        formData.location || null,
+        formData.gender || ''
       );
       
       console.log(`${logPrefix} 📥 Service Response:`, {
@@ -350,7 +353,8 @@ const UserRegister = () => {
               email: '',
               password: '',
               confirmPassword: '',
-              mobileNumber: ''
+              mobileNumber: '',
+              gender: ''
             }}
             validationSchema={RegisterSchema}
             onSubmit={handleSendOTP}
@@ -444,11 +448,32 @@ const UserRegister = () => {
                       name="confirmPassword"
                       type="password"
                       autoComplete="new-password"
-                      className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
+                      className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
                       placeholder="Confirm Password"
                     />
                     <ErrorMessage
                       name="confirmPassword"
+                      component="div"
+                      className="text-red-500 text-sm mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="gender" className="sr-only">
+                      Gender
+                    </label>
+                    <Field
+                      as="select"
+                      id="gender"
+                      name="gender"
+                      className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
+                    >
+                      <option value="">Gender (Optional)</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </Field>
+                    <ErrorMessage
+                      name="gender"
                       component="div"
                       className="text-red-500 text-sm mt-1"
                     />

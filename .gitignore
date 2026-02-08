@@ -42,8 +42,11 @@ node_modules/
 scripts/generate_promo_banners.py
 scripts/generate_level4_banners.py
 scripts/regenerate_failed_level4.py
+scripts/generate_level2_banners.py
 scripts/promo_banner_urls.json
 scripts/banner_urls_level4.json
+scripts/level2_banner_urls.json
 scripts/generated_promo_banners/
 scripts/generated_level4_banners/
+scripts/generated_level2_banners/
 scripts/generated_banners/ 
