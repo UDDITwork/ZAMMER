@@ -36,4 +36,14 @@ node_modules/
 
 # Task files
 # tasks.json
-# tasks/ 
+# tasks/
+
+# Scripts with API keys and generated content
+scripts/generate_promo_banners.py
+scripts/generate_level4_banners.py
+scripts/regenerate_failed_level4.py
+scripts/promo_banner_urls.json
+scripts/banner_urls_level4.json
+scripts/generated_promo_banners/
+scripts/generated_level4_banners/
+scripts/generated_banners/ 
