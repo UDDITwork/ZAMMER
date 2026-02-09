@@ -155,6 +155,16 @@ const HomePage = () => {
     <div className="min-h-screen bg-white">
       <UserHeader />
 
+      {/* Circular Category Selector - Directly Below Header */}
+      <div className="bg-white border-b border-black/[0.04]">
+        <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
+          <CircularCategorySelector
+            selectedCategory={selectedLevel1}
+            onSelectCategory={setSelectedLevel1}
+          />
+        </div>
+      </div>
+
       {/* HERO BANNER CAROUSEL */}
       <section className="relative bg-white">
         <div className="w-full">
@@ -239,31 +249,24 @@ const HomePage = () => {
         </section>
       )}
 
-      {/* CIRCULAR CATEGORY SELECTOR + LEVEL 2 BANNERS */}
+      {/* LEVEL 2 BANNERS */}
       <section className="border-t border-black/[0.04] py-10">
         <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
-          <CircularCategorySelector
-            selectedCategory={selectedLevel1}
-            onSelectCategory={setSelectedLevel1}
-          />
-
-          <div className="mt-8">
-            <div className="flex items-end justify-between mb-6">
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Explore</p>
-                <h2 className="text-[22px] font-light text-black tracking-[-0.02em]">
-                  {selectedLevel1.replace(' Fashion', '')} Collections
-                </h2>
-              </div>
-              <Link
-                to={`/user/browse/${encodeURIComponent(selectedLevel1)}`}
-                className="text-black text-[12px] font-medium uppercase tracking-[0.1em] flex items-center gap-1 hover:text-orange-600 transition-colors"
-              >
-                View All <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.5} />
-              </Link>
+          <div className="flex items-end justify-between mb-6">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Explore</p>
+              <h2 className="text-[22px] font-light text-black tracking-[-0.02em]">
+                {selectedLevel1.replace(' Fashion', '')} Collections
+              </h2>
             </div>
-            <Level2BannerGrid banners={level2Banners} level1Category={selectedLevel1} />
+            <Link
+              to={`/user/browse/${encodeURIComponent(selectedLevel1)}`}
+              className="text-black text-[12px] font-medium uppercase tracking-[0.1em] flex items-center gap-1 hover:text-orange-600 transition-colors"
+            >
+              View All <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.5} />
+            </Link>
           </div>
+          <Level2BannerGrid banners={level2Banners} level1Category={selectedLevel1} />
         </div>
       </section>
 

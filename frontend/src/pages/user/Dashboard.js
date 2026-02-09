@@ -677,6 +677,16 @@ const handleReturnFromTracker = (order) => {
       <div className="min-h-screen bg-gray-50">
         <UserHeader />
 
+        {/* Circular Category Selector - Directly Below Header */}
+        <div className="bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <CircularCategorySelector
+              selectedCategory={selectedLevel1}
+              onSelectCategory={setSelectedLevel1}
+            />
+          </div>
+        </div>
+
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
@@ -693,35 +703,28 @@ const handleReturnFromTracker = (order) => {
             </div>
           )}
 
-          {/* Circular Category Selector + Level 2 Banners */}
+          {/* Level 2 Banners */}
           <section className="mb-12 bg-white rounded-lg shadow-sm border border-gray-100 p-6 sm:p-8">
-            <CircularCategorySelector
-              selectedCategory={selectedLevel1}
-              onSelectCategory={setSelectedLevel1}
-            />
-
-            <div className="mt-8">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    Shop by Category
-                  </h2>
-                  <p className="text-gray-600">
-                    Explore {selectedLevel1.replace(' Fashion', '')} collections
-                  </p>
-                </div>
-                <Link
-                  to={`/user/browse/${encodeURIComponent(selectedLevel1)}`}
-                  className="text-orange-600 hover:text-orange-700 font-medium text-sm flex items-center group"
-                >
-                  View All
-                  <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Shop by Category
+                </h2>
+                <p className="text-gray-600">
+                  Explore {selectedLevel1.replace(' Fashion', '')} collections
+                </p>
               </div>
-              <Level2BannerGrid banners={level2Banners} level1Category={selectedLevel1} />
+              <Link
+                to={`/user/browse/${encodeURIComponent(selectedLevel1)}`}
+                className="text-orange-600 hover:text-orange-700 font-medium text-sm flex items-center group"
+              >
+                View All
+                <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
             </div>
+            <Level2BannerGrid banners={level2Banners} level1Category={selectedLevel1} />
           </section>
 
           {/* Trending Products Carousel */}
