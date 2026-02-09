@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
-import { FiUpload, FiEdit2, FiTrash2, FiImage, FiCheck, FiX, FiEye, FiEyeOff, FiDatabase, FiAlertCircle, FiLink, FiTag } from 'react-icons/fi';
-import { getAllPromoBannersAdmin, createPromoBanner, updatePromoBanner, deletePromoBanner, seedPromoBanners } from '../../services/promoBannerService';
+import { FiUpload, FiEdit2, FiTrash2, FiImage, FiCheck, FiX, FiEye, FiEyeOff, FiDatabase, FiAlertCircle, FiLink, FiTag, FiStar } from 'react-icons/fi';
+import { getAllPromoBannersAdmin, createPromoBanner, updatePromoBanner, deletePromoBanner, seedPromoBanners, seedExpandedPromoBanners } from '../../services/promoBannerService';
 
 const PromoBannerManagement = () => {
   const [banners, setBanners] = useState([]);
@@ -11,6 +11,8 @@ const PromoBannerManagement = () => {
   const [editingBanner, setEditingBanner] = useState(null);
   const [seeding, setSeeding] = useState(false);
   const [seedingProgress, setSeedingProgress] = useState(null);
+  const [seedingExpanded, setSeedingExpanded] = useState(false);
+  const [seedingExpandedProgress, setSeedingExpandedProgress] = useState(null);
 
   const initialFormData = {
     title: '',
@@ -185,6 +187,40 @@ const PromoBannerManagement = () => {
     }
   };
 
+  const handleSeedExpanded = async () => {
+    if (!window.confirm('Seed EXPANDED CREATIVE promo banners (19 new lifestyle-themed banners)? This will clear existing promo banners and insert new creative ones.')) return;
+
+    setSeedingExpanded(true);
+    setSeedingExpandedProgress({ status: 'starting', message: 'Starting expanded banner seed process...' });
+
+    try {
+      setSeedingExpandedProgress({ status: 'seeding', message: 'Seeding 21 expanded creative promo banners...' });
+      const response = await seedExpandedPromoBanners(true);
+
+      if (response.success) {
+        setSeedingExpandedProgress({
+          status: 'success',
+          message: 'Expanded creative promo banners seeded successfully!',
+          data: response.data,
+        });
+        fetchBanners();
+        setTimeout(() => setSeedingExpandedProgress(null), 5000);
+      } else {
+        setSeedingExpandedProgress({
+          status: 'error',
+          message: response.message || 'Seeding expanded banners failed',
+        });
+      }
+    } catch (error) {
+      setSeedingExpandedProgress({
+        status: 'error',
+        message: error?.response?.data?.message || 'Failed to seed expanded promo banners',
+      });
+    } finally {
+      setSeedingExpanded(false);
+    }
+  };
+
   const genderLabels = { men: 'Men', women: 'Women', kids: 'Kids', all: 'All' };
   const genderColors = { men: 'bg-blue-100 text-blue-700', women: 'bg-pink-100 text-pink-700', kids: 'bg-green-100 text-green-700', all: 'bg-gray-100 text-gray-700' };
 
@@ -196,14 +232,22 @@ const PromoBannerManagement = () => {
           <h1 className="text-2xl font-bold text-gray-900">Promo Banner Management</h1>
           <p className="text-sm text-gray-500 mt-1">Manage discount & promotional banners shown on HomePage and Dashboard</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <button
             onClick={handleSeed}
-            disabled={seeding}
+            disabled={seeding || seedingExpanded}
             className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
             <FiDatabase className="w-4 h-4" />
-            {seeding ? 'Seeding...' : 'Seed from JSON'}
+            {seeding ? 'Seeding...' : 'Seed Basic (12)'}
+          </button>
+          <button
+            onClick={handleSeedExpanded}
+            disabled={seeding || seedingExpanded}
+            className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
+          >
+            <FiStar className="w-4 h-4" />
+            {seedingExpanded ? 'Seeding...' : 'Seed Creative (19)'}
           </button>
           <button
             onClick={() => { resetForm(); setShowForm(true); }}
@@ -242,6 +286,38 @@ const PromoBannerManagement = () => {
             <div className="text-sm text-gray-600 space-y-1 mt-2">
               <p>Deleted: {seedingProgress.data.deletedCount} | Inserted: {seedingProgress.data.insertedCount}</p>
               <p>Active in database: {seedingProgress.data.totalActive}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Expanded Seeding Progress */}
+      {seedingExpandedProgress && (
+        <div className={`mb-6 p-4 rounded-xl border ${
+          seedingExpandedProgress.status === 'success' ? 'bg-green-50 border-green-200' :
+          seedingExpandedProgress.status === 'error' ? 'bg-red-50 border-red-200' :
+          'bg-purple-50 border-purple-200'
+        }`}>
+          <div className="flex items-center gap-2 mb-2">
+            {seedingExpandedProgress.status === 'success' ? (
+              <FiCheck className="w-5 h-5 text-green-600" />
+            ) : seedingExpandedProgress.status === 'error' ? (
+              <FiAlertCircle className="w-5 h-5 text-red-600" />
+            ) : (
+              <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            )}
+            <span className={`font-medium text-sm ${
+              seedingExpandedProgress.status === 'success' ? 'text-green-700' :
+              seedingExpandedProgress.status === 'error' ? 'text-red-700' :
+              'text-purple-700'
+            }`}>
+              {seedingExpandedProgress.message}
+            </span>
+          </div>
+          {seedingExpandedProgress.data && (
+            <div className="text-sm text-gray-600 space-y-1 mt-2">
+              <p>Deleted: {seedingExpandedProgress.data.deletedCount} | Inserted: {seedingExpandedProgress.data.insertedCount}</p>
+              <p>Active in database: {seedingExpandedProgress.data.totalActive}</p>
             </div>
           )}
         </div>

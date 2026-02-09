@@ -65,3 +65,14 @@ export const seedPromoBanners = async (clearExisting = false) => {
     throw error;
   }
 };
+
+// Admin: seed EXPANDED creative promo banners from embedded data
+export const seedExpandedPromoBanners = async (clearExisting = false) => {
+  try {
+    const response = await api.post(`/promo-banners/seed-expanded?clear=${clearExisting}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error seeding expanded promo banners:', error);
+    throw error;
+  }
+};

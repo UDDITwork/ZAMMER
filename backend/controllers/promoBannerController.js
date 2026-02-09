@@ -356,6 +356,72 @@ const seedPromoBanners = async (req, res) => {
   }
 };
 
+// EXPANDED PROMO BANNER DATA — Creative Lifestyle Themes (19 creative banners)
+// Generated from scripts/generate_expanded_promo_banners.py on 2026-02-10
+const EXPANDED_PROMO_BANNER_DATA = [{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669869/zammer_banners/promo/expanded/men_summer_vibes.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/men_summer_vibes","title":"SUMMER VIBES","subtitle":"Cool Styles for Hot Days","discountText":"FLAT 40% OFF","ctaText":"SHOP NOW","targetGender":"men","linkUrl":"/user/browse/Men%20Fashion/Western%20Wear","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669869/zammer_banners/promo/expanded/men_gym_active.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/men_gym_active","title":"GYM & ACTIVE","subtitle":"Performance Wear That Moves","discountText":"UPTO 55% OFF","ctaText":"GET FIT","targetGender":"men","linkUrl":"/user/browse/Men%20Fashion/Sportswear","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669869/zammer_banners/promo/expanded/men_date_night.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/men_date_night","title":"DATE NIGHT","subtitle":"Dress to Impress","discountText":"BUY 2 GET 1","ctaText":"LOOK SHARP","targetGender":"men","linkUrl":"/user/browse/Men%20Fashion/Western%20Wear","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669869/zammer_banners/promo/expanded/men_wfh.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/men_wfh","title":"WORK FROM HOME","subtitle":"Comfort Meets Professional","discountText":"STARTING Rs.399","ctaText":"SHOP COMFORT","targetGender":"men","linkUrl":"/user/browse/Men%20Fashion/Western%20Wear","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669869/zammer_banners/promo/expanded/men_street_style.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/men_street_style","title":"STREET STYLE","subtitle":"Urban Fashion Forward","discountText":"UPTO 50% OFF","ctaText":"GET TRENDY","targetGender":"men","linkUrl":"/user/browse/Men%20Fashion/Western%20Wear","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669870/zammer_banners/promo/expanded/women_valentine.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/women_valentine","title":"VALENTINE'S SPECIAL","subtitle":"Elegant Looks for Her","discountText":"UPTO 65% OFF","ctaText":"SHOP LOVE","targetGender":"women","linkUrl":"/user/browse/Women%20Fashion/Western%20Wear","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669871/zammer_banners/promo/expanded/women_monsoon.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/women_monsoon","title":"MONSOON EDIT","subtitle":"Rainy Day Ready Styles","discountText":"FLAT 45% OFF","ctaText":"EXPLORE","targetGender":"women","linkUrl":"/user/browse/Women%20Fashion","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669872/zammer_banners/promo/expanded/women_festive_glam.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/women_festive_glam","title":"FESTIVE GLAM","subtitle":"Shine Bright This Season","discountText":"UPTO 75% OFF","ctaText":"CELEBRATE","targetGender":"women","linkUrl":"/user/browse/Women%20Fashion/Ethnic%20Wear","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669871/zammer_banners/promo/expanded/women_weekend.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/women_weekend","title":"WEEKEND GETAWAY","subtitle":"Travel Light Look Right","discountText":"BUY 3 GET 20%","ctaText":"PACK STYLE","targetGender":"women","linkUrl":"/user/browse/Women%20Fashion/Western%20Wear","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669871/zammer_banners/promo/expanded/women_yoga.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/women_yoga","title":"YOGA & WELLNESS","subtitle":"Stretch in Style","discountText":"STARTING Rs.499","ctaText":"NAMASTE","targetGender":"women","linkUrl":"/user/browse/Women%20Fashion/Activewear","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669874/zammer_banners/promo/expanded/women_sustainable.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/women_sustainable","title":"SUSTAINABLE FASHION","subtitle":"Eco-Friendly Elegance","discountText":"UPTO 40% OFF","ctaText":"GO GREEN","targetGender":"women","linkUrl":"/user/browse/Women%20Fashion","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669872/zammer_banners/promo/expanded/women_luxury.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/women_luxury","title":"LUXURY COLLECTION","subtitle":"Premium Designer Wear","discountText":"EXTRA 10% OFF","ctaText":"BE EXCLUSIVE","targetGender":"women","linkUrl":"/user/browse/Women%20Fashion","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669872/zammer_banners/promo/expanded/kids_summer_camp.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/kids_summer_camp","title":"SUMMER CAMP","subtitle":"Fun Ready Outfits","discountText":"UPTO 50% OFF","ctaText":"SHOP NOW","targetGender":"kids","linkUrl":"/user/browse/Kids%20Fashion","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669872/zammer_banners/promo/expanded/kids_cartoon.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/kids_cartoon","title":"CARTOON COLLECTION","subtitle":"Their Favorite Characters","discountText":"BUY 2 GET 30%","ctaText":"EXPLORE","targetGender":"kids","linkUrl":"/user/browse/Kids%20Fashion","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669873/zammer_banners/promo/expanded/kids_sports.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/kids_sports","title":"SPORTS CHAMPION","subtitle":"Active Kids Happy Kids","discountText":"STARTING Rs.199","ctaText":"SHOP ACTIVE","targetGender":"kids","linkUrl":"/user/browse/Kids%20Fashion","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669875/zammer_banners/promo/expanded/kids_birthday.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/kids_birthday","title":"BIRTHDAY SPECIAL","subtitle":"Make Their Day Extra Special","discountText":"UPTO 60% OFF","ctaText":"CELEBRATE","targetGender":"kids","linkUrl":"/user/browse/Kids%20Fashion","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669873/zammer_banners/promo/expanded/all_first_buy.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/all_first_buy","title":"FIRST BUY OFFER","subtitle":"Welcome to ZAMMER Family","discountText":"EXTRA 20% OFF","ctaText":"CLAIM NOW","targetGender":"all","linkUrl":"/user/browse","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669874/zammer_banners/promo/expanded/all_member_exclusive.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/all_member_exclusive","title":"MEMBER EXCLUSIVE","subtitle":"Special Perks for You","discountText":"EXTRA 15% OFF","ctaText":"MEMBERS ONLY","targetGender":"all","linkUrl":"/user/browse","showOnHomePage":true,"showOnDashboard":true},{"imageUrl":"https://res.cloudinary.com/dr17ap4sb/image/upload/v1770669874/zammer_banners/promo/expanded/all_clearance.jpg","cloudinaryPublicId":"zammer_banners/promo/expanded/all_clearance","title":"CLEARANCE SALE","subtitle":"Last Pieces at Lowest Prices","discountText":"UPTO 90% OFF","ctaText":"FINAL CALL","targetGender":"all","linkUrl":"/user/browse","showOnHomePage":true,"showOnDashboard":true}];
+
+// POST /api/promo-banners/seed-expanded - Admin: seed EXPANDED creative promo banners
+const seedExpandedPromoBanners = async (req, res) => {
+  try {
+    const bannerData = EXPANDED_PROMO_BANNER_DATA;
+
+    if (!bannerData || bannerData.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No expanded promo banner data available. Run scripts/generate_expanded_promo_banners.py first and embed the data in this controller.'
+      });
+    }
+
+    // Clear existing promo banners (optional - controlled by query param)
+    const clearExisting = req.query.clear === 'true';
+    let deletedCount = 0;
+
+    if (clearExisting) {
+      const deleteResult = await PromoBanner.deleteMany({});
+      deletedCount = deleteResult.deletedCount;
+    }
+
+    // Prepare banner documents
+    const bannerDocuments = bannerData.map((banner, idx) => ({
+      imageUrl: banner.imageUrl,
+      cloudinaryPublicId: banner.cloudinaryPublicId,
+      linkUrl: banner.linkUrl || '/user/shop',
+      title: banner.title || 'Promo',
+      subtitle: banner.subtitle || '',
+      discountText: banner.discountText || '',
+      ctaText: banner.ctaText || 'SHOP NOW',
+      isActive: true,
+      showOnHomePage: banner.showOnHomePage !== undefined ? banner.showOnHomePage : true,
+      showOnDashboard: banner.showOnDashboard !== undefined ? banner.showOnDashboard : true,
+      displayOrder: banner.displayOrder || idx + 100, // Start at 100 to avoid conflicts
+      targetGender: banner.targetGender || 'all',
+    }));
+
+    // Insert all expanded promo banners
+    let insertedBanners = [];
+    if (bannerDocuments.length > 0) {
+      insertedBanners = await PromoBanner.insertMany(bannerDocuments);
+    }
+
+    // Verify count
+    const totalCount = await PromoBanner.countDocuments({ isActive: true });
+
+    res.json({
+      success: true,
+      message: 'Expanded creative promo banners seeded successfully',
+      data: {
+        deletedCount,
+        insertedCount: insertedBanners.length,
+        totalActive: totalCount,
+        source: { total: bannerData.length },
+      }
+    });
+  } catch (error) {
+    console.error('[PromoBannerController] seedExpandedPromoBanners error:', error);
+    res.status(500).json({ success: false, message: 'Failed to seed expanded promo banners' });
+  }
+};
+
 module.exports = {
   getActivePromoBanners,
   getAllPromoBannersAdmin,
@@ -363,4 +429,5 @@ module.exports = {
   updatePromoBanner,
   deletePromoBanner,
   seedPromoBanners,
+  seedExpandedPromoBanners, // NEW endpoint for expanded banners
 };

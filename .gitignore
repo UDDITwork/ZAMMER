@@ -53,3 +53,6 @@ scripts/generated_banners/
 scripts/generate_category_posters.py
 scripts/category_poster_urls.json
 scripts/generated_category_posters/
+scripts/generate_brand_logos.py
+scripts/brand_logo_urls.json
+scripts/generated_brand_logos/
