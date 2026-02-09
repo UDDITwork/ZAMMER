@@ -99,7 +99,13 @@ const getConfig = () => {
   
   // Validate required configuration
   if (!productionConfig.clientId || !productionConfig.secretKey) {
-    throw new Error(`Cashfree Payouts configuration missing - check environment variables`);
+    console.warn('⚠️ [CASHFREE] Payouts configuration missing - check environment variables. Payouts will be disabled.');
+    return {
+      ...productionConfig,
+      publicKey: null,
+      environment: process.env.NODE_ENV || 'production',
+      disabled: true
+    };
   }
   
   // Load public key if available

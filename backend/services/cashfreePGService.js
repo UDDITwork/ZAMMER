@@ -33,12 +33,18 @@ class CashfreePGService {
     // Validate configuration on initialization
     try {
       const config = cashfreePGConfig.getConfig();
+      if (config.disabled) {
+        this.disabled = true;
+        terminalLog('CASHFREE_PG_SERVICE_DISABLED', 'ERROR', { reason: 'Missing configuration' });
+        return;
+      }
+      this.disabled = false;
       this.baseURL = config.baseUrl;
       this.appId = config.appId;
       this.secretKey = config.secretKey;
       this.apiVersion = config.apiVersion;
       this.environment = config.environment;
-      
+
       terminalLog('CASHFREE_PG_SERVICE_INITIALIZED', 'SUCCESS', {
         environment: this.environment,
         baseURL: this.baseURL,
@@ -50,7 +56,7 @@ class CashfreePGService {
       terminalLog('CASHFREE_PG_INIT_FAILED', 'ERROR', {
         error: error.message
       });
-      throw error;
+      this.disabled = true;
     }
   }
 

@@ -16,9 +16,12 @@ class SMEPayService {
   constructor() {
     // Validate configuration on initialization
     if (!smepayConfig.validateConfig()) {
-      throw new Error('SMEPay configuration is invalid. Please check your environment variables.');
+      console.warn('⚠️ [SMEPAY] Configuration is invalid. Payments will be disabled.');
+      this.disabled = true;
+      return;
     }
-    
+
+    this.disabled = false;
     this.baseURL = smepayConfig.getBaseURL();
     this.clientId = smepayConfig.clientId;
     this.clientSecret = smepayConfig.clientSecret;

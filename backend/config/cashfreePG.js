@@ -18,9 +18,10 @@ const getConfig = () => {
   
   // Validate required configuration
   if (!productionConfig.appId || !productionConfig.secretKey) {
-    throw new Error('Cashfree Payment Gateway configuration missing - check CASHFREE_PG_APP_ID and CASHFREE_PG_SECRET_KEY environment variables');
+    console.warn('⚠️ [CASHFREE-PG] Configuration missing - check CASHFREE_PG_APP_ID and CASHFREE_PG_SECRET_KEY. Payments will be disabled.');
+    return { ...productionConfig, disabled: true };
   }
-  
+
   return productionConfig;
 };
 
