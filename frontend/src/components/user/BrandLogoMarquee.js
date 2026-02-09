@@ -77,14 +77,14 @@ const BrandLogoMarquee = () => {
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 0 32px;
+          padding: 0 40px;
           height: 100%;
         }
 
         .brand-logo-cell img {
-          height: 80px;
+          height: 160px;
           width: auto;
-          max-width: 160px;
+          max-width: 320px;
           object-fit: contain;
           opacity: 0.85;
           filter: grayscale(30%) contrast(1.05);
@@ -95,33 +95,33 @@ const BrandLogoMarquee = () => {
         /* SM breakpoint */
         @media (min-width: 640px) {
           .brand-logo-cell {
-            padding: 0 40px;
+            padding: 0 48px;
           }
           .brand-logo-cell img {
-            height: 90px;
-            max-width: 180px;
+            height: 180px;
+            max-width: 360px;
           }
         }
 
         /* MD breakpoint */
         @media (min-width: 768px) {
           .brand-logo-cell {
-            padding: 0 48px;
+            padding: 0 56px;
           }
           .brand-logo-cell img {
-            height: 100px;
-            max-width: 200px;
+            height: 200px;
+            max-width: 400px;
           }
         }
 
         /* LG/XL — full desktop */
         @media (min-width: 1200px) {
           .brand-logo-cell {
-            padding: 0 56px;
+            padding: 0 64px;
           }
           .brand-logo-cell img {
-            height: 110px;
-            max-width: 220px;
+            height: 220px;
+            max-width: 440px;
           }
         }
       `}</style>
