@@ -24,6 +24,8 @@ import { getLevel2Options } from '../../data/categoryHierarchy';
 import CircularCategorySelector from '../../components/user/CircularCategorySelector';
 import Level2BannerGrid from '../../components/user/Level2BannerGrid';
 import { getBanners } from '../../services/bannerService';
+import ProductCard from '../../components/common/ProductCard';
+import { ProductGridSkeleton } from '../../components/common/SkeletonLoader';
 
 // Safe JSON parsing helper
 const safeJsonParse = (data, defaultValue = null) => {
@@ -1044,72 +1046,11 @@ const handleReturnFromTracker = (order) => {
             </div>
           
             {loading ? (
-              <div className="flex justify-center py-12 bg-white rounded-2xl border border-gray-200">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-orange-600 mx-auto mb-4"></div>
-                  <span className="text-gray-600 font-medium">Loading products...</span>
-                </div>
-              </div>
+              <ProductGridSkeleton count={8} cols="grid-cols-2 md:grid-cols-3 lg:grid-cols-4" />
             ) : products.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {products.slice(0, 8).map(product => (
-                  <div key={product._id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden hover:shadow-lg transition-all duration-300 group hover:border-blue-300">
-                    <div className="relative h-56 bg-gray-100">
-                      {product.images && product.images.length > 0 ? (
-                        <img 
-                          src={product.images[0]} 
-                          alt={product.name} 
-                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          onLoad={(e) => {
-                            console.log(`✅ Image loaded successfully: ${product.name}`);
-                          }}
-                          onError={(e) => {
-                            console.error(`❌ Image failed to load: ${product.name}`);
-                            e.target.src = '/placeholder-product.jpg';
-                          }}
-                        />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center text-gray-400 bg-gray-100">
-                          <div className="text-center">
-                            <svg className="h-12 w-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            <span className="text-sm font-medium">No image</span>
-                          </div>
-                        </div>
-                      )}
-                      
-                      <div className="absolute top-4 right-4 z-10">
-                        <WishlistButton productId={product._id} size="sm" className="shadow-lg" />
-                      </div>
-                      
-                      {product.mrp > product.zammerPrice && (
-                        <div className="absolute top-4 left-4 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold">
-                          {Math.round(((product.mrp - product.zammerPrice) / product.mrp) * 100)}% OFF
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="p-6">
-                      <h3 className="font-bold text-gray-900 mb-2 line-clamp-1">{truncateText(product.name, 50)}</h3>
-                      
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <span className="text-orange-600 font-bold text-xl">₹{product.zammerPrice?.toLocaleString('en-IN')}</span>
-                          {product.mrp > product.zammerPrice && (
-                            <span className="text-gray-400 text-sm line-through ml-2">₹{product.mrp?.toLocaleString('en-IN')}</span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <Link
-                        to={`/user/product/${product._id}`}
-                        className="block text-center bg-orange-600 hover:bg-orange-700 text-white py-3 px-4 rounded-xl font-semibold transition-colors duration-200"
-                      >
-                        View Details
-                      </Link>
-                    </div>
-                  </div>
+                  <ProductCard key={product._id} product={product} />
                 ))}
               </div>
             ) : (

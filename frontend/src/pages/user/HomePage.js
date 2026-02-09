@@ -244,6 +244,25 @@ const HomePage = () => {
         </div>
       </section>
 
+      {/* TRUST BADGES */}
+      <section className="bg-neutral-50 border-t border-black/[0.04]">
+        <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8 py-3">
+          <div className="flex items-center justify-center gap-6 sm:gap-10 overflow-x-auto scrollbar-hide">
+            {[
+              { icon: '🚚', label: 'Free Shipping 500+' },
+              { icon: '✓', label: '100% Genuine' },
+              { icon: '↩', label: 'Easy Returns' },
+              { icon: '🔒', label: 'Secure Payment' },
+            ].map((badge) => (
+              <div key={badge.label} className="flex items-center gap-2 whitespace-nowrap">
+                <span className="text-sm">{badge.icon}</span>
+                <span className="text-[11px] font-medium text-neutral-600 uppercase tracking-wider">{badge.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* PROMOTIONAL BANNERS */}
       {promoBanners.length > 0 && (
         <section className="bg-neutral-50 py-4">

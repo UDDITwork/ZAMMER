@@ -12,6 +12,9 @@ import UserHeader from '../../components/header/UserHeader';
 import { getWishlist, removeFromWishlist } from '../../services/wishlistService';
 import { AuthContext } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
+import ProductCard from '../../components/common/ProductCard';
+import { ProductGridSkeleton } from '../../components/common/SkeletonLoader';
+import { Heart } from 'lucide-react';
 
 const WishlistPage = () => {
   const { userAuth } = useContext(AuthContext);
@@ -97,95 +100,58 @@ const WishlistPage = () => {
   return (
     <UserLayout>
       <UserHeader />
-      <div className="container mx-auto p-4 min-h-screen">
-        <h1 className="text-2xl font-bold mb-4">Your Wishlist</h1>
+      <div className="min-h-screen bg-gray-50 pb-16">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-xl font-bold text-gray-900">
+              Your Wishlist {wishlist.length > 0 && <span className="text-gray-400 font-normal text-base">({wishlist.length} items)</span>}
+            </h1>
+          </div>
 
-        {loading ? (
-          <div className="flex justify-center items-center py-20 text-gray-500">
-            Loading…
-          </div>
-        ) : wishlist.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-6 text-center">
-            <p className="text-gray-600">Your wishlist is currently empty.</p>
-            <Link
-              to="/user/dashboard"
-              className="inline-block mt-4 text-orange-500 hover:text-orange-600"
-            >
-              Continue Shopping
-            </Link>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {wishlist.map((raw) => {
-              const product = normaliseItem(raw);
-              return (
-                <div
-                  key={product._id}
-                  className="bg-white rounded-lg shadow group overflow-hidden relative"
-                >
-                  {/* Remove btn */}
-                  <button
-                    onClick={() => handleRemove(product._id)}
-                    disabled={removingId === product._id}
-                    className="absolute top-2 right-2 z-10 bg-white/80 backdrop-blur px-2 py-1 rounded hover:bg-red-50"
-                    title="Remove"
-                  >
-                    {removingId === product._id ? (
-                      <svg
-                        className="animate-spin h-4 w-4 text-red-500"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 4v4m0 8v4m-4-4h4m0 0h4m-4 0V8"
-                        />
-                      </svg>
-                    ) : (
-                      <svg
-                        className="h-4 w-4 text-red-500 group-hover:text-red-600"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    )}
-                  </button>
-
-                  <Link to={`/user/product/${product._id}`}>
-                    <img
-                      src={product.images?.[0] || '/placeholder-product.jpg'}
-                      alt={product.name}
-                      className="h-40 w-full object-cover group-hover:scale-105 transition-transform"
-                      onError={(e) => {
-                        e.target.src = '/placeholder-product.jpg';
-                      }}
-                    />
-                    <div className="p-3">
-                      <h2 className="text-sm font-semibold truncate" title={product.name}>
-                        {product.name}
-                      </h2>
-                      <p className="text-gray-600 text-sm mt-1">
-                        ₹{product.zammerPrice?.toLocaleString('en-IN')}
-                      </p>
-                    </div>
-                  </Link>
-                </div>
-              );
-            })}
-          </div>
-        )}
+          {loading ? (
+            <ProductGridSkeleton count={8} cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" />
+          ) : wishlist.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+              <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-5">
+                <Heart className="w-10 h-10 text-orange-400" strokeWidth={1.5} />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Your wishlist is empty</h3>
+              <p className="text-gray-500 mb-6 max-w-sm mx-auto">Save items you love to revisit them later and never miss a deal.</p>
+              <Link
+                to="/user/home"
+                className="inline-block bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg text-sm font-semibold transition-colors"
+              >
+                Start Shopping
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {wishlist.map((raw) => {
+                const product = normaliseItem(raw);
+                return (
+                  <div key={product._id} className="relative">
+                    <ProductCard product={product} />
+                    {/* Remove overlay button */}
+                    <button
+                      onClick={() => handleRemove(product._id)}
+                      disabled={removingId === product._id}
+                      className="absolute top-2 left-2 z-30 bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-sm hover:bg-red-50 transition-colors"
+                      title="Remove from wishlist"
+                    >
+                      {removingId === product._id ? (
+                        <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <svg className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </UserLayout>
   );

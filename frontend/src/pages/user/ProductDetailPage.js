@@ -13,13 +13,15 @@ import {
 } from '../../services/reviewService';
 import VirtualTryOnModal from '../../components/common/VirtualTryOnModal';
 import UserHeader from '../../components/header/UserHeader';
+import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 import { ShoppingCart, Heart, Share2, Check, ShieldCheck, Package, Repeat, Sparkles, ChevronLeft } from 'lucide-react';
 
 const ProductDetailPage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
   const { userAuth } = useContext(AuthContext);
-  
+  const { addProduct: addToRecentlyViewed } = useRecentlyViewed();
+
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
@@ -114,7 +116,8 @@ const ProductDetailPage = () => {
       const response = await getProductById(productId);
       if (response.success) {
         setProduct(response.data);
-        
+        addToRecentlyViewed(response.data);
+
         debugLog('✅ Product details fetched', {
           productName: response.data.name,
           hasVariants: response.data.variants?.length > 0,

@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import UserLayout from '../../components/layouts/UserLayout';
+import UserHeader from '../../components/header/UserHeader';
 import { getLimitedEditionProducts } from '../../services/productService';
-import WishlistButton from '../../components/common/WishlistButton';
+import ProductCard from '../../components/common/ProductCard';
+import { ProductGridSkeleton } from '../../components/common/SkeletonLoader';
 import { Sparkles } from 'lucide-react';
 
 const LimitedEditionPage = () => {
@@ -49,32 +51,18 @@ const LimitedEditionPage = () => {
     setPage(1); // Reset to first page when category changes
   };
 
-  const getShopImage = (seller) => {
-    if (seller?.shop?.mainImage) {
-      return seller.shop.mainImage;
-    }
-    if (seller?.shop?.images && seller.shop.images.length > 0) {
-      return seller.shop.images[0];
-    }
-    return null;
-  };
-
-  const truncateText = (text, maxLength) => {
-    if (text.length <= maxLength) return text;
-    return text.substr(0, maxLength) + '...';
-  };
-
   return (
     <UserLayout>
-      <div className="limited-edition-page pb-16">
+      <UserHeader />
+      <div className="min-h-screen bg-gray-50 pb-16">
         {/* Header */}
         <div className="bg-gradient-to-r from-black via-gray-800 to-black text-white p-6">
-          <div className="container mx-auto">
-            <h1 className="text-[22px] font-light tracking-[-0.02em] mb-2 flex items-center gap-2">
+          <div className="max-w-7xl mx-auto">
+            <h1 className="text-[22px] font-light tracking-[-0.02em] mb-1 flex items-center gap-2">
               <Sparkles className="w-6 h-6 text-orange-500" />
               Limited Edition
             </h1>
-            <p className="text-gray-300">Exclusive products available for a limited time</p>
+            <p className="text-gray-300 text-sm">Exclusive products available for a limited time</p>
           </div>
         </div>
 
@@ -127,100 +115,21 @@ const LimitedEditionPage = () => {
         </div>
 
         {/* Products Grid */}
-        <div className="container mx-auto px-4 py-6">
+        <div className="max-w-7xl mx-auto px-4 py-6">
           {loading ? (
-            <div className="flex justify-center items-center py-20">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-                <p className="text-gray-600">Loading limited edition products...</p>
-              </div>
-            </div>
+            <ProductGridSkeleton count={8} cols="grid-cols-2 md:grid-cols-3 lg:grid-cols-4" />
           ) : products.length > 0 ? (
             <>
-              <div className="mb-6">
-                <h2 className="text-[22px] font-light tracking-[-0.02em] text-black">
+              <div className="mb-5">
+                <h2 className="text-lg font-semibold text-gray-900">
                   {selectedCategory ? `${selectedCategory} - ` : ''}Limited Edition Products ({products.length})
                 </h2>
-                <p className="text-gray-600 text-[13px] mt-1">Hurry up! These exclusive items won't last long</p>
+                <p className="text-gray-500 text-sm mt-1">Hurry up! These exclusive items won't last long</p>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {products.map((product) => (
-                  <div key={product._id} className="bg-white rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow">
-                    <div className="relative">
-                      <div className="h-48 bg-gray-200">
-                        {product.images && product.images.length > 0 ? (
-                          <img 
-                            src={product.images[0]} 
-                            alt={product.name} 
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="h-full w-full flex items-center justify-center text-gray-400">
-                            No image
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Limited Edition Badge */}
-                      <div className="absolute top-2 left-2 bg-orange-600 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                        <Sparkles className="w-3 h-3" />
-                        LIMITED
-                      </div>
-                      
-                      {/* Wishlist Button */}
-                      <div className="absolute top-2 right-2 z-10">
-                        <WishlistButton productId={product._id} size="sm" className="shadow-lg" />
-                      </div>
-                    </div>
-                    
-                    <div className="p-3">
-                      <h3 className="font-medium text-sm text-gray-800 mb-1">
-                        {truncateText(product.name, 25)}
-                      </h3>
-                      
-                      {/* Shop Info */}
-                      {product.seller && (
-                        <div className="flex items-center mb-2">
-                          <div className="w-4 h-4 mr-1">
-                            {getShopImage(product.seller) ? (
-                              <img 
-                                src={getShopImage(product.seller)} 
-                                alt={product.seller.shop?.name} 
-                                className="w-full h-full object-cover rounded-full"
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-gray-300 rounded-full"></div>
-                            )}
-                          </div>
-                          <span className="text-xs text-gray-500">
-                            {product.seller.shop?.name || 'Shop'}
-                          </span>
-                        </div>
-                      )}
-                      
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <span className="text-orange-600 font-bold text-sm">₹{product.zammerPrice}</span>
-                          {product.mrp > product.zammerPrice && (
-                            <>
-                              <span className="text-gray-500 text-xs line-through ml-1">₹{product.mrp}</span>
-                              <span className="text-green-600 text-xs ml-1">
-                                {Math.round(((product.mrp - product.zammerPrice) / product.mrp) * 100)}% off
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <Link
-                        to={`/user/product/${product._id}`}
-                        className="block w-full text-center bg-orange-500 hover:bg-orange-600 text-white py-2 rounded text-xs font-medium transition-colors"
-                      >
-                        View Details
-                      </Link>
-                    </div>
-                  </div>
+                  <ProductCard key={product._id} product={product} />
                 ))}
               </div>
 

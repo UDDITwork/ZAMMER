@@ -8,6 +8,8 @@ import { AuthContext } from '../../contexts/AuthContext';
 import cartService from '../../services/cartService';
 import WishlistButton from '../../components/common/WishlistButton';
 import VirtualTryOnModal from '../../components/common/VirtualTryOnModal';
+import ProductCard from '../../components/common/ProductCard';
+import { ProductGridSkeleton } from '../../components/common/SkeletonLoader';
 import { ChevronLeft, SlidersHorizontal, Sparkles, ShoppingBag, X } from 'lucide-react';
 
 // Enhanced terminal logging for production monitoring
@@ -486,112 +488,22 @@ const ProductListPage = () => {
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-16">
-              <div className="w-12 h-12 border-3 border-gray-200 border-t-orange-500 rounded-full animate-spin mb-4"></div>
-              <span className="text-sm text-gray-500 font-medium">Loading products...</span>
-            </div>
+            <ProductGridSkeleton count={10} />
           ) : products.length > 0 ? (
             <>
               {/* Products Grid */}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-8">
                 {products.map(product => (
-                  <div key={product._id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow group">
-                    <Link to={`/user/product/${product._id}`} className="block">
-                      <div className="aspect-square bg-gray-50 relative overflow-hidden">
-                        {product.images && product.images.length > 0 ? (
-                          <img
-                            src={product.images[0]}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.src = '/placeholder-product.jpg';
-                            }}
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center text-gray-300">
-                            <ShoppingBag className="w-12 h-12" strokeWidth={1} />
-                          </div>
-                        )}
-
-                        {/* Discount Badge */}
-                        {product.mrp > product.zammerPrice && (
-                          <div className="absolute top-2 left-2 bg-green-600 text-white text-xs px-2 py-1 rounded-md font-semibold">
-                            {Math.round(((product.mrp - product.zammerPrice) / product.mrp) * 100)}% OFF
-                          </div>
-                        )}
-
-                        {/* Category Badge */}
-                        <div className="absolute bottom-2 left-2 bg-white text-gray-700 text-xs px-2 py-1 rounded-md font-medium border border-gray-200">
-                          {product.categoryLevel3 || product.subCategory || product.category}
-                        </div>
-
-                        {/* Fabric Type Badge */}
-                        {product.fabricType && (
-                          <div className="absolute bottom-2 right-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-md font-medium">
-                            {product.fabricType}
-                          </div>
-                        )}
-
-                        {/* Wishlist Button */}
-                        <div className="absolute top-2 right-2 z-20">
-                          <WishlistButton
-                            productId={product._id}
-                            size="sm"
-                          />
-                        </div>
-                      </div>
-                    </Link>
-
-                    <div className="p-3">
-                      <Link to={`/user/product/${product._id}`}>
-                        <h3 className="font-semibold text-gray-900 mb-1.5 line-clamp-2 hover:text-orange-600 transition-colors text-sm leading-tight">
-                          {product.name}
-                        </h3>
-                      </Link>
-
-                      <div className="flex items-baseline gap-2 mb-3">
-                        <span className="text-orange-600 font-bold text-base">₹{product.zammerPrice?.toLocaleString('en-IN')}</span>
-                        {product.mrp > product.zammerPrice && (
-                          <span className="text-gray-400 text-xs line-through">₹{product.mrp?.toLocaleString('en-IN')}</span>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleAddToCart(product._id, product.name);
-                          }}
-                          disabled={addingToCart[product._id]}
-                          className={`py-2 rounded-lg text-xs font-semibold transition-colors ${
-                            addingToCart[product._id]
-                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : 'bg-orange-600 hover:bg-orange-700 text-white'
-                          }`}
-                        >
-                          {addingToCart[product._id] ? (
-                            <div className="flex items-center justify-center">
-                              <div className="animate-spin rounded-full h-3 w-3 border-2 border-gray-300 border-t-transparent mr-1"></div>
-                              <span>Adding...</span>
-                            </div>
-                          ) : (
-                            'Add to Bag'
-                          )}
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setSelectedProduct(product);
-                            setShowVirtualTryOn(true);
-                          }}
-                          className="py-2 rounded-lg text-xs font-semibold transition-colors bg-black hover:bg-gray-800 text-white flex items-center justify-center gap-1"
-                        >
-                          <Sparkles className="w-3 h-3" />
-                          <span>Try On</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  <ProductCard
+                    key={product._id}
+                    product={product}
+                    onAddToCart={handleAddToCart}
+                    onTryOn={(product) => {
+                      setSelectedProduct(product);
+                      setShowVirtualTryOn(true);
+                    }}
+                    isAddingToCart={addingToCart[product._id]}
+                  />
                 ))}
               </div>
 
