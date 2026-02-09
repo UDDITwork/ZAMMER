@@ -47,6 +47,7 @@ const bannerRoutes = require('./routes/bannerRoutes');
 const promoBannerRoutes = require('./routes/promoBannerRoutes');
 const level4BatchSeedRoutes = require('./routes/level4BatchSeedRoutes');
 
+// Deployment trigger - Force redeploy with 502 fix (2025-02-09)
 // Initialize app
 const app = express();
 
