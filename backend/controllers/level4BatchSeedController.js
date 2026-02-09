@@ -1,8 +1,29 @@
 const Banner = require('../models/Banner');
+const fs = require('fs');
+const path = require('path');
 
-// Level 4 banner data from banner_urls_level4.json
-// This will be populated with the actual data
-const LEVEL4_BANNERS = require('../../scripts/banner_urls_level4.json').level4;
+// Level 4 banner data - Load from bannerController's BANNER_DATA
+let LEVEL4_BANNERS = [];
+
+// Try to load from external JSON file first, fallback to bannerController if not found
+try {
+  const jsonPath = path.join(__dirname, '../../scripts/banner_urls_level4.json');
+  if (fs.existsSync(jsonPath)) {
+    LEVEL4_BANNERS = require(jsonPath).level4;
+  } else {
+    // Fallback: extract from bannerController.js
+    const controllerPath = path.join(__dirname, './bannerController.js');
+    const content = fs.readFileSync(controllerPath, 'utf8');
+    const match = content.match(/const BANNER_DATA\s*=\s*({.*?});/);
+    if (match) {
+      const BANNER_DATA = JSON.parse(match[1]);
+      LEVEL4_BANNERS = BANNER_DATA.level4 || [];
+    }
+  }
+} catch (error) {
+  console.error('[Level4BatchSeed] Warning: Could not load Level 4 data:', error.message);
+  LEVEL4_BANNERS = [];
+}
 
 // POST /api/banners/seed-level4-batch - Seed Level 4 banners in batches
 const seedLevel4Batch = async (req, res) => {
