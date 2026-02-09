@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { FiUploadCloud, FiRefreshCw, FiCheckCircle, FiXCircle, FiClock } from 'react-icons/fi';
+import { FiUploadCloud, FiRefreshCw, FiCheckCircle, FiXCircle, FiClock, FiAlertCircle } from 'react-icons/fi';
 import { seedLevel4Batch, clearLevel4Banners, getLevel4SeedStatus } from '../../services/level4BatchSeedService';
 
 const Level4BatchSeeder = ({ onSeedingComplete }) => {
@@ -104,6 +104,21 @@ const Level4BatchSeeder = ({ onSeedingComplete }) => {
 
   return (
     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 shadow-lg">
+      {/* Warning Banner */}
+      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4 rounded">
+        <div className="flex items-start">
+          <FiAlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" />
+          <div className="text-sm text-yellow-800">
+            <p className="font-semibold mb-1">⚠️ Important: Choose ONE seeding method</p>
+            <p className="text-xs">
+              Use either <strong>"Seed from JSON"</strong> button (top right) to seed all levels at once,
+              <strong> OR</strong> use this <strong>"Level 4 Batch Seeder"</strong> for slow controlled seeding.
+              Don't use both to avoid conflicts!
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
