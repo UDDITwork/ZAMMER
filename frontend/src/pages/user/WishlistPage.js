@@ -13,11 +13,13 @@ import { getWishlist, removeFromWishlist } from '../../services/wishlistService'
 import { AuthContext } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import ProductCard from '../../components/common/ProductCard';
+import { useAddToCart } from '../../hooks/useAddToCart';
 import { ProductGridSkeleton } from '../../components/common/SkeletonLoader';
 import { Heart } from 'lucide-react';
 
 const WishlistPage = () => {
   const { userAuth } = useContext(AuthContext);
+  const { addingToCart, handleAddToCart } = useAddToCart();
   const navigate = useNavigate();
 
   const [wishlist, setWishlist] = useState([]);
@@ -130,7 +132,7 @@ const WishlistPage = () => {
                 const product = normaliseItem(raw);
                 return (
                   <div key={product._id} className="relative">
-                    <ProductCard product={product} />
+                    <ProductCard product={product} onAddToCart={handleAddToCart} isAddingToCart={addingToCart[product._id]} />
                     {/* Remove overlay button */}
                     <button
                       onClick={() => handleRemove(product._id)}

@@ -5,12 +5,14 @@ import UserLayout from '../../components/layouts/UserLayout';
 import UserHeader from '../../components/header/UserHeader';
 import { getTrendingProducts } from '../../services/productService';
 import ProductCard from '../../components/common/ProductCard';
+import { useAddToCart } from '../../hooks/useAddToCart';
 import { ProductGridSkeleton } from '../../components/common/SkeletonLoader';
 import { TrendingUp } from 'lucide-react';
 
 const TrendingPage = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { addingToCart, handleAddToCart } = useAddToCart();
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -127,7 +129,7 @@ const TrendingPage = () => {
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {products.map((product) => (
-                  <ProductCard key={product._id} product={product} />
+                  <ProductCard key={product._id} product={product} onAddToCart={handleAddToCart} isAddingToCart={addingToCart[product._id]} />
                 ))}
               </div>
               {/* Pagination */}

@@ -191,7 +191,7 @@ const ProductCard = ({
               onClick={(e) => {
                 e.preventDefault();
                 if (!isOutOfStock && onAddToCart) {
-                  onAddToCart(product._id, product.name);
+                  onAddToCart(product._id, product.name, product);
                 }
               }}
               disabled={isAddingToCart || isOutOfStock}

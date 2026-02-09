@@ -26,6 +26,7 @@ import BrandLogoMarquee from '../../components/user/BrandLogoMarquee';
 import Level2BannerGrid from '../../components/user/Level2BannerGrid';
 import { getBanners } from '../../services/bannerService';
 import ProductCard from '../../components/common/ProductCard';
+import { useAddToCart } from '../../hooks/useAddToCart';
 import { ProductGridSkeleton } from '../../components/common/SkeletonLoader';
 
 // Safe JSON parsing helper
@@ -85,6 +86,7 @@ const Dashboard = () => {
   const locationUpdateRef = useRef(false); // Prevent multiple simultaneous updates
   const sliderRef = useRef(null); // Ref for featured products slider
   const navigate = useNavigate();
+  const { addingToCart, handleAddToCart } = useAddToCart();
 
   // Memoized fetch functions
   const fetchProducts = useCallback(async () => {
@@ -1072,7 +1074,7 @@ const handleReturnFromTracker = (order) => {
             ) : products.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {products.slice(0, 8).map(product => (
-                  <ProductCard key={product._id} product={product} />
+                  <ProductCard key={product._id} product={product} onAddToCart={handleAddToCart} isAddingToCart={addingToCart[product._id]} />
                 ))}
               </div>
             ) : (
