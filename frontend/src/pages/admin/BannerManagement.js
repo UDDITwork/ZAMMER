@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { FiUpload, FiEdit2, FiTrash2, FiImage, FiCheck, FiX, FiChevronDown, FiEye, FiEyeOff, FiDatabase, FiAlertCircle } from 'react-icons/fi';
 import { getAllBannersAdmin, createBanner, updateBanner, deleteBanner, seedBanners } from '../../services/bannerService';
 import { getLevel1Options, getLevel2Options, getLevel3Options, getLevel4Options } from '../../data/categoryHierarchy';
+import Level4BatchSeeder from '../../components/admin/Level4BatchSeeder';
 
 const BannerManagement = () => {
   const [banners, setBanners] = useState({ level1: [], level2: [], level3: [], level4: [] });
@@ -328,6 +329,11 @@ const BannerManagement = () => {
           </button>
         ))}
       </div>
+
+      {/* Level 4 Batch Seeder - Only shown for Level 4 tab */}
+      {activeTab === 4 && (
+        <Level4BatchSeeder onSeedingComplete={fetchBanners} />
+      )}
 
       {/* Add/Edit Form */}
       {showForm && (
