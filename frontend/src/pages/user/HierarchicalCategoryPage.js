@@ -39,7 +39,9 @@ const HierarchicalCategoryPage = () => {
     try {
       const currentLevel = getCurrentLevel();
       let params = {};
-      if (currentLevel === 2 && decodedLevel1) {
+      if (currentLevel === 4 && decodedLevel1 && decodedLevel2 && decodedLevel3) {
+        params = { level: 4, categoryLevel1: decodedLevel1, categoryLevel2: decodedLevel2, categoryLevel3: decodedLevel3 };
+      } else if (currentLevel === 2 && decodedLevel1) {
         params = { level: 2, categoryLevel1: decodedLevel1 };
       } else if (currentLevel === 3 && decodedLevel1 && decodedLevel2) {
         params = { level: 3, categoryLevel1: decodedLevel1, categoryLevel2: decodedLevel2 };
@@ -51,7 +53,7 @@ const HierarchicalCategoryPage = () => {
     } catch (error) {
       console.error('Error fetching banner images:', error);
     }
-  }, [decodedLevel1, decodedLevel2]);
+  }, [decodedLevel1, decodedLevel2, decodedLevel3]);
 
   useEffect(() => {
     setLoading(true);
@@ -125,6 +127,7 @@ const HierarchicalCategoryPage = () => {
 
   const getBannerForCategory = (categoryName) => {
     const currentLevel = getCurrentLevel();
+    if (currentLevel === 4) return bannerImages.find(b => b.categoryLevel4 === categoryName);
     if (currentLevel === 2) return bannerImages.find(b => b.categoryLevel2 === categoryName);
     if (currentLevel === 3) return bannerImages.find(b => b.categoryLevel3 === categoryName);
     if (currentLevel === 1) return bannerImages.find(b => b.categoryLevel1 === categoryName);
@@ -377,7 +380,7 @@ const HierarchicalCategoryPage = () => {
               </motion.div>
             )}
 
-            {/* LEVEL 4: Clean compact grid */}
+            {/* LEVEL 4: Cards with banner images */}
             {getCurrentLevel() === 4 && (
               <motion.div
                 variants={staggerContainer}
@@ -385,21 +388,40 @@ const HierarchicalCategoryPage = () => {
                 animate="show"
                 className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"
               >
-                {categories.map((category, index) => (
-                  <motion.div key={category.id || index} variants={staggerItem}>
-                    <Link to={getCategoryLink(category)} className="group block">
-                      <div className="bg-white rounded-xl border border-black/[0.04] hover:border-orange-300 p-4 text-center transition-all duration-200 group-hover:shadow-[0_4px_20px_-6px_rgba(0,0,0,0.1)]">
-                        <div className="w-10 h-10 mx-auto mb-2.5 bg-neutral-50 group-hover:bg-orange-50 rounded-full flex items-center justify-center transition-colors text-neutral-400 group-hover:text-orange-500">
-                          {getCategoryIcon(category.name || category.id)}
+                {categories.map((category, index) => {
+                  const banner = getBannerForCategory(category.name || category.id);
+                  return (
+                    <motion.div key={category.id || index} variants={staggerItem}>
+                      <Link to={getCategoryLink(category)} className="group block">
+                        <div className="bg-white rounded-xl border border-black/[0.04] hover:border-orange-300 overflow-hidden transition-all duration-200 group-hover:shadow-[0_4px_20px_-6px_rgba(0,0,0,0.1)]">
+                          {banner?.imageUrl ? (
+                            <div className="aspect-square overflow-hidden">
+                              <img
+                                src={banner.imageUrl}
+                                alt={category.name || category.id}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                              />
+                              <div className="w-full h-full bg-neutral-50 items-center justify-center hidden text-neutral-400 group-hover:text-orange-500">
+                                {getCategoryIcon(category.name || category.id)}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="aspect-square bg-neutral-50 group-hover:bg-orange-50 flex items-center justify-center transition-colors text-neutral-400 group-hover:text-orange-500">
+                              {getCategoryIcon(category.name || category.id)}
+                            </div>
+                          )}
+                          <div className="p-3 text-center">
+                            <h3 className="font-medium text-[13px] text-black group-hover:text-orange-600 transition-colors tracking-[-0.01em]">
+                              {category.name || category.id}
+                            </h3>
+                            <p className="text-neutral-400 text-[10px] mt-0.5 uppercase tracking-[0.05em]">View products</p>
+                          </div>
                         </div>
-                        <h3 className="font-medium text-[13px] text-black group-hover:text-orange-600 transition-colors tracking-[-0.01em]">
-                          {category.name || category.id}
-                        </h3>
-                        <p className="text-neutral-400 text-[10px] mt-1 uppercase tracking-[0.05em]">View products</p>
-                      </div>
-                    </Link>
-                  </motion.div>
-                ))}
+                      </Link>
+                    </motion.div>
+                  );
+                })}
               </motion.div>
             )}
           </>

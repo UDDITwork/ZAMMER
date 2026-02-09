@@ -721,7 +721,7 @@ const ProductDetailPage = () => {
               )}
 
               {/* CTA Buttons */}
-              <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="grid grid-cols-2 gap-3 mb-3">
                 <button
                   onClick={handleBuyNow}
                   disabled={cartLoading}
@@ -737,6 +737,13 @@ const ProductDetailPage = () => {
                   {cartLoading ? 'Adding...' : 'Add to Bag'}
                 </button>
               </div>
+              <button
+                onClick={() => setShowVirtualTryOn(true)}
+                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-3 rounded-lg font-semibold transition-all mb-6 flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                Try & Buy — Virtual Try-On
+              </button>
 
               {/* Trust Badges */}
               <div className="grid grid-cols-4 gap-4 mb-8 py-6 border-y border-gray-200">
@@ -986,14 +993,14 @@ const ProductDetailPage = () => {
         )}
 
         {/* Virtual Try-On Modal */}
-        {showVirtualTryOn && (
-          <VirtualTryOnModal
-            productId={productId}
-            productImage={product.images?.[0]}
-            productName={product.name}
-            onClose={() => setShowVirtualTryOn(false)}
-          />
-        )}
+        <VirtualTryOnModal
+          isOpen={showVirtualTryOn}
+          onClose={() => setShowVirtualTryOn(false)}
+          product={product}
+          onTryOnComplete={(result) => {
+            console.log('Virtual try-on completed:', result);
+          }}
+        />
 
         {/* Bottom Navigation - Mobile Only */}
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 lg:hidden">
