@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { seedLevel4Batch, clearLevel4Banners, getLevel4SeedStatus } = require('../controllers/level4BatchSeedController');
-const { authenticateToken, isAdmin } = require('../middleware/authMiddleware');
+const { protectAdmin } = require('../middleware/adminMiddleware');
 
 // All routes require admin authentication
-router.use(authenticateToken, isAdmin);
+router.use(protectAdmin);
 
 // POST /api/level4-batch/seed - Seed a batch of Level 4 banners
 router.post('/seed', seedLevel4Batch);
