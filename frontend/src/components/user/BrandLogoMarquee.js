@@ -77,52 +77,51 @@ const BrandLogoMarquee = () => {
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 0 24px;
+          padding: 0 32px;
           height: 100%;
         }
 
         .brand-logo-cell img {
-          height: 56px;
+          height: 80px;
           width: auto;
-          max-width: 130px;
+          max-width: 160px;
           object-fit: contain;
-          opacity: 0.55;
-          filter: grayscale(100%) contrast(1.1);
+          opacity: 0.85;
+          filter: grayscale(30%) contrast(1.05);
           user-select: none;
           -webkit-user-drag: none;
         }
 
-        /* SM breakpoint — circles are w-28 h-28 (112px) + py-4 = ~144px ribbon */
+        /* SM breakpoint */
         @media (min-width: 640px) {
-          .brand-logo-cell {
-            padding: 0 32px;
-          }
-          .brand-logo-cell img {
-            height: 68px;
-            max-width: 150px;
-            opacity: 0.5;
-          }
-        }
-
-        /* MD breakpoint — circles are w-32 h-32 (128px) + py-4 = ~160px ribbon */
-        @media (min-width: 768px) {
           .brand-logo-cell {
             padding: 0 40px;
           }
           .brand-logo-cell img {
-            height: 80px;
-            max-width: 170px;
+            height: 90px;
+            max-width: 180px;
           }
         }
 
-        /* LG/XL — full desktop, logos generously sized */
-        @media (min-width: 1200px) {
+        /* MD breakpoint */
+        @media (min-width: 768px) {
           .brand-logo-cell {
             padding: 0 48px;
           }
           .brand-logo-cell img {
-            height: 90px;
-            max-width: 190px;
+            height: 100px;
+            max-width: 200px;
+          }
+        }
+
+        /* LG/XL — full desktop */
+        @media (min-width: 1200px) {
+          .brand-logo-cell {
+            padding: 0 56px;
+          }
+          .brand-logo-cell img {
+            height: 110px;
+            max-width: 220px;
           }
         }
       `}</style>
