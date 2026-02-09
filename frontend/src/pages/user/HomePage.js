@@ -89,7 +89,11 @@ const HomePage = () => {
       const response = await getNearbyShops();
       if (response.success && isMountedRef.current) {
         setShops(response.data);
-        setRecommendedShops(response.data.slice().sort(() => 0.5 - Math.random()).slice(0, 4));
+        setRecommendedShops(
+          response.data.slice()
+            .sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0))
+            .slice(0, 4)
+        );
       }
     } catch (error) {
       console.error('Error fetching shops:', error);
@@ -437,7 +441,11 @@ const HomePage = () => {
                     <div className="p-5">
                       <div className="flex items-center gap-2 mb-2.5">
                         <StarRating rating={shop.averageRating || 4.9} className="text-xs" />
-                        <span className="text-[11px] text-neutral-400">({shop.numReviews || Math.floor(Math.random() * 90) + 10})</span>
+                        {shop.numReviews > 0 ? (
+                          <span className="text-[11px] text-neutral-400">({shop.numReviews})</span>
+                        ) : (
+                          <span className="text-[10px] text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full font-medium">New</span>
+                        )}
                       </div>
                       <h3 className="font-semibold text-[15px] text-black tracking-[-0.01em] mb-1">{shop.shop?.name || 'Shop Name'}</h3>
                       {shop.shop?.description && (
@@ -517,7 +525,11 @@ const HomePage = () => {
                     <div className="p-3.5">
                       <div className="flex items-center gap-1.5 mb-1.5">
                         <StarRating rating={shop.averageRating || 4.9} className="text-xs" />
-                        <span className="text-[10px] text-neutral-400">({shop.numReviews || Math.floor(Math.random() * 90) + 10})</span>
+                        {shop.numReviews > 0 ? (
+                          <span className="text-[10px] text-neutral-400">({shop.numReviews})</span>
+                        ) : (
+                          <span className="text-[9px] text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full font-medium">New</span>
+                        )}
                       </div>
                       <h3 className="font-semibold text-[13px] text-black mb-1.5 line-clamp-1 tracking-[-0.01em]">{shop.shop?.name || 'Shop Name'}</h3>
                       <div className="flex items-center justify-between">

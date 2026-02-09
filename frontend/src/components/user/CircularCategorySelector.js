@@ -7,21 +7,18 @@ const CircularCategorySelector = ({ selectedCategory, onSelectCategory }) => {
       id: 'Men Fashion',
       label: 'Men',
       imageUrl: 'https://images.unsplash.com/photo-1490578474895-699cd4e2cf59?w=400&h=400&fit=crop&crop=faces',
-      color: 'blue',
       colorClasses: 'border-blue-500 bg-blue-50 ring-blue-500'
     },
     {
       id: 'Women Fashion',
       label: 'Women',
       imageUrl: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400&h=400&fit=crop&crop=faces',
-      color: 'pink',
       colorClasses: 'border-pink-500 bg-pink-50 ring-pink-500'
     },
     {
       id: 'Kids Fashion',
       label: 'Kids',
       imageUrl: 'https://images.unsplash.com/photo-1503944583220-79d8926ad5e2?w=400&h=400&fit=crop&crop=faces',
-      color: 'green',
       colorClasses: 'border-green-500 bg-green-50 ring-green-500'
     }
   ];

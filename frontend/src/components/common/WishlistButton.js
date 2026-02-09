@@ -9,9 +9,6 @@ const WishlistButton = ({ productId, className = '', size = 'md' }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
 
-  // Debug logging (remove in production)
-  console.log('🔍 WishlistButton rendered:', { productId, isChecking, isInWishlist, userAuth: userAuth.isAuthenticated });
-
   // Check wishlist status on mount
   useEffect(() => {
     const checkStatus = async () => {
