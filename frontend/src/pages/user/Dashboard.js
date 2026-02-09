@@ -676,7 +676,21 @@ const handleReturnFromTracker = (order) => {
 
   return (
     <UserLayout>
-      <div className="min-h-screen bg-gray-50">
+      <div
+        className="min-h-screen"
+        style={{
+          background: 'linear-gradient(135deg, #fff7ed 0%, #f9fafb 20%, #fffbeb 40%, #f9fafb 60%, #fff1f2 80%, #f9fafb 100%)',
+          backgroundSize: '300% 300%',
+          animation: 'bgShift 20s ease infinite',
+        }}
+      >
+        <style>{`
+          @keyframes bgShift {
+            0%, 100% { background-position: 0% 50%; }
+            33% { background-position: 100% 0%; }
+            66% { background-position: 50% 100%; }
+          }
+        `}</style>
         <UserHeader />
 
         {/* Circular Category Selector - Directly Below Header */}
@@ -706,7 +720,7 @@ const handleReturnFromTracker = (order) => {
           )}
 
           {/* Level 2 Banners */}
-          <section className="mb-12 bg-white rounded-lg shadow-sm border border-gray-100 p-6 sm:p-8">
+          <section className="mb-12 bg-gradient-to-br from-white via-orange-50/20 to-amber-50/30 rounded-lg shadow-sm border border-orange-100/40 p-6 sm:p-8">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">
@@ -730,7 +744,7 @@ const handleReturnFromTracker = (order) => {
           </section>
 
           {/* Trending Products Carousel */}
-          <div className="mb-12">
+          <div className="mb-12 bg-gradient-to-r from-rose-50/25 via-transparent to-amber-50/20 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-2 rounded-2xl">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Trending Products</h2>
@@ -825,7 +839,7 @@ const handleReturnFromTracker = (order) => {
           </div>
 
           {/* Product Categories */}
-          <div className="mb-12">
+          <div className="mb-12 bg-gradient-to-bl from-amber-50/30 via-transparent to-orange-50/20 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-2 rounded-2xl">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Categories</h2>
@@ -890,7 +904,7 @@ const handleReturnFromTracker = (order) => {
           </div>
 
           {/* Nearby Shops */}
-          <div className="mb-12">
+          <div className="mb-12 bg-gradient-to-tr from-orange-50/20 via-transparent to-rose-50/25 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-2 rounded-2xl">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Nearby Shops</h2>
@@ -1028,7 +1042,7 @@ const handleReturnFromTracker = (order) => {
           </div>
 
           {/* Featured Products */}
-          <div className="mb-12">
+          <div className="mb-12 bg-gradient-to-br from-rose-50/20 via-transparent to-amber-50/25 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-2 rounded-2xl">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Featured Products</h2>

@@ -156,7 +156,21 @@ const HomePage = () => {
   }, [fetchLevel2Banners]);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div
+      className="min-h-screen"
+      style={{
+        background: 'linear-gradient(135deg, #fff7ed 0%, #ffffff 20%, #fffbeb 40%, #ffffff 60%, #fff1f2 80%, #ffffff 100%)',
+        backgroundSize: '300% 300%',
+        animation: 'bgShift 20s ease infinite',
+      }}
+    >
+      <style>{`
+        @keyframes bgShift {
+          0%, 100% { background-position: 0% 50%; }
+          33% { background-position: 100% 0%; }
+          66% { background-position: 50% 100%; }
+        }
+      `}</style>
       <UserHeader />
 
       {/* Circular Category Selector - Directly Below Header */}
@@ -245,7 +259,7 @@ const HomePage = () => {
       </section>
 
       {/* TRUST BADGES */}
-      <section className="bg-neutral-50 border-t border-black/[0.04]">
+      <section className="bg-gradient-to-r from-orange-50/60 via-amber-50/40 to-rose-50/40 border-t border-orange-100/30">
         <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center justify-center gap-6 sm:gap-10 overflow-x-auto scrollbar-hide">
             {[
@@ -265,7 +279,7 @@ const HomePage = () => {
 
       {/* PROMOTIONAL BANNERS */}
       {promoBanners.length > 0 && (
-        <section className="bg-neutral-50 py-4">
+        <section className="bg-gradient-to-r from-amber-50/50 via-orange-50/30 to-rose-50/40 py-4">
           <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
             <PromoBannerCarousel banners={promoBanners} />
           </div>
@@ -273,7 +287,7 @@ const HomePage = () => {
       )}
 
       {/* LEVEL 2 BANNERS */}
-      <section className="border-t border-black/[0.04] py-10">
+      <section className="bg-gradient-to-b from-rose-50/20 via-white/80 to-orange-50/20 border-t border-orange-100/20 py-10">
         <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
           <div className="flex items-end justify-between mb-6">
             <div>
@@ -360,7 +374,7 @@ const HomePage = () => {
         <div className="border-t border-black/[0.04]" />
 
         {/* SHOP BY CATEGORY */}
-        <section className="py-10">
+        <section className="py-10 bg-gradient-to-br from-amber-50/25 via-transparent to-rose-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <div className="flex items-end justify-between mb-7">
             <div>
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Browse</p>
@@ -416,7 +430,7 @@ const HomePage = () => {
         <div className="border-t border-black/[0.04]" />
 
         {/* NEARBY SHOPS */}
-        <section className="py-10">
+        <section className="py-10 bg-gradient-to-bl from-orange-50/20 via-transparent to-amber-50/25 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <div className="flex items-end justify-between mb-7">
             <div>
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Near You</p>
@@ -500,7 +514,7 @@ const HomePage = () => {
         <div className="border-t border-black/[0.04]" />
 
         {/* CURATED PICKS */}
-        <section className="py-10 mb-20">
+        <section className="py-10 mb-20 bg-gradient-to-tr from-rose-50/25 via-transparent to-amber-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <div className="flex items-end justify-between mb-7">
             <div>
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Curated</p>
