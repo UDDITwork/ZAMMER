@@ -49,4 +49,7 @@ scripts/level2_banner_urls.json
 scripts/generated_promo_banners/
 scripts/generated_level4_banners/
 scripts/generated_level2_banners/
-scripts/generated_banners/ 
+scripts/generated_banners/
+scripts/generate_category_posters.py
+scripts/category_poster_urls.json
+scripts/generated_category_posters/

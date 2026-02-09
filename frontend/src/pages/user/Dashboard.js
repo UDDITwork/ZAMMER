@@ -22,6 +22,7 @@ import PromoBannerCarousel from '../../components/common/PromoBannerCarousel';
 import categoryService from '../../services/categoryService';
 import { getLevel2Options } from '../../data/categoryHierarchy';
 import CircularCategorySelector from '../../components/user/CircularCategorySelector';
+import BrandLogoMarquee from '../../components/user/BrandLogoMarquee';
 import Level2BannerGrid from '../../components/user/Level2BannerGrid';
 import { getBanners } from '../../services/bannerService';
 import ProductCard from '../../components/common/ProductCard';
@@ -693,13 +694,20 @@ const handleReturnFromTracker = (order) => {
         `}</style>
         <UserHeader />
 
-        {/* Circular Category Selector - Directly Below Header */}
-        <div className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <CircularCategorySelector
-              selectedCategory={selectedLevel1}
-              onSelectCategory={setSelectedLevel1}
-            />
+        {/* Circular Category Selector with Brand Logo Marquee */}
+        <div className="relative bg-white border-b border-gray-200 overflow-hidden" style={{ borderTop: '1px solid #F0F0F0', borderBottom: '1px solid #F0F0F0' }}>
+          {/* Brand logo marquee — scrolls behind the circles */}
+          <BrandLogoMarquee />
+          {/* Category circles — sit on top */}
+          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-center">
+              <div className="relative" style={{ filter: 'drop-shadow(0 0 20px rgba(255,255,255,0.9)) drop-shadow(0 0 40px rgba(255,255,255,0.7))' }}>
+                <CircularCategorySelector
+                  selectedCategory={selectedLevel1}
+                  onSelectCategory={setSelectedLevel1}
+                />
+              </div>
+            </div>
           </div>
         </div>
 

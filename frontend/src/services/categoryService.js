@@ -11,61 +11,61 @@ import {
   isValidCategoryCombination
 } from '../data/categoryHierarchy';
 
-// 🎯 ENHANCED: Gender-appropriate category definitions (legacy support)
+// Gender-appropriate category definitions with AI-generated Cloudinary poster images
 const GENDER_SPECIFIC_CATEGORIES = {
   Men: {
     title: 'Men',
     description: 'Find trendy, comfortable men fashion...',
     subCategories: [
-      { id: 'T-shirts', name: 'T-shirts', image: '/placeholders/men-tshirts.jpg' },
-      { id: 'Shirts', name: 'Shirts', image: '/placeholders/men-shirts.jpg' },
-      { id: 'Jeans', name: 'Jeans', image: '/placeholders/men-jeans.jpg' },
-      { id: 'Ethnic Wear', name: 'Ethnic Wear', image: '/placeholders/men-ethnic.jpg' },
-      { id: 'Jackets', name: 'Jackets', image: '/placeholders/men-jackets.jpg' },
-      { id: 'Tops', name: 'Tops', image: '/placeholders/men-tops.jpg' },
-      { id: 'Tees', name: 'Tees', image: '/placeholders/men-tees.jpg' },
-      { id: 'Sleepwear', name: 'Sleepwear', image: '/placeholders/men-sleepwear.jpg' },
-      { id: 'Top Wear', name: 'Top Wear', image: '/placeholders/men-topwear.jpg' }
+      { id: 'T-shirts', name: 'T-shirts', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652835/zammer_banners/category_posters/men_tshirts.jpg' },
+      { id: 'Shirts', name: 'Shirts', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652835/zammer_banners/category_posters/men_shirts.jpg' },
+      { id: 'Jeans', name: 'Jeans', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652835/zammer_banners/category_posters/men_jeans.jpg' },
+      { id: 'Ethnic Wear', name: 'Ethnic Wear', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652835/zammer_banners/category_posters/men_ethnic.jpg' },
+      { id: 'Jackets', name: 'Jackets', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652835/zammer_banners/category_posters/men_jackets.jpg' },
+      { id: 'Tops', name: 'Tops', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652836/zammer_banners/category_posters/men_tops.jpg' },
+      { id: 'Tees', name: 'Tees', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652836/zammer_banners/category_posters/men_tees.jpg' },
+      { id: 'Sleepwear', name: 'Sleepwear', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652836/zammer_banners/category_posters/men_sleepwear.jpg' },
+      { id: 'Top Wear', name: 'Top Wear', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652836/zammer_banners/category_posters/men_topwear.jpg' }
     ]
   },
   Women: {
     title: 'Women',
     description: 'Find stylish, trendy women fashion...',
     subCategories: [
-      { id: 'Kurtis', name: 'Kurtis', image: '/placeholders/women-kurtis.jpg' },
-      { id: 'Tops', name: 'Tops', image: '/placeholders/women-tops.jpg' },
-      { id: 'T-shirts', name: 'T-shirts', image: '/placeholders/women-tshirts.jpg' },
-      { id: 'Dresses', name: 'Dresses', image: '/placeholders/women-dresses.jpg' },
-      { id: 'Jeans', name: 'Jeans', image: '/placeholders/women-jeans.jpg' },
-      { id: 'Sarees', name: 'Sarees', image: '/placeholders/women-sarees.jpg' },
-      { id: 'Blouses', name: 'Blouses', image: '/placeholders/women-blouses.jpg' },
-      { id: 'Petticoats', name: 'Petticoats', image: '/placeholders/women-petticoats.jpg' },
-      { id: 'Leggings', name: 'Leggings', image: '/placeholders/women-leggings.jpg' },
-      { id: 'Palazzos', name: 'Palazzos', image: '/placeholders/women-palazzos.jpg' },
-      { id: 'Nightwear', name: 'Nightwear', image: '/placeholders/women-nightwear.jpg' },
-      { id: 'Sleepwear', name: 'Sleepwear', image: '/placeholders/women-sleepwear.jpg' },
-      { id: 'Lehengas', name: 'Lehengas', image: '/placeholders/women-lehengas.jpg' },
-      { id: 'Ethnic Sets', name: 'Ethnic Sets', image: '/placeholders/women-ethnicsets.jpg' },
-      { id: 'Co-ord Sets', name: 'Co-ord Sets', image: '/placeholders/women-coordsets.jpg' },
-      { id: 'Gowns', name: 'Gowns', image: '/placeholders/women-gowns.jpg' },
-      { id: 'Shrugs', name: 'Shrugs', image: '/placeholders/women-shrugs.jpg' },
-      { id: 'Tunics', name: 'Tunics', image: '/placeholders/women-tunics.jpg' },
-      { id: 'Skirts', name: 'Skirts', image: '/placeholders/women-skirts.jpg' },
-      { id: 'Jumpsuits', name: 'Jumpsuits', image: '/placeholders/women-jumpsuits.jpg' },
-      { id: 'Sharara', name: 'Sharara', image: '/placeholders/women-sharara.jpg' },
-      { id: 'Dupatta', name: 'Dupatta', image: '/placeholders/women-dupatta.jpg' }
+      { id: 'Kurtis', name: 'Kurtis', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652837/zammer_banners/category_posters/women_kurtis.jpg' },
+      { id: 'Tops', name: 'Tops', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652837/zammer_banners/category_posters/women_tops.jpg' },
+      { id: 'T-shirts', name: 'T-shirts', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652838/zammer_banners/category_posters/women_tshirts.jpg' },
+      { id: 'Dresses', name: 'Dresses', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652837/zammer_banners/category_posters/women_dresses.jpg' },
+      { id: 'Jeans', name: 'Jeans', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652838/zammer_banners/category_posters/women_jeans.jpg' },
+      { id: 'Sarees', name: 'Sarees', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652838/zammer_banners/category_posters/women_sarees.jpg' },
+      { id: 'Blouses', name: 'Blouses', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652838/zammer_banners/category_posters/women_blouses.jpg' },
+      { id: 'Petticoats', name: 'Petticoats', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652839/zammer_banners/category_posters/women_petticoats.jpg' },
+      { id: 'Leggings', name: 'Leggings', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652840/zammer_banners/category_posters/women_leggings.jpg' },
+      { id: 'Palazzos', name: 'Palazzos', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652839/zammer_banners/category_posters/women_palazzos.jpg' },
+      { id: 'Nightwear', name: 'Nightwear', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652840/zammer_banners/category_posters/women_nightwear.jpg' },
+      { id: 'Sleepwear', name: 'Sleepwear', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652840/zammer_banners/category_posters/women_sleepwear.jpg' },
+      { id: 'Lehengas', name: 'Lehengas', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652841/zammer_banners/category_posters/women_lehengas.jpg' },
+      { id: 'Ethnic Sets', name: 'Ethnic Sets', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652841/zammer_banners/category_posters/women_ethnicsets.jpg' },
+      { id: 'Co-ord Sets', name: 'Co-ord Sets', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652841/zammer_banners/category_posters/women_coordsets.jpg' },
+      { id: 'Gowns', name: 'Gowns', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652842/zammer_banners/category_posters/women_gowns.jpg' },
+      { id: 'Shrugs', name: 'Shrugs', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652843/zammer_banners/category_posters/women_shrugs.jpg' },
+      { id: 'Tunics', name: 'Tunics', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652843/zammer_banners/category_posters/women_tunics.jpg' },
+      { id: 'Skirts', name: 'Skirts', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652843/zammer_banners/category_posters/women_skirts.jpg' },
+      { id: 'Jumpsuits', name: 'Jumpsuits', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652843/zammer_banners/category_posters/women_jumpsuits.jpg' },
+      { id: 'Sharara', name: 'Sharara', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652843/zammer_banners/category_posters/women_sharara.jpg' },
+      { id: 'Dupatta', name: 'Dupatta', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652844/zammer_banners/category_posters/women_dupatta.jpg' }
     ]
   },
   Kids: {
     title: 'Kids',
     description: 'Find cute, comfortable kids styles...',
     subCategories: [
-      { id: 'T-shirts', name: 'T-shirts', image: '/placeholders/kids-tshirts.jpg' },
-      { id: 'Shirts', name: 'Shirts', image: '/placeholders/kids-shirts.jpg' },
-      { id: 'Boys Sets', name: 'Boys Sets', image: '/placeholders/kids-boys.jpg' },
-      { id: 'Top Wear', name: 'Top Wear', image: '/placeholders/kids-topwear.jpg' },
-      { id: 'Nightwear', name: 'Nightwear', image: '/placeholders/kids-nightwear.jpg' },
-      { id: 'Sleepwear', name: 'Sleepwear', image: '/placeholders/kids-sleepwear.jpg' }
+      { id: 'T-shirts', name: 'T-shirts', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652844/zammer_banners/category_posters/kids_tshirts.jpg' },
+      { id: 'Shirts', name: 'Shirts', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652844/zammer_banners/category_posters/kids_shirts.jpg' },
+      { id: 'Boys Sets', name: 'Boys Sets', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652844/zammer_banners/category_posters/kids_boyssets.jpg' },
+      { id: 'Top Wear', name: 'Top Wear', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652846/zammer_banners/category_posters/kids_topwear.jpg' },
+      { id: 'Nightwear', name: 'Nightwear', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652845/zammer_banners/category_posters/kids_nightwear.jpg' },
+      { id: 'Sleepwear', name: 'Sleepwear', image: 'https://res.cloudinary.com/dr17ap4sb/image/upload/v1770652846/zammer_banners/category_posters/kids_sleepwear.jpg' }
     ]
   }
 };
