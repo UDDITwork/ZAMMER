@@ -17,7 +17,7 @@ const PromoBannerCarousel = ({ banners }) => {
   if (!banners || banners.length === 0) return null;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl" style={{ height: 'clamp(200px, 35vw, 340px)' }}>
+    <div className="relative overflow-hidden rounded-2xl w-full" style={{ aspectRatio: '16/9' }}>
       <AnimatePresence mode="wait">
         {banners.map((banner, index) => (
           index === currentIndex && (
