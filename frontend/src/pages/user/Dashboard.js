@@ -676,6 +676,17 @@ const handleReturnFromTracker = (order) => {
             33% { background-position: 100% 0%; }
             66% { background-position: 50% 100%; }
           }
+          /* Cool Heading Styles */
+          .heading-gradient { background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+          .heading-rose { background: linear-gradient(135deg, #9f1239, #be185d, #831843); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+          .heading-ember { background: linear-gradient(135deg, #dc2626, #ea580c, #d97706); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+          .heading-forest { background: linear-gradient(135deg, #064e3b, #047857, #059669); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+          .heading-steel { background: linear-gradient(135deg, #18181b, #3f3f46, #52525b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+          .heading-outline { -webkit-text-fill-color: transparent; -webkit-text-stroke: 1.5px #1a1a2e; }
+          .heading-outline-rose { -webkit-text-fill-color: transparent; -webkit-text-stroke: 1.5px #9f1239; }
+          .heading-shadow { text-shadow: 3px 3px 0 rgba(0,0,0,0.06); }
+          .heading-stack { position: relative; }
+          .heading-stack::after { content: attr(data-text); position: absolute; left: 3px; top: 3px; -webkit-text-fill-color: transparent; -webkit-text-stroke: 1px rgba(0,0,0,0.08); z-index: -1; }
           /* 3D Art Gallery Effects */
           .gallery-frame {
             position: relative;
@@ -788,7 +799,7 @@ const handleReturnFromTracker = (order) => {
             <img src="/images/saree-spread.png" alt="" aria-hidden="true" className="w-full h-auto object-contain pointer-events-none select-none" />
             <div className="absolute left-[8%] sm:left-[12%] bottom-[15%] sm:bottom-[20%]">
               <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-rose-600 mb-0.5">Ethnic Elegance</p>
-              <h3 className="text-2xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Drape Your<br/>Story</h3>
+              <h3 className="text-2xl sm:text-5xl font-black heading-rose leading-none tracking-tight">Drape Your<br/>Story</h3>
               <p className="text-gray-600 text-[10px] sm:text-xs mt-1 max-w-[160px] sm:max-w-[200px]">Handwoven to designer sarees</p>
               <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-rose-600 text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-rose-700">
                 Shop Sarees <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -827,7 +838,7 @@ const handleReturnFromTracker = (order) => {
             <img src="/images/sporty-runner.png" alt="" aria-hidden="true" className="h-[380px] sm:h-[500px] w-auto object-contain pointer-events-none select-none mx-auto sm:mx-0 sm:ml-[5%]" />
             <div className="absolute right-[8%] sm:right-[15%] top-1/2 -translate-y-1/2">
               <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600 mb-0.5">Trending Now</p>
-              <h3 className="text-3xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Street<br/>wear</h3>
+              <h3 className="text-3xl sm:text-5xl font-black heading-forest leading-none tracking-tight">Street<br/>wear</h3>
               <p className="text-gray-500 text-[10px] sm:text-xs mt-1 max-w-[140px] sm:max-w-[180px]">Bold styles for the urban explorer</p>
               <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-black text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-gray-600">
                 Shop Men <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -935,7 +946,7 @@ const handleReturnFromTracker = (order) => {
             <img src="/images/fashion-hat-lady.jpg" alt="" aria-hidden="true" className="h-[380px] sm:h-[520px] w-auto object-contain pointer-events-none select-none ml-auto mr-[5%] sm:mr-[10%]" />
             <div className="absolute left-[8%] sm:left-[12%] top-1/2 -translate-y-1/2">
               <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-rose-500 mb-0.5">Women's Edit</p>
-              <h3 className="text-3xl sm:text-6xl font-black text-gray-900 leading-none tracking-tight italic">Fashion<br/>Style</h3>
+              <h3 className="text-3xl sm:text-6xl font-black heading-outline-rose leading-none tracking-tight italic">Fashion<br/>Style</h3>
               <p className="text-gray-500 text-[10px] sm:text-xs mt-1.5 max-w-[150px] sm:max-w-[200px]">Curated pieces that define elegance</p>
               <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-black text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-gray-600">
                 Shop Women <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -955,7 +966,7 @@ const handleReturnFromTracker = (order) => {
             <img src="/images/red-saree-flame.png" alt="" aria-hidden="true" className="h-[380px] sm:h-[520px] w-auto object-contain pointer-events-none select-none mx-auto sm:mx-0 sm:ml-[3%]" />
             <div className="absolute right-[6%] sm:right-[12%] bottom-[20%] sm:bottom-[25%]">
               <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-red-500 mb-0.5">Festive Collection</p>
-              <h3 className="text-3xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Ethnic<br/>Wear</h3>
+              <h3 className="text-3xl sm:text-5xl font-black heading-ember leading-none tracking-tight">Ethnic<br/>Wear</h3>
               <p className="text-red-600 text-lg sm:text-2xl font-black mt-1">60% Off</p>
               <p className="text-gray-500 text-[10px] sm:text-xs mt-0.5 max-w-[140px]">Sarees, Lehengas & Traditional</p>
               <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-red-600 text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-red-700">
@@ -1107,7 +1118,7 @@ const handleReturnFromTracker = (order) => {
             <img src="/images/cool-boy-vector.png" alt="" aria-hidden="true" className="h-[380px] sm:h-[500px] w-auto object-contain pointer-events-none select-none mx-auto sm:mx-0 sm:ml-[8%]" />
             <div className="absolute right-[8%] sm:right-[15%] top-[30%] sm:top-[35%]">
               <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500 mb-0.5">Men's Essentials</p>
-              <h3 className="text-3xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Urban<br/>Cool</h3>
+              <h3 className="text-3xl sm:text-5xl font-black heading-steel leading-none tracking-tight">Urban<br/>Cool</h3>
               <p className="text-gray-500 text-[10px] sm:text-xs mt-1 max-w-[140px] sm:max-w-[180px]">Hoodies, cargos & sneakers</p>
               <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-black text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-gray-600">
                 Shop Now <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -1120,7 +1131,7 @@ const handleReturnFromTracker = (order) => {
             <img src="/images/girl-heels-fashion.png" alt="" aria-hidden="true" className="h-[280px] sm:h-[380px] w-auto object-contain pointer-events-none select-none ml-auto mr-[8%] sm:mr-[15%]" />
             <div className="absolute left-[8%] sm:left-[12%] top-[25%] sm:top-[30%]">
               <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-amber-600 mb-0.5">Summer Edit</p>
-              <h3 className="text-3xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Casuals &<br/>Footwear</h3>
+              <h3 className="text-3xl sm:text-5xl font-black heading-gradient leading-none tracking-tight">Casuals &<br/>Footwear</h3>
               <p className="text-gray-500 text-[10px] sm:text-xs mt-1 max-w-[150px]">Heels, flats & trending silhouettes</p>
               <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-amber-700 text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-amber-800">
                 Shop Casuals <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -1133,7 +1144,7 @@ const handleReturnFromTracker = (order) => {
             <img src="/images/office-wear.png" alt="" aria-hidden="true" className="h-[380px] sm:h-[500px] w-auto object-contain pointer-events-none select-none ml-auto mr-[5%] sm:mr-[10%]" />
             <div className="absolute left-[8%] sm:left-[12%] top-1/2 -translate-y-1/2">
               <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-blue-600 mb-0.5">Workwear</p>
-              <h3 className="text-3xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Office<br/>Ready</h3>
+              <h3 className="text-3xl sm:text-5xl font-black heading-outline leading-none tracking-tight">Office<br/>Ready</h3>
               <p className="text-gray-500 text-[10px] sm:text-xs mt-1 max-w-[160px]">Formal shirts, blazers & polished looks</p>
               <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-black text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-gray-600">
                 Explore <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -1146,7 +1157,7 @@ const handleReturnFromTracker = (order) => {
             <img src="/images/shoe-vector.png" alt="" aria-hidden="true" className="w-[300px] sm:w-[450px] h-auto object-contain pointer-events-none select-none mx-auto sm:mx-0 sm:ml-[5%]" style={{ transform: 'rotate(-8deg)' }} />
             <div className="absolute right-[8%] sm:right-[12%] top-[20%] sm:top-[25%]">
               <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-red-500 mb-0.5">Just Dropped</p>
-              <h3 className="text-3xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Sneaker<br/>Culture</h3>
+              <h3 className="text-3xl sm:text-5xl font-black heading-ember leading-none tracking-tight">Sneaker<br/>Culture</h3>
               <p className="text-gray-500 text-[10px] sm:text-xs mt-1 max-w-[150px]">Latest kicks from top brands</p>
               <Link to="/user/products?search=shoes" className="inline-flex items-center gap-1.5 mt-2 text-red-600 text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-red-700">
                 Shop Sneakers <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -1225,7 +1236,7 @@ const handleReturnFromTracker = (order) => {
             <img src="/images/sporty-runner.png" alt="" aria-hidden="true" className="h-[380px] sm:h-[500px] w-auto object-contain pointer-events-none select-none ml-auto mr-[5%] sm:mr-[10%]" />
             <div className="absolute left-[8%] sm:left-[12%] top-1/2 -translate-y-1/2">
               <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600 mb-0.5">Activewear</p>
-              <h3 className="text-3xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Move.<br/>Train.<br/>Repeat.</h3>
+              <h3 className="text-3xl sm:text-5xl font-black heading-forest leading-none tracking-tight">Move.<br/>Train.<br/>Repeat.</h3>
               <p className="text-gray-500 text-[10px] sm:text-xs mt-1.5 max-w-[160px]">Performance wear that feels as good as it looks</p>
               <Link to="/user/products?search=sports" className="inline-flex items-center gap-1.5 mt-2 text-emerald-700 text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-emerald-800">
                 Shop Activewear <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -1265,7 +1276,7 @@ const handleReturnFromTracker = (order) => {
             <div className="flex flex-col items-center text-center py-4">
               <img src="/images/fashion-boy-streetwear.png" alt="" aria-hidden="true" className="h-[280px] sm:h-[380px] w-auto object-contain pointer-events-none select-none mb-3" />
               <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-zinc-400 mb-0.5">Spring '26</p>
-              <h4 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">Men's Lookbook</h4>
+              <h4 className="text-lg sm:text-xl font-bold heading-steel mb-1">Men's Lookbook</h4>
               <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-1.5 text-black text-[11px] font-semibold uppercase tracking-wider hover:text-gray-600 transition-colors">
                 View Collection <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </Link>
@@ -1273,7 +1284,7 @@ const handleReturnFromTracker = (order) => {
             <div className="flex flex-col items-center text-center py-4">
               <img src="/images/fashion-hat-lady.jpg" alt="" aria-hidden="true" className="h-[280px] sm:h-[380px] w-auto object-contain pointer-events-none select-none mb-3" />
               <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-zinc-400 mb-0.5">Spring '26</p>
-              <h4 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">Women's Lookbook</h4>
+              <h4 className="text-lg sm:text-xl font-bold heading-rose mb-1">Women's Lookbook</h4>
               <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-1.5 text-black text-[11px] font-semibold uppercase tracking-wider hover:text-gray-600 transition-colors">
                 View Collection <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </Link>
@@ -1323,7 +1334,7 @@ const handleReturnFromTracker = (order) => {
             <img src="/images/saree-spread.png" alt="" aria-hidden="true" className="w-full h-auto object-contain pointer-events-none select-none" />
             <div className="px-6 sm:px-12 -mt-6 sm:-mt-10 relative z-10">
               <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-rose-500 mb-1">Traditional</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">Saree Collection</h3>
+              <h3 className="text-xl sm:text-2xl font-bold heading-rose mb-1">Saree Collection</h3>
               <p className="text-gray-500 text-sm mb-3">Hand-woven, designer & daily wear sarees from across India.</p>
               <Link to="/user/products?search=saree" className="inline-flex items-center gap-2 text-rose-600 text-xs font-bold uppercase tracking-wider hover:text-rose-700 transition-colors">
                 Shop Sarees <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>

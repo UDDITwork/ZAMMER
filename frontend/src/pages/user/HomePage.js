@@ -172,6 +172,14 @@ const HomePage = () => {
           33% { background-position: 100% 0%; }
           66% { background-position: 50% 100%; }
         }
+        /* Cool Heading Styles */
+        .heading-gradient { background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .heading-rose { background: linear-gradient(135deg, #9f1239, #be185d, #831843); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .heading-ember { background: linear-gradient(135deg, #dc2626, #ea580c, #d97706); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .heading-forest { background: linear-gradient(135deg, #064e3b, #047857, #059669); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .heading-steel { background: linear-gradient(135deg, #18181b, #3f3f46, #52525b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .heading-outline { -webkit-text-fill-color: transparent; -webkit-text-stroke: 1.5px #1a1a2e; }
+        .heading-outline-rose { -webkit-text-fill-color: transparent; -webkit-text-stroke: 1.5px #9f1239; }
       `}</style>
       <UserHeader />
 
@@ -384,7 +392,7 @@ const HomePage = () => {
           <img src="/images/sporty-runner.png" alt="" aria-hidden="true" className="h-[320px] sm:h-[440px] w-auto object-contain pointer-events-none select-none mx-auto sm:mx-0 sm:ml-[5%]" />
           <div className="absolute right-[8%] sm:right-[15%] top-1/2 -translate-y-1/2">
             <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600 mb-0.5">Trending Now</p>
-            <h3 className="text-2xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Street<br/>wear</h3>
+            <h3 className="text-2xl sm:text-5xl font-black heading-forest leading-none tracking-tight">Street<br/>wear</h3>
             <p className="text-gray-500 text-[10px] sm:text-xs mt-1 max-w-[130px]">Bold styles for the urban explorer</p>
             <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-black text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-gray-600">
               Shop Men <ChevronRight className="w-3 h-3" strokeWidth={2} />
@@ -451,7 +459,7 @@ const HomePage = () => {
           <img src="/images/fashion-hat-lady.jpg" alt="" aria-hidden="true" className="h-[320px] sm:h-[460px] w-auto object-contain pointer-events-none select-none ml-auto mr-[5%] sm:mr-[10%]" />
           <div className="absolute left-[8%] sm:left-[12%] top-1/2 -translate-y-1/2">
             <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-rose-500 mb-0.5">Women's Edit</p>
-            <h3 className="text-2xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight italic">Fashion<br/>Style</h3>
+            <h3 className="text-2xl sm:text-5xl font-black heading-outline-rose leading-none tracking-tight italic">Fashion<br/>Style</h3>
             <p className="text-gray-500 text-[10px] sm:text-xs mt-1 max-w-[140px]">Curated pieces that define elegance</p>
             <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-black text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-gray-600">
               Shop Women <ChevronRight className="w-3 h-3" strokeWidth={2} />
@@ -469,7 +477,7 @@ const HomePage = () => {
           <img src="/images/red-saree-flame.png" alt="" aria-hidden="true" className="h-[320px] sm:h-[460px] w-auto object-contain pointer-events-none select-none mx-auto sm:mx-0 sm:ml-[3%]" />
           <div className="absolute right-[6%] sm:right-[12%] bottom-[18%] sm:bottom-[22%]">
             <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-red-500 mb-0.5">Festive Collection</p>
-            <h3 className="text-2xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Ethnic<br/>Wear</h3>
+            <h3 className="text-2xl sm:text-5xl font-black heading-ember leading-none tracking-tight">Ethnic<br/>Wear</h3>
             <p className="text-red-600 text-lg sm:text-2xl font-black mt-1">60% Off</p>
             <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-red-600 text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-red-700">
               Explore <ChevronRight className="w-3 h-3" strokeWidth={2} />
@@ -564,7 +572,7 @@ const HomePage = () => {
           <img src="/images/shoe-vector.png" alt="" aria-hidden="true" className="w-[260px] sm:w-[400px] h-auto object-contain pointer-events-none select-none mx-auto sm:mx-0 sm:ml-[5%]" style={{ transform: 'rotate(-8deg)' }} />
           <div className="absolute right-[8%] sm:right-[15%] top-[20%] sm:top-[25%]">
             <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-red-500 mb-0.5">Just Dropped</p>
-            <h4 className="text-2xl sm:text-4xl font-black text-gray-900 leading-none tracking-tight">Sneaker<br/>Culture</h4>
+            <h4 className="text-2xl sm:text-4xl font-black heading-ember leading-none tracking-tight">Sneaker<br/>Culture</h4>
             <p className="text-gray-500 text-[10px] sm:text-xs mt-1 max-w-[130px]">Latest kicks. Limited stock.</p>
             <Link to="/user/products?search=shoes" className="inline-flex items-center gap-1.5 mt-2 text-red-600 text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-red-700">
               Shop <ChevronRight className="w-3 h-3" strokeWidth={2} />
@@ -577,7 +585,7 @@ const HomePage = () => {
           <img src="/images/cool-boy-vector.png" alt="" aria-hidden="true" className="h-[280px] sm:h-[400px] w-auto object-contain pointer-events-none select-none ml-auto mr-[5%] sm:mr-[10%]" />
           <div className="absolute left-[8%] sm:left-[12%] top-[30%] sm:top-[35%]">
             <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500 mb-0.5">Men's Essentials</p>
-            <h4 className="text-2xl sm:text-4xl font-black text-gray-900 leading-none tracking-tight">Urban<br/>Cool</h4>
+            <h4 className="text-2xl sm:text-4xl font-black heading-steel leading-none tracking-tight">Urban<br/>Cool</h4>
             <p className="text-gray-500 text-[10px] sm:text-xs mt-1 max-w-[130px]">Hoodies, cargos & more</p>
             <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-black text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-gray-600">
               Shop <ChevronRight className="w-3 h-3" strokeWidth={2} />
