@@ -55,7 +55,7 @@ const SwipeableCard = ({ product, brand, onSwipe, onTryOn, active }) => {
         <img
           src={imageUrl}
           alt={product?.name || 'Product'}
-          className="w-full h-full object-cover object-top"
+          className="w-full h-full object-contain bg-white"
           draggable={false}
         />
 
@@ -153,7 +153,7 @@ const StackCard = ({ product, depth }) => {
         <img
           src={imageUrl}
           alt="Stacked product"
-          className="w-full h-full object-cover object-top"
+          className="w-full h-full object-contain bg-white"
           draggable={false}
         />
       </div>
