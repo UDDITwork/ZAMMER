@@ -23,6 +23,8 @@ import categoryService from '../../services/categoryService';
 import { getLevel2Options } from '../../data/categoryHierarchy';
 import CircularCategorySelector from '../../components/user/CircularCategorySelector';
 import BrandLogoMarquee from '../../components/user/BrandLogoMarquee';
+import BrandShowcaseBanner from '../../components/user/BrandShowcaseBanner';
+import BrandDiscoverGrid from '../../components/user/BrandDiscoverGrid';
 import Level2BannerGrid from '../../components/user/Level2BannerGrid';
 import { getBanners } from '../../services/bannerService';
 import ProductCard from '../../components/common/ProductCard';
@@ -693,6 +695,75 @@ const handleReturnFromTracker = (order) => {
             33% { background-position: 100% 0%; }
             66% { background-position: 50% 100%; }
           }
+          /* 3D Art Gallery Effects */
+          .gallery-frame {
+            position: relative;
+            border-radius: 20px;
+            background: white;
+            box-shadow:
+              0 2px 8px rgba(0,0,0,0.04),
+              0 8px 24px rgba(0,0,0,0.06),
+              inset 0 1px 0 rgba(255,255,255,0.9);
+            border: 1px solid rgba(0,0,0,0.06);
+            transform: perspective(1200px) rotateX(0deg);
+            transition: transform 0.5s cubic-bezier(0.23,1,0.32,1), box-shadow 0.5s ease;
+          }
+          .gallery-frame:hover {
+            box-shadow:
+              0 4px 12px rgba(0,0,0,0.06),
+              0 16px 48px rgba(0,0,0,0.1),
+              inset 0 1px 0 rgba(255,255,255,0.9);
+            transform: perspective(1200px) rotateX(0.5deg) translateY(-2px);
+          }
+          .gallery-exhibit {
+            position: relative;
+            border-radius: 24px;
+            background: linear-gradient(145deg, #fafafa, #ffffff);
+            box-shadow:
+              0 1px 3px rgba(0,0,0,0.03),
+              0 6px 16px rgba(0,0,0,0.04),
+              0 20px 60px rgba(0,0,0,0.03);
+            border: 1px solid rgba(0,0,0,0.04);
+          }
+          .gallery-wall {
+            position: relative;
+            background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(249,250,251,0.6) 100%);
+            border-radius: 28px;
+            padding: 2px;
+          }
+          .gallery-wall::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 28px;
+            padding: 1px;
+            background: linear-gradient(145deg, rgba(0,0,0,0.06), rgba(0,0,0,0.02), rgba(0,0,0,0.06));
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+          }
+          .gallery-spotlight {
+            position: relative;
+          }
+          .gallery-spotlight::after {
+            content: '';
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60%;
+            height: 40px;
+            background: radial-gradient(ellipse at center, rgba(251,191,36,0.08) 0%, transparent 70%);
+            pointer-events: none;
+          }
+          .depth-card {
+            transition: transform 0.4s cubic-bezier(0.23,1,0.32,1), box-shadow 0.4s ease;
+          }
+          .depth-card:hover {
+            transform: translateY(-4px) scale(1.01);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.1);
+          }
         `}</style>
         <UserHeader />
 
@@ -716,21 +787,33 @@ const handleReturnFromTracker = (order) => {
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-          {/* Promotional Banners */}
+          {/* Promotional Banners — Gallery Frame */}
           {promoBanners.length > 0 && (
-            <div className="mb-12">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Hot Deals</h2>
-                  <p className="text-gray-600">Exclusive offers for you</p>
+            <div className="mb-14 gallery-frame p-1 sm:p-1.5">
+              <div className="rounded-2xl overflow-hidden">
+                <div className="flex items-center justify-between mb-0 px-5 pt-5 pb-3">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Hot Deals</h2>
+                    <p className="text-gray-500 text-sm">Exclusive offers curated for you</p>
+                  </div>
+                </div>
+                <div className="px-5 pb-5">
+                  <PromoBannerCarousel banners={promoBanners} />
                 </div>
               </div>
-              <PromoBannerCarousel banners={promoBanners} />
             </div>
           )}
 
-          {/* Level 2 Banners */}
-          <section className="mb-12 bg-gradient-to-br from-white via-orange-50/20 to-amber-50/30 rounded-lg shadow-sm border border-orange-100/40 p-6 sm:p-8">
+          {/* Brand Showcase Banner — Gallery Spotlight */}
+          <div className="mb-14 gallery-spotlight">
+            <div className="gallery-exhibit p-6 sm:p-8">
+              <BrandShowcaseBanner />
+            </div>
+          </div>
+
+          {/* Level 2 Banners — Gallery Wall */}
+          <section className="mb-14 gallery-wall">
+            <div className="bg-gradient-to-br from-white via-orange-50/20 to-amber-50/30 rounded-[26px] p-6 sm:p-8">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">
@@ -751,10 +834,11 @@ const handleReturnFromTracker = (order) => {
               </Link>
             </div>
             <Level2BannerGrid banners={level2Banners} level1Category={selectedLevel1} />
+            </div>
           </section>
 
-          {/* Trending Products Carousel */}
-          <div className="mb-12 bg-gradient-to-r from-rose-50/25 via-transparent to-amber-50/20 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-2 rounded-2xl">
+          {/* Trending Products Carousel — Gallery Exhibit */}
+          <div className="mb-14 gallery-exhibit -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-6 rounded-2xl">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Trending Products</h2>
@@ -848,8 +932,15 @@ const handleReturnFromTracker = (order) => {
             </div>
           </div>
 
-          {/* Nearby Shops */}
-          <div className="mb-12 bg-gradient-to-tr from-orange-50/20 via-transparent to-rose-50/25 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-2 rounded-2xl">
+          {/* Discover Brands — Gallery Exhibition */}
+          <div className="mb-14 gallery-spotlight">
+            <div className="gallery-frame p-6 sm:p-8 -mx-4 sm:-mx-6 lg:-mx-8">
+              <BrandDiscoverGrid />
+            </div>
+          </div>
+
+          {/* Nearby Shops — Gallery Wing */}
+          <div className="mb-14 gallery-exhibit -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-6 rounded-3xl">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Nearby Shops</h2>

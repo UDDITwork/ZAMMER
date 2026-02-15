@@ -14,6 +14,8 @@ import PromoBannerCarousel from '../../components/common/PromoBannerCarousel';
 import UserHeader from '../../components/header/UserHeader';
 import CircularCategorySelector from '../../components/user/CircularCategorySelector';
 import BrandLogoMarquee from '../../components/user/BrandLogoMarquee';
+import BrandShowcaseBanner from '../../components/user/BrandShowcaseBanner';
+import BrandDiscoverGrid from '../../components/user/BrandDiscoverGrid';
 import Level2BannerGrid from '../../components/user/Level2BannerGrid';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -294,6 +296,13 @@ const HomePage = () => {
         </section>
       )}
 
+      {/* BRAND SHOWCASE BANNER */}
+      <section className="bg-white py-8 border-t border-black/[0.04]">
+        <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
+          <BrandShowcaseBanner />
+        </div>
+      </section>
+
       {/* LEVEL 2 BANNERS */}
       <section className="bg-gradient-to-b from-rose-50/20 via-white/80 to-orange-50/20 border-t border-orange-100/20 py-10">
         <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
@@ -433,6 +442,13 @@ const HomePage = () => {
               );
             })}
           </div>
+        </section>
+
+        <div className="border-t border-black/[0.04]" />
+
+        {/* DISCOVER BRANDS */}
+        <section className="py-10 bg-gradient-to-br from-gray-50/60 via-white to-orange-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
+          <BrandDiscoverGrid />
         </section>
 
         <div className="border-t border-black/[0.04]" />
