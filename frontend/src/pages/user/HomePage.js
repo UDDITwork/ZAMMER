@@ -14,7 +14,7 @@ import PromoBannerCarousel from '../../components/common/PromoBannerCarousel';
 import UserHeader from '../../components/header/UserHeader';
 import CircularCategorySelector from '../../components/user/CircularCategorySelector';
 import BrandLogoMarquee from '../../components/user/BrandLogoMarquee';
-import BrandShowcaseBanner from '../../components/user/BrandShowcaseBanner';
+
 import BrandDiscoverGrid from '../../components/user/BrandDiscoverGrid';
 import Level2BannerGrid from '../../components/user/Level2BannerGrid';
 import DecorativeDivider from '../../components/common/DecorativeDivider';
@@ -297,13 +297,6 @@ const HomePage = () => {
           </div>
         </section>
       )}
-
-      {/* BRAND SHOWCASE BANNER */}
-      <section className="bg-white py-5 border-t border-black/[0.04]">
-        <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
-          <BrandShowcaseBanner />
-        </div>
-      </section>
 
       {/* LEVEL 2 BANNERS */}
       <section className="bg-gradient-to-b from-rose-50/20 via-white/80 to-orange-50/20 border-t border-orange-100/20 py-7">

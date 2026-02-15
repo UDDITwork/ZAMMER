@@ -23,7 +23,7 @@ import categoryService from '../../services/categoryService';
 import { getLevel2Options } from '../../data/categoryHierarchy';
 import CircularCategorySelector from '../../components/user/CircularCategorySelector';
 import BrandLogoMarquee from '../../components/user/BrandLogoMarquee';
-import BrandShowcaseBanner from '../../components/user/BrandShowcaseBanner';
+
 import BrandDiscoverGrid from '../../components/user/BrandDiscoverGrid';
 import Level2BannerGrid from '../../components/user/Level2BannerGrid';
 import { getBanners } from '../../services/bannerService';
@@ -807,15 +807,6 @@ const handleReturnFromTracker = (order) => {
           )}
 
           <DecorativeDivider variant="wave" className="my-2" />
-
-          {/* Brand Showcase Banner — Gallery Spotlight */}
-          <div className="mb-8 gallery-spotlight">
-            <div className="gallery-exhibit p-6 sm:p-8">
-              <BrandShowcaseBanner />
-            </div>
-          </div>
-
-          <FashionQuoteStrip className="my-2" />
 
           {/* Level 2 Banners — Gallery Wall */}
           <section className="mb-8 gallery-wall">
