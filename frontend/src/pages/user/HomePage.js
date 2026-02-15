@@ -13,7 +13,6 @@ import WishlistButton from '../../components/common/WishlistButton';
 import PromoBannerCarousel from '../../components/common/PromoBannerCarousel';
 import UserHeader from '../../components/header/UserHeader';
 import CircularCategorySelector from '../../components/user/CircularCategorySelector';
-import BrandLogoMarquee from '../../components/user/BrandLogoMarquee';
 
 import BrandDiscoverGrid from '../../components/user/BrandDiscoverGrid';
 import Level2BannerGrid from '../../components/user/Level2BannerGrid';
@@ -176,13 +175,46 @@ const HomePage = () => {
           66% { background-position: 50% 100%; }
         }
       `}</style>
+      {/* Decorative shoe vector — peeks from right */}
+      <img
+        src="/images/shoe-vector.png"
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none select-none hidden lg:block"
+        style={{
+          position: 'fixed',
+          right: '-80px',
+          top: '18%',
+          width: '320px',
+          opacity: 0.08,
+          transform: 'rotate(-18deg)',
+          zIndex: 0,
+          filter: 'grayscale(0.3)',
+        }}
+      />
+      {/* Decorative shoe vector — peeks from left lower */}
+      <img
+        src="/images/shoe-vector.png"
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none select-none hidden lg:block"
+        style={{
+          position: 'fixed',
+          left: '-100px',
+          bottom: '12%',
+          width: '280px',
+          opacity: 0.06,
+          transform: 'rotate(25deg) scaleX(-1)',
+          zIndex: 0,
+          filter: 'grayscale(0.3)',
+        }}
+      />
+
       <UserHeader />
 
-      {/* Circular Category Selector with Brand Logo Marquee */}
+      {/* Circular Category Selector */}
       <div className="relative bg-white border-b border-black/[0.04] overflow-hidden" style={{ borderTop: '1px solid #F0F0F0', borderBottom: '1px solid #F0F0F0' }}>
-        {/* Brand logo marquee — scrolls behind the circles */}
-        <BrandLogoMarquee />
-        {/* Category circles — sit on top */}
+        {/* Category circles */}
         <div className="relative z-10 max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
           <div className="flex justify-center">
             <div className="relative" style={{ filter: 'drop-shadow(0 0 20px rgba(255,255,255,0.9)) drop-shadow(0 0 40px rgba(255,255,255,0.7))' }}>
