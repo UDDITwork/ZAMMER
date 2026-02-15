@@ -49,72 +49,70 @@ const SwipeableCard = ({ product, brand, onSwipe, onTryOn, active }) => {
         transition: { duration: 0.35, ease: 'easeIn' },
       }}
     >
-      {/* Card */}
-      <div className="relative rounded-3xl overflow-hidden shadow-2xl bg-zinc-900">
+      {/* Card — image only with glassmorphism info overlay */}
+      <div className="relative aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/20">
         {/* Image */}
-        <div className="relative aspect-[3/4] overflow-hidden">
-          <img
-            src={imageUrl}
-            alt={product?.name || 'Product'}
-            className="w-full h-full object-cover object-top"
-            draggable={false}
-          />
+        <img
+          src={imageUrl}
+          alt={product?.name || 'Product'}
+          className="w-full h-full object-cover object-top"
+          draggable={false}
+        />
 
-          {/* LIKE stamp */}
-          <motion.div
-            className="absolute top-8 left-6 px-4 py-2 border-4 border-emerald-400 rounded-lg -rotate-12 pointer-events-none"
-            style={{ opacity: likeOpacity }}
+        {/* LIKE stamp */}
+        <motion.div
+          className="absolute top-8 left-6 px-4 py-2 border-4 border-emerald-400 rounded-lg -rotate-12 pointer-events-none"
+          style={{ opacity: likeOpacity }}
+        >
+          <span className="text-emerald-400 font-extrabold text-3xl tracking-wider drop-shadow-lg">
+            LIKE
+          </span>
+        </motion.div>
+
+        {/* NOPE stamp */}
+        <motion.div
+          className="absolute top-8 right-6 px-4 py-2 border-4 border-red-500 rounded-lg rotate-12 pointer-events-none"
+          style={{ opacity: nopeOpacity }}
+        >
+          <span className="text-red-500 font-extrabold text-3xl tracking-wider drop-shadow-lg">
+            NOPE
+          </span>
+        </motion.div>
+
+        {/* TRY ON button */}
+        {onTryOn && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onTryOn(product);
+            }}
+            className="absolute top-4 right-4 flex items-center gap-1.5 px-4 py-2 bg-white/90 backdrop-blur-md rounded-full shadow-lg active:scale-95 transition-transform"
           >
-            <span className="text-emerald-400 font-extrabold text-3xl tracking-wider">
-              LIKE
+            <Sparkles className="w-4 h-4 text-violet-500" />
+            <span className="text-xs font-bold text-zinc-800 uppercase tracking-wide">
+              Try On
             </span>
-          </motion.div>
+          </button>
+        )}
 
-          {/* NOPE stamp */}
-          <motion.div
-            className="absolute top-8 right-6 px-4 py-2 border-4 border-red-500 rounded-lg rotate-12 pointer-events-none"
-            style={{ opacity: nopeOpacity }}
-          >
-            <span className="text-red-500 font-extrabold text-3xl tracking-wider">
-              NOPE
-            </span>
-          </motion.div>
-
-          {/* TRY ON button */}
-          {onTryOn && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onTryOn(product);
-              }}
-              className="absolute bottom-4 right-4 flex items-center gap-1.5 px-4 py-2 bg-white/95 backdrop-blur-sm rounded-full shadow-lg active:scale-95 transition-transform"
-            >
-              <Sparkles className="w-4 h-4 text-violet-500" />
-              <span className="text-xs font-bold text-zinc-800 uppercase tracking-wide">
-                Try On
-              </span>
-            </button>
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="px-5 py-4">
-          <p className="uppercase text-[10px] font-semibold tracking-widest text-white/50 mb-0.5">
+        {/* Bottom glassmorphism info bar */}
+        <div className="absolute bottom-0 inset-x-0 px-5 py-4 bg-white/70 backdrop-blur-xl border-t border-white/30">
+          <p className="uppercase text-[10px] font-semibold tracking-widest text-zinc-500 mb-0.5">
             {brand || product?.brand || 'Brand'}
           </p>
-          <h3 className="text-lg font-bold text-white leading-tight line-clamp-1">
+          <h3 className="text-base font-bold text-zinc-900 leading-tight line-clamp-1">
             {product?.name || 'Product Name'}
           </h3>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className="text-base font-bold text-white">
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-sm font-bold text-zinc-900">
               Rs. {zammerPrice.toLocaleString('en-IN')}
             </span>
             {discount > 0 && (
               <>
-                <span className="text-sm text-white/40 line-through">
+                <span className="text-xs text-zinc-400 line-through">
                   Rs. {mrp.toLocaleString('en-IN')}
                 </span>
-                <span className="text-[11px] font-bold text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded">
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded">
                   {discount}% OFF
                 </span>
               </>
@@ -151,20 +149,13 @@ const StackCard = ({ product, depth }) => {
       transition={{ type: 'spring', stiffness: 300, damping: 25 }}
       style={{ zIndex: 5 - depth }}
     >
-      <div className="rounded-3xl overflow-hidden shadow-2xl bg-zinc-900">
-        <div className="aspect-[3/4] overflow-hidden">
-          <img
-            src={imageUrl}
-            alt="Stacked product"
-            className="w-full h-full object-cover object-top"
-            draggable={false}
-          />
-        </div>
-        <div className="px-5 py-4">
-          <div className="h-3 w-16 bg-white/10 rounded mb-2" />
-          <div className="h-4 w-40 bg-white/15 rounded mb-2" />
-          <div className="h-3 w-24 bg-white/10 rounded" />
-        </div>
+      <div className="aspect-[3/4] rounded-3xl overflow-hidden shadow-xl ring-1 ring-white/20">
+        <img
+          src={imageUrl}
+          alt="Stacked product"
+          className="w-full h-full object-cover object-top"
+          draggable={false}
+        />
       </div>
     </motion.div>
   );
@@ -186,14 +177,7 @@ const SkeletonCard = ({ depth }) => {
         opacity: 1 - depth * 0.15,
       }}
     >
-      <div className="rounded-3xl overflow-hidden shadow-2xl bg-zinc-800 animate-pulse">
-        <div className="aspect-[3/4] bg-zinc-700" />
-        <div className="px-5 py-4 space-y-2.5">
-          <div className="h-3 w-16 bg-zinc-600 rounded" />
-          <div className="h-5 w-44 bg-zinc-600 rounded" />
-          <div className="h-3 w-28 bg-zinc-600 rounded" />
-        </div>
-      </div>
+      <div className="aspect-[3/4] rounded-3xl overflow-hidden shadow-xl bg-zinc-200 animate-pulse ring-1 ring-black/5" />
     </div>
   );
 };
@@ -201,7 +185,7 @@ const SkeletonCard = ({ depth }) => {
 // ---------------------------------------------------------------------------
 // Action button helper
 // ---------------------------------------------------------------------------
-const ActionButton = ({ icon: Icon, ringColor, size = 'md', onClick, label }) => {
+const ActionButton = ({ icon: Icon, bgColor, iconColor, size = 'md', onClick, label }) => {
   const sizeClasses = {
     sm: 'w-12 h-12',
     md: 'w-14 h-14',
@@ -216,10 +200,10 @@ const ActionButton = ({ icon: Icon, ringColor, size = 'md', onClick, label }) =>
       onClick={onClick}
       aria-label={label}
       className={`${sizeClasses[size]} rounded-full flex items-center justify-center
-        bg-zinc-900/80 backdrop-blur-sm border-2 ${ringColor}
-        active:scale-90 transition-all duration-150 shadow-lg hover:shadow-xl`}
+        ${bgColor} backdrop-blur-md shadow-lg ring-1 ring-black/5
+        active:scale-90 transition-all duration-150 hover:shadow-xl`}
     >
-      <Icon className={`${iconSizes[size]} text-white`} />
+      <Icon className={`${iconSizes[size]} ${iconColor}`} />
     </button>
   );
 };
@@ -232,12 +216,9 @@ const SwipeableCardStack = ({ products = [], brand, onClose, onTryOn, isLoading 
   const [swipedCards, setSwipedCards] = useState([]);
   const [swipeDirection, setSwipeDirection] = useState(null);
 
-  // ---- Current product helper ----
   const currentProduct = products[currentIndex] || null;
   const totalCards = products.length;
   const allSwiped = !isLoading && totalCards > 0 && currentIndex >= totalCards;
-
-  // ---- Visible stack (up to 3 cards starting at currentIndex) ----
   const visibleProducts = products.slice(currentIndex, currentIndex + 3);
 
   // ---- Swipe handler ----
@@ -249,7 +230,6 @@ const SwipeableCardStack = ({ products = [], brand, onClose, onTryOn, isLoading 
       setSwipeDirection(direction);
       setSwipedCards((prev) => [...prev, currentIndex]);
 
-      // On right swipe (like) -> add to wishlist
       if (direction === 'right' && swiped?._id) {
         try {
           const res = await addToWishlist(swiped._id);
@@ -263,7 +243,6 @@ const SwipeableCardStack = ({ products = [], brand, onClose, onTryOn, isLoading 
         }
       }
 
-      // Small delay so exit animation plays before advancing
       setTimeout(() => {
         setCurrentIndex((prev) => prev + 1);
         setSwipeDirection(null);
@@ -272,7 +251,6 @@ const SwipeableCardStack = ({ products = [], brand, onClose, onTryOn, isLoading 
     [currentIndex, totalCards, products]
   );
 
-  // ---- Undo ----
   const handleUndo = useCallback(() => {
     if (swipedCards.length === 0) return;
     const lastIndex = swipedCards[swipedCards.length - 1];
@@ -281,17 +259,9 @@ const SwipeableCardStack = ({ products = [], brand, onClose, onTryOn, isLoading 
     setSwipeDirection(null);
   }, [swipedCards]);
 
-  // ---- Programmatic swipe left (dismiss) ----
-  const handleDismiss = useCallback(() => {
-    handleSwipe('left');
-  }, [handleSwipe]);
+  const handleDismiss = useCallback(() => handleSwipe('left'), [handleSwipe]);
+  const handleLike = useCallback(() => handleSwipe('right'), [handleSwipe]);
 
-  // ---- Programmatic swipe right (wishlist / like) ----
-  const handleLike = useCallback(() => {
-    handleSwipe('right');
-  }, [handleSwipe]);
-
-  // ---- Add to cart ----
   const handleAddToCart = useCallback(async () => {
     if (!currentProduct?._id) return;
     try {
@@ -311,7 +281,6 @@ const SwipeableCardStack = ({ products = [], brand, onClose, onTryOn, isLoading 
     }
   }, [currentProduct]);
 
-  // ---- Start over ----
   const handleStartOver = useCallback(() => {
     setCurrentIndex(0);
     setSwipedCards([]);
@@ -323,16 +292,15 @@ const SwipeableCardStack = ({ products = [], brand, onClose, onTryOn, isLoading 
   // ============================================================
   return (
     <motion.div
-      className="fixed inset-0 z-[9999] flex flex-col items-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/40 backdrop-blur-xl"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25 }}
     >
       {/* ---------- Top bar ---------- */}
-      <div className="w-full max-w-[440px] flex items-center justify-between px-5 pt-4 pb-2">
-        {/* Card counter */}
-        <span className="text-white/70 text-sm font-medium tabular-nums">
+      <div className="w-full max-w-[380px] flex items-center justify-between px-4 pb-3">
+        <span className="text-zinc-500 text-sm font-medium tabular-nums">
           {isLoading
             ? '--/--'
             : totalCards > 0
@@ -340,184 +308,126 @@ const SwipeableCardStack = ({ products = [], brand, onClose, onTryOn, isLoading 
             : ''}
         </span>
 
-        {/* Brand name */}
-        <h2 className="text-white font-bold text-base truncate max-w-[180px] text-center">
+        <h2 className="text-zinc-900 font-bold text-base truncate max-w-[160px] text-center">
           {brand || 'Discover'}
         </h2>
 
-        {/* Close */}
         <button
           onClick={onClose}
-          className="w-9 h-9 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 transition-colors"
+          className="w-9 h-9 rounded-full flex items-center justify-center bg-black/5 hover:bg-black/10 transition-colors"
           aria-label="Close"
         >
-          <X className="w-5 h-5 text-white" />
+          <X className="w-5 h-5 text-zinc-600" />
         </button>
       </div>
 
       {/* ---------- Card stack area ---------- */}
-      <div className="flex-1 flex flex-col items-center justify-center w-full px-4 overflow-hidden">
-        <div className="relative w-full max-w-[420px]" style={{ minHeight: '60vh', maxHeight: '68vh' }}>
-          {/* Loading skeleton */}
-          {isLoading && (
-            <>
-              <SkeletonCard depth={2} />
-              <SkeletonCard depth={1} />
-              <SkeletonCard depth={0} />
-            </>
-          )}
+      <div className="relative w-full max-w-[340px] sm:max-w-[360px]" style={{ aspectRatio: '3/4' }}>
+        {/* Loading skeleton */}
+        {isLoading && (
+          <>
+            <SkeletonCard depth={2} />
+            <SkeletonCard depth={1} />
+            <SkeletonCard depth={0} />
+          </>
+        )}
 
-          {/* Empty state */}
-          {!isLoading && totalCards === 0 && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-              <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-5">
-                <ShoppingBag className="w-10 h-10 text-white/30" />
-              </div>
-              <p className="text-white/80 text-lg font-semibold mb-1">
-                Products coming soon
-              </p>
-              <p className="text-white/40 text-sm">
-                {brand?.name || 'This brand'} is preparing new arrivals for you.
-              </p>
+        {/* Empty state */}
+        {!isLoading && totalCards === 0 && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 rounded-3xl bg-white/60 backdrop-blur-lg ring-1 ring-black/5">
+            <div className="w-20 h-20 rounded-full bg-zinc-100 flex items-center justify-center mb-4">
+              <ShoppingBag className="w-9 h-9 text-zinc-400" />
             </div>
-          )}
-
-          {/* All swiped -- end state */}
-          {allSwiped && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-              <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mb-5">
-                <Heart className="w-9 h-9 text-emerald-400" />
-              </div>
-              <p className="text-white text-xl font-bold mb-1">All caught up!</p>
-              <p className="text-white/40 text-sm mb-6">
-                You&apos;ve seen all {totalCards} products from {brand || 'this brand'}.
-              </p>
-              <button
-                onClick={handleStartOver}
-                className="px-6 py-2.5 rounded-full bg-white text-black text-sm font-bold active:scale-95 transition-transform"
-              >
-                Start Over
-              </button>
-            </div>
-          )}
-
-          {/* Actual card stack */}
-          {!isLoading && totalCards > 0 && !allSwiped && (
-            <>
-              {/* Background cards (rendered bottom-up so z-order is correct) */}
-              {visibleProducts
-                .slice(1, 3)
-                .reverse()
-                .map((prod, revIdx) => {
-                  const depth = visibleProducts.length - 1 - revIdx;
-                  return (
-                    <StackCard
-                      key={prod._id || `stack-${currentIndex + depth}`}
-                      product={prod}
-                      depth={depth > 2 ? 2 : depth}
-                    />
-                  );
-                })}
-
-              {/* Top (draggable) card with AnimatePresence */}
-              <AnimatePresence mode="wait">
-                {visibleProducts[0] && (
-                  <SwipeableCard
-                    key={visibleProducts[0]._id || `card-${currentIndex}`}
-                    product={visibleProducts[0]}
-                    brand={brand}
-                    onSwipe={handleSwipe}
-                    onTryOn={onTryOn}
-                    active={!swipeDirection}
-                  />
-                )}
-              </AnimatePresence>
-            </>
-          )}
-        </div>
-
-        {/* ---------- Product info below card ---------- */}
-        {!isLoading && currentProduct && !allSwiped && (
-          <div className="w-full max-w-[420px] mt-3 px-1">
-            <p className="uppercase text-[10px] font-semibold tracking-widest text-white/50">
-              {brand?.name || currentProduct?.brand || 'Brand'}
+            <p className="text-zinc-800 text-lg font-semibold mb-1">Products coming soon</p>
+            <p className="text-zinc-400 text-sm">
+              {brand || 'This brand'} is preparing new arrivals for you.
             </p>
-            <h3 className="text-lg font-bold text-white leading-tight line-clamp-1 mt-0.5">
-              {currentProduct?.name || 'Product Name'}
-            </h3>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-base font-bold text-white">
-                Rs.{' '}
-                {(
-                  currentProduct?.zammerPrice ??
-                  currentProduct?.sellingPrice ??
-                  currentProduct?.price ??
-                  0
-                ).toLocaleString('en-IN')}
-              </span>
-              {(() => {
-                const zp =
-                  currentProduct?.zammerPrice ??
-                  currentProduct?.sellingPrice ??
-                  currentProduct?.price ??
-                  0;
-                const mp =
-                  currentProduct?.mrp ??
-                  currentProduct?.originalPrice ??
-                  currentProduct?.price ??
-                  0;
-                const disc = mp > zp ? Math.round(((mp - zp) / mp) * 100) : 0;
-                if (disc <= 0) return null;
-                return (
-                  <>
-                    <span className="text-sm text-white/40 line-through">
-                      Rs. {mp.toLocaleString('en-IN')}
-                    </span>
-                    <span className="text-[11px] font-bold text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded">
-                      {disc}% OFF
-                    </span>
-                  </>
-                );
-              })()}
-            </div>
           </div>
+        )}
+
+        {/* All swiped -- end state */}
+        {allSwiped && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 rounded-3xl bg-white/60 backdrop-blur-lg ring-1 ring-black/5">
+            <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
+              <Heart className="w-9 h-9 text-emerald-500" />
+            </div>
+            <p className="text-zinc-900 text-xl font-bold mb-1">All caught up!</p>
+            <p className="text-zinc-400 text-sm mb-5">
+              You&apos;ve seen all {totalCards} products from {brand || 'this brand'}.
+            </p>
+            <button
+              onClick={handleStartOver}
+              className="px-6 py-2.5 rounded-full bg-zinc-900 text-white text-sm font-bold active:scale-95 transition-transform"
+            >
+              Start Over
+            </button>
+          </div>
+        )}
+
+        {/* Actual card stack */}
+        {!isLoading && totalCards > 0 && !allSwiped && (
+          <>
+            {visibleProducts
+              .slice(1, 3)
+              .reverse()
+              .map((prod, revIdx) => {
+                const depth = visibleProducts.length - 1 - revIdx;
+                return (
+                  <StackCard
+                    key={prod._id || `stack-${currentIndex + depth}`}
+                    product={prod}
+                    depth={depth > 2 ? 2 : depth}
+                  />
+                );
+              })}
+
+            <AnimatePresence mode="wait">
+              {visibleProducts[0] && (
+                <SwipeableCard
+                  key={visibleProducts[0]._id || `card-${currentIndex}`}
+                  product={visibleProducts[0]}
+                  brand={brand}
+                  onSwipe={handleSwipe}
+                  onTryOn={onTryOn}
+                  active={!swipeDirection}
+                />
+              )}
+            </AnimatePresence>
+          </>
         )}
       </div>
 
       {/* ---------- Action buttons ---------- */}
       {!isLoading && totalCards > 0 && !allSwiped && (
-        <div className="w-full max-w-[420px] flex items-center justify-center gap-5 pb-8 pt-4 px-4">
-          {/* Undo */}
+        <div className="w-full max-w-[380px] flex items-center justify-center gap-5 pt-5 pb-6 px-4">
           <ActionButton
             icon={RotateCcw}
-            ringColor="border-amber-400/60"
+            bgColor="bg-white/80"
+            iconColor="text-amber-500"
             size="sm"
             onClick={handleUndo}
             label="Undo last swipe"
           />
-
-          {/* Dismiss (X) */}
           <ActionButton
             icon={X}
-            ringColor="border-red-500/70"
+            bgColor="bg-white/80"
+            iconColor="text-red-500"
             size="md"
             onClick={handleDismiss}
             label="Dismiss"
           />
-
-          {/* Like (Heart) */}
           <ActionButton
             icon={Heart}
-            ringColor="border-emerald-400/70"
+            bgColor="bg-white/80"
+            iconColor="text-emerald-500"
             size="md"
             onClick={handleLike}
             label="Add to wishlist"
           />
-
-          {/* Add to Cart */}
           <ActionButton
             icon={ShoppingBag}
-            ringColor="border-blue-400/60"
+            bgColor="bg-white/80"
+            iconColor="text-blue-500"
             size="sm"
             onClick={handleAddToCart}
             label="Add to cart"
