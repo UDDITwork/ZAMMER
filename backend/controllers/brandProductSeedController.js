@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Load image URLs
-const URLS_PATH = path.join(__dirname, '../../scripts/all_brand_product_urls.json');
+const URLS_PATH = path.join(__dirname, '../data/all_brand_product_urls.json');
 
 // ─── 52 product definitions with full schema fields ───
 const PRODUCT_DATA = [
