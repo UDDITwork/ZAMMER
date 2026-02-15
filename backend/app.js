@@ -46,6 +46,7 @@ const catalogueRoutes = require('./routes/catalogueRoutes');
 const bannerRoutes = require('./routes/bannerRoutes');
 const promoBannerRoutes = require('./routes/promoBannerRoutes');
 const level4BatchSeedRoutes = require('./routes/level4BatchSeedRoutes');
+const brandProductSeedRoutes = require('./routes/brandProductSeedRoutes');
 
 // Deployment trigger - Force redeploy with 502 fix (2025-02-09)
 // Initialize app
@@ -972,6 +973,7 @@ app.use('/api/catalogues', catalogueRoutes);          // Catalogue bulk upload r
 app.use('/api/banners', bannerRoutes);               // Banner management routes
 app.use('/api/promo-banners', promoBannerRoutes);   // Promo banner management routes
 app.use('/api/level4-batch', level4BatchSeedRoutes); // Level 4 batch seeding routes
+app.use('/api/brand-products', brandProductSeedRoutes); // Brand product seeding routes
 
 // ─────────────────────────────────────────────
 // UNIVERSAL: Serve React static assets from multiple possible paths

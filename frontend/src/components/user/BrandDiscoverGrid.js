@@ -1,7 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, ChevronLeft, X } from 'lucide-react';
+import { ChevronRight, ChevronLeft } from 'lucide-react';
+import SwipeableCardStack from './SwipeableCardStack';
+import VirtualTryOnModal from '../common/VirtualTryOnModal';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
 // All brands with Cloudinary URLs
 const ALL_BRANDS = [
@@ -27,45 +31,64 @@ const ALL_BRANDS = [
   { id: 'uspolo', name: 'U.S. Polo', logo: 'https://res.cloudinary.com/dr17ap4sb/image/upload/f_auto,q_auto/v1770657450/zammer_banners/brand_logos/uspolo.jpg' },
 ];
 
-// Cloudinary brand product image helper (auto-format, quality, portrait crop)
-const bp = (name) => `https://res.cloudinary.com/dr17ap4sb/image/upload/f_auto,q_auto,w_480/zammer_banners/brand_products/${name}.png`;
-
-// Brand lookbook: 52 product images mapped across 20 brands
-const BRAND_LOOKBOOK = {
-  gucci: [bp('bold_cobalt_leather_fierce'), bp('accessories_layered_pearl_glam'), bp('luxury_evening_gown_black')],
-  louis_vuitton: [bp('equestrian_leather_riding_tan'), bp('premium_pearl_sharara_ethereal'), bp('highstreet_camel_overcoat_stride')],
-  nike: [bp('gymwear_muscular_tank'), bp('activewear_athletic_sage'), bp('outdoor_adventure_olive_trek')],
-  adidas: [bp('streetwear_cargo_neon'), bp('sportswear_tracksuit_stripes'), bp('trendy_genz_bucket_hat')],
-  zara: [bp('contemporary_linen_power'), bp('minimal_cream_knit_serene'), bp('coastal_linen_beach_straw')],
-  hm: [bp('accessible_lilac_hoodie_cozy'), bp('casual_denim_pop_green'), bp('fun_yellow_campus_laugh')],
-  supreme: [bp('hypebeast_neon_puffer_cyber'), bp('hiphop_tiedye_purple_smoke'), bp('desi_hiphop_graffiti_hoodie')],
-  offwhite: [bp('edgy_distressed_hoodie_red'), bp('winter_icy_blue_puffer'), bp('bold_scarlet_blazer_dress')],
-  tommy: [bp('premium_bomber_navy'), bp('smartcasual_linen_blazer_resort'), bp('premium_white_oxford_polished')],
-  puma: [bp('varsity_wool_mauve'), bp('cozy_fleece_grey_mug')],
-  calvinklein: [bp('friday_dressing_pink_shirt'), bp('lingerie_satin_lavender'), bp('loungewear_satin_blush')],
-  uniqlo: [bp('sustainable_organic_oatmeal'), bp('sustainable_khadi_shibori')],
-  levis: [bp('thrift_vintage_denim_patches'), bp('artisanal_indigo_block_tote'), bp('smart_casual_gingham_blue')],
-  mango: [bp('cocktail_coral_ruffle_twirl'), bp('floral_pastel_saree_spring'), bp('boho_mirrorwork_terracotta')],
-  vanheusen: [bp('formal_threepiece_charcoal'), bp('indowestern_draped_wine')],
-  allensolly: [bp('festive_anarkali_maroon_gold'), bp('ethnic_chanderi_emerald')],
-  jackjones: [bp('quirky_colorblock_pigtails'), bp('ethnic_fusion_zardozi_blue')],
-  forever21: [bp('glamour_red_bodycon_bold'), bp('quirky_indian_elephant_twirl'), bp('plussize_wrap_dress_wine')],
-  superdry: [bp('party_glam_sequin_gold'), bp('handloom_banarasi_bridal')],
-  uspolo: [bp('bridal_magenta_lehenga_royal'), bp('smart_casual_gingham_blue')],
-};
-
-const ITEMS_PER_PAGE = 12; // 4 cols × 3 rows
+const ITEMS_PER_PAGE = 12; // 4 cols x 3 rows
 const totalPages = Math.ceil(ALL_BRANDS.length / ITEMS_PER_PAGE);
 
 const BrandDiscoverGrid = () => {
   const [page, setPage] = useState(0);
   const [selectedBrand, setSelectedBrand] = useState(null);
+  const [brandProducts, setBrandProducts] = useState([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [tryOnProduct, setTryOnProduct] = useState(null);
 
   const pageStart = page * ITEMS_PER_PAGE;
   const currentBrands = ALL_BRANDS.slice(pageStart, pageStart + ITEMS_PER_PAGE);
 
   const nextPage = useCallback(() => setPage(p => Math.min(p + 1, totalPages - 1)), []);
   const prevPage = useCallback(() => setPage(p => Math.max(p - 1, 0)), []);
+
+  // Fetch products for selected brand from API
+  useEffect(() => {
+    if (!selectedBrand) {
+      setBrandProducts([]);
+      return;
+    }
+
+    const fetchBrandProducts = async () => {
+      setIsLoadingProducts(true);
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/products/marketplace?brand=${encodeURIComponent(selectedBrand.name)}&limit=20`
+        );
+        const data = await res.json();
+        if (data.success && data.data) {
+          setBrandProducts(data.data);
+        } else {
+          setBrandProducts([]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch brand products:', err);
+        setBrandProducts([]);
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    };
+
+    fetchBrandProducts();
+  }, [selectedBrand]);
+
+  const handleTryOn = useCallback((product) => {
+    setTryOnProduct(product);
+  }, []);
+
+  const handleCloseTryOn = useCallback(() => {
+    setTryOnProduct(null);
+  }, []);
+
+  const handleCloseCardStack = useCallback(() => {
+    setSelectedBrand(null);
+    setBrandProducts([]);
+  }, []);
 
   return (
     <>
@@ -163,79 +186,26 @@ const BrandDiscoverGrid = () => {
         </div>
       </div>
 
-      {/* Brand Lookbook Modal */}
-      <AnimatePresence>
-        {selectedBrand && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setSelectedBrand(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl"
-              onClick={e => e.stopPropagation()}
-            >
-              {/* Modal header */}
-              <div className="relative bg-gradient-to-br from-gray-50 to-white p-8 flex flex-col items-center border-b border-gray-100">
-                <button
-                  onClick={() => setSelectedBrand(null)}
-                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:text-black hover:bg-gray-200 transition-all"
-                >
-                  <X className="w-4 h-4" strokeWidth={2} />
-                </button>
-                <div className="w-24 h-24 rounded-2xl bg-white border border-gray-200 flex items-center justify-center p-3 shadow-sm mb-4">
-                  <img src={selectedBrand.logo} alt={selectedBrand.name} className="w-full h-full object-contain" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900">{selectedBrand.name}</h3>
-                {selectedBrand.tag && (
-                  <span className={`mt-1 text-[9px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full text-white ${
-                    selectedBrand.tag === 'LUXURY' ? 'bg-amber-500' :
-                    selectedBrand.tag === 'NEW' ? 'bg-violet-500' : 'bg-rose-500'
-                  }`}>{selectedBrand.tag}</span>
-                )}
-              </div>
+      {/* Tinder-style Swipeable Card Stack */}
+      {selectedBrand && (
+        <SwipeableCardStack
+          products={brandProducts}
+          brand={selectedBrand.name}
+          onClose={handleCloseCardStack}
+          onTryOn={handleTryOn}
+          isLoading={isLoadingProducts}
+        />
+      )}
 
-              {/* Lookbook images */}
-              <div className="p-5">
-                {BRAND_LOOKBOOK[selectedBrand.id] ? (
-                  <div className="grid grid-cols-2 gap-2.5 mb-5">
-                    {BRAND_LOOKBOOK[selectedBrand.id].map((img, idx) => {
-                      const images = BRAND_LOOKBOOK[selectedBrand.id];
-                      const isLastOdd = images.length % 2 === 1 && idx === images.length - 1;
-                      return (
-                        <div key={idx} className={`aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 ${isLastOdd ? 'col-span-2 aspect-[3/2]' : ''}`}>
-                          <img src={img} alt={`${selectedBrand.name} lookbook`} className="w-full h-full object-cover object-top" />
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-3">
-                      <img src={selectedBrand.logo} alt="" className="w-10 h-10 object-contain opacity-40" />
-                    </div>
-                    <p className="text-sm text-gray-400">Lookbook coming soon</p>
-                  </div>
-                )}
-
-                <Link
-                  to={`/user/products?brand=${encodeURIComponent(selectedBrand.name)}`}
-                  onClick={() => setSelectedBrand(null)}
-                  className="block w-full text-center bg-black text-white text-sm font-semibold py-3 rounded-xl hover:bg-gray-800 transition-colors"
-                >
-                  Shop {selectedBrand.name}
-                </Link>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Virtual Try-On Modal */}
+      {tryOnProduct && (
+        <VirtualTryOnModal
+          isOpen={!!tryOnProduct}
+          onClose={handleCloseTryOn}
+          product={tryOnProduct}
+          onTryOnComplete={() => setTryOnProduct(null)}
+        />
+      )}
     </>
   );
 };

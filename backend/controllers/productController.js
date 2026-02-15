@@ -125,6 +125,13 @@ const getMarketplaceProducts = async (req, res) => {
       logProductQuery('FILTER_APPLIED', { type: 'productCategory', value: productCategoryValue });
     }
 
+    // Brand filtering (case-insensitive)
+    if (req.query.brand && req.query.brand.trim() !== '') {
+      const brandValue = decodeURIComponent(req.query.brand.trim());
+      filter.brand = { $regex: new RegExp(`^${brandValue}$`, 'i') };
+      logProductQuery('FILTER_APPLIED', { type: 'brand', value: brandValue });
+    }
+
     // Search filtering (name and description)
     if (search && search.trim() !== '') {
       const searchValue = search.trim();

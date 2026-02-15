@@ -12,6 +12,8 @@ import { checkAdminAuth, fixAdminAuth } from '../../utils/adminAuthFix';
 import LogViewer from '../../components/admin/LogViewer';
 import frontendLogger from '../../services/loggingService';
 import { FiRotateCcw, FiClock, FiUser, FiPackage, FiCheckCircle, FiAlertCircle, FiMapPin } from 'react-icons/fi';
+import brandProductSeedService from '../../services/brandProductSeedService';
+import { FiDatabase } from 'react-icons/fi';
 
 const AdminDashboard = ({ defaultActiveTab = 'dashboard' }) => {
   const [stats, setStats] = useState(null);
@@ -50,6 +52,11 @@ const AdminDashboard = ({ defaultActiveTab = 'dashboard' }) => {
   const [assignedOrdersLoading, setAssignedOrdersLoading] = useState(false);
   const [selectedTrackingOrder, setSelectedTrackingOrder] = useState(null);
   const [showTrackingModal, setShowTrackingModal] = useState(false);
+
+  // Brand product seeding state
+  const [brandSeedLoading, setBrandSeedLoading] = useState(false);
+  const [brandSeedStatus, setBrandSeedStatus] = useState(null);
+  const [brandClearLoading, setBrandClearLoading] = useState(false);
 
   // 🔒 SECURITY: Get auth context and navigation
   const { adminAuth } = useAuth();
@@ -135,6 +142,13 @@ const AdminDashboard = ({ defaultActiveTab = 'dashboard' }) => {
       fetchAssignedAcceptedOrders();
     }
   }, [activeTab, adminAuth.isAuthenticated]);
+
+  // Fetch brand product seed status
+  useEffect(() => {
+    if (activeTab === 'dashboard' && authCheckComplete && adminAuth.isAuthenticated) {
+      fetchBrandSeedStatus();
+    }
+  }, [activeTab, authCheckComplete, adminAuth.isAuthenticated]);
 
   // 🎯 NEW: Setup socket connection for real-time order updates
   const setupSocketConnection = async () => {
@@ -645,6 +659,54 @@ const AdminDashboard = ({ defaultActiveTab = 'dashboard' }) => {
       setSelectedOrders(prev => [...prev, order]);
     } else {
       setSelectedOrders(prev => prev.filter(o => o._id !== order._id));
+    }
+  };
+
+  // Brand product seeding handlers
+  const fetchBrandSeedStatus = async () => {
+    try {
+      const result = await brandProductSeedService.getBrandSeedStatus();
+      if (result.success) {
+        setBrandSeedStatus(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch brand seed status:', error);
+    }
+  };
+
+  const handleSeedBrandProducts = async () => {
+    if (!window.confirm('Seed 52 brand products under ZAMMER Official Store? This will create products with AI-generated images for the Tinder swipe experience.')) return;
+    setBrandSeedLoading(true);
+    try {
+      const result = await brandProductSeedService.seedBrandProducts();
+      if (result.success) {
+        toast.success(`Successfully seeded ${result.data.productsCreated} brand products!`);
+        fetchBrandSeedStatus();
+      } else {
+        toast.error(result.message || 'Failed to seed brand products');
+      }
+    } catch (error) {
+      toast.error('Failed to seed brand products: ' + error.message);
+    } finally {
+      setBrandSeedLoading(false);
+    }
+  };
+
+  const handleClearBrandProducts = async () => {
+    if (!window.confirm('⚠️ This will DELETE all seeded brand products. Are you sure?')) return;
+    setBrandClearLoading(true);
+    try {
+      const result = await brandProductSeedService.clearBrandProducts();
+      if (result.success) {
+        toast.success(`Cleared ${result.data.deletedCount} brand products`);
+        fetchBrandSeedStatus();
+      } else {
+        toast.error(result.message || 'Failed to clear brand products');
+      }
+    } catch (error) {
+      toast.error('Failed to clear brand products: ' + error.message);
+    } finally {
+      setBrandClearLoading(false);
     }
   };
 
@@ -1440,6 +1502,65 @@ const AdminDashboard = ({ defaultActiveTab = 'dashboard' }) => {
                 <p className="text-gray-600">All recent orders have been processed</p>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Brand Product Seeding */}
+        <div className="bg-white shadow-sm rounded-lg border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl flex items-center justify-center">
+                <FiDatabase className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-medium text-gray-900">Brand Products (Tinder Swipe)</h2>
+                <p className="text-sm text-gray-500">
+                  {brandSeedStatus ? `${brandSeedStatus.count} products seeded across ${brandSeedStatus.brands?.length || 0} brands` : 'Manage 52 AI-generated brand products'}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={handleSeedBrandProducts}
+                disabled={brandSeedLoading}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-pink-500 to-rose-600 text-white font-semibold rounded-xl hover:from-pink-600 hover:to-rose-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+              >
+                {brandSeedLoading ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                    Seeding...
+                  </>
+                ) : (
+                  <>
+                    <FiDatabase className="w-4 h-4" />
+                    Insert Tinder
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleClearBrandProducts}
+                disabled={brandClearLoading}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-red-600 font-semibold rounded-xl border-2 border-red-200 hover:bg-red-50 hover:border-red-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {brandClearLoading ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                    Clearing...
+                  </>
+                ) : (
+                  <>Clear Brand Products</>
+                )}
+              </button>
+              <button
+                onClick={fetchBrandSeedStatus}
+                className="inline-flex items-center gap-2 px-4 py-2.5 text-gray-600 font-medium rounded-xl border border-gray-200 hover:bg-gray-50 transition-all"
+              >
+                <FiRotateCcw className="w-4 h-4" />
+                Refresh Status
+              </button>
+            </div>
           </div>
         </div>
 

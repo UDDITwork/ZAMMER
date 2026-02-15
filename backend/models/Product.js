@@ -482,5 +482,6 @@ ProductSchema.index({ isLimitedEdition: 1 });
 ProductSchema.index({ 'inventory.availableQuantity': 1 });
 ProductSchema.index({ 'inventory.isLowStock': 1 });
 ProductSchema.index({ 'inventory.lastStockUpdate': -1 });
+ProductSchema.index({ brand: 1 });
 
 module.exports = mongoose.model('Product', ProductSchema);
