@@ -17,6 +17,8 @@ import BrandLogoMarquee from '../../components/user/BrandLogoMarquee';
 import BrandShowcaseBanner from '../../components/user/BrandShowcaseBanner';
 import BrandDiscoverGrid from '../../components/user/BrandDiscoverGrid';
 import Level2BannerGrid from '../../components/user/Level2BannerGrid';
+import DecorativeDivider from '../../components/common/DecorativeDivider';
+import FashionQuoteStrip from '../../components/common/FashionQuoteStrip';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, ArrowRight, ArrowUpRight,
@@ -389,7 +391,7 @@ const HomePage = () => {
           </div>
         </section>
 
-        <div className="border-t border-black/[0.04]" />
+        <DecorativeDivider variant="wave" className="my-1" />
 
         {/* SHOP BY CATEGORY */}
         <section className="py-7 bg-gradient-to-br from-amber-50/25 via-transparent to-rose-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
@@ -445,14 +447,14 @@ const HomePage = () => {
           </div>
         </section>
 
-        <div className="border-t border-black/[0.04]" />
+        <FashionQuoteStrip className="my-1" />
 
         {/* DISCOVER BRANDS */}
         <section className="py-7 bg-gradient-to-br from-gray-50/60 via-white to-orange-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <BrandDiscoverGrid />
         </section>
 
-        <div className="border-t border-black/[0.04]" />
+        <DecorativeDivider variant="diamond" className="my-1" />
 
         {/* NEARBY SHOPS */}
         <section className="py-7 bg-gradient-to-bl from-orange-50/20 via-transparent to-amber-50/25 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
@@ -536,7 +538,7 @@ const HomePage = () => {
           )}
         </section>
 
-        <div className="border-t border-black/[0.04]" />
+        <DecorativeDivider variant="herringbone" className="my-1" />
 
         {/* CURATED PICKS */}
         <section className="py-7 mb-20 bg-gradient-to-tr from-rose-50/25 via-transparent to-amber-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">

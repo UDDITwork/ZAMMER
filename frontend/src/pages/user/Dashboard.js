@@ -30,6 +30,8 @@ import { getBanners } from '../../services/bannerService';
 import ProductCard from '../../components/common/ProductCard';
 import { useAddToCart } from '../../hooks/useAddToCart';
 import { ProductGridSkeleton } from '../../components/common/SkeletonLoader';
+import DecorativeDivider from '../../components/common/DecorativeDivider';
+import FashionQuoteStrip from '../../components/common/FashionQuoteStrip';
 
 // Safe JSON parsing helper
 const safeJsonParse = (data, defaultValue = null) => {
@@ -804,12 +806,16 @@ const handleReturnFromTracker = (order) => {
             </div>
           )}
 
+          <DecorativeDivider variant="wave" className="my-2" />
+
           {/* Brand Showcase Banner — Gallery Spotlight */}
           <div className="mb-8 gallery-spotlight">
             <div className="gallery-exhibit p-6 sm:p-8">
               <BrandShowcaseBanner />
             </div>
           </div>
+
+          <FashionQuoteStrip className="my-2" />
 
           {/* Level 2 Banners — Gallery Wall */}
           <section className="mb-8 gallery-wall">
@@ -836,6 +842,8 @@ const handleReturnFromTracker = (order) => {
             <Level2BannerGrid banners={level2Banners} level1Category={selectedLevel1} />
             </div>
           </section>
+
+          <DecorativeDivider variant="herringbone" className="my-2" />
 
           {/* Trending Products Carousel — Gallery Exhibit */}
           <div className="mb-8 gallery-exhibit -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-6 rounded-2xl">
@@ -932,12 +940,16 @@ const handleReturnFromTracker = (order) => {
             </div>
           </div>
 
+          <DecorativeDivider variant="diamond" className="my-2" />
+
           {/* Discover Brands — Gallery Exhibition */}
           <div className="mb-8 gallery-spotlight">
             <div className="gallery-frame p-6 sm:p-8 -mx-4 sm:-mx-6 lg:-mx-8">
               <BrandDiscoverGrid />
             </div>
           </div>
+
+          <FashionQuoteStrip className="my-2" />
 
           {/* Nearby Shops — Gallery Wing */}
           <div className="mb-8 gallery-exhibit -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-6 rounded-3xl">
@@ -1076,6 +1088,8 @@ const handleReturnFromTracker = (order) => {
               </div>
             )}
           </div>
+
+          <DecorativeDivider variant="dotgrid" className="my-2" />
 
           {/* Featured Products */}
           <div className="mb-12 bg-gradient-to-br from-rose-50/20 via-transparent to-amber-50/25 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-2 rounded-2xl">
