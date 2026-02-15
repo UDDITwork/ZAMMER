@@ -783,15 +783,15 @@ const handleReturnFromTracker = (order) => {
             </div>
           )}
 
-          {/* ═══ Saree Spread — full width, no box ═══ */}
-          <div className="relative my-4 -mx-4 sm:-mx-6 lg:-mx-8 flex items-center">
+          {/* ═══ Saree Spread — poster style ═══ */}
+          <div className="relative my-4 -mx-4 sm:-mx-6 lg:-mx-8">
             <img src="/images/saree-spread.png" alt="" aria-hidden="true" className="w-full h-auto object-contain pointer-events-none select-none" />
-            <div className="absolute right-6 sm:right-16 top-1/2 -translate-y-1/2 text-right">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-rose-500 mb-1">Ethnic Elegance</p>
-              <h3 className="text-xl sm:text-3xl font-light text-gray-800">Drape Your Story</h3>
-              <p className="text-gray-500 text-xs mt-1 hidden sm:block">Sarees from across India — handwoven to designer</p>
-              <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-2 mt-3 text-rose-600 text-xs font-bold uppercase tracking-wider hover:text-rose-700 transition-colors">
-                Shop Sarees <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            <div className="absolute left-[8%] sm:left-[12%] bottom-[15%] sm:bottom-[20%]">
+              <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-rose-600 mb-0.5">Ethnic Elegance</p>
+              <h3 className="text-2xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Drape Your<br/>Story</h3>
+              <p className="text-gray-600 text-[10px] sm:text-xs mt-1 max-w-[160px] sm:max-w-[200px]">Handwoven to designer sarees</p>
+              <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-rose-600 text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-rose-700">
+                Shop Sarees <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </Link>
             </div>
           </div>
@@ -822,17 +822,15 @@ const handleReturnFromTracker = (order) => {
             </div>
           </section>
 
-          {/* ═══ Sporty Runner — full size, no box ═══ */}
-          <div className="relative my-4 -mx-4 sm:-mx-6 lg:-mx-8 flex items-end">
-            <div className="flex-shrink-0">
-              <img src="/images/sporty-runner.png" alt="" aria-hidden="true" className="h-[350px] sm:h-[450px] w-auto object-contain pointer-events-none select-none" />
-            </div>
-            <div className="flex-1 pb-12 sm:pb-20 pl-2 sm:pl-6">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600 mb-1">Trending Now</p>
-              <h3 className="text-2xl sm:text-4xl font-bold text-gray-900 leading-tight mb-2">Streetwear<br/>Collection</h3>
-              <p className="text-gray-500 text-sm mb-4 max-w-sm">Bold styles for the urban explorer. Limited drops weekly.</p>
-              <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-2 text-black text-xs font-bold uppercase tracking-wider hover:text-gray-600 transition-colors">
-                Shop Men <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          {/* ═══ Sporty Runner — poster style ═══ */}
+          <div className="relative my-4 -mx-4 sm:-mx-6 lg:-mx-8">
+            <img src="/images/sporty-runner.png" alt="" aria-hidden="true" className="h-[380px] sm:h-[500px] w-auto object-contain pointer-events-none select-none mx-auto sm:mx-0 sm:ml-[5%]" />
+            <div className="absolute right-[8%] sm:right-[15%] top-1/2 -translate-y-1/2">
+              <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600 mb-0.5">Trending Now</p>
+              <h3 className="text-3xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Street<br/>wear</h3>
+              <p className="text-gray-500 text-[10px] sm:text-xs mt-1 max-w-[140px] sm:max-w-[180px]">Bold styles for the urban explorer</p>
+              <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-black text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-gray-600">
+                Shop Men <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </Link>
             </div>
           </div>
@@ -932,18 +930,16 @@ const handleReturnFromTracker = (order) => {
             </div>
           </div>
 
-          {/* ═══ Fashion Hat Lady — full size, no box ═══ */}
-          <div className="relative my-4 -mx-4 sm:-mx-6 lg:-mx-8 flex items-end justify-end">
-            <div className="flex-1 pb-16 sm:pb-24 pl-6 sm:pl-12">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-rose-500 mb-1">Women's Edit</p>
-              <h3 className="text-2xl sm:text-4xl font-light text-gray-900 leading-tight mb-2">Fashion<br/><span className="font-bold italic">Style</span></h3>
-              <p className="text-gray-500 text-sm mb-4 max-w-xs">Curated pieces that define elegance. New arrivals every week.</p>
-              <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-2 text-black text-xs font-bold uppercase tracking-wider hover:text-gray-600 transition-colors">
-                Shop Women <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          {/* ═══ Fashion Hat Lady — poster style ═══ */}
+          <div className="relative my-4 -mx-4 sm:-mx-6 lg:-mx-8">
+            <img src="/images/fashion-hat-lady.jpg" alt="" aria-hidden="true" className="h-[380px] sm:h-[520px] w-auto object-contain pointer-events-none select-none ml-auto mr-[5%] sm:mr-[10%]" />
+            <div className="absolute left-[8%] sm:left-[12%] top-1/2 -translate-y-1/2">
+              <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-rose-500 mb-0.5">Women's Edit</p>
+              <h3 className="text-3xl sm:text-6xl font-black text-gray-900 leading-none tracking-tight italic">Fashion<br/>Style</h3>
+              <p className="text-gray-500 text-[10px] sm:text-xs mt-1.5 max-w-[150px] sm:max-w-[200px]">Curated pieces that define elegance</p>
+              <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-black text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-gray-600">
+                Shop Women <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </Link>
-            </div>
-            <div className="flex-shrink-0">
-              <img src="/images/fashion-hat-lady.jpg" alt="" aria-hidden="true" className="h-[350px] sm:h-[480px] w-auto object-contain pointer-events-none select-none" />
             </div>
           </div>
 
@@ -954,18 +950,16 @@ const handleReturnFromTracker = (order) => {
             </div>
           </div>
 
-          {/* ═══ Red Saree Flame — full size, no box ═══ */}
-          <div className="relative my-4 -mx-4 sm:-mx-6 lg:-mx-8 flex items-end">
-            <div className="flex-shrink-0">
-              <img src="/images/red-saree-flame.png" alt="" aria-hidden="true" className="h-[350px] sm:h-[480px] w-auto object-contain pointer-events-none select-none" />
-            </div>
-            <div className="flex-1 pb-10 sm:pb-20 pl-4 sm:pl-8">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-red-500 mb-1">Festive Collection</p>
-              <h3 className="text-2xl sm:text-4xl font-bold text-gray-900 leading-tight mb-2">Ethnic Wear</h3>
-              <p className="text-gray-500 text-sm mb-2">Sarees, Lehengas & Traditional wear</p>
-              <p className="text-red-600 text-lg font-bold mb-4">Upto 60% Off</p>
-              <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-2 text-red-600 text-xs font-bold uppercase tracking-wider hover:text-red-700 transition-colors">
-                Explore Collection <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          {/* ═══ Red Saree Flame — poster style ═══ */}
+          <div className="relative my-4 -mx-4 sm:-mx-6 lg:-mx-8">
+            <img src="/images/red-saree-flame.png" alt="" aria-hidden="true" className="h-[380px] sm:h-[520px] w-auto object-contain pointer-events-none select-none mx-auto sm:mx-0 sm:ml-[3%]" />
+            <div className="absolute right-[6%] sm:right-[12%] bottom-[20%] sm:bottom-[25%]">
+              <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-red-500 mb-0.5">Festive Collection</p>
+              <h3 className="text-3xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Ethnic<br/>Wear</h3>
+              <p className="text-red-600 text-lg sm:text-2xl font-black mt-1">60% Off</p>
+              <p className="text-gray-500 text-[10px] sm:text-xs mt-0.5 max-w-[140px]">Sarees, Lehengas & Traditional</p>
+              <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-red-600 text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-red-700">
+                Explore <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </Link>
             </div>
           </div>
@@ -1108,62 +1102,54 @@ const handleReturnFromTracker = (order) => {
             )}
           </div>
 
-          {/* ═══ Cool Boy — full size, no box ═══ */}
-          <div className="my-4 -mx-4 sm:-mx-6 lg:-mx-8 flex items-end">
-            <div className="flex-shrink-0">
-              <img src="/images/cool-boy-vector.png" alt="" aria-hidden="true" className="h-[350px] sm:h-[450px] w-auto object-contain pointer-events-none select-none" />
-            </div>
-            <div className="flex-1 pb-10 sm:pb-16 pl-2 sm:pl-6 text-right">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500 mb-1">Men's Essentials</p>
-              <h3 className="text-2xl sm:text-4xl font-bold text-gray-900 leading-tight mb-2">Urban Cool</h3>
-              <p className="text-gray-500 text-sm mb-4">Hoodies, cargos & sneakers — your daily uniform, upgraded.</p>
-              <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-2 text-black text-xs font-bold uppercase tracking-wider hover:text-gray-600 transition-colors">
-                Shop Now <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          {/* ═══ Cool Boy — poster style ═══ */}
+          <div className="relative my-4 -mx-4 sm:-mx-6 lg:-mx-8">
+            <img src="/images/cool-boy-vector.png" alt="" aria-hidden="true" className="h-[380px] sm:h-[500px] w-auto object-contain pointer-events-none select-none mx-auto sm:mx-0 sm:ml-[8%]" />
+            <div className="absolute right-[8%] sm:right-[15%] top-[30%] sm:top-[35%]">
+              <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500 mb-0.5">Men's Essentials</p>
+              <h3 className="text-3xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Urban<br/>Cool</h3>
+              <p className="text-gray-500 text-[10px] sm:text-xs mt-1 max-w-[140px] sm:max-w-[180px]">Hoodies, cargos & sneakers</p>
+              <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-black text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-gray-600">
+                Shop Now <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </Link>
             </div>
           </div>
 
-          {/* ═══ Girl in Heels — full size, no box ═══ */}
-          <div className="my-4 -mx-4 sm:-mx-6 lg:-mx-8 flex items-end justify-end">
-            <div className="flex-1 pb-6 sm:pb-12 pl-6 sm:pl-12">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-600 mb-1">Summer Edit</p>
-              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight mb-2">Casuals &<br/>Footwear</h3>
-              <p className="text-gray-500 text-sm mb-4">Step out in style — heels, flats & trending silhouettes.</p>
-              <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-2 text-amber-700 text-xs font-bold uppercase tracking-wider hover:text-amber-800 transition-colors">
-                Shop Casuals <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          {/* ═══ Girl in Heels — poster style ═══ */}
+          <div className="relative my-4 -mx-4 sm:-mx-6 lg:-mx-8">
+            <img src="/images/girl-heels-fashion.png" alt="" aria-hidden="true" className="h-[280px] sm:h-[380px] w-auto object-contain pointer-events-none select-none ml-auto mr-[8%] sm:mr-[15%]" />
+            <div className="absolute left-[8%] sm:left-[12%] top-[25%] sm:top-[30%]">
+              <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-amber-600 mb-0.5">Summer Edit</p>
+              <h3 className="text-3xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Casuals &<br/>Footwear</h3>
+              <p className="text-gray-500 text-[10px] sm:text-xs mt-1 max-w-[150px]">Heels, flats & trending silhouettes</p>
+              <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-amber-700 text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-amber-800">
+                Shop Casuals <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </Link>
-            </div>
-            <div className="flex-shrink-0">
-              <img src="/images/girl-heels-fashion.png" alt="" aria-hidden="true" className="h-[250px] sm:h-[350px] w-auto object-contain pointer-events-none select-none" />
             </div>
           </div>
 
-          {/* ═══ Office Wear — full size, no box ═══ */}
-          <div className="my-4 -mx-4 sm:-mx-6 lg:-mx-8 flex items-end">
-            <div className="flex-1 pb-10 sm:pb-16 pl-6 sm:pl-12">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-blue-600 mb-1">Workwear</p>
-              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight mb-2">Office Ready</h3>
-              <p className="text-gray-500 text-sm mb-4">Formal shirts, blazers & polished looks for the 9-to-5.</p>
-              <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-2 text-black text-xs font-bold uppercase tracking-wider hover:text-gray-600 transition-colors">
-                Explore <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          {/* ═══ Office Wear — poster style ═══ */}
+          <div className="relative my-4 -mx-4 sm:-mx-6 lg:-mx-8">
+            <img src="/images/office-wear.png" alt="" aria-hidden="true" className="h-[380px] sm:h-[500px] w-auto object-contain pointer-events-none select-none ml-auto mr-[5%] sm:mr-[10%]" />
+            <div className="absolute left-[8%] sm:left-[12%] top-1/2 -translate-y-1/2">
+              <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-blue-600 mb-0.5">Workwear</p>
+              <h3 className="text-3xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Office<br/>Ready</h3>
+              <p className="text-gray-500 text-[10px] sm:text-xs mt-1 max-w-[160px]">Formal shirts, blazers & polished looks</p>
+              <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-1.5 mt-2 text-black text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-gray-600">
+                Explore <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </Link>
-            </div>
-            <div className="flex-shrink-0">
-              <img src="/images/office-wear.png" alt="" aria-hidden="true" className="h-[350px] sm:h-[450px] w-auto object-contain pointer-events-none select-none" />
             </div>
           </div>
 
-          {/* ═══ Shoe Vector — full size, no box ═══ */}
-          <div className="my-4 -mx-4 sm:-mx-6 lg:-mx-8 flex items-center">
-            <div className="flex-shrink-0">
-              <img src="/images/shoe-vector.png" alt="" aria-hidden="true" className="w-[280px] sm:w-[400px] h-auto object-contain pointer-events-none select-none" style={{ transform: 'rotate(-8deg)' }} />
-            </div>
-            <div className="flex-1 pl-2 sm:pl-6 text-right">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-red-500 mb-1">Just Dropped</p>
-              <h3 className="text-2xl sm:text-4xl font-bold text-gray-900 leading-tight mb-2">Sneaker<br/>Culture</h3>
-              <p className="text-gray-500 text-sm mb-4">Latest kicks from top brands. Limited stock.</p>
-              <Link to="/user/products?search=shoes" className="inline-flex items-center gap-2 text-red-600 text-xs font-bold uppercase tracking-wider hover:text-red-700 transition-colors">
-                Shop Sneakers <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          {/* ═══ Shoe Vector — poster style ═══ */}
+          <div className="relative my-4 -mx-4 sm:-mx-6 lg:-mx-8">
+            <img src="/images/shoe-vector.png" alt="" aria-hidden="true" className="w-[300px] sm:w-[450px] h-auto object-contain pointer-events-none select-none mx-auto sm:mx-0 sm:ml-[5%]" style={{ transform: 'rotate(-8deg)' }} />
+            <div className="absolute right-[8%] sm:right-[12%] top-[20%] sm:top-[25%]">
+              <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-red-500 mb-0.5">Just Dropped</p>
+              <h3 className="text-3xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Sneaker<br/>Culture</h3>
+              <p className="text-gray-500 text-[10px] sm:text-xs mt-1 max-w-[150px]">Latest kicks from top brands</p>
+              <Link to="/user/products?search=shoes" className="inline-flex items-center gap-1.5 mt-2 text-red-600 text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-red-700">
+                Shop Sneakers <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </Link>
             </div>
           </div>
@@ -1234,18 +1220,16 @@ const handleReturnFromTracker = (order) => {
             </div>
           </div>
 
-          {/* ═══ Sporty Runner — Activewear, no box ═══ */}
-          <div className="mb-8 -mx-4 sm:-mx-6 lg:-mx-8 flex items-end justify-end">
-            <div className="flex-1 pb-10 sm:pb-16 pl-6 sm:pl-12">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600 mb-1">Activewear</p>
-              <h3 className="text-2xl sm:text-4xl font-bold text-gray-900 leading-tight mb-2">Move. Train.<br/>Repeat.</h3>
-              <p className="text-gray-500 text-sm mb-4 max-w-xs">Performance wear that looks as good as it feels.</p>
-              <Link to="/user/products?search=sports" className="inline-flex items-center gap-2 text-emerald-700 text-xs font-bold uppercase tracking-wider hover:text-emerald-800 transition-colors">
-                Shop Activewear <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          {/* ═══ Sporty Runner — Activewear poster ═══ */}
+          <div className="relative mb-8 -mx-4 sm:-mx-6 lg:-mx-8">
+            <img src="/images/sporty-runner.png" alt="" aria-hidden="true" className="h-[380px] sm:h-[500px] w-auto object-contain pointer-events-none select-none ml-auto mr-[5%] sm:mr-[10%]" />
+            <div className="absolute left-[8%] sm:left-[12%] top-1/2 -translate-y-1/2">
+              <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600 mb-0.5">Activewear</p>
+              <h3 className="text-3xl sm:text-5xl font-black text-gray-900 leading-none tracking-tight">Move.<br/>Train.<br/>Repeat.</h3>
+              <p className="text-gray-500 text-[10px] sm:text-xs mt-1.5 max-w-[160px]">Performance wear that feels as good as it looks</p>
+              <Link to="/user/products?search=sports" className="inline-flex items-center gap-1.5 mt-2 text-emerald-700 text-[10px] sm:text-xs font-bold uppercase tracking-wider hover:text-emerald-800">
+                Shop Activewear <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </Link>
-            </div>
-            <div className="flex-shrink-0">
-              <img src="/images/sporty-runner.png" alt="" aria-hidden="true" className="h-[350px] sm:h-[450px] w-auto object-contain pointer-events-none select-none" />
             </div>
           </div>
 
