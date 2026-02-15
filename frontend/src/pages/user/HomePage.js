@@ -379,15 +379,16 @@ const HomePage = () => {
           </div>
         </section>
 
-        {/* ═══ Streetwear Vector Banner ═══ */}
-        <div className="relative my-5 rounded-2xl overflow-hidden bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 -mx-5 sm:-mx-6 lg:-mx-8" style={{ minHeight: '170px' }}>
-          <img src="/images/sporty-runner.png" alt="" aria-hidden="true" className="absolute right-4 sm:right-12 bottom-0 h-[180px] sm:h-[210px] object-contain pointer-events-none select-none drop-shadow-2xl" style={{ zIndex: 2 }} />
-          <div className="absolute inset-0 bg-gradient-to-r from-gray-900/90 via-gray-900/60 to-transparent" style={{ zIndex: 1 }} />
-          <div className="relative z-10 flex flex-col justify-center h-full p-6 sm:p-10 max-w-[60%]" style={{ minHeight: '170px' }}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-400 mb-2">Trending Now</p>
-            <h3 className="text-xl sm:text-2xl font-bold text-white leading-tight mb-2">Streetwear<br/>Collection</h3>
-            <p className="text-gray-400 text-xs sm:text-sm mb-4 max-w-xs">Bold styles for the urban explorer.</p>
-            <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-2 bg-white text-black text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-full w-fit hover:bg-gray-100 transition-colors">
+        {/* ═══ Sporty Runner — full size, no box ═══ */}
+        <div className="my-4 -mx-5 sm:-mx-6 lg:-mx-8 flex items-end">
+          <div className="flex-shrink-0">
+            <img src="/images/sporty-runner.png" alt="" aria-hidden="true" className="h-[300px] sm:h-[400px] w-auto object-contain pointer-events-none select-none" />
+          </div>
+          <div className="flex-1 pb-10 sm:pb-16 pl-2 sm:pl-6">
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-600 mb-1">Trending Now</p>
+            <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight mb-2">Streetwear<br/>Collection</h3>
+            <p className="text-gray-500 text-sm mb-4">Bold styles for the urban explorer.</p>
+            <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-2 text-black text-xs font-bold uppercase tracking-wider hover:text-gray-600 transition-colors">
               Shop Men <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
             </Link>
           </div>
@@ -447,17 +448,18 @@ const HomePage = () => {
           </div>
         </section>
 
-        {/* ═══ Fashion Hat Lady — Women's Editorial ═══ */}
-        <div className="relative my-5 rounded-2xl overflow-hidden bg-gradient-to-l from-rose-50 via-white to-pink-50 border border-rose-100/50 -mx-5 sm:-mx-6 lg:-mx-8" style={{ minHeight: '190px' }}>
-          <img src="/images/fashion-hat-lady.jpg" alt="" aria-hidden="true" className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 h-[170px] sm:h-[210px] object-contain pointer-events-none select-none" style={{ zIndex: 2, filter: 'contrast(1.1)' }} />
-          <div className="absolute inset-0 bg-gradient-to-l from-white/90 via-white/40 to-transparent" style={{ zIndex: 1 }} />
-          <div className="relative z-10 flex flex-col justify-center items-end h-full p-6 sm:p-10 text-right" style={{ minHeight: '190px' }}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-rose-500 mb-2">Women's Edit</p>
-            <h3 className="text-xl sm:text-2xl font-light text-gray-900 leading-tight mb-2">Fashion<br/><span className="font-bold italic">Style</span></h3>
-            <p className="text-gray-500 text-xs sm:text-sm mb-4 max-w-xs">Curated pieces that define elegance.</p>
-            <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-2 bg-black text-white text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-full hover:bg-gray-800 transition-colors">
+        {/* ═══ Fashion Hat Lady — full size, no box ═══ */}
+        <div className="my-4 -mx-5 sm:-mx-6 lg:-mx-8 flex items-end justify-end">
+          <div className="flex-1 pb-12 sm:pb-20 pl-6 sm:pl-12">
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-rose-500 mb-1">Women's Edit</p>
+            <h3 className="text-2xl sm:text-3xl font-light text-gray-900 leading-tight mb-2">Fashion<br/><span className="font-bold italic">Style</span></h3>
+            <p className="text-gray-500 text-sm mb-4 max-w-xs">Curated pieces that define elegance.</p>
+            <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-2 text-black text-xs font-bold uppercase tracking-wider hover:text-gray-600 transition-colors">
               Shop Women <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
             </Link>
+          </div>
+          <div className="flex-shrink-0">
+            <img src="/images/fashion-hat-lady.jpg" alt="" aria-hidden="true" className="h-[300px] sm:h-[420px] w-auto object-contain pointer-events-none select-none" />
           </div>
         </div>
 
@@ -466,16 +468,18 @@ const HomePage = () => {
           <BrandDiscoverGrid />
         </section>
 
-        {/* ═══ Red Saree Flame — Ethnic Wear ═══ */}
-        <div className="relative my-5 rounded-2xl overflow-hidden -mx-5 sm:-mx-6 lg:-mx-8" style={{ minHeight: '160px', background: 'linear-gradient(135deg, #1a0a0a 0%, #2d0a0a 40%, #1a0a0a 100%)' }}>
-          <img src="/images/red-saree-flame.png" alt="" aria-hidden="true" className="absolute right-0 top-1/2 -translate-y-1/2 h-[190px] sm:h-[230px] object-contain pointer-events-none select-none" style={{ zIndex: 2, opacity: 0.9 }} />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" style={{ zIndex: 1 }} />
-          <div className="relative z-10 flex flex-col justify-center h-full p-6 sm:p-10 max-w-[55%]" style={{ minHeight: '160px' }}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-red-400 mb-2">Festive Collection</p>
-            <h3 className="text-lg sm:text-xl font-bold text-white leading-tight mb-1">Ethnic Wear</h3>
-            <p className="text-red-200/60 text-xs mb-4">Sarees & traditional wear at upto 60% off</p>
-            <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-2 bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider px-4 py-2 rounded-full w-fit hover:bg-red-700 transition-colors">
-              Explore <ChevronRight className="w-3 h-3" strokeWidth={2} />
+        {/* ═══ Red Saree Flame — full size, no box ═══ */}
+        <div className="my-4 -mx-5 sm:-mx-6 lg:-mx-8 flex items-end">
+          <div className="flex-shrink-0">
+            <img src="/images/red-saree-flame.png" alt="" aria-hidden="true" className="h-[300px] sm:h-[420px] w-auto object-contain pointer-events-none select-none" />
+          </div>
+          <div className="flex-1 pb-8 sm:pb-16 pl-4 sm:pl-8">
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-red-500 mb-1">Festive Collection</p>
+            <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight mb-2">Ethnic Wear</h3>
+            <p className="text-gray-500 text-sm mb-1">Sarees & traditional wear</p>
+            <p className="text-red-600 text-lg font-bold mb-3">Upto 60% Off</p>
+            <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-2 text-red-600 text-xs font-bold uppercase tracking-wider hover:text-red-700 transition-colors">
+              Explore Collection <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
             </Link>
           </div>
         </div>
@@ -562,31 +566,23 @@ const HomePage = () => {
           )}
         </section>
 
-        {/* ═══ Split Promo — Sneakers + Casuals ═══ */}
-        <div className="my-5 grid grid-cols-1 sm:grid-cols-2 gap-4 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-          <div className="relative rounded-2xl overflow-hidden bg-gradient-to-l from-gray-100 via-white to-gray-50 border border-gray-200/60" style={{ minHeight: '160px' }}>
-            <img src="/images/shoe-vector.png" alt="" aria-hidden="true" className="absolute left-4 sm:left-8 top-1/2 w-[130px] sm:w-[170px] object-contain pointer-events-none select-none" style={{ zIndex: 2, transform: 'translateY(-50%) rotate(-12deg)' }} />
-            <div className="absolute inset-0 bg-gradient-to-l from-white/95 via-white/70 to-transparent" style={{ zIndex: 1 }} />
-            <div className="relative z-10 flex flex-col justify-center items-end h-full p-5 text-right" style={{ minHeight: '160px' }}>
-              <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-red-500 mb-1">Just Dropped</p>
-              <h4 className="text-lg font-bold text-gray-900 mb-1">Sneaker Culture</h4>
-              <p className="text-gray-500 text-[11px] mb-3">Latest kicks. Limited stock.</p>
-              <Link to="/user/products?search=shoes" className="inline-flex items-center gap-1.5 bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider px-4 py-2 rounded-full hover:bg-red-700 transition-colors">
-                Shop <ChevronRight className="w-3 h-3" strokeWidth={2} />
-              </Link>
-            </div>
+        {/* ═══ Sneaker + Cool Boy — side by side, no boxes ═══ */}
+        <div className="my-4 -mx-5 sm:-mx-6 lg:-mx-8 grid grid-cols-2 gap-0">
+          <div className="flex flex-col items-center text-center py-4">
+            <img src="/images/shoe-vector.png" alt="" aria-hidden="true" className="w-[180px] sm:w-[280px] h-auto object-contain pointer-events-none select-none mb-3" style={{ transform: 'rotate(-8deg)' }} />
+            <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-red-500 mb-0.5">Just Dropped</p>
+            <h4 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">Sneaker Culture</h4>
+            <Link to="/user/products?search=shoes" className="inline-flex items-center gap-1.5 text-red-600 text-[11px] font-bold uppercase tracking-wider hover:text-red-700 transition-colors">
+              Shop <ChevronRight className="w-3 h-3" strokeWidth={2} />
+            </Link>
           </div>
-          <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-zinc-100 via-white to-zinc-50 border border-zinc-200/60" style={{ minHeight: '160px' }}>
-            <img src="/images/cool-boy-vector.png" alt="" aria-hidden="true" className="absolute left-4 sm:left-8 bottom-0 h-[155px] sm:h-[175px] object-contain pointer-events-none select-none drop-shadow-lg" style={{ zIndex: 2 }} />
-            <div className="absolute inset-0 bg-gradient-to-l from-white/95 via-white/60 to-transparent" style={{ zIndex: 1 }} />
-            <div className="relative z-10 flex flex-col justify-center items-end h-full p-5 text-right" style={{ minHeight: '160px' }}>
-              <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-zinc-500 mb-1">Men's Essentials</p>
-              <h4 className="text-lg font-bold text-gray-900 mb-1">Urban Cool</h4>
-              <p className="text-gray-500 text-[11px] mb-3">Hoodies, cargos & more.</p>
-              <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-1.5 bg-zinc-900 text-white text-[10px] font-bold uppercase tracking-wider px-4 py-2 rounded-full hover:bg-black transition-colors">
-                Shop <ChevronRight className="w-3 h-3" strokeWidth={2} />
-              </Link>
-            </div>
+          <div className="flex flex-col items-center text-center py-4">
+            <img src="/images/cool-boy-vector.png" alt="" aria-hidden="true" className="h-[220px] sm:h-[320px] w-auto object-contain pointer-events-none select-none mb-3" />
+            <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-zinc-500 mb-0.5">Men's Essentials</p>
+            <h4 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">Urban Cool</h4>
+            <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-1.5 text-black text-[11px] font-bold uppercase tracking-wider hover:text-gray-600 transition-colors">
+              Shop <ChevronRight className="w-3 h-3" strokeWidth={2} />
+            </Link>
           </div>
         </div>
 
