@@ -297,14 +297,14 @@ const HomePage = () => {
       )}
 
       {/* BRAND SHOWCASE BANNER */}
-      <section className="bg-white py-8 border-t border-black/[0.04]">
+      <section className="bg-white py-5 border-t border-black/[0.04]">
         <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
           <BrandShowcaseBanner />
         </div>
       </section>
 
       {/* LEVEL 2 BANNERS */}
-      <section className="bg-gradient-to-b from-rose-50/20 via-white/80 to-orange-50/20 border-t border-orange-100/20 py-10">
+      <section className="bg-gradient-to-b from-rose-50/20 via-white/80 to-orange-50/20 border-t border-orange-100/20 py-7">
         <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
           <div className="flex items-end justify-between mb-6">
             <div>
@@ -324,11 +324,12 @@ const HomePage = () => {
         </div>
       </section>
 
+
       {/* MAIN CONTENT */}
       <main className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
 
         {/* SPECIAL OFFERS */}
-        <section className="pt-10 pb-8">
+        <section className="pt-7 pb-6">
           <div className="flex items-end justify-between mb-6">
             <div>
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Limited Time</p>
@@ -391,7 +392,7 @@ const HomePage = () => {
         <div className="border-t border-black/[0.04]" />
 
         {/* SHOP BY CATEGORY */}
-        <section className="py-10 bg-gradient-to-br from-amber-50/25 via-transparent to-rose-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
+        <section className="py-7 bg-gradient-to-br from-amber-50/25 via-transparent to-rose-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <div className="flex items-end justify-between mb-7">
             <div>
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Browse</p>
@@ -447,14 +448,14 @@ const HomePage = () => {
         <div className="border-t border-black/[0.04]" />
 
         {/* DISCOVER BRANDS */}
-        <section className="py-10 bg-gradient-to-br from-gray-50/60 via-white to-orange-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
+        <section className="py-7 bg-gradient-to-br from-gray-50/60 via-white to-orange-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <BrandDiscoverGrid />
         </section>
 
         <div className="border-t border-black/[0.04]" />
 
         {/* NEARBY SHOPS */}
-        <section className="py-10 bg-gradient-to-bl from-orange-50/20 via-transparent to-amber-50/25 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
+        <section className="py-7 bg-gradient-to-bl from-orange-50/20 via-transparent to-amber-50/25 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <div className="flex items-end justify-between mb-7">
             <div>
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Near You</p>
@@ -538,7 +539,7 @@ const HomePage = () => {
         <div className="border-t border-black/[0.04]" />
 
         {/* CURATED PICKS */}
-        <section className="py-10 mb-20 bg-gradient-to-tr from-rose-50/25 via-transparent to-amber-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
+        <section className="py-7 mb-20 bg-gradient-to-tr from-rose-50/25 via-transparent to-amber-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <div className="flex items-end justify-between mb-7">
             <div>
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Curated</p>

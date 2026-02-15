@@ -27,24 +27,31 @@ const ALL_BRANDS = [
   { id: 'uspolo', name: 'U.S. Polo', logo: 'https://res.cloudinary.com/dr17ap4sb/image/upload/f_auto,q_auto/v1770657450/zammer_banners/brand_logos/uspolo.jpg' },
 ];
 
-// Promo banner images used as brand lookbook images
+// Cloudinary brand product image helper (auto-format, quality, portrait crop)
+const bp = (name) => `https://res.cloudinary.com/dr17ap4sb/image/upload/f_auto,q_auto,w_480/zammer_banners/brand_products/${name}.png`;
+
+// Brand lookbook: 52 product images mapped across 20 brands
 const BRAND_LOOKBOOK = {
-  gucci: [
-    'https://res.cloudinary.com/dr17ap4sb/image/upload/f_auto,q_auto/v1770669869/zammer_banners/promo/expanded/women_power_suit.jpg',
-    'https://res.cloudinary.com/dr17ap4sb/image/upload/f_auto,q_auto/v1770669869/zammer_banners/promo/expanded/date_night_glam.jpg',
-  ],
-  louis_vuitton: [
-    'https://res.cloudinary.com/dr17ap4sb/image/upload/f_auto,q_auto/v1770669869/zammer_banners/promo/expanded/luxury_lounge.jpg',
-    'https://res.cloudinary.com/dr17ap4sb/image/upload/f_auto,q_auto/v1770669869/zammer_banners/promo/expanded/weekend_getaway.jpg',
-  ],
-  nike: [
-    'https://res.cloudinary.com/dr17ap4sb/image/upload/f_auto,q_auto/v1770669869/zammer_banners/promo/expanded/men_summer_vibes.jpg',
-    'https://res.cloudinary.com/dr17ap4sb/image/upload/f_auto,q_auto/v1770669869/zammer_banners/promo/expanded/gym_ready.jpg',
-  ],
-  supreme: [
-    'https://res.cloudinary.com/dr17ap4sb/image/upload/f_auto,q_auto/v1770669869/zammer_banners/promo/expanded/streetwear_drop.jpg',
-    'https://res.cloudinary.com/dr17ap4sb/image/upload/f_auto,q_auto/v1770669869/zammer_banners/promo/expanded/campus_cool.jpg',
-  ],
+  gucci: [bp('bold_cobalt_leather_fierce'), bp('accessories_layered_pearl_glam'), bp('luxury_evening_gown_black')],
+  louis_vuitton: [bp('equestrian_leather_riding_tan'), bp('premium_pearl_sharara_ethereal'), bp('highstreet_camel_overcoat_stride')],
+  nike: [bp('gymwear_muscular_tank'), bp('activewear_athletic_sage'), bp('outdoor_adventure_olive_trek')],
+  adidas: [bp('streetwear_cargo_neon'), bp('sportswear_tracksuit_stripes'), bp('trendy_genz_bucket_hat')],
+  zara: [bp('contemporary_linen_power'), bp('minimal_cream_knit_serene'), bp('coastal_linen_beach_straw')],
+  hm: [bp('accessible_lilac_hoodie_cozy'), bp('casual_denim_pop_green'), bp('fun_yellow_campus_laugh')],
+  supreme: [bp('hypebeast_neon_puffer_cyber'), bp('hiphop_tiedye_purple_smoke'), bp('desi_hiphop_graffiti_hoodie')],
+  offwhite: [bp('edgy_distressed_hoodie_red'), bp('winter_icy_blue_puffer'), bp('bold_scarlet_blazer_dress')],
+  tommy: [bp('premium_bomber_navy'), bp('smartcasual_linen_blazer_resort'), bp('premium_white_oxford_polished')],
+  puma: [bp('varsity_wool_mauve'), bp('cozy_fleece_grey_mug')],
+  calvinklein: [bp('friday_dressing_pink_shirt'), bp('lingerie_satin_lavender'), bp('loungewear_satin_blush')],
+  uniqlo: [bp('sustainable_organic_oatmeal'), bp('sustainable_khadi_shibori')],
+  levis: [bp('thrift_vintage_denim_patches'), bp('artisanal_indigo_block_tote'), bp('smart_casual_gingham_blue')],
+  mango: [bp('cocktail_coral_ruffle_twirl'), bp('floral_pastel_saree_spring'), bp('boho_mirrorwork_terracotta')],
+  vanheusen: [bp('formal_threepiece_charcoal'), bp('indowestern_draped_wine')],
+  allensolly: [bp('festive_anarkali_maroon_gold'), bp('ethnic_chanderi_emerald')],
+  jackjones: [bp('quirky_colorblock_pigtails'), bp('ethnic_fusion_zardozi_blue')],
+  forever21: [bp('glamour_red_bodycon_bold'), bp('quirky_indian_elephant_twirl'), bp('plussize_wrap_dress_wine')],
+  superdry: [bp('party_glam_sequin_gold'), bp('handloom_banarasi_bridal')],
+  uspolo: [bp('bridal_magenta_lehenga_royal'), bp('smart_casual_gingham_blue')],
 };
 
 const ITEMS_PER_PAGE = 12; // 4 cols × 3 rows
@@ -197,12 +204,16 @@ const BrandDiscoverGrid = () => {
               {/* Lookbook images */}
               <div className="p-5">
                 {BRAND_LOOKBOOK[selectedBrand.id] ? (
-                  <div className="grid grid-cols-2 gap-3 mb-5">
-                    {BRAND_LOOKBOOK[selectedBrand.id].map((img, idx) => (
-                      <div key={idx} className="aspect-[3/4] rounded-xl overflow-hidden bg-gray-100">
-                        <img src={img} alt={`${selectedBrand.name} lookbook`} className="w-full h-full object-cover" />
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-2 gap-2.5 mb-5">
+                    {BRAND_LOOKBOOK[selectedBrand.id].map((img, idx) => {
+                      const images = BRAND_LOOKBOOK[selectedBrand.id];
+                      const isLastOdd = images.length % 2 === 1 && idx === images.length - 1;
+                      return (
+                        <div key={idx} className={`aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 ${isLastOdd ? 'col-span-2 aspect-[3/2]' : ''}`}>
+                          <img src={img} alt={`${selectedBrand.name} lookbook`} className="w-full h-full object-cover object-top" />
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8">

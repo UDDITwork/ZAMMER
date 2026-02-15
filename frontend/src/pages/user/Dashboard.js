@@ -789,7 +789,7 @@ const handleReturnFromTracker = (order) => {
 
           {/* Promotional Banners — Gallery Frame */}
           {promoBanners.length > 0 && (
-            <div className="mb-14 gallery-frame p-1 sm:p-1.5">
+            <div className="mb-8 gallery-frame p-1 sm:p-1.5">
               <div className="rounded-2xl overflow-hidden">
                 <div className="flex items-center justify-between mb-0 px-5 pt-5 pb-3">
                   <div>
@@ -805,14 +805,14 @@ const handleReturnFromTracker = (order) => {
           )}
 
           {/* Brand Showcase Banner — Gallery Spotlight */}
-          <div className="mb-14 gallery-spotlight">
+          <div className="mb-8 gallery-spotlight">
             <div className="gallery-exhibit p-6 sm:p-8">
               <BrandShowcaseBanner />
             </div>
           </div>
 
           {/* Level 2 Banners — Gallery Wall */}
-          <section className="mb-14 gallery-wall">
+          <section className="mb-8 gallery-wall">
             <div className="bg-gradient-to-br from-white via-orange-50/20 to-amber-50/30 rounded-[26px] p-6 sm:p-8">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -838,7 +838,7 @@ const handleReturnFromTracker = (order) => {
           </section>
 
           {/* Trending Products Carousel — Gallery Exhibit */}
-          <div className="mb-14 gallery-exhibit -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-6 rounded-2xl">
+          <div className="mb-8 gallery-exhibit -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-6 rounded-2xl">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Trending Products</h2>
@@ -933,14 +933,14 @@ const handleReturnFromTracker = (order) => {
           </div>
 
           {/* Discover Brands — Gallery Exhibition */}
-          <div className="mb-14 gallery-spotlight">
+          <div className="mb-8 gallery-spotlight">
             <div className="gallery-frame p-6 sm:p-8 -mx-4 sm:-mx-6 lg:-mx-8">
               <BrandDiscoverGrid />
             </div>
           </div>
 
           {/* Nearby Shops — Gallery Wing */}
-          <div className="mb-14 gallery-exhibit -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-6 rounded-3xl">
+          <div className="mb-8 gallery-exhibit -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-6 rounded-3xl">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Nearby Shops</h2>
