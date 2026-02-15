@@ -18,20 +18,18 @@ const FashionQuoteStrip = memo(({ className = '' }) => {
 
   return (
     <div
-      className={`w-full py-5 select-none pointer-events-none ${className}`}
+      className={`w-full py-3 select-none pointer-events-none ${className}`}
       style={{
         background:
-          'linear-gradient(90deg, #0f172a, #1e293b 30%, #0f172a 50%, #1e293b 70%, #0f172a)',
-        borderTop: '1px solid rgba(255,255,255,0.06)',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
+          'linear-gradient(90deg, transparent, rgba(139,92,246,0.05) 20%, rgba(99,102,241,0.07) 50%, rgba(139,92,246,0.05) 80%, transparent)',
       }}
     >
-      <p className="text-center text-[11px] sm:text-[12px] font-semibold uppercase tracking-[0.35em] text-slate-300">
-        <span className="inline-block w-3 sm:w-4 text-slate-400/60 align-middle mr-2 sm:mr-3 text-[8px]">◆</span>
-        <span className="inline-block w-8 sm:w-14 h-px bg-slate-400/40 align-middle mr-3 sm:mr-4" />
+      <p className="text-center text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.3em] text-indigo-400/70">
+        <span className="inline-block w-2.5 sm:w-3.5 text-purple-400/40 align-middle mr-2 sm:mr-3 text-[7px]">◆</span>
+        <span className="inline-block w-6 sm:w-10 h-px bg-indigo-300/30 align-middle mr-3 sm:mr-4" />
         {quote}
-        <span className="inline-block w-8 sm:w-14 h-px bg-slate-400/40 align-middle ml-3 sm:ml-4" />
-        <span className="inline-block w-3 sm:w-4 text-slate-400/60 align-middle ml-2 sm:ml-3 text-[8px]">◆</span>
+        <span className="inline-block w-6 sm:w-10 h-px bg-indigo-300/30 align-middle ml-3 sm:ml-4" />
+        <span className="inline-block w-2.5 sm:w-3.5 text-purple-400/40 align-middle ml-2 sm:ml-3 text-[7px]">◆</span>
       </p>
     </div>
   );
