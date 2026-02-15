@@ -164,7 +164,7 @@ const HomePage = () => {
     <div
       className="min-h-screen"
       style={{
-        background: 'linear-gradient(135deg, #fff7ed 0%, #ffffff 20%, #fffbeb 40%, #ffffff 60%, #fff1f2 80%, #ffffff 100%)',
+        background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 20%, #f1f5f9 40%, #ffffff 60%, #eff6ff 80%, #f5f3ff 100%)',
         backgroundSize: '300% 300%',
         animation: 'bgShift 20s ease infinite',
       }}
@@ -271,7 +271,7 @@ const HomePage = () => {
       </section>
 
       {/* TRUST BADGES */}
-      <section className="bg-gradient-to-r from-orange-50/60 via-amber-50/40 to-rose-50/40 border-t border-orange-100/30">
+      <section className="bg-gradient-to-r from-slate-50/60 via-blue-50/30 to-indigo-50/30 border-t border-slate-100/30">
         <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center justify-center gap-6 sm:gap-10 overflow-x-auto scrollbar-hide">
             {[
@@ -291,7 +291,7 @@ const HomePage = () => {
 
       {/* PROMOTIONAL BANNERS */}
       {promoBanners.length > 0 && (
-        <section className="bg-gradient-to-r from-amber-50/50 via-orange-50/30 to-rose-50/40 py-4">
+        <section className="bg-gradient-to-r from-slate-50/50 via-blue-50/20 to-indigo-50/30 py-4">
           <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
             <PromoBannerCarousel banners={promoBanners} />
           </div>
@@ -299,7 +299,7 @@ const HomePage = () => {
       )}
 
       {/* LEVEL 2 BANNERS */}
-      <section className="bg-gradient-to-b from-rose-50/20 via-white/80 to-orange-50/20 border-t border-orange-100/20 py-7">
+      <section className="bg-gradient-to-b from-slate-50/20 via-white/80 to-blue-50/15 border-t border-slate-100/20 py-7">
         <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
           <div className="flex items-end justify-between mb-6">
             <div>
@@ -387,7 +387,7 @@ const HomePage = () => {
         <DecorativeDivider variant="wave" className="my-1" />
 
         {/* SHOP BY CATEGORY */}
-        <section className="py-7 bg-gradient-to-br from-amber-50/25 via-transparent to-rose-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
+        <section className="py-7 bg-gradient-to-br from-slate-50/30 via-transparent to-blue-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <div className="flex items-end justify-between mb-7">
             <div>
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Browse</p>
@@ -443,14 +443,14 @@ const HomePage = () => {
         <FashionQuoteStrip className="my-1" />
 
         {/* DISCOVER BRANDS */}
-        <section className="py-7 bg-gradient-to-br from-gray-50/60 via-white to-orange-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
+        <section className="py-7 bg-gradient-to-br from-gray-50/60 via-white to-indigo-50/15 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <BrandDiscoverGrid />
         </section>
 
         <DecorativeDivider variant="diamond" className="my-1" />
 
         {/* NEARBY SHOPS */}
-        <section className="py-7 bg-gradient-to-bl from-orange-50/20 via-transparent to-amber-50/25 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
+        <section className="py-7 bg-gradient-to-bl from-blue-50/20 via-transparent to-slate-50/25 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <div className="flex items-end justify-between mb-7">
             <div>
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Near You</p>
@@ -534,7 +534,7 @@ const HomePage = () => {
         <DecorativeDivider variant="herringbone" className="my-1" />
 
         {/* CURATED PICKS */}
-        <section className="py-7 mb-20 bg-gradient-to-tr from-rose-50/25 via-transparent to-amber-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
+        <section className="py-7 mb-20 bg-gradient-to-tr from-violet-50/20 via-transparent to-slate-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <div className="flex items-end justify-between mb-7">
             <div>
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Curated</p>

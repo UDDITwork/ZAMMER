@@ -686,7 +686,7 @@ const handleReturnFromTracker = (order) => {
       <div
         className="min-h-screen"
         style={{
-          background: 'linear-gradient(135deg, #fff7ed 0%, #f9fafb 20%, #fffbeb 40%, #f9fafb 60%, #fff1f2 80%, #f9fafb 100%)',
+          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 20%, #f8fafc 40%, #eff6ff 60%, #f8fafc 80%, #f5f3ff 100%)',
           backgroundSize: '300% 300%',
           animation: 'bgShift 20s ease infinite',
         }}
@@ -756,7 +756,7 @@ const handleReturnFromTracker = (order) => {
             transform: translateX(-50%);
             width: 60%;
             height: 40px;
-            background: radial-gradient(ellipse at center, rgba(251,191,36,0.08) 0%, transparent 70%);
+            background: radial-gradient(ellipse at center, rgba(99,102,241,0.06) 0%, transparent 70%);
             pointer-events: none;
           }
           .depth-card {
@@ -810,7 +810,7 @@ const handleReturnFromTracker = (order) => {
 
           {/* Level 2 Banners — Gallery Wall */}
           <section className="mb-8 gallery-wall">
-            <div className="bg-gradient-to-br from-white via-orange-50/20 to-amber-50/30 rounded-[26px] p-6 sm:p-8">
+            <div className="bg-gradient-to-br from-white via-slate-50/30 to-blue-50/20 rounded-[26px] p-6 sm:p-8">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">
@@ -1083,7 +1083,7 @@ const handleReturnFromTracker = (order) => {
           <DecorativeDivider variant="dotgrid" className="my-2" />
 
           {/* Featured Products */}
-          <div className="mb-12 bg-gradient-to-br from-rose-50/20 via-transparent to-amber-50/25 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-2 rounded-2xl">
+          <div className="mb-12 bg-gradient-to-br from-slate-50/30 via-transparent to-blue-50/20 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-2 rounded-2xl">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Featured Products</h2>
