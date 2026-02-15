@@ -868,19 +868,19 @@ const handleReturnFromTracker = (order) => {
                       className="flex-shrink-0 w-80 group"
                       onClick={() => console.log('🛒 Navigating to product:', product._id, product.name)}
                     >
-                      <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl p-6 h-44 relative overflow-hidden border border-orange-100 hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer group-hover:border-orange-300">
+                      <div className="bg-gradient-to-br from-slate-50 to-gray-50 rounded-2xl p-6 h-44 relative overflow-hidden border border-gray-200 hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer group-hover:border-gray-400">
                         <div className="flex flex-col justify-between h-full relative z-10">
                           <div className="pr-32">
-                            <span className="bg-orange-600 text-white text-xs px-3 py-1.5 rounded-full font-semibold uppercase tracking-wide">
+                            <span className="bg-zinc-900 text-white text-xs px-3 py-1.5 rounded-full font-semibold uppercase tracking-wide">
                               Featured
                             </span>
-                            <h3 className="font-bold mt-3 text-gray-900 text-lg leading-tight break-words group-hover:text-orange-600 transition-colors">{product.name}</h3>
+                            <h3 className="font-bold mt-3 text-gray-900 text-lg leading-tight break-words group-hover:text-zinc-600 transition-colors">{product.name}</h3>
                           </div>
                           <div className="pr-32">
                             <p className="text-gray-700 text-sm font-medium mb-3">
                               Save up to {Math.round(((product.mrp - product.zammerPrice) / product.mrp) * 100)}%
                             </p>
-                            <div className="inline-flex items-center bg-white hover:bg-orange-50 text-orange-600 px-4 py-2 rounded-xl text-sm font-semibold transition-colors border border-orange-200 hover:border-orange-300 group-hover:shadow-md">
+                            <div className="inline-flex items-center bg-white hover:bg-gray-50 text-zinc-900 px-4 py-2 rounded-xl text-sm font-semibold transition-colors border border-zinc-300 hover:border-zinc-500 group-hover:shadow-md">
                               View Product
                               <svg className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
@@ -895,7 +895,7 @@ const handleReturnFromTracker = (order) => {
                             className="absolute right-4 bottom-4 h-28 w-28 object-cover rounded-xl group-hover:scale-110 transition-transform duration-300 shadow-lg"
                           />
                         )}
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-orange-200/20 rounded-full -translate-y-16 translate-x-16 group-hover:bg-orange-300/30 transition-colors"></div>
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-gray-200/20 rounded-full -translate-y-16 translate-x-16 group-hover:bg-gray-300/30 transition-colors"></div>
                         {/* Click indicator */}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl"></div>
                       </div>
@@ -1026,7 +1026,7 @@ const handleReturnFromTracker = (order) => {
                         </div>
                       )}
                       
-                      <p className="text-orange-600 font-medium mb-4 bg-orange-50 px-3 py-1 rounded-full text-sm inline-block">
+                      <p className="text-zinc-700 font-medium mb-4 bg-zinc-100 px-3 py-1 rounded-full text-sm inline-block">
                         {shop.shop?.category || 'Fashion'} Store
                       </p>
                       
@@ -1038,7 +1038,7 @@ const handleReturnFromTracker = (order) => {
                       
                       <Link
                         to={`/user/shop/${shop._id}`}
-                        className="block text-center bg-orange-600 hover:bg-orange-700 text-white py-3 px-4 rounded-xl font-semibold transition-colors duration-200"
+                        className="block text-center bg-white hover:bg-gray-50 text-zinc-900 py-3 px-4 rounded-xl font-semibold transition-colors duration-200 border border-zinc-300 hover:border-zinc-500"
                       >
                         Visit Shop
                       </Link>
@@ -1064,7 +1064,7 @@ const handleReturnFromTracker = (order) => {
                   <button
                     onClick={requestLocationUpdate}
                     disabled={locationLoading}
-                    className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors disabled:opacity-50"
+                    className="bg-white hover:bg-gray-50 text-zinc-900 px-6 py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 border border-zinc-300 hover:border-zinc-500"
                   >
                     {locationLoading ? (
                       <span className="flex items-center">
@@ -1127,8 +1127,8 @@ const handleReturnFromTracker = (order) => {
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="flex justify-between items-center p-6 bg-gray-50 border-b border-gray-200">
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
-                      <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-10 h-10 bg-zinc-100 rounded-xl flex items-center justify-center">
+                      <svg className="w-6 h-6 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
                     </div>

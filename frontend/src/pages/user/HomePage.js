@@ -50,7 +50,7 @@ const HomePage = () => {
 
   const fallbackBanners = [
     { _id: 'fb-men', categoryLevel1: 'Men Fashion', title: "Men's Edit", subtitle: 'The new season essentials', gradient: 'from-neutral-900 to-neutral-800' },
-    { _id: 'fb-women', categoryLevel1: 'Women Fashion', title: "Women's Edit", subtitle: 'Curated elegance', gradient: 'from-orange-700 via-orange-600 to-orange-500' },
+    { _id: 'fb-women', categoryLevel1: 'Women Fashion', title: "Women's Edit", subtitle: 'Curated elegance', gradient: 'from-zinc-700 via-zinc-600 to-zinc-500' },
     { _id: 'fb-kids', categoryLevel1: 'Kids Fashion', title: "Kids' Edit", subtitle: 'Where comfort meets style', gradient: 'from-neutral-800 to-neutral-700' },
   ];
 
@@ -226,7 +226,7 @@ const HomePage = () => {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: 0.3, duration: 0.5 }}
                         >
-                          <span className="inline-block text-[10px] font-medium uppercase tracking-[0.25em] text-orange-400 mb-3">
+                          <span className="inline-block text-[10px] font-medium uppercase tracking-[0.25em] text-zinc-400 mb-3">
                             New Collection
                           </span>
                           <h2 className="text-white text-3xl sm:text-5xl font-light tracking-[-0.02em] leading-[1.1] mb-2">
@@ -303,14 +303,14 @@ const HomePage = () => {
         <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
           <div className="flex items-end justify-between mb-6">
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Explore</p>
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-zinc-500 mb-1">Explore</p>
               <h2 className="text-[22px] font-light text-black tracking-[-0.02em]">
                 {selectedLevel1.replace(' Fashion', '')} Collections
               </h2>
             </div>
             <Link
               to={`/user/browse/${encodeURIComponent(selectedLevel1)}`}
-              className="text-black text-[12px] font-medium uppercase tracking-[0.1em] flex items-center gap-1 hover:text-orange-600 transition-colors"
+              className="text-black text-[12px] font-medium uppercase tracking-[0.1em] flex items-center gap-1 hover:text-zinc-600 transition-colors"
             >
               View All <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.5} />
             </Link>
@@ -327,10 +327,10 @@ const HomePage = () => {
         <section className="pt-7 pb-6">
           <div className="flex items-end justify-between mb-6">
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Limited Time</p>
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-zinc-500 mb-1">Limited Time</p>
               <h2 className="text-[22px] font-light text-black tracking-[-0.02em]">Special Offers</h2>
             </div>
-            <Link to="/user/offers" className="text-black text-[12px] font-medium uppercase tracking-[0.1em] flex items-center gap-1 hover:text-orange-600 transition-colors">
+            <Link to="/user/offers" className="text-black text-[12px] font-medium uppercase tracking-[0.1em] flex items-center gap-1 hover:text-zinc-600 transition-colors">
               All Offers <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.5} />
             </Link>
           </div>
@@ -338,7 +338,7 @@ const HomePage = () => {
             {offerProducts.length > 0 ? (
               offerProducts.map((product) => (
                 <Link key={product._id} to={`/user/product/${product._id}`} className="flex-shrink-0 w-[280px] snap-start group">
-                  <div className="relative bg-neutral-50 rounded-2xl overflow-hidden h-[200px] border border-black/[0.04] group-hover:border-orange-200 transition-all duration-300">
+                  <div className="relative bg-neutral-50 rounded-2xl overflow-hidden h-[200px] border border-black/[0.04] group-hover:border-zinc-300 transition-all duration-300">
                     <div className="absolute top-3.5 right-3.5 z-20">
                       <WishlistButton productId={product._id} size="sm" />
                     </div>
@@ -360,7 +360,7 @@ const HomePage = () => {
                           <p className="text-[11px] text-neutral-400 line-through">Rs. {product.mrp}</p>
                           <p className="text-[15px] font-semibold text-black">Rs. {product.zammerPrice}</p>
                         </div>
-                        <span className="w-9 h-9 rounded-full bg-black flex items-center justify-center group-hover:bg-orange-500 transition-colors duration-300">
+                        <span className="w-9 h-9 rounded-full bg-black flex items-center justify-center group-hover:bg-zinc-700 transition-colors duration-300">
                           <ArrowUpRight className="w-4 h-4 text-white" strokeWidth={1.5} />
                         </span>
                       </div>
@@ -375,7 +375,7 @@ const HomePage = () => {
                     <span className="inline-block bg-neutral-200 text-[10px] text-neutral-500 font-medium uppercase tracking-[0.15em] px-2.5 py-1 rounded-md">Coming Soon</span>
                     <h3 className="font-medium mt-3 text-neutral-600 text-[15px]">New offers arriving</h3>
                   </div>
-                  <Link to="/user/shop" className="inline-flex items-center text-black text-[12px] font-medium uppercase tracking-[0.1em] hover:text-orange-600 transition-colors">
+                  <Link to="/user/shop" className="inline-flex items-center text-black text-[12px] font-medium uppercase tracking-[0.1em] hover:text-zinc-600 transition-colors">
                     Browse <ArrowRight className="w-3.5 h-3.5 ml-1.5" strokeWidth={1.5} />
                   </Link>
                 </div>
@@ -390,18 +390,18 @@ const HomePage = () => {
         <section className="py-7 bg-gradient-to-br from-slate-50/30 via-transparent to-blue-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <div className="flex items-end justify-between mb-7">
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Browse</p>
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-zinc-500 mb-1">Browse</p>
               <h2 className="text-[22px] font-light text-black tracking-[-0.02em]">Shop by Category</h2>
             </div>
-            <Link to="/user/browse" className="text-black text-[12px] font-medium uppercase tracking-[0.1em] flex items-center gap-1 hover:text-orange-600 transition-colors">
+            <Link to="/user/browse" className="text-black text-[12px] font-medium uppercase tracking-[0.1em] flex items-center gap-1 hover:text-zinc-600 transition-colors">
               All Categories <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.5} />
             </Link>
           </div>
           <div className="grid grid-cols-3 gap-3 sm:gap-5">
             {[
-              { categoryLevel1: 'Women Fashion', label: 'Women', tagline: 'New season', route: '/user/browse/Women%20Fashion', fallbackGradient: 'from-orange-50 via-orange-100/60 to-orange-200/40', FallbackIcon: Gem, fallbackIconColor: 'text-orange-600', accent: 'bg-orange-500' },
+              { categoryLevel1: 'Women Fashion', label: 'Women', tagline: 'New season', route: '/user/browse/Women%20Fashion', fallbackGradient: 'from-slate-50 via-slate-100/60 to-slate-200/40', FallbackIcon: Gem, fallbackIconColor: 'text-zinc-600', accent: 'bg-zinc-800' },
               { categoryLevel1: 'Men Fashion', label: 'Men', tagline: 'Essential edits', route: '/user/browse/Men%20Fashion', fallbackGradient: 'from-neutral-100 via-neutral-200/60 to-neutral-300/40', FallbackIcon: User, fallbackIconColor: 'text-neutral-700', accent: 'bg-black' },
-              { categoryLevel1: 'Kids Fashion', label: 'Kids', tagline: 'Playful styles', route: '/user/browse/Kids%20Fashion', fallbackGradient: 'from-orange-50/80 via-amber-50/60 to-orange-100/40', FallbackIcon: Sparkles, fallbackIconColor: 'text-orange-500', accent: 'bg-orange-500' },
+              { categoryLevel1: 'Kids Fashion', label: 'Kids', tagline: 'Playful styles', route: '/user/browse/Kids%20Fashion', fallbackGradient: 'from-slate-50/80 via-gray-50/60 to-slate-100/40', FallbackIcon: Sparkles, fallbackIconColor: 'text-zinc-500', accent: 'bg-zinc-800' },
             ].map((cat) => {
               const banner = level1Banners.find(b => b.categoryLevel1 === cat.categoryLevel1);
               return (
@@ -453,10 +453,10 @@ const HomePage = () => {
         <section className="py-7 bg-gradient-to-bl from-blue-50/20 via-transparent to-slate-50/25 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <div className="flex items-end justify-between mb-7">
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Near You</p>
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-zinc-500 mb-1">Near You</p>
               <h2 className="text-[22px] font-light text-black tracking-[-0.02em]">Local Boutiques</h2>
             </div>
-            <Link to="/user/nearby-shops" className="text-black text-[12px] font-medium uppercase tracking-[0.1em] flex items-center gap-1 hover:text-orange-600 transition-colors">
+            <Link to="/user/nearby-shops" className="text-black text-[12px] font-medium uppercase tracking-[0.1em] flex items-center gap-1 hover:text-zinc-600 transition-colors">
               View All <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.5} />
             </Link>
           </div>
@@ -497,7 +497,7 @@ const HomePage = () => {
                         {shop.numReviews > 0 ? (
                           <span className="text-[11px] text-neutral-400">({shop.numReviews})</span>
                         ) : (
-                          <span className="text-[10px] text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full font-medium">New</span>
+                          <span className="text-[10px] text-zinc-700 bg-zinc-100 px-1.5 py-0.5 rounded-full font-medium">New</span>
                         )}
                       </div>
                       <h3 className="font-semibold text-[15px] text-black tracking-[-0.01em] mb-1">{shop.shop?.name || 'Shop Name'}</h3>
@@ -508,7 +508,7 @@ const HomePage = () => {
                       )}
                       <div className="flex items-center justify-between pt-3 border-t border-black/[0.04]">
                         <p className="text-[14px] font-semibold text-black">
-                          From <span className="text-orange-600">Rs. {shop.zammerPrice?.toFixed(0) || '299'}</span>
+                          From <span className="text-zinc-900 font-semibold">Rs. {shop.zammerPrice?.toFixed(0) || '299'}</span>
                         </p>
                         {shop.distanceText && (
                           <p className="text-[11px] text-neutral-400 flex items-center gap-1">
@@ -537,10 +537,10 @@ const HomePage = () => {
         <section className="py-7 mb-20 bg-gradient-to-tr from-violet-50/20 via-transparent to-slate-50/20 -mx-5 px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 rounded-3xl">
           <div className="flex items-end justify-between mb-7">
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-orange-500 mb-1">Curated</p>
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-zinc-500 mb-1">Curated</p>
               <h2 className="text-[22px] font-light text-black tracking-[-0.02em]">Recommended for You</h2>
             </div>
-            <Link to="/user/recommended-shops" className="text-black text-[12px] font-medium uppercase tracking-[0.1em] flex items-center gap-1 hover:text-orange-600 transition-colors">
+            <Link to="/user/recommended-shops" className="text-black text-[12px] font-medium uppercase tracking-[0.1em] flex items-center gap-1 hover:text-zinc-600 transition-colors">
               View All <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.5} />
             </Link>
           </div>
@@ -581,12 +581,12 @@ const HomePage = () => {
                         {shop.numReviews > 0 ? (
                           <span className="text-[10px] text-neutral-400">({shop.numReviews})</span>
                         ) : (
-                          <span className="text-[9px] text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full font-medium">New</span>
+                          <span className="text-[9px] text-zinc-700 bg-zinc-100 px-1.5 py-0.5 rounded-full font-medium">New</span>
                         )}
                       </div>
                       <h3 className="font-semibold text-[13px] text-black mb-1.5 line-clamp-1 tracking-[-0.01em]">{shop.shop?.name || 'Shop Name'}</h3>
                       <div className="flex items-center justify-between">
-                        <p className="text-[13px] font-semibold text-orange-600">Rs. {shop.zammerPrice?.toFixed(0) || '299'}</p>
+                        <p className="text-[13px] font-semibold text-zinc-900 font-semibold">Rs. {shop.zammerPrice?.toFixed(0) || '299'}</p>
                         {shop.distanceText && (
                           <p className="text-[10px] text-neutral-400 flex items-center gap-0.5">
                             <MapPin className="h-2.5 w-2.5" strokeWidth={1.5} />
@@ -613,7 +613,7 @@ const HomePage = () => {
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-black/[0.06] z-50">
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-around items-center h-14">
-            <Link to="/user/dashboard" className="flex flex-col items-center gap-0.5 text-orange-600">
+            <Link to="/user/dashboard" className="flex flex-col items-center gap-0.5 text-zinc-900">
               <Home className="h-[20px] w-[20px]" strokeWidth={1.5} />
               <span className="text-[10px] font-semibold tracking-wide">Home</span>
             </Link>
