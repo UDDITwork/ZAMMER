@@ -29,8 +29,6 @@ import { getBanners } from '../../services/bannerService';
 import ProductCard from '../../components/common/ProductCard';
 import { useAddToCart } from '../../hooks/useAddToCart';
 import { ProductGridSkeleton } from '../../components/common/SkeletonLoader';
-import DecorativeDivider from '../../components/common/DecorativeDivider';
-import FashionQuoteStrip from '../../components/common/FashionQuoteStrip';
 
 // Safe JSON parsing helper
 const safeJsonParse = (data, defaultValue = null) => {
@@ -279,7 +277,7 @@ const Dashboard = () => {
         setLoadingShops(false);
       }
     }
-  }, [userAuth.isAuthenticated, userAuth.user?._id, userAuth.user?.location]);
+  }, [userAuth.user?.location]);
 
   const fetchOrders = useCallback(async () => {
     if (!userAuth.isAuthenticated || !userAuth.user?._id) {
@@ -465,36 +463,50 @@ const Dashboard = () => {
     }
   }, [locationLoading, fetchNearbyShops, userAuth.isAuthenticated, userAuth.user, updateUser]);
 
+  // Public data fetching — runs for everyone (auth or not)
   useEffect(() => {
     isMountedRef.current = true;
-    
-    if (!userAuth.isAuthenticated || !userAuth.user) {
-      console.log('⚠️ User not authenticated, skipping data fetch');
-      setLoading(false);
-      setLoadingShops(false);
-      return;
-    }
 
-    console.log('🚀 Dashboard: Starting data fetch for user:', userAuth.user.name);
-    
-    const initializeData = async () => {
+    console.log('🚀 Dashboard: Starting public data fetch');
+
+    const initializePublicData = async () => {
       try {
         await Promise.all([
           fetchProducts(),
           fetchTrendingProducts(),
-          fetchOrders(),
           fetchPromoBannersData()
         ]);
-        
         await fetchNearbyShops();
       } catch (error) {
-        console.error('❌ Error initializing dashboard data:', error);
+        console.error('❌ Error initializing public dashboard data:', error);
       }
     };
 
-    initializeData();
+    initializePublicData();
 
-    // 🎯 CRITICAL FIX: Enhanced location check with change detection
+    return () => {
+      isMountedRef.current = false;
+      fetchingRef.current = false;
+    };
+  }, []);
+
+  // Auth-dependent data fetching — only runs when authenticated
+  useEffect(() => {
+    if (!userAuth.isAuthenticated || !userAuth.user) return;
+
+    console.log('🚀 Dashboard: Fetching auth data for user:', userAuth.user.name);
+
+    const initializeAuthData = async () => {
+      try {
+        await fetchOrders();
+      } catch (error) {
+        console.error('❌ Error initializing auth dashboard data:', error);
+      }
+    };
+
+    initializeAuthData();
+
+    // Location check and update (requires auth for backend write)
     const checkAndUpdateLocation = async () => {
       if (!userAuth.user.location || !userAuth.user.location.coordinates) {
         console.log('📍 No user location found, attempting auto-detection...');
@@ -504,7 +516,6 @@ const Dashboard = () => {
         return;
       }
 
-      // Check if location has changed significantly (>1km)
       try {
         const currentLocation = await getCurrentLocation();
         if (currentLocation && currentLocation.coordinates) {
@@ -512,8 +523,8 @@ const Dashboard = () => {
             userAuth.user.location.coordinates,
             currentLocation.coordinates
           );
-          
-          if (distance > 1) { // More than 1km difference
+
+          if (distance > 1) {
             console.log(`📍 Location changed by ${distance.toFixed(2)}km, updating...`);
             requestLocationUpdate();
           } else {
@@ -526,11 +537,6 @@ const Dashboard = () => {
     };
 
     checkAndUpdateLocation();
-
-    return () => {
-      isMountedRef.current = false;
-      fetchingRef.current = false;
-    };
   }, [userAuth.isAuthenticated, userAuth.user?._id]);
 
   // 🎯 Auto-slide featured products slider every 2 seconds
@@ -654,32 +660,6 @@ const handleReturnFromTracker = (order) => {
   setShowReturnModal(true);
 };
 
-  if (!userAuth.isAuthenticated) {
-    return (
-      <UserLayout>
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-          <div className="max-w-md w-full">
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 text-center">
-              <div className="w-16 h-16 mx-auto mb-6 bg-blue-50 rounded-2xl flex items-center justify-center">
-                <svg className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-3">Welcome Back</h2>
-              <p className="text-gray-600 mb-8">Please sign in to access your dashboard</p>
-              <Link 
-                to="/user/login" 
-                className="inline-flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors duration-200"
-              >
-                Sign In
-              </Link>
-            </div>
-          </div>
-        </div>
-      </UserLayout>
-    );
-  }
-
   return (
     <UserLayout>
       <div
@@ -766,41 +746,6 @@ const handleReturnFromTracker = (order) => {
             box-shadow: 0 12px 40px rgba(0,0,0,0.1);
           }
         `}</style>
-        {/* Decorative shoe vector — peeks from right */}
-        <img
-          src="/images/shoe-vector.png"
-          alt=""
-          aria-hidden="true"
-          className="pointer-events-none select-none hidden lg:block"
-          style={{
-            position: 'fixed',
-            right: '-80px',
-            top: '18%',
-            width: '320px',
-            opacity: 0.08,
-            transform: 'rotate(-18deg)',
-            zIndex: 0,
-            filter: 'grayscale(0.3)',
-          }}
-        />
-        {/* Decorative shoe vector — peeks from left lower */}
-        <img
-          src="/images/shoe-vector.png"
-          alt=""
-          aria-hidden="true"
-          className="pointer-events-none select-none hidden lg:block"
-          style={{
-            position: 'fixed',
-            left: '-100px',
-            bottom: '12%',
-            width: '280px',
-            opacity: 0.06,
-            transform: 'rotate(25deg) scaleX(-1)',
-            zIndex: 0,
-            filter: 'grayscale(0.3)',
-          }}
-        />
-
         <UserHeader />
 
         {/* Circular Category Selector */}
@@ -838,7 +783,23 @@ const handleReturnFromTracker = (order) => {
             </div>
           )}
 
-          <DecorativeDivider variant="wave" className="my-2" />
+          {/* ═══ Saree Sweep Divider — Women Fashion ═══ */}
+          <div className="relative my-6 h-28 sm:h-36 overflow-hidden rounded-2xl">
+            <img
+              src="/images/saree-spread.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-auto object-cover pointer-events-none select-none"
+              style={{ minWidth: '100%', opacity: 0.15 }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-white via-transparent to-white" />
+            <div className="relative z-10 flex items-center justify-center h-full">
+              <div className="text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-rose-400 mb-1">Ethnic Elegance</p>
+                <h3 className="text-lg sm:text-xl font-light text-gray-800 tracking-tight">Drape Your Story</h3>
+              </div>
+            </div>
+          </div>
 
           {/* Level 2 Banners — Gallery Wall */}
           <section className="mb-8 gallery-wall">
@@ -866,7 +827,26 @@ const handleReturnFromTracker = (order) => {
             </div>
           </section>
 
-          <DecorativeDivider variant="herringbone" className="my-2" />
+          {/* ═══ Streetwear Vector Banner ═══ */}
+          <div className="relative my-6 rounded-2xl overflow-hidden bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900" style={{ minHeight: '180px' }}>
+            <img
+              src="/images/sporty-runner.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute right-4 sm:right-12 bottom-0 h-[200px] sm:h-[220px] object-contain pointer-events-none select-none drop-shadow-2xl"
+              style={{ zIndex: 2 }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-gray-900/90 via-gray-900/60 to-transparent" style={{ zIndex: 1 }} />
+            <div className="relative z-10 flex flex-col justify-center h-full p-6 sm:p-10 max-w-[60%]" style={{ minHeight: '180px' }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-400 mb-2">Trending Now</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-white leading-tight mb-2">Streetwear<br/>Collection</h3>
+              <p className="text-gray-400 text-xs sm:text-sm mb-4 max-w-xs">Bold styles for the urban explorer. Limited drops weekly.</p>
+              <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-2 bg-white text-black text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-full w-fit hover:bg-gray-100 transition-colors">
+                Shop Men
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </Link>
+            </div>
+          </div>
 
           {/* Trending Products Carousel — Gallery Exhibit */}
           <div className="mb-8 gallery-exhibit -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-6 rounded-2xl">
@@ -963,7 +943,26 @@ const handleReturnFromTracker = (order) => {
             </div>
           </div>
 
-          <DecorativeDivider variant="diamond" className="my-2" />
+          {/* ═══ Fashion Hat Lady — Women's Editorial ═══ */}
+          <div className="relative my-6 rounded-2xl overflow-hidden bg-gradient-to-l from-rose-50 via-white to-pink-50 border border-rose-100/50" style={{ minHeight: '200px' }}>
+            <img
+              src="/images/fashion-hat-lady.jpg"
+              alt=""
+              aria-hidden="true"
+              className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 h-[180px] sm:h-[220px] object-contain pointer-events-none select-none"
+              style={{ zIndex: 2, filter: 'contrast(1.1)' }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-l from-white/90 via-white/40 to-transparent" style={{ zIndex: 1 }} />
+            <div className="relative z-10 flex flex-col justify-center items-end h-full p-6 sm:p-10 text-right" style={{ minHeight: '200px' }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-rose-500 mb-2">Women's Edit</p>
+              <h3 className="text-xl sm:text-2xl font-light text-gray-900 leading-tight mb-2">Fashion<br/><span className="font-bold italic">Style</span></h3>
+              <p className="text-gray-500 text-xs sm:text-sm mb-4 max-w-xs">Curated pieces that define elegance. New arrivals every week.</p>
+              <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-2 bg-black text-white text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-full hover:bg-gray-800 transition-colors">
+                Shop Women
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </Link>
+            </div>
+          </div>
 
           {/* Discover Brands — Gallery Exhibition */}
           <div className="mb-8 gallery-spotlight">
@@ -972,7 +971,26 @@ const handleReturnFromTracker = (order) => {
             </div>
           </div>
 
-          <FashionQuoteStrip className="my-2" />
+          {/* ═══ Red Saree Flame — Ethnic Wear Promo ═══ */}
+          <div className="relative my-6 rounded-2xl overflow-hidden" style={{ minHeight: '160px', background: 'linear-gradient(135deg, #1a0a0a 0%, #2d0a0a 40%, #1a0a0a 100%)' }}>
+            <img
+              src="/images/red-saree-flame.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute right-0 top-1/2 -translate-y-1/2 h-[200px] sm:h-[240px] object-contain pointer-events-none select-none"
+              style={{ zIndex: 2, opacity: 0.9 }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" style={{ zIndex: 1 }} />
+            <div className="relative z-10 flex flex-col justify-center h-full p-6 sm:p-10 max-w-[55%]" style={{ minHeight: '160px' }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-red-400 mb-2">Festive Collection</p>
+              <h3 className="text-lg sm:text-xl font-bold text-white leading-tight mb-1">Ethnic Wear</h3>
+              <p className="text-red-200/60 text-xs mb-4">Sarees, Lehengas & Traditional wear at upto 60% off</p>
+              <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-2 bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider px-4 py-2 rounded-full w-fit hover:bg-red-700 transition-colors">
+                Explore
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </Link>
+            </div>
+          </div>
 
           {/* Nearby Shops — Gallery Wing */}
           <div className="mb-8 gallery-exhibit -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-6 rounded-3xl">
@@ -1112,7 +1130,89 @@ const handleReturnFromTracker = (order) => {
             )}
           </div>
 
-          <DecorativeDivider variant="dotgrid" className="my-2" />
+          {/* ═══ Cool Boy Streetwear — Split Promo ═══ */}
+          <div className="relative my-6 rounded-2xl overflow-hidden bg-gradient-to-r from-zinc-100 via-white to-zinc-50 border border-zinc-200/60" style={{ minHeight: '170px' }}>
+            <img
+              src="/images/cool-boy-vector.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute left-6 sm:left-14 bottom-0 h-[170px] sm:h-[200px] object-contain pointer-events-none select-none drop-shadow-lg"
+              style={{ zIndex: 2 }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-l from-white/95 via-white/60 to-transparent" style={{ zIndex: 1 }} />
+            <div className="relative z-10 flex flex-col justify-center items-end h-full p-6 sm:p-10 text-right" style={{ minHeight: '170px' }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500 mb-2">Men's Essentials</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight mb-2">Urban Cool</h3>
+              <p className="text-gray-500 text-xs sm:text-sm mb-4 max-w-xs">Hoodies, cargos & sneakers — your daily uniform, upgraded.</p>
+              <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-2 bg-zinc-900 text-white text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-full hover:bg-black transition-colors">
+                Shop Now
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </Link>
+            </div>
+          </div>
+
+          {/* ═══ Girl in Heels — Women's Casual ═══ */}
+          <div className="relative my-6 rounded-2xl overflow-hidden bg-gradient-to-l from-amber-50/60 via-white to-yellow-50/30 border border-amber-100/40" style={{ minHeight: '160px' }}>
+            <img
+              src="/images/girl-heels-fashion.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute right-6 sm:right-14 bottom-0 h-[150px] sm:h-[180px] object-contain pointer-events-none select-none drop-shadow-lg"
+              style={{ zIndex: 2 }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-white/90 via-white/50 to-transparent" style={{ zIndex: 1 }} />
+            <div className="relative z-10 flex flex-col justify-center h-full p-6 sm:p-10 max-w-[55%]" style={{ minHeight: '160px' }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-600 mb-2">Summer Edit</p>
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 leading-tight mb-2">Casuals &<br/>Footwear</h3>
+              <p className="text-gray-500 text-xs mb-3">Step out in style — heels, flats & trending silhouettes.</p>
+              <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-2 bg-amber-600 text-white text-[10px] font-bold uppercase tracking-wider px-4 py-2 rounded-full w-fit hover:bg-amber-700 transition-colors">
+                Shop Casuals
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </Link>
+            </div>
+          </div>
+
+          {/* ═══ Office Wear — Professional Look ═══ */}
+          <div className="relative my-6 rounded-2xl overflow-hidden bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800" style={{ minHeight: '170px' }}>
+            <img
+              src="/images/office-wear.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute right-2 sm:right-8 top-1/2 -translate-y-1/2 h-[170px] sm:h-[200px] object-contain pointer-events-none select-none drop-shadow-2xl"
+              style={{ zIndex: 2 }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-800/90 via-slate-800/50 to-transparent" style={{ zIndex: 1 }} />
+            <div className="relative z-10 flex flex-col justify-center h-full p-6 sm:p-10 max-w-[55%]" style={{ minHeight: '170px' }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-blue-300 mb-2">Workwear</p>
+              <h3 className="text-lg sm:text-xl font-bold text-white leading-tight mb-2">Office Ready</h3>
+              <p className="text-slate-400 text-xs mb-4">Formal shirts, blazers & polished looks for the 9-to-5.</p>
+              <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-2 bg-white text-slate-900 text-[10px] font-bold uppercase tracking-wider px-4 py-2 rounded-full w-fit hover:bg-gray-100 transition-colors">
+                Explore
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </Link>
+            </div>
+          </div>
+
+          {/* ═══ Shoe Vector — Sneaker Drop ═══ */}
+          <div className="relative my-6 rounded-2xl overflow-hidden bg-gradient-to-l from-gray-100 via-white to-gray-50 border border-gray-200/60" style={{ minHeight: '160px' }}>
+            <img
+              src="/images/shoe-vector.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 w-[160px] sm:w-[220px] object-contain pointer-events-none select-none"
+              style={{ zIndex: 2, transform: 'translateY(-50%) rotate(-12deg)' }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-l from-white/95 via-white/70 to-transparent" style={{ zIndex: 1 }} />
+            <div className="relative z-10 flex flex-col justify-center items-end h-full p-6 sm:p-10 text-right" style={{ minHeight: '160px' }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-red-500 mb-2">Just Dropped</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight mb-2">Sneaker<br/>Culture</h3>
+              <p className="text-gray-500 text-xs sm:text-sm mb-4 max-w-xs">Latest kicks from top brands. Limited stock.</p>
+              <Link to="/user/products?search=shoes" className="inline-flex items-center gap-2 bg-red-600 text-white text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-full hover:bg-red-700 transition-colors">
+                Shop Sneakers
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </Link>
+            </div>
+          </div>
 
           {/* Featured Products */}
           <div className="mb-12 bg-gradient-to-br from-slate-50/30 via-transparent to-blue-50/20 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-2 rounded-2xl">
@@ -1153,8 +1253,251 @@ const handleReturnFromTracker = (order) => {
             )}
           </div>
 
-          {/* Order Tracker Section */}
-          {showOrderTracker && (
+          {/* ═══════════════════════════════════════════════════════ */}
+          {/* ═══ EXTENDED IMMERSIVE LIFESTYLE SECTIONS ═══ */}
+          {/* ═══════════════════════════════════════════════════════ */}
+
+          {/* ═══ Fashion Tip Cards — 3 Column Grid ═══ */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-400 mb-1">Style Guide</p>
+                <h2 className="text-2xl font-bold text-gray-900">Fashion Tips</h2>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                { title: 'Layer Like a Pro', desc: 'Master the art of layering — tees under overshirts, jackets over hoodies. Mix textures for depth.', tag: 'Men', color: 'bg-zinc-900', tagBg: 'bg-zinc-100 text-zinc-700' },
+                { title: 'The Power of Accessories', desc: 'A single statement earring or scarf transforms any outfit from basic to editorial.', tag: 'Women', color: 'bg-rose-600', tagBg: 'bg-rose-50 text-rose-600' },
+                { title: 'Sneakers with Everything', desc: 'White sneakers are the universal pairing — kurtas, dresses, formals. Own at least one clean pair.', tag: 'Unisex', color: 'bg-blue-600', tagBg: 'bg-blue-50 text-blue-600' },
+              ].map((tip, i) => (
+                <div key={i} className="bg-white rounded-2xl p-5 border border-gray-100 hover:shadow-lg transition-shadow duration-300">
+                  <span className={`inline-block text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full mb-3 ${tip.tagBg}`}>{tip.tag}</span>
+                  <h4 className="font-bold text-gray-900 text-base mb-2">{tip.title}</h4>
+                  <p className="text-gray-500 text-xs leading-relaxed">{tip.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ═══ Sporty Runner — Full Width CTA ═══ */}
+          <div className="relative mb-8 rounded-2xl overflow-hidden" style={{ minHeight: '200px', background: 'linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%)' }}>
+            <img
+              src="/images/sporty-runner.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute left-4 sm:left-10 bottom-0 h-[200px] sm:h-[240px] object-contain pointer-events-none select-none drop-shadow-2xl"
+              style={{ zIndex: 2 }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-l from-emerald-900/80 via-emerald-800/40 to-transparent" style={{ zIndex: 1 }} />
+            <div className="relative z-10 flex flex-col justify-center items-end h-full p-6 sm:p-10 text-right" style={{ minHeight: '200px' }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-emerald-300 mb-2">Activewear</p>
+              <h3 className="text-2xl sm:text-3xl font-bold text-white leading-tight mb-2">Move. Train.<br/>Repeat.</h3>
+              <p className="text-emerald-200/60 text-sm mb-4 max-w-xs">Performance wear that looks as good as it feels. Gym to street ready.</p>
+              <Link to="/user/products?search=sports" className="inline-flex items-center gap-2 bg-white text-emerald-900 text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-full hover:bg-emerald-50 transition-colors">
+                Shop Activewear
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </Link>
+            </div>
+          </div>
+
+          {/* ═══ Deal of the Day — Countdown Style ═══ */}
+          <div className="mb-8 bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900 rounded-2xl p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-yellow-400 mb-1">Deal of the Day</p>
+                <h3 className="text-xl sm:text-2xl font-bold text-white mb-1">Flat 50% Off on Premium Brands</h3>
+                <p className="text-zinc-400 text-sm">Limited time. While stocks last.</p>
+              </div>
+              <div className="flex gap-3">
+                {['12', '04', '36'].map((val, i) => (
+                  <div key={i} className="text-center">
+                    <div className="bg-white/10 backdrop-blur-sm rounded-xl w-14 h-14 flex items-center justify-center">
+                      <span className="text-xl font-bold text-white font-mono">{val}</span>
+                    </div>
+                    <span className="text-[9px] text-zinc-500 mt-1 block">{['Hrs', 'Min', 'Sec'][i]}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mt-5 flex gap-3">
+              <Link to="/user/products" className="inline-flex items-center gap-2 bg-yellow-400 text-black text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-full hover:bg-yellow-300 transition-colors">
+                Grab Now
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </Link>
+            </div>
+          </div>
+
+          {/* ═══ Season Lookbook — 2-Column Split ═══ */}
+          <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-indigo-900 to-indigo-800 p-6 flex flex-col justify-end" style={{ minHeight: '240px' }}>
+              <img
+                src="/images/fashion-boy-streetwear.png"
+                alt=""
+                aria-hidden="true"
+                className="absolute right-0 bottom-0 h-[220px] object-contain pointer-events-none select-none drop-shadow-2xl"
+                style={{ zIndex: 1 }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-indigo-900/90 via-indigo-900/40 to-transparent" style={{ zIndex: 2 }} />
+              <div className="relative z-10">
+                <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-indigo-300 mb-1">Spring '26</p>
+                <h4 className="text-lg font-bold text-white mb-2">Men's Lookbook</h4>
+                <Link to="/user/browse/Men%20Fashion" className="inline-flex items-center gap-1.5 text-white text-[11px] font-semibold uppercase tracking-wider hover:text-indigo-200 transition-colors">
+                  View Collection
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                </Link>
+              </div>
+            </div>
+            <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-rose-900 to-pink-800 p-6 flex flex-col justify-end" style={{ minHeight: '240px' }}>
+              <img
+                src="/images/fashion-hat-lady.jpg"
+                alt=""
+                aria-hidden="true"
+                className="absolute right-2 bottom-0 h-[200px] object-contain pointer-events-none select-none"
+                style={{ zIndex: 1, filter: 'brightness(1.1) contrast(1.1)' }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-rose-900/90 via-rose-900/30 to-transparent" style={{ zIndex: 2 }} />
+              <div className="relative z-10">
+                <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-rose-300 mb-1">Spring '26</p>
+                <h4 className="text-lg font-bold text-white mb-2">Women's Lookbook</h4>
+                <Link to="/user/browse/Women%20Fashion" className="inline-flex items-center gap-1.5 text-white text-[11px] font-semibold uppercase tracking-wider hover:text-rose-200 transition-colors">
+                  View Collection
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* ═══ Trending Hashtags / Style Tags ═══ */}
+          <div className="mb-8">
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-400 mb-3">Trending Tags</p>
+            <div className="flex flex-wrap gap-2">
+              {['#StreetStyle', '#EthnicVibes', '#SneakerHead', '#OfficeLook', '#FestiveWear', '#MinimalFashion', '#Y2KFashion', '#DenimLove', '#SareeNotSorry', '#AthleisureLife', '#VintageFinds', '#BoldPrints', '#MonochromeMood', '#BohoChic', '#PowerDressing', '#CasualFriday', '#IndianWear', '#KidsFashion', '#SummerReady', '#WinterLayers'].map((tag) => (
+                <Link
+                  key={tag}
+                  to={`/user/products?search=${tag.replace('#', '')}`}
+                  className="px-3.5 py-1.5 bg-white rounded-full text-xs font-medium text-gray-700 border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all duration-200"
+                >
+                  {tag}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* ═══ Why Zammer — Trust Grid ═══ */}
+          <div className="mb-8">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { icon: '🚚', title: 'Free Delivery', desc: 'On orders above ₹500' },
+                { icon: '🔄', title: 'Easy Returns', desc: '7-day hassle-free returns' },
+                { icon: '✅', title: '100% Genuine', desc: 'Verified sellers only' },
+                { icon: '🔒', title: 'Secure Pay', desc: 'SSL encrypted checkout' },
+                { icon: '📍', title: 'Local First', desc: 'Support nearby shops' },
+                { icon: '⚡', title: 'Quick Ship', desc: 'Same-day for local orders' },
+                { icon: '💎', title: 'Premium Quality', desc: 'Curated collections only' },
+                { icon: '🎁', title: 'Gift Wrapping', desc: 'Available on select items' },
+              ].map((item, i) => (
+                <div key={i} className="bg-white rounded-xl p-4 text-center border border-gray-100 hover:shadow-md transition-shadow">
+                  <span className="text-2xl mb-2 block">{item.icon}</span>
+                  <h4 className="font-bold text-gray-900 text-sm mb-0.5">{item.title}</h4>
+                  <p className="text-gray-400 text-[10px]">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ═══ Saree Spread — Full Width Ethnic Banner ═══ */}
+          <div className="relative mb-8 rounded-2xl overflow-hidden" style={{ minHeight: '140px', background: 'linear-gradient(90deg, #fef2f2 0%, #fff1f2 50%, #fef2f2 100%)' }}>
+            <img
+              src="/images/saree-spread.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute left-0 top-0 w-full h-full object-cover pointer-events-none select-none"
+              style={{ opacity: 0.12 }}
+            />
+            <div className="relative z-10 flex items-center justify-between h-full p-6 sm:p-8" style={{ minHeight: '140px' }}>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-rose-500 mb-1">Traditional</p>
+                <h3 className="text-xl font-bold text-gray-900 mb-1">Saree Collection</h3>
+                <p className="text-gray-500 text-xs max-w-xs">Hand-woven, designer & daily wear sarees from across India.</p>
+              </div>
+              <Link to="/user/products?search=saree" className="inline-flex items-center gap-2 bg-rose-600 text-white text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-full hover:bg-rose-700 transition-colors whitespace-nowrap">
+                Shop Sarees
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </Link>
+            </div>
+          </div>
+
+          {/* ═══ Quick Category Pills — Browse More ═══ */}
+          <div className="mb-8">
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-400 mb-3">Quick Browse</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'T-Shirts', route: '/user/products?search=tshirt', emoji: '👕' },
+                { label: 'Jeans', route: '/user/products?search=jeans', emoji: '👖' },
+                { label: 'Dresses', route: '/user/products?search=dress', emoji: '👗' },
+                { label: 'Kurtas', route: '/user/products?search=kurta', emoji: '🪷' },
+                { label: 'Jackets', route: '/user/products?search=jacket', emoji: '🧥' },
+                { label: 'Watches', route: '/user/products?search=watch', emoji: '⌚' },
+                { label: 'Bags', route: '/user/products?search=bag', emoji: '👜' },
+                { label: 'Sunglasses', route: '/user/products?search=sunglasses', emoji: '🕶️' },
+              ].map((cat) => (
+                <Link
+                  key={cat.label}
+                  to={cat.route}
+                  className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-gray-100 hover:border-gray-300 hover:shadow-sm transition-all"
+                >
+                  <span className="text-xl">{cat.emoji}</span>
+                  <span className="font-semibold text-sm text-gray-800">{cat.label}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* ═══ Kids Fashion — Playful Vector ═══ */}
+          <div className="relative mb-8 rounded-2xl overflow-hidden bg-gradient-to-r from-purple-50 via-pink-50 to-sky-50 border border-purple-100/40" style={{ minHeight: '160px' }}>
+            <div className="absolute right-4 sm:right-10 top-1/2 -translate-y-1/2 w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-purple-200 to-pink-200 rounded-full flex items-center justify-center pointer-events-none" style={{ zIndex: 1 }}>
+              <span className="text-4xl sm:text-5xl">👶</span>
+            </div>
+            <div className="relative z-10 flex flex-col justify-center h-full p-6 sm:p-10 max-w-[60%]" style={{ minHeight: '160px' }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-purple-500 mb-2">Little Ones</p>
+              <h3 className="text-xl font-bold text-gray-900 leading-tight mb-2">Kids Collection</h3>
+              <p className="text-gray-500 text-xs mb-4">Adorable outfits for boys & girls. Comfort meets cute.</p>
+              <Link to="/user/browse/Kids%20Fashion" className="inline-flex items-center gap-2 bg-purple-600 text-white text-[10px] font-bold uppercase tracking-wider px-4 py-2 rounded-full w-fit hover:bg-purple-700 transition-colors">
+                Shop Kids
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </Link>
+            </div>
+          </div>
+
+          {/* ═══ Fashion Quote — Editorial Strip ═══ */}
+          <div className="mb-8 text-center py-10 px-6 rounded-2xl bg-gradient-to-r from-gray-50 via-white to-gray-50 border border-gray-100">
+            <p className="text-gray-300 text-[10px] uppercase tracking-[0.4em] mb-3">— Words to Wear By —</p>
+            <blockquote className="text-xl sm:text-2xl font-light text-gray-800 italic leading-relaxed max-w-2xl mx-auto">
+              "Fashion is the armor to survive the reality of everyday life."
+            </blockquote>
+            <p className="text-gray-400 text-xs mt-3 font-medium">— Bill Cunningham</p>
+          </div>
+
+          {/* ═══ Newsletter / App Download CTA ═══ */}
+          <div className="mb-12 bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900 rounded-2xl p-6 sm:p-10 text-center">
+            <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">Stay in Style</h3>
+            <p className="text-zinc-400 text-sm mb-6 max-w-md mx-auto">Get early access to drops, exclusive discounts & style tips delivered to your inbox.</p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center max-w-md mx-auto">
+              <input
+                type="email"
+                placeholder="your@email.com"
+                className="w-full sm:flex-1 px-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder-zinc-500 text-sm focus:outline-none focus:border-white/40"
+                readOnly
+              />
+              <button className="px-6 py-3 bg-white text-black text-xs font-bold uppercase tracking-wider rounded-full hover:bg-gray-100 transition-colors whitespace-nowrap">
+                Subscribe
+              </button>
+            </div>
+          </div>
+
+          {/* Order Tracker Section — auth only */}
+          {userAuth.isAuthenticated && showOrderTracker && (
             <div className="mb-12">
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="flex justify-between items-center p-6 bg-gray-50 border-b border-gray-200">
@@ -1186,21 +1529,23 @@ const handleReturnFromTracker = (order) => {
           )}
         </div>
       </div>
-      <ReturnRequestModal
-        isOpen={showReturnModal}
-        order={returnModalOrder}
-        onClose={() => {
-          setShowReturnModal(false);
-          setReturnModalOrder(null);
-        }}
-        onReturnRequested={() => {
-          toast.success('Return request submitted successfully!');
-          setShowReturnModal(false);
-          setReturnModalOrder(null);
-          fetchOrders();
-        }}
-        socket={socketService.socket}
-      />
+      {userAuth.isAuthenticated && (
+        <ReturnRequestModal
+          isOpen={showReturnModal}
+          order={returnModalOrder}
+          onClose={() => {
+            setShowReturnModal(false);
+            setReturnModalOrder(null);
+          }}
+          onReturnRequested={() => {
+            toast.success('Return request submitted successfully!');
+            setShowReturnModal(false);
+            setReturnModalOrder(null);
+            fetchOrders();
+          }}
+          socket={socketService.socket}
+        />
+      )}
     </UserLayout>
   );
 };
