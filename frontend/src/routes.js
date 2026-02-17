@@ -1,6 +1,6 @@
 // Route constants for navigation and policy pages
 export const ROUTES = {
-  LANDING: '/',
+  LANDING: '/landing',
   SELLER_REGISTER: '/seller/register',
   SELLER_LOGIN: '/seller/login',
   USER_REGISTER: '/user/register',

@@ -124,6 +124,10 @@ import SocketTestComponent from './components/user/SocketTestComponent';
 // Landing Page Component
 import LandingPage from './components/LandingPage';
 
+// Auth Modal
+import { AuthModalProvider } from './contexts/AuthModalContext';
+import AuthModal from './components/common/AuthModal';
+
 // Policy Pages
 import ContactPolicy from './pages/policy/ContactPolicy';
 import ShippingPolicy from './pages/policy/ShippingPolicy';
@@ -146,6 +150,7 @@ function App() {
   return (
     <Router>
       <AuthProvider>
+        <AuthModalProvider>
         <ErrorBoundary onError={logRouteError}>
         <div className="App">
             <ToastContainer 
@@ -159,8 +164,12 @@ function App() {
               draggable
               pauseOnHover
             />
+          <AuthModal />
           <Routes>
-            {/* Root Landing Page */}
+            {/* Root — Dashboard (public homepage) */}
+            <Route path="/" element={<UserDashboard />} />
+
+            {/* Marketing Landing Page (moved from /) */}
             <Route path={ROUTES.LANDING} element={<LandingPage />} />
             
             {/* Admin Routes */}
@@ -370,6 +379,7 @@ function App() {
           </Routes>
         </div>
         </ErrorBoundary>
+        </AuthModalProvider>
       </AuthProvider>
     </Router>
   );

@@ -14,12 +14,6 @@ const UserLayout = ({ children }) => {
     navigate('/user/login');
   };
 
-  // If not authenticated, redirect to login
-  if (!userAuth.isAuthenticated) {
-    navigate('/user/login');
-    return null;
-  }
-
   // Helper function to determine active tab
   const isActive = (path) => {
     return location.pathname.includes(path);
@@ -36,9 +30,9 @@ const UserLayout = ({ children }) => {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-10">
         <div className="flex justify-between items-center max-w-screen-xl mx-auto">
           <Link 
-            to="/user/dashboard" 
+            to="/"
             className={`flex flex-col items-center justify-center py-2 px-4 text-xs ${
-              location.pathname === '/user/dashboard' ? 'text-orange-500' : 'text-gray-500'
+              (location.pathname === '/' || location.pathname === '/user/dashboard') ? 'text-orange-500' : 'text-gray-500'
             }`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

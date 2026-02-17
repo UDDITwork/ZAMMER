@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { addToWishlist, removeFromWishlist, checkWishlist } from '../../services/wishlistService';
 import { AuthContext } from '../../contexts/AuthContext';
+import { useAuthModal } from '../../contexts/AuthModalContext';
 import { toast } from 'react-toastify';
 
 const WishlistButton = ({ productId, className = '', size = 'md' }) => {
   const { userAuth } = useContext(AuthContext);
+  const { showAuthModal } = useAuthModal();
   const [isInWishlist, setIsInWishlist] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
@@ -34,7 +36,7 @@ const WishlistButton = ({ productId, className = '', size = 'md' }) => {
 
   const handleWishlistToggle = async () => {
     if (!userAuth.isAuthenticated) {
-      toast.error('Please login to manage your wishlist');
+      showAuthModal();
       return;
     }
 

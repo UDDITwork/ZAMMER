@@ -6,6 +6,7 @@ import { getProductById } from '../../services/productService';
 import cartService from '../../services/cartService';
 import { addToWishlist, removeFromWishlist, checkWishlist } from '../../services/wishlistService';
 import { AuthContext } from '../../contexts/AuthContext';
+import { useAuthModal } from '../../contexts/AuthModalContext';
 import {
   getProductReviews,
   createReview,
@@ -20,6 +21,7 @@ const ProductDetailPage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
   const { userAuth } = useContext(AuthContext);
+  const { showAuthModal } = useAuthModal();
   const { addProduct: addToRecentlyViewed } = useRecentlyViewed();
 
   const [product, setProduct] = useState(null);
@@ -82,30 +84,8 @@ const ProductDetailPage = () => {
     });
   }, [productId, userAuth.isAuthenticated]);
 
-  const checkAuth = () => {
-    debugLog('🔍 Checking authentication...', {
-      isAuthenticated: userAuth.isAuthenticated,
-      hasToken: !!userAuth.token,
-      hasUser: !!userAuth.user,
-      userName: userAuth.user?.name
-    });
-
-    if (!userAuth.isAuthenticated || !userAuth.token) {
-      debugLog('❌ Authentication failed - redirecting to login', {
-        reason: !userAuth.isAuthenticated ? 'Not authenticated' : 'No token',
-        redirectFrom: `/user/product/${productId}`
-      }, 'warning');
-      
-      toast.warning('Please login to continue');
-      navigate('/user/login', { state: { from: `/user/product/${productId}` } });
-      return false;
-    }
-    
-    debugLog('✅ Authentication successful', {
-      user: userAuth.user?.name,
-      userId: userAuth.user?._id
-    }, 'success');
-    return true;
+  const isAuthenticated = () => {
+    return userAuth.isAuthenticated && !!userAuth.token;
   };
 
   const fetchProductDetails = async () => {
@@ -210,13 +190,16 @@ const ProductDetailPage = () => {
       }
     });
 
-    if (!checkAuth()) return;
-    
+    if (!isAuthenticated()) {
+      showAuthModal(() => handleAddToCart());
+      return;
+    }
+
     // Validate selections for products with variants
     if (product.variants && product.variants.length > 0) {
       const hasSize = product.variants.some(v => v.size);
       const hasColor = product.variants.some(v => v.color);
-      
+
       debugLog('🎨 Validating variant selections...', {
         hasSize,
         hasColor,
@@ -224,13 +207,13 @@ const ProductDetailPage = () => {
         selectedColor,
         variants: product.variants
       });
-      
+
       if (hasSize && !selectedSize) {
         toast.warning('Please select a size');
         debugLog('❌ Size validation failed', null, 'warning');
         return;
       }
-      
+
       if (hasColor && !selectedColor) {
         toast.warning('Please select a color');
         debugLog('❌ Color validation failed', null, 'warning');
@@ -239,7 +222,7 @@ const ProductDetailPage = () => {
     }
 
     setCartLoading(true);
-    
+
     try {
       debugLog('🚀 Calling cartService.addToCart...', {
         productId,
@@ -273,7 +256,7 @@ const ProductDetailPage = () => {
         
         if (response.requiresAuth) {
           debugLog('🔑 Re-authentication required', null, 'warning');
-          checkAuth(); // This will redirect to login
+          showAuthModal(() => handleAddToCart());
         } else {
           toast.error(response.message || 'Failed to add to cart');
         }
@@ -300,18 +283,21 @@ const ProductDetailPage = () => {
       selectedColor
     });
 
-    if (!checkAuth()) return;
-    
+    if (!isAuthenticated()) {
+      showAuthModal(() => handleBuyNow());
+      return;
+    }
+
     // Validate selections for products with variants
     if (product.variants && product.variants.length > 0) {
       const hasSize = product.variants.some(v => v.size);
       const hasColor = product.variants.some(v => v.color);
-      
+
       if (hasSize && !selectedSize) {
         toast.warning('Please select a size');
         return;
       }
-      
+
       if (hasColor && !selectedColor) {
         toast.warning('Please select a color');
         return;
@@ -335,7 +321,7 @@ const ProductDetailPage = () => {
         debugLog('❌ BUY NOW FAILED', response, 'error');
         
         if (response.requiresAuth) {
-          checkAuth(); // This will redirect to login
+          showAuthModal(() => handleBuyNow());
         } else {
           toast.error(response.message || 'Failed to add to cart');
         }
@@ -350,7 +336,10 @@ const ProductDetailPage = () => {
   };
 
   const toggleWishlist = async () => {
-    if (!checkAuth()) return;
+    if (!isAuthenticated()) {
+      showAuthModal();
+      return;
+    }
     
     setWishlistLoading(true);
     try {
@@ -462,7 +451,10 @@ const ProductDetailPage = () => {
 
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
-    if (!checkAuth()) return;
+    if (!isAuthenticated()) {
+      showAuthModal();
+      return;
+    }
 
     setSubmitingReview(true);
     try {
@@ -738,7 +730,13 @@ const ProductDetailPage = () => {
                 </button>
               </div>
               <button
-                onClick={() => setShowVirtualTryOn(true)}
+                onClick={() => {
+                  if (!isAuthenticated()) {
+                    showAuthModal(() => setShowVirtualTryOn(true));
+                    return;
+                  }
+                  setShowVirtualTryOn(true);
+                }}
                 className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-3 rounded-lg font-semibold transition-all mb-6 flex items-center justify-center gap-2"
               >
                 <Sparkles className="w-4 h-4" />

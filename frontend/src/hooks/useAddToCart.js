@@ -1,28 +1,15 @@
 import { useState, useCallback, useContext } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { AuthContext } from '../contexts/AuthContext';
+import { useAuthModal } from '../contexts/AuthModalContext';
 import cartService from '../services/cartService';
 
 export const useAddToCart = () => {
   const { userAuth } = useContext(AuthContext);
-  const navigate = useNavigate();
-  const location = useLocation();
+  const { showAuthModal } = useAuthModal();
   const [addingToCart, setAddingToCart] = useState({});
 
-  const handleAddToCart = useCallback(async (productId, productName) => {
-    if (!userAuth.isAuthenticated || !userAuth.token) {
-      toast.warning('Please login to add items to cart');
-      navigate('/user/login', {
-        state: {
-          from: location.pathname + location.search,
-          action: 'add-to-cart',
-          productName,
-        },
-      });
-      return;
-    }
-
+  const addToCartInternal = useCallback(async (productId, productName) => {
     setAddingToCart((prev) => ({ ...prev, [productId]: true }));
 
     try {
@@ -31,13 +18,7 @@ export const useAddToCart = () => {
       if (response.success) {
         toast.success(`${productName} added to cart!`);
       } else if (response.requiresAuth) {
-        navigate('/user/login', {
-          state: {
-            from: location.pathname + location.search,
-            action: 'add-to-cart',
-            productName,
-          },
-        });
+        showAuthModal(() => addToCartInternal(productId, productName));
       } else {
         toast.error(response.message || 'Failed to add to cart');
       }
@@ -46,7 +27,16 @@ export const useAddToCart = () => {
     } finally {
       setAddingToCart((prev) => ({ ...prev, [productId]: false }));
     }
-  }, [userAuth, navigate, location]);
+  }, [showAuthModal]);
+
+  const handleAddToCart = useCallback(async (productId, productName) => {
+    if (!userAuth.isAuthenticated || !userAuth.token) {
+      showAuthModal(() => addToCartInternal(productId, productName));
+      return;
+    }
+
+    await addToCartInternal(productId, productName);
+  }, [userAuth, showAuthModal, addToCartInternal]);
 
   return { addingToCart, handleAddToCart };
 };

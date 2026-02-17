@@ -5,6 +5,7 @@ import UserLayout from '../../components/layouts/UserLayout';
 import UserHeader from '../../components/header/UserHeader';
 import { getMarketplaceProducts } from '../../services/productService';
 import { AuthContext } from '../../contexts/AuthContext';
+import { useAuthModal } from '../../contexts/AuthModalContext';
 import cartService from '../../services/cartService';
 import WishlistButton from '../../components/common/WishlistButton';
 import VirtualTryOnModal from '../../components/common/VirtualTryOnModal';
@@ -22,6 +23,7 @@ const terminalLog = (action, status, data = null) => {
 
 const ProductListPage = () => {
   const { userAuth } = useContext(AuthContext);
+  const { showAuthModal } = useAuthModal();
   const location = useLocation();
   const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
@@ -245,24 +247,7 @@ const ProductListPage = () => {
         redirectTo: '/user/login'
       });
       
-      console.log(`
-🔒 ===============================
-   AUTHENTICATION REQUIRED!
-===============================
-📦 Product: ${productName}
-🚪 Redirecting to: /user/login
-⚠️ Reason: User not authenticated
-🕐 Time: ${new Date().toLocaleString()}
-===============================`);
-      
-      toast.warning('Please login to add items to cart');
-      navigate('/user/login', { 
-        state: { 
-          from: location.pathname + location.search,
-          action: 'add-to-cart',
-          productName 
-        } 
-      });
+      showAuthModal(() => handleAddToCart(productId, productName));
       return;
     }
 
@@ -320,14 +305,8 @@ const ProductListPage = () => {
         });
         
         if (response.requiresAuth) {
-          console.log('🔑 Re-authentication required, redirecting...');
-          navigate('/user/login', { 
-            state: { 
-              from: location.pathname + location.search,
-              action: 'add-to-cart',
-              productName 
-            } 
-          });
+          console.log('🔑 Re-authentication required...');
+          showAuthModal(() => handleAddToCart(productId, productName));
         } else {
           toast.error(response.message || 'Failed to add to cart');
         }
