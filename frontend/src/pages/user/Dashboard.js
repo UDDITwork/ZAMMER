@@ -760,18 +760,11 @@ const handleReturnFromTracker = (order) => {
         <UserHeader />
 
         {/* Circular Category Selector */}
-        <div className="relative bg-white border-b border-gray-200 overflow-hidden" style={{ borderTop: '1px solid #F0F0F0', borderBottom: '1px solid #F0F0F0' }}>
-          {/* Category circles */}
-          <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-center">
-              <div className="relative" style={{ filter: 'drop-shadow(0 0 20px rgba(255,255,255,0.9)) drop-shadow(0 0 40px rgba(255,255,255,0.7))' }}>
-                <CircularCategorySelector
-                  selectedCategory={selectedLevel1}
-                  onSelectCategory={setSelectedLevel1}
-                />
-              </div>
-            </div>
-          </div>
+        <div className="relative overflow-hidden border-b border-gray-200" style={{ borderTop: '1px solid #F0F0F0' }}>
+          <CircularCategorySelector
+            selectedCategory={selectedLevel1}
+            onSelectCategory={setSelectedLevel1}
+          />
         </div>
 
         {/* Main Content */}
