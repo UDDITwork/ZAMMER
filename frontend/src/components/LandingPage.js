@@ -813,268 +813,185 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Modern Footer Design */}
-      <footer className="bg-gradient-to-br from-slate-900 via-slate-800 to-orange-900 text-white relative overflow-hidden">
-        {/* Professional Stamp Background */}
-        <div className="absolute top-20 left-20 opacity-5">
-          <motion.div 
-            className="bg-gradient-to-r from-orange-500/20 to-orange-600/20 rounded-full p-12 transform -rotate-12"
-            initial={{ scale: 0, rotate: 0 }}
-            animate={{ scale: 1, rotate: -12 }}
-            transition={{ delay: 2, duration: 2 }}
-          >
-            <h1 
-              className="text-8xl font-black text-white"
-              style={{ 
-                fontFamily: 'Poppins, sans-serif',
-                fontWeight: '900',
-                letterSpacing: '0.2em',
-                textTransform: 'uppercase',
-                textShadow: '0 4px 12px rgba(0,0,0,0.5)'
-              }}
-            >
-              {/* ZAMMER with luxury gradient branding */}
-              <span className="bg-gradient-to-r from-white via-orange-100 to-orange-200 bg-clip-text text-transparent">
-                ZAMMER
-              </span>
-            </h1>
-          </motion.div>
-        </div>
-        
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-5">
-          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-orange-400/10 to-transparent"></div>
-          <div className="absolute bottom-0 right-0 w-96 h-96 bg-orange-500/5 rounded-full blur-3xl"></div>
-        </div>
-        
-        {/* Main Footer Content */}
-        <div className="relative z-10 max-w-7xl mx-auto px-6 py-16">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
-            
-            {/* Brand Section */}
-            <div className="lg:col-span-2 space-y-6">
-              <div className="flex items-center space-x-4">
-                <motion.div
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden"
-                  whileHover={{ scale: 1.05, rotate: 3 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <img
-                    src="/images/zammer-official-logo.png"
-                    alt="ZAMMER"
-                    className="w-full h-full object-contain"
-                  />
-                </motion.div>
-                <div>
-                  <h3 className="text-3xl font-black text-white flex items-center space-x-1">
-                    {/* ZAMMER with luxury gradient branding */}
-                    <span className="bg-gradient-to-r from-white via-orange-100 to-orange-200 bg-clip-text text-transparent font-[Poppins] drop-shadow-2xl uppercase tracking-wider">
-                      ZAMMER
-                    </span>
-                  </h3>
-                  <p className="text-orange-300 text-sm font-medium">Fashion Revolution</p>
-                </div>
-              </div>
-              <p className="text-gray-300 text-sm leading-relaxed max-w-md">
-                Revolutionizing fashion retail with AI-powered insights, virtual try-ons, and seamless local shopping experiences. 
-                Connecting buyers with nearby sellers for the ultimate fashion discovery.
-              </p>
-              <div className="flex space-x-3">
-                <a href="#" className="w-10 h-10 bg-white/10 hover:bg-orange-500 rounded-lg flex items-center justify-center transition-all duration-300 group hover:scale-110 hover:rotate-3">
-                  <svg className="w-4 h-4 text-gray-300 group-hover:text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/>
-                  </svg>
-                </a>
-                <a href="#" className="w-10 h-10 bg-white/10 hover:bg-orange-500 rounded-lg flex items-center justify-center transition-all duration-300 group hover:scale-110 hover:rotate-3">
-                  <svg className="w-4 h-4 text-gray-300 group-hover:text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.174-.105-.949-.199-2.403.041-3.439.219-.937 1.406-5.957 1.406-5.957s-.359-.72-.359-1.781c0-1.663.967-2.911 2.168-2.911 1.024 0 1.518.769 1.518 1.688 0 1.029-.653 2.567-.992 3.992-.285 1.193.6 2.165 1.775 2.165 2.128 0 3.768-2.245 3.768-5.487 0-2.861-2.063-4.869-5.008-4.869-3.41 0-5.409 2.562-5.409 5.199 0 1.033.394 2.143.889 2.741.099.12.112.225.085.345-.09.375-.293 1.199-.334 1.363-.053.225-.172.271-.402.165-1.495-.69-2.433-2.878-2.433-4.646 0-3.776 2.748-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.357-.629-2.746-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24.009 12.017 24.009c6.624 0 11.99-5.367 11.99-11.988C24.007 5.367 18.641.001.012.001z"/>
-                  </svg>
-                </a>
-                <a href="#" className="w-10 h-10 bg-white/10 hover:bg-orange-500 rounded-lg flex items-center justify-center transition-all duration-300 group hover:scale-110 hover:rotate-3">
-                  <svg className="w-4 h-4 text-gray-300 group-hover:text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                  </svg>
-                </a>
-              </div>
-            </div>
-
-            {/* Quick Links */}
-            <div className="space-y-6">
-              <h4 className="text-lg font-bold text-white relative">
-                Quick Links
-                <div className="absolute -bottom-2 left-0 w-8 h-0.5 bg-gradient-to-r from-orange-400 to-orange-600 rounded-full"></div>
-              </h4>
-              <ul className="space-y-3">
-                <li>
-                  <Link to="/about" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
-                    <span className="relative z-10">About Us</span>
-                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/contact" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
-                    <span className="relative z-10">Contact Us</span>
-                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                  </Link>
-                </li>
-                <li>
-                  <Link to={ROUTES.POLICY_PRIVACY} className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
-                    <span className="relative z-10">Privacy Policy</span>
-                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                  </Link>
-                </li>
-                <li>
-                  <Link to={ROUTES.POLICY_TERMS} className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
-                    <span className="relative z-10">Terms of Service</span>
-                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                  </Link>
-                </li>
-                <li>
-                  <Link to={ROUTES.POLICY_SHIPPING} className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
-                    <span className="relative z-10">Shipping Policy</span>
-                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                  </Link>
-                </li>
-                <li>
-                  <Link to={ROUTES.POLICY_REFUND} className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
-                    <span className="relative z-10">Refund Policy</span>
-                      <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                  </Link>
-                  </li>
-              </ul>
-            </div>
-
-            {/* Features */}
-            <div className="space-y-6">
-              <h4 className="text-lg font-bold text-white relative">
-                Features
-                <div className="absolute -bottom-2 left-0 w-8 h-0.5 bg-gradient-to-r from-orange-400 to-orange-600 rounded-full"></div>
-              </h4>
-              <ul className="space-y-3">
-                <li>
-                  <a href="#virtual-tryon" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
-                    <span className="relative z-10">Virtual Try-On</span>
-                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                  </a>
-                </li>
-                <li>
-                  <a href="#ai-recommendations" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
-                    <span className="relative z-10">AI Recommendations</span>
-                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                  </a>
-                </li>
-                <li>
-                  <a href="#location-search" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
-                    <span className="relative z-10">Location-Based Search</span>
-                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                  </a>
-                </li>
-                <li>
-                  <a href="#secure-payments" className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
-                    <span className="relative z-10">Secure Payments</span>
-                      <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                    </a>
-                  </li>
-                <li>
-                  <Link to={ROUTES.POLICY_SHIPPING} className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
-                    <span className="relative z-10">Fast Delivery</span>
-                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                  </Link>
-                </li>
-                <li>
-                  <Link to={ROUTES.POLICY_CONTACT} className="text-gray-300 hover:text-orange-400 transition-all duration-300 text-sm font-medium group relative">
-                    <span className="relative z-10">Support Center</span>
-                    <div className="absolute left-0 top-1/2 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          {/* CTA Section */}
-          <div className="mt-16 pt-8 border-t border-white/10">
-            <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold text-white mb-2">Ready to Join the Revolution?</h3>
-              <p className="text-gray-300">Choose your role and start your journey with ZAMMER</p>
-            </div>
-            <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-2xl mx-auto">
-              <Link 
-                to={ROUTES.USER_LOGIN} 
-                className="group relative px-8 py-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl text-center font-bold transition-all duration-300 hover:scale-105 transform shadow-lg hover:shadow-orange-500/25"
-              >
-                <span className="relative z-10">Shop as Buyer</span>
-                <div className="absolute inset-0 bg-gradient-to-r from-orange-600 to-orange-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-              </Link>
-              <Link 
-                to={ROUTES.SELLER_LOGIN} 
-                className="group px-8 py-4 border-2 border-orange-500 hover:bg-orange-500 hover:text-white text-orange-400 rounded-xl text-center font-bold transition-all duration-300 hover:scale-105 transform"
-              >
-                Sell as Seller
-              </Link>
-              <Link 
-                to="/delivery/login" 
-                className="group px-8 py-4 border-2 border-orange-500 hover:bg-orange-500 hover:text-white text-orange-400 rounded-xl text-center font-bold transition-all duration-300 hover:scale-105 transform"
-              >
-                Deliver as Agent
-              </Link>
-            </div>
-          </div>
-
-          {/* Stats Section */}
-          <div className="mt-16 pt-8 border-t border-white/10">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+      {/* ═══════ Trust Badges Strip ═══════ */}
+      <div className="bg-white border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-5">
+          <div className="flex flex-wrap items-center justify-between gap-y-4">
+            {/* Badges */}
+            <div className="flex flex-wrap items-center justify-center gap-8 sm:gap-12 flex-1">
               {[
-                { number: '5K+', label: 'Happy Customers' },
-                { number: '1K+', label: 'Active Sellers' },
-                { number: '10K+', label: 'Products Listed' },
-                { number: '5+', label: 'Cities Covered' }
-              ].map((stat, index) => (
-                <div key={index} className="group">
-                  <div className="text-3xl md:text-4xl font-black text-orange-400 group-hover:text-orange-300 transition-colors duration-300">
-                    {stat.number}
-                  </div>
-                  <div className="text-gray-300 text-sm font-medium mt-1">{stat.label}</div>
+                { icon: (
+                  <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>
+                ), label: 'Secure Payments' },
+                { icon: (
+                  <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" /></svg>
+                ), label: 'Genuine Products' },
+                { icon: (
+                  <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+                ), label: 'Try & Buy' },
+                { icon: (
+                  <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M21.015 4.356v4.992" /></svg>
+                ), label: '7 Day Return' }
+              ].map((badge, i) => (
+                <div key={i} className="flex flex-col items-center text-center gap-1.5">
+                  <span className="text-gray-700">{badge.icon}</span>
+                  <span className="text-xs font-semibold text-gray-600 tracking-wide">{badge.label}</span>
                 </div>
               ))}
             </div>
+
+            {/* Social + tagline */}
+            <div className="flex items-center gap-4 mx-auto sm:mx-0">
+              <a href="#" aria-label="Instagram" className="text-gray-600 hover:text-orange-500 transition-colors">
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+              </a>
+              <a href="#" aria-label="Facebook" className="text-gray-600 hover:text-orange-500 transition-colors">
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+              </a>
+              <span className="text-sm text-gray-500 font-medium hidden sm:block">Show us some <span className="text-red-500">&#10084;</span> on social media</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══════ Main Footer ═══════ */}
+      <footer className="bg-[#1a1a1a] text-gray-300">
+
+        {/* Footer Columns */}
+        <div className="max-w-7xl mx-auto px-6 py-14">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-8 gap-y-10">
+
+            {/* Brand Column */}
+            <div className="col-span-2 sm:col-span-3 lg:col-span-2 space-y-5">
+              <div className="flex items-center gap-3">
+                <img src="/images/zammer-official-logo.png" alt="ZAMMER" className="w-12 h-12 rounded-xl object-contain" />
+                <span className="text-2xl font-black text-white tracking-wider uppercase" style={{ fontFamily: 'Poppins, sans-serif' }}>ZAMMER</span>
+              </div>
+              <p className="text-sm leading-relaxed text-gray-400 max-w-xs">
+                Experience the ZAMMER app on your mobile. Shop from nearby sellers, try virtually, and get delivered fast.
+              </p>
+
+              {/* App Store Badges */}
+              <div className="flex items-center gap-3">
+                <a href="#" className="flex items-center gap-2 border border-gray-600 rounded-lg px-3.5 py-2 hover:border-gray-400 transition-colors">
+                  <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-1.707l2.108 1.22a1 1 0 010 1.56l-2.108 1.22-2.537-2.5 2.537-2.5zM5.864 2.658L16.8 8.99l-2.302 2.302-8.634-8.634z"/></svg>
+                  <div className="text-left">
+                    <div className="text-[9px] text-gray-400 uppercase leading-none">Get it on</div>
+                    <div className="text-xs font-semibold text-white leading-tight">Google Play</div>
+                  </div>
+                </a>
+                <a href="#" className="flex items-center gap-2 border border-gray-600 rounded-lg px-3.5 py-2 hover:border-gray-400 transition-colors">
+                  <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+                  <div className="text-left">
+                    <div className="text-[9px] text-gray-400 uppercase leading-none">Download on the</div>
+                    <div className="text-xs font-semibold text-white leading-tight">App Store</div>
+                  </div>
+                </a>
+              </div>
+
+              {/* Newsletter */}
+              <div className="pt-2">
+                <p className="text-sm font-semibold text-white mb-2.5">Subscribe To Our Newsletter</p>
+                <div className="flex">
+                  <input
+                    type="email"
+                    placeholder="Enter your email"
+                    className="flex-1 bg-transparent border border-gray-600 rounded-l-lg px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors max-w-[200px]"
+                  />
+                  <button className="bg-white text-[#1a1a1a] px-5 py-2.5 rounded-r-lg text-sm font-bold uppercase tracking-wider hover:bg-orange-500 hover:text-white transition-colors">
+                    Subscribe
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Help */}
+            <div>
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-5">Help</h4>
+              <ul className="space-y-2.5">
+                {[
+                  { to: ROUTES.POLICY_CONTACT, label: 'Contact Us' },
+                  { to: ROUTES.POLICY_TERMS, label: "FAQ's" },
+                  { to: ROUTES.USER_LOGIN, label: 'Track Order' },
+                  { to: ROUTES.SELLER_LOGIN, label: 'Sell on ZAMMER' }
+                ].map((item, i) => (
+                  <li key={i}>
+                    <Link to={item.to} className="text-gray-400 hover:text-white text-sm transition-colors duration-200">{item.label}</Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Quick Links */}
+            <div>
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-5">Quick Links</h4>
+              <ul className="space-y-2.5">
+                {[
+                  { to: ROUTES.USER_LOGIN, label: 'Shop Men' },
+                  { to: ROUTES.USER_LOGIN, label: 'Shop Women' },
+                  { to: ROUTES.USER_LOGIN, label: 'Shop Kids' },
+                  { to: ROUTES.USER_LOGIN, label: 'Brands' },
+                  { to: ROUTES.USER_LOGIN, label: 'Offers' }
+                ].map((item, i) => (
+                  <li key={i}>
+                    <Link to={item.to} className="text-gray-400 hover:text-white text-sm transition-colors duration-200">{item.label}</Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* About Us */}
+            <div>
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-5">About Us</h4>
+              <ul className="space-y-2.5">
+                {[
+                  { to: '/about', label: 'Who Are We' },
+                  { to: '/about', label: 'Our Story' },
+                  { to: ROUTES.POLICY_CONTACT, label: 'Careers' },
+                  { to: '/about', label: 'Sitemap' }
+                ].map((item, i) => (
+                  <li key={i}>
+                    <Link to={item.to} className="text-gray-400 hover:text-white text-sm transition-colors duration-200">{item.label}</Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Policies */}
+            <div>
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-5">Policies</h4>
+              <ul className="space-y-2.5">
+                {[
+                  { to: ROUTES.POLICY_TERMS, label: 'Terms & Conditions' },
+                  { to: ROUTES.POLICY_PRIVACY, label: 'Privacy Policy' },
+                  { to: ROUTES.POLICY_REFUND, label: 'Refund Policy' },
+                  { to: ROUTES.POLICY_REFUND, label: 'Return & Exchange' },
+                  { to: ROUTES.POLICY_SHIPPING, label: 'Shipping Policy' }
+                ].map((item, i) => (
+                  <li key={i}>
+                    <Link to={item.to} className="text-gray-400 hover:text-white text-sm transition-colors duration-200">{item.label}</Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
           </div>
         </div>
 
-        {/* Bottom Footer */}
-        <div className="bg-black/20 border-t border-white/10">
-          <div className="max-w-7xl mx-auto px-6 py-6">
-            <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-              <div className="text-center md:text-left">
-                <p className="text-gray-400 text-sm">
-                  © 2025 <span className="text-orange-400 font-bold">ZAMMER RETAIL PRIVATE LIMITED</span> - All Rights Reserved
-                </p>
-                <p className="text-gray-500 text-xs mt-1">
-                  Empowering local fashion businesses with cutting-edge technology
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-center gap-6 text-sm">
-                <Link to={ROUTES.POLICY_PRIVACY} className="text-gray-400 hover:text-orange-400 transition-colors duration-300 font-medium relative group">
-                  <span className="relative z-10">Privacy Policy</span>
-                  <div className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                </Link>
-                <Link to={ROUTES.POLICY_TERMS} className="text-gray-400 hover:text-orange-400 transition-colors duration-300 font-medium relative group">
-                  <span className="relative z-10">Terms of Service</span>
-                  <div className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                </Link>
-                <Link to={ROUTES.POLICY_SHIPPING} className="text-gray-400 hover:text-orange-400 transition-colors duration-300 font-medium relative group">
-                  <span className="relative z-10">Shipping Policy</span>
-                  <div className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                </Link>
-                <Link to={ROUTES.POLICY_REFUND} className="text-gray-400 hover:text-orange-400 transition-colors duration-300 font-medium relative group">
-                  <span className="relative z-10">Refund Policy</span>
-                  <div className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                </Link>
-                <Link to={ROUTES.POLICY_CONTACT} className="text-gray-400 hover:text-orange-400 transition-colors duration-300 font-medium relative group">
-                  <span className="relative z-10">Contact Us</span>
-                    <div className="absolute -bottom-1 left-0 w-0 h-0.5 bg-orange-400 transition-all duration-300 group-hover:w-full"></div>
-                </Link>
-              </div>
-            </div>
+        {/* Bottom Bar */}
+        <div className="border-t border-gray-800">
+          <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-gray-500 text-xs tracking-wide text-center sm:text-left">
+              &copy; {new Date().getFullYear()} ZAMMER RETAIL PRIVATE LIMITED. ALL RIGHTS RESERVED.
+            </p>
+            {/* Scroll to top */}
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="w-10 h-10 border border-gray-700 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:border-gray-500 transition-colors"
+              aria-label="Back to top"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+            </button>
           </div>
         </div>
       </footer>
