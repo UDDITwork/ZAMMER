@@ -12,7 +12,7 @@ import StarRating from '../../components/common/StarRating';
 import WishlistButton from '../../components/common/WishlistButton';
 import PromoBannerCarousel from '../../components/common/PromoBannerCarousel';
 import UserHeader from '../../components/header/UserHeader';
-import CircularCategorySelector from '../../components/user/CircularCategorySelector';
+import CircularCategorySelector, { stripBackgrounds } from '../../components/user/CircularCategorySelector';
 
 import BrandDiscoverGrid from '../../components/user/BrandDiscoverGrid';
 import Level2BannerGrid from '../../components/user/Level2BannerGrid';
@@ -181,15 +181,13 @@ const HomePage = () => {
         .heading-outline { -webkit-text-fill-color: transparent; -webkit-text-stroke: 1.5px #1a1a2e; }
         .heading-outline-rose { -webkit-text-fill-color: transparent; -webkit-text-stroke: 1.5px #9f1239; }
       `}</style>
-      <UserHeader />
+      <UserHeader bgColor={stripBackgrounds[selectedLevel1] || stripBackgrounds.default} />
 
       {/* Circular Category Selector */}
-      <div className="relative overflow-hidden border-b border-gray-200" style={{ borderTop: '1px solid #F0F0F0' }}>
-        <CircularCategorySelector
-          selectedCategory={selectedLevel1}
-          onSelectCategory={setSelectedLevel1}
-        />
-      </div>
+      <CircularCategorySelector
+        selectedCategory={selectedLevel1}
+        onSelectCategory={setSelectedLevel1}
+      />
 
       {/* HERO BANNER CAROUSEL */}
       <section className="relative bg-white">

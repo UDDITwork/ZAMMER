@@ -7,7 +7,7 @@ import {
   MapPin, Search, LayoutGrid, Compass, Heart, ShoppingCart, User, ChevronDown
 } from 'lucide-react';
 
-const UserHeader = () => {
+const UserHeader = ({ bgColor } = {}) => {
   const { userAuth } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -64,19 +64,13 @@ const UserHeader = () => {
 
   const address = userAuth.user?.location?.address;
 
+  const navLinkClass = "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-black/5 transition-colors";
+
   return (
-    <div className="sticky top-0 z-50 shadow-lg" style={{
-      background: 'linear-gradient(270deg, #b91c1c, #dc2626, #d97706, #f59e0b, #d97706, #dc2626, #b91c1c)',
-      backgroundSize: '400% 100%',
-      animation: 'headerGoldRed 8s ease infinite',
-    }}>
-      <style>{`
-        @keyframes headerGoldRed {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-      `}</style>
+    <div
+      className="sticky top-0 z-50"
+      style={{ background: bgColor || '#fff', transition: 'background-color 500ms ease' }}
+    >
       <div className="relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-14 gap-4">
@@ -86,16 +80,16 @@ const UserHeader = () => {
               to="/user/profile"
               className="flex items-center gap-2 min-w-0 flex-shrink-0 group"
             >
-              <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center flex-shrink-0 group-hover:bg-white/25 transition-colors">
-                <MapPin className="w-4 h-4 text-yellow-200" strokeWidth={2} />
+              <div className="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center flex-shrink-0 group-hover:bg-black/10 transition-colors">
+                <MapPin className="w-4 h-4 text-gray-700" strokeWidth={2} />
               </div>
               <div className="hidden sm:block min-w-0 leading-tight">
-                <p className="text-[11px] text-white/70 font-medium">Deliver to</p>
-                <p className="text-xs font-semibold text-white truncate max-w-[180px]">
+                <p className="text-[11px] text-gray-500 font-medium">Deliver to</p>
+                <p className="text-xs font-semibold text-gray-800 truncate max-w-[180px]">
                   {address || 'Set location'}
                 </p>
               </div>
-              <ChevronDown className="w-3 h-3 text-white/50 hidden sm:block flex-shrink-0" />
+              <ChevronDown className="w-3 h-3 text-gray-400 hidden sm:block flex-shrink-0" />
             </Link>
 
             {/* Search */}
@@ -107,7 +101,7 @@ const UserHeader = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search for products, brands or more"
-                  className="w-full bg-white/90 backdrop-blur-sm border border-white/30 rounded-lg pl-10 pr-4 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-yellow-300/40 focus:border-yellow-300 transition-all"
+                  className="w-full bg-white border border-gray-200 rounded-full pl-10 pr-4 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-300 transition-all"
                 />
               </div>
             </form>
@@ -124,8 +118,8 @@ const UserHeader = () => {
                 <button
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     menuOpen
-                      ? 'text-yellow-200 bg-white/15'
-                      : 'text-white/90 hover:text-white hover:bg-white/10'
+                      ? 'text-gray-900 bg-black/5'
+                      : 'text-gray-700 hover:text-gray-900 hover:bg-black/5'
                   }`}
                 >
                   <LayoutGrid className="w-4 h-4" strokeWidth={1.8} />
@@ -134,19 +128,13 @@ const UserHeader = () => {
               </div>
 
               {/* Discover */}
-              <Link
-                to="/user/browse"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white/90 hover:text-white hover:bg-white/10 transition-colors"
-              >
+              <Link to="/user/browse" className={navLinkClass}>
                 <Compass className="w-4 h-4" strokeWidth={1.8} />
                 <span className="hidden lg:inline">Discover</span>
               </Link>
 
               {/* Wishlist */}
-              <Link
-                to="/user/wishlist"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white/90 hover:text-white hover:bg-white/10 transition-colors"
-              >
+              <Link to="/user/wishlist" className={navLinkClass}>
                 <Heart className="w-4 h-4" strokeWidth={1.8} />
                 <span className="hidden lg:inline">Wishlist</span>
               </Link>
@@ -154,12 +142,12 @@ const UserHeader = () => {
               {/* Cart */}
               <Link
                 to="/user/cart"
-                className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white/90 hover:text-white hover:bg-white/10 transition-colors"
+                className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-black/5 transition-colors"
               >
                 <ShoppingCart className="w-4 h-4" strokeWidth={1.8} />
                 <span className="hidden lg:inline">Cart</span>
                 {cartCount > 0 && (
-                  <span className="absolute -top-0.5 left-6 lg:left-auto lg:-top-0.5 lg:-right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-yellow-400 text-black text-[10px] font-bold rounded-full px-1">
+                  <span className="absolute -top-0.5 left-6 lg:left-auto lg:-top-0.5 lg:-right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1">
                     {cartCount > 99 ? '99+' : cartCount}
                   </span>
                 )}
@@ -167,20 +155,14 @@ const UserHeader = () => {
 
               {/* Profile / Sign In */}
               {userAuth.isAuthenticated ? (
-                <Link
-                  to="/user/profile"
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white/90 hover:text-white hover:bg-white/10 transition-colors"
-                >
+                <Link to="/user/profile" className={navLinkClass}>
                   <User className="w-4 h-4" strokeWidth={1.8} />
                   <span className="hidden lg:inline truncate max-w-[80px]">
                     {userAuth.user?.name?.split(' ')[0] || 'Profile'}
                   </span>
                 </Link>
               ) : (
-                <Link
-                  to="/user/login"
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white/90 hover:text-white hover:bg-white/10 transition-colors"
-                >
+                <Link to="/user/login" className={navLinkClass}>
                   <User className="w-4 h-4" strokeWidth={1.8} />
                   <span className="hidden lg:inline">Sign In</span>
                 </Link>

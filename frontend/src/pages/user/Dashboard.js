@@ -21,7 +21,7 @@ import { getPromoBanners } from '../../services/promoBannerService';
 import PromoBannerCarousel from '../../components/common/PromoBannerCarousel';
 import categoryService from '../../services/categoryService';
 import { getLevel2Options } from '../../data/categoryHierarchy';
-import CircularCategorySelector from '../../components/user/CircularCategorySelector';
+import CircularCategorySelector, { stripBackgrounds } from '../../components/user/CircularCategorySelector';
 
 import BrandDiscoverGrid from '../../components/user/BrandDiscoverGrid';
 import Level2BannerGrid from '../../components/user/Level2BannerGrid';
@@ -757,15 +757,13 @@ const handleReturnFromTracker = (order) => {
             box-shadow: 0 12px 40px rgba(0,0,0,0.1);
           }
         `}</style>
-        <UserHeader />
+        <UserHeader bgColor={stripBackgrounds[selectedLevel1] || stripBackgrounds.default} />
 
         {/* Circular Category Selector */}
-        <div className="relative overflow-hidden border-b border-gray-200" style={{ borderTop: '1px solid #F0F0F0' }}>
-          <CircularCategorySelector
-            selectedCategory={selectedLevel1}
-            onSelectCategory={setSelectedLevel1}
-          />
-        </div>
+        <CircularCategorySelector
+          selectedCategory={selectedLevel1}
+          onSelectCategory={setSelectedLevel1}
+        />
 
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

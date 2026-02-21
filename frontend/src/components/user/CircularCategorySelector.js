@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Background colors for the strip based on selected category
-const stripBackgrounds = {
+export const stripBackgrounds = {
   'Women Fashion': 'rgba(255, 228, 225, 0.6)',   // light pink
   'Men Fashion': 'rgba(232, 245, 233, 0.6)',      // light peach-green
   'Kids Fashion': 'rgba(225, 245, 254, 0.6)',     // light sky blue
