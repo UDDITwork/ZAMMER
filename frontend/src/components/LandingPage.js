@@ -854,12 +854,16 @@ const LandingPage = () => {
             {/* Brand Section */}
             <div className="lg:col-span-2 space-y-6">
               <div className="flex items-center space-x-4">
-                <motion.div 
-                  className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg"
+                <motion.div
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden"
                   whileHover={{ scale: 1.05, rotate: 3 }}
                   transition={{ duration: 0.3 }}
                 >
-                  <span className="text-2xl font-bold text-white font-[Poppins]">Z</span>
+                  <img
+                    src="/images/zammer-official-logo.png"
+                    alt="ZAMMER"
+                    className="w-full h-full object-contain"
+                  />
                 </motion.div>
                 <div>
                   <h3 className="text-3xl font-black text-white flex items-center space-x-1">
